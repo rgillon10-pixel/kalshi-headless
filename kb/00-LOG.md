@@ -6,6 +6,40 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-06-18 15:03 ET — S5 weather rehab TESTED → DEAD. Weather family is dead at real asks.
+
+**The decisive result.** With Ryan's go-ahead, ran the S5 weather-rehab real-ask paper test —
+the question that decides the project's direction. Verdict: **the weather family is DEAD at real
+asks, even with proper EMOS calibration.** (`scripts/weather_rehab_s5.py`,
+`findings/2026-06-18-weather-rehab-s5.md`, per-trade dump `reports/weather_rehab_s5_full.json`.)
+
+- **EMOS works — but it's necessary, not sufficient.** Leave-one-day-out EMOS calibration cut
+  pooled CRPS **2.366 → 2.180 (−7.86%)**, fixing the underdispersion exactly as the literature
+  (Gneiting 2005) predicts. The better probability is real.
+- **The dollar edge is not.** 641 trades (3-model ensemble: GFS+ECMWF-IFS025+ICON; GEM single-runs
+  not archived for the window so honestly dropped → member_count=3; no `ncep_gefs025`). Mean net
+  **−$0.02789/trade**, 95% moving-block-bootstrap CI **[−$0.06297, +$0.00788]** (n_boot=10k, 21
+  contract-day blocks). **Lower bound does NOT clear zero.** Killed by the same **~9.8¢ mean
+  overround** that ate pt1 and S1. A better probability cannot beat a ~10¢ structural tax here.
+- **Adversarial checks (the discipline that matters):** edge-bar sweep — raising the conviction bar
+  to 0.10/0.15 made P&L *worse* (CI fully below zero), the opposite of a real edge; independent
+  fill/cost sign audit — 0 mismatches (no repeat of S1's near-miss); anti-leak — used the Open-Meteo
+  **Single Runs API pinned to (D−1) 00Z** (a genuine ~24h-ahead leak-free forecast), NOT the
+  historical-forecast archive (which stitches lead≈0 ≈ actuals and would leak — venues.yaml warns);
+  0 leak-guard drops. Prices `real_ask`, all 6 provenance fields persisted per trade.
+- Caveats (honest): short 22-day spring window, EMOS data-thin, decision time near market open,
+  L1-only fills (haircut modeled not measured).
+
+**PROJECT DIRECTION CHANGE:** weather is no longer "on probation" — it is **proven dead at real
+asks**. The 3 weather angles tried (raw ensemble pt1, longshot-fade S1, EMOS-calibrated S5) are all
+dead to the overround. **Pivot to non-weather: S2 (FOMC×ZQ basis — structurally NO bracket
+overround), S3 (cross-strike staleness), S6 (market-making — earn the spread instead of paying it).**
+
+Verified: **53 tests green, `invariants --full` + `--db` green**, recovered tape read-only. S5
+committed to `main`. Only S2 (FOMC×ZQ) remains on the queue — GATED on CME data sourcing (Ryan).
+
+---
+
 ## 2026-06-18 12:53 ET — S1 longshot-fade FALSIFIED · EMOS reproduced · forecast tape live
 
 Three parallel probes ran on top of the S0 substrate (autonomous `/loop`, 3 subagents). Merged
