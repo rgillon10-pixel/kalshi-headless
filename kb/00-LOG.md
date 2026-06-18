@@ -6,6 +6,79 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-06-18 12:53 ET — S1 longshot-fade FALSIFIED · EMOS reproduced · forecast tape live
+
+Three parallel probes ran on top of the S0 substrate (autonomous `/loop`, 3 subagents). Merged
+tree verified: **53 tests green, `invariants --full` green**, recovered tape DB untouched (read-only).
+
+- **S1 longshot-fade → DEAD (real asks).** n=990 reconstructed-`real_ask` KXHIGH brackets from the
+  24GB recovered tape. The favorite-longshot bias *exists* (longshots <0.20 realize fewer wins than
+  priced, gaps −1.4¢..−7.0¢; favorites >0.65 underpriced) but is single-digit cents, **swamped by a
+  +9.84¢ mean overround**. Maker-NO-on-longshot net P&L **+$0.00448/trade, 95% block-bootstrap CI
+  [−$0.00486, +$0.01333]** — lower bound does NOT clear zero; sweep 0.05→0.25 uniformly null, deepest
+  longshots negative. **A whole bias-chasing family falsified**, as the dossier predicted. Probe:
+  `scripts/longshot_fade_probe.py`; writeup: `findings/2026-06-18-longshot-fade-s1.md`. **Near-miss:**
+  the first run cleared zero on a cost-model sign bug (maker entry booked as a 2¢ *improvement* not a
+  *cost* — the exact pt1 prime-directive failure mode); caught + fixed. **Candidate invariant filed:**
+  a cost haircut must never move the entry in the trader's favor. (Tape caveat: T-24h lands near market
+  open; L1-only, fill-prob haircut modeled not measured; single 22-day spring window.)
+- **EMOS reproduced (#5).** `scripts/emos_demo.py` (stdlib-only, deterministic) fits a 1-param-spread
+  EMOS Gaussian by minimizing closed-form Gaussian CRPS: **CRPS 1.663 (raw ensemble) → 0.717 (EMOS),
+  −56.9%**, bracket P(74≤Tmax<78)=0.761. Flipped `kb/quant-finance/01-weather-forecasting-alpha.md`
+  from `cited` → `reproduced`. (Calibrated post-processing beats the raw underdispersed ensemble — the
+  precondition for any S5 weather-rehab attempt.)
+- **Forecast tape now exists (#3).** `collection/forecast_collector.py` (+10 offline tests) — single
+  read-only Open-Meteo pass per city × {gfs_seamless, ecmwf_ifs025, icon_seamless, gem_global} (NO
+  `ncep_gefs025`, Hard Rule #1, with a runtime guard), append-only JSONL with ms `fetch_ts` + raw
+  sha256 + `source_tag=synthetic`, honest completeness. Live smoke (NYC, 2026-06-18): 89.6/89.2/90.1/
+  86.3°F across models. The previously-zero most-reused missing input is no longer zero.
+  **Scheduling still GATED** (laptop-cron HOLD).
+
+**Loop end-state:** all 4 unblocked Next items done (S0 substrate, S1, EMOS, forecast collector). **Two
+items remain GATED on Ryan:** #2 cron forward capture (Kalshi creds + the laptop-cron HOLD decision)
+and #4-S2 FOMC×ZQ (CME data sourcing). Nothing committed to git (Ryan's call).
+
+---
+
+## 2026-06-18 12:38 ET — S0 real-ask substrate built + Hard-Rule invariants (43 tests green)
+
+**Built the project's first implementation — the substrate every future edge is scored on
+(dossier #1, the canonical first build).** Autonomous `/loop` run against the 5-item Next queue.
+
+- **Lifted verbatim from `kalshi.1` @ `fd37ae2`** (byte-identical, all 16 files diff-checked,
+  recorded in `../PROVENANCE.md`): `core/{canonical,io,manifest_schema,timeutil,schema}.py`,
+  `collection/{normalize,capture_orderbooks}.py`, `validation/{v1_actuals,v3_market,_http}.py`,
+  4 config YAMLs, 3 tests + ticker fixture. Mirroring kalshi.1's layout meant **zero import edits**.
+  - `normalize.py` derives the REAL taker ask `best_yes_ask = round(1 − best_no_bid, 4)` (Kalshi
+    posts bids-only; the ask is the opposite side's complement). This is the price H1 trades on.
+  - `capture_orderbooks.py` = forward, read-only, bitemporal depth capture Kalshi does NOT archive
+    (the only moat that compounds with calendar time). Honest completeness: a dropped market lowers
+    `n_markets < expected` so a truncated pass can't pass as complete (survivorship guard).
+  - `v1_actuals.py` = 3-source settlement gate (CLI vs METAR vs GHCN) — the corrupted-actuals catch.
+- **Authored fresh for THIS project's rules** (kalshi.1 has no equivalent — its invariants are
+  arb-bot-v2's, scoped to a different layout):
+  - `scripts/invariants.py` — the **6 Hard Rules** as static (regex) + DB (sqlite) assertions, plus
+    `--pre-edit-hook` mode. Structure adapted from `arb-bot-v2/scripts/v3_invariants.py`, retargeted.
+    DB invariants are **schema-discovering** (the project's DB schema isn't frozen) — they introspect
+    tables, so Rule #4 (no pnl without a `price_source_tag`) fires on whatever backtest table appears.
+  - `core/source_tag.py` — the trust=FALSE default in code: **untagged number ⇒ `synthetic`**; only
+    `real_ask`/`broker_truth` are `is_fillable`; `require_fillable()` blocks synthetic/midpoint from
+    any fill/P&L decision (prime directive #1).
+  - `core/pricing.py` — THE sanctioned `yes_ask/bracket_sum` site (Hard Rule #3); `overround()` makes
+    the ~5¢ pt1 killer a first-class, persisted number.
+  - `core/stats.py` — `safe_pstdev` with the n≥4 guard (Hard Rule #2).
+- **Verified:** `pytest -q` → **43 passed**; `invariants.py --full` → **all green**. The dossier's #1
+  binding assertion is now a test: `best_yes_ask == round(1 − best_no_bid, 4)`, ask stamped `real_ask`.
+- **Not wired (left for approval):** the PreToolUse hook (would block edits = harness change); live
+  capture/actuals paths (need Kalshi creds + network — only offline/injected paths are tested).
+
+**Next (this loop):** `scripts/emos_demo.py` repro (#5) → Open-Meteo collector script (#3) →
+longshot-fade offline calibration on the recovered tape (#4-S1). **GATED on Ryan:** cron the forward
+capture (#2 — needs creds + conflicts with the kalshi.1 laptop-cron HOLD) and FOMC×ZQ (#4-S2 — needs
+CME data sourcing).
+
+---
+
 ## 2026-06-18 01:10 ET — Codebase mine landed; KB foundations built
 
 **Workflow result (27 agents, 22 candidates, all adversarially verified at real asks):**

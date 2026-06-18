@@ -1,0 +1,308 @@
+generated_by: validation.v3_market discover
+generated_at: '2026-06-05T23:48:51.650370+00:00'
+note: Authoritative Kalshi-derived discovery. Station mappings with status 'candidate'
+  are UNVERIFIED hypotheses; V1 reconciles them. status 'unresolved' = settlement
+  station not yet mapped (excluded from V1 gate until resolved).
+n_active_series: 40
+n_skipped_series: 0
+cities:
+- city: Atlanta
+  kalshi:
+    high_series:
+    - KXHIGHTATL
+    low_series:
+    - KXLOWTATL
+    settlement_source: NWS Climatological Report Atlanta
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: ATL
+    icao: KATL
+    wfo: FFC
+    settlement_url: https://forecast.weather.gov/product.php?site=FFC&product=CLI&issuedby=ATL
+- city: Austin
+  kalshi:
+    high_series:
+    - KXHIGHAUS
+    low_series:
+    - KXLOWTAUS
+    settlement_source: NWS Climatological Report Austin
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: AUS
+    icao: KAUS
+    wfo: EWX
+    settlement_url: https://forecast.weather.gov/product.php?site=EWX&product=CLI&issuedby=AUS
+- city: Boston
+  kalshi:
+    high_series:
+    - KXHIGHTBOS
+    low_series:
+    - KXLOWTBOS
+    settlement_source: NWS Climatological Report Boston
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: BOS
+    icao: KBOS
+    wfo: BOX
+    settlement_url: https://forecast.weather.gov/product.php?site=BOX&product=CLI&issuedby=BOS
+- city: Chicago
+  kalshi:
+    high_series:
+    - KXHIGHCHI
+    low_series:
+    - KXLOWTCHI
+    settlement_source: NWS Climatological Report Chicago Midway
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: MDW
+    icao: KMDW
+    wfo: LOT
+    settlement_url: https://forecast.weather.gov/product.php?site=LOT&product=CLI&issuedby=MDW
+- city: Dallas
+  kalshi:
+    high_series:
+    - KXHIGHTDAL
+    low_series:
+    - KXLOWTDAL
+    settlement_source: NWS Climatological Report Dallas
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: DFW
+    icao: KDFW
+    wfo: FWD
+    settlement_url: https://forecast.weather.gov/product.php?site=FWD&product=CLI&issuedby=DFW
+- city: Denver
+  kalshi:
+    high_series:
+    - KXHIGHDEN
+    low_series:
+    - KXLOWTDEN
+    settlement_source: NWS Climatological Report
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: DEN
+    icao: KDEN
+    wfo: BOU
+    settlement_url: https://forecast.weather.gov/product.php?site=BOU&product=CLI&issuedby=DEN
+- city: Houston
+  kalshi:
+    high_series:
+    - KXHIGHTHOU
+    low_series:
+    - KXLOWTHOU
+    settlement_source: NWS Climatological Report Houston
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: HOU
+    icao: KHOU
+    wfo: HGX
+    settlement_url: https://forecast.weather.gov/product.php?site=HGX&product=CLI&issuedby=HOU
+- city: Las Vegas
+  kalshi:
+    high_series:
+    - KXHIGHTLV
+    low_series:
+    - KXLOWTLV
+    settlement_source: NWS Climatological Report Las Vegas
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: LAS
+    icao: KLAS
+    wfo: VEF
+    settlement_url: https://forecast.weather.gov/product.php?site=VEF&product=CLI&issuedby=LAS
+- city: Los Angeles
+  kalshi:
+    high_series:
+    - KXHIGHLAX
+    low_series:
+    - KXLOWTLAX
+    settlement_source: NWS Climatological Report
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: LAX
+    icao: KLAX
+    wfo: LOX
+    settlement_url: https://forecast.weather.gov/product.php?site=LOX&product=CLI&issuedby=LAX
+- city: Miami
+  kalshi:
+    high_series:
+    - KXHIGHMIA
+    low_series:
+    - KXLOWTMIA
+    settlement_source: NWS Climatological Report Miami
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: MIA
+    icao: KMIA
+    wfo: MFL
+    settlement_url: https://forecast.weather.gov/product.php?site=MFL&product=CLI&issuedby=MIA
+- city: Minneapolis
+  kalshi:
+    high_series: []
+    low_series:
+    - KXLOWTMIN
+    - KXHIGHTMIN
+    settlement_source: NWS Climatological Report Minneapolis
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: MSP
+    icao: KMSP
+    wfo: MPX
+    settlement_url: https://forecast.weather.gov/product.php?site=MPX&product=CLI&issuedby=MSP
+- city: New Orleans
+  kalshi:
+    high_series:
+    - KXHIGHTNOLA
+    low_series:
+    - KXLOWTNOLA
+    settlement_source: NWS Climatological Report New Orleans
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: MSY
+    icao: KMSY
+    wfo: LIX
+    settlement_url: https://forecast.weather.gov/product.php?site=LIX&product=CLI&issuedby=MSY
+- city: New York
+  kalshi:
+    high_series:
+    - KXHIGHNY
+    low_series:
+    - KXLOWTNYC
+    settlement_source: NWS Climatological Report
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: NYC
+    icao: KNYC
+    wfo: OKX
+    settlement_url: https://forecast.weather.gov/product.php?site=OKX&product=CLI&issuedby=NYC
+- city: Oklahoma City
+  kalshi:
+    high_series:
+    - KXHIGHTOKC
+    low_series:
+    - KXLOWTOKC
+    settlement_source: NWS Climatological Report OKC
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: OKC
+    icao: KOKC
+    wfo: OUN
+    settlement_url: https://forecast.weather.gov/product.php?site=OUN&product=CLI&issuedby=OKC
+- city: Philadelphia
+  kalshi:
+    high_series:
+    - KXHIGHPHIL
+    low_series:
+    - KXLOWTPHIL
+    settlement_source: NWS Climatological Report
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: PHL
+    icao: KPHL
+    wfo: PHI
+    settlement_url: https://forecast.weather.gov/product.php?site=PHI&product=CLI&issuedby=PHL
+- city: Phoenix
+  kalshi:
+    high_series:
+    - KXHIGHTPHX
+    low_series:
+    - KXLOWTPHX
+    settlement_source: NWS Climatological Report Phoenix
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: PHX
+    icao: KPHX
+    wfo: PSR
+    settlement_url: https://forecast.weather.gov/product.php?site=PSR&product=CLI&issuedby=PHX
+- city: San Antonio
+  kalshi:
+    high_series:
+    - KXHIGHTSATX
+    low_series:
+    - KXLOWTSATX
+    settlement_source: NWS Climatological Report San Antonio
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: SAT
+    icao: KSAT
+    wfo: EWX
+    settlement_url: https://forecast.weather.gov/product.php?site=EWX&product=CLI&issuedby=SAT
+- city: San Francisco
+  kalshi:
+    high_series:
+    - KXHIGHTSFO
+    low_series:
+    - KXLOWTSFO
+    settlement_source: NWS Climatological Report San Francisco
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: SFO
+    icao: KSFO
+    wfo: MTR
+    settlement_url: https://forecast.weather.gov/product.php?site=MTR&product=CLI&issuedby=SFO
+- city: Seattle
+  kalshi:
+    high_series:
+    - KXHIGHTSEA
+    low_series:
+    - KXLOWTSEA
+    settlement_source: NWS Climatological Report Seattle
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: SEA
+    icao: KSEA
+    wfo: SEW
+    settlement_url: https://forecast.weather.gov/product.php?site=SEW&product=CLI&issuedby=SEA
+- city: Washington DC
+  kalshi:
+    high_series:
+    - KXHIGHTDC
+    low_series:
+    - KXLOWTDC
+    settlement_source: 'NWS Climatological Report DC '
+    fee_type: quadratic
+    fee_multiplier: 1
+  station:
+    status: kalshi_authoritative
+    issuedby: DCA
+    icao: KDCA
+    wfo: LWX
+    settlement_url: https://forecast.weather.gov/product.php?site=LWX&product=CLI&issuedby=DCA

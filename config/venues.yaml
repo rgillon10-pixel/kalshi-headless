@@ -1,0 +1,20 @@
+# venues.yaml — venue endpoints + fee parameters (single declared source).
+# These are inputs UNDER REVIEW, not trusted constants. V3 confirms reachability;
+# the fee coefficient + charge points are a 'pin empirically' item before any
+# Phase 1 probe trusts a net-edge number.
+
+kalshi:
+  api_base: https://api.elections.kalshi.com/trade-api/v2
+  # fee = round_up(fee_coeff * p * (1-p) * contracts). CONFIRM live schedule.
+  fee_coeff: 0.07
+  # substring used by V3 discovery to filter weather series titles/tickers
+  weather_series_filter: ["temp", "weather", "high", "low", "rain", "snow"]
+
+forecastex:
+  enabled: false            # deferred — schema-compatible stub only, not wired in v1
+  fee_per_contract: 0.01
+
+open_meteo:
+  # Historical FORECAST archive (forecasts as-issued) — NOT the reanalysis API.
+  # Using reanalysis here would leak the answer into a "forecast"; V2 enforces this.
+  historical_forecast_base: https://historical-forecast-api.open-meteo.com/v1/forecast

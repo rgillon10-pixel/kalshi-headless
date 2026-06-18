@@ -1,0 +1,18 @@
+# windows.yaml — date windows for validation and (later) backtest.
+
+validation_sample:
+  start: 2026-03-01
+  end: 2026-05-31
+  note: >
+    Most recent complete 3-month window as of 2026-06-05. Deliberately straddles
+    the 2026-03-08 US DST transition to stress-test the LST climate-day boundary.
+
+# Phase 1 ONLY — not read by Phase 0 validators.
+backtest:
+  start: 2025-06-01
+  end: 2026-05-31
+
+gate:
+  # V1 window-level PASS requires at least this fraction of clean city-days
+  # AND zero unexplained 'dirty' days.
+  min_clean_coverage_pct: 95

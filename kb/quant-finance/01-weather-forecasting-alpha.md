@@ -1,6 +1,6 @@
 # Weather forecasting as alpha — the only edge most aligned with these markets
 
-`cited` · 2026-06-18 · QF Theme 5 deepened · supports strategy S5 (weather rehab) & S4
+`reproduced` · 2026-06-18 · QF Theme 5 deepened · supports strategy S5 (weather rehab) & S4
 
 Most Kalshi contracts these repos trade are **daily high-temperature brackets** per city.
 The thesis: if you can produce a *better-calibrated* probability for each bracket than the
@@ -70,8 +70,31 @@ convective uncertainty — summer), which is also where arb-bot's synthetic edge
   `fetch_ts` per city/model now.
 - Do **not** re-deploy the raw-ensemble KXHIGH strategy. Post-process first or don't trade.
 
-## Reproduce-me TODO (Karpathy method)
+## Reproduced (2026-06-18)
 
-Write `../scripts/emos_demo.py`: fit a 1-parameter-spread EMOS Gaussian to a toy ensemble,
-show CRPS drops vs. the raw ensemble, and price a single bracket. Until that script exists and a
-cold run reproduces the CRPS improvement, this note stays `cited`, not `reproduced`.
+Runnable proof: **`../scripts/emos_demo.py`** (stdlib only — `math`/`statistics`/`random`,
+seeded `SEED=20260618`, no numpy/scipy; deterministic, identical every run). It builds a toy
+12-member daily-Tmax ensemble that is deliberately **cold-biased (+2.5F) and underdispersed**
+(member sd 3F vs true day-to-day sd 9F), fits an EMOS Gaussian — predictive mean = `ens_mean`
+plus a learned bias correction, predictive variance = affine `a + b·ens_var` — by **minimizing
+the closed-form Gaussian CRPS** (Gneiting & Raftery 2007: `sigma*[z(2Φ(z)−1)+2φ(z)−1/√π]`,
+Φ via `math.erf`) over a 400-pair training set, then scores both forecasts on 200 held-out days.
+
+Cold run (`cd <repo> && ./.venv/bin/python scripts/emos_demo.py`):
+
+```
+Fitted: mu = ens_mean + 2.5839   (bias correction)
+        sigma^2 = 1.7734 + 0.0254 * ens_var   (spread inflation)
+
+Held-out mean CRPS (lower is better):
+  CRPS_raw  (naive ensemble)  = 1.663016
+  CRPS_emos (calibrated EMOS) = 0.716507     # 56.92% lower
+Bracket: P(74 <= Tmax < 78) = 0.760991   (test day 0, mu=75.0675, sigma=1.3914)
+```
+
+So calibrated post-processing scores **0.716507 vs 1.663016** held-out CRPS — the EMOS Gaussian
+is strictly better than the raw underdispersed ensemble (the script `assert`s this), confirming
+the note's core thesis. The bracket probability `0.760991` is the integral of the fitted Gaussian
+between the thresholds; it is **not** a tradable price until compared to the market's
+overround-normalized ask (`core.pricing.normalized_ask`) and the fee bar (`scripts/fee_breakeven.py`)
+— Hard Rule #3 and the caveats above still apply.
