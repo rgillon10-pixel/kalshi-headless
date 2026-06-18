@@ -1,0 +1,24 @@
+# data / tape / DBs — never commit
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+
+# secrets / keys
+.env
+*.pem
+*.key
+kalshi_*.key
+secrets/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# os / editor
+.DS_Store
+.ipynb_checkpoints/
