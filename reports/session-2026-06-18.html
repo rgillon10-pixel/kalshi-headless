@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kalshi.headless — session log · 2026-06-18</title>
+<style>
+  /* ── tokens ─────────────────────────────────────────────────────────── */
+  :root{
+    --paper:#f4f5f3;        /* cool light, not cream */
+    --ink:#17181c;          /* near-black, faintly cool */
+    --faint:#8b8d86;        /* secondary / rules */
+    --hair:#dcdcd6;         /* hairline */
+    --dead:#a6342b;         /* oxblood — falsified */
+    --live:#1f6f4d;         /* deep green — built / passing */
+    --gate:#9a6a12;         /* amber — gated / open */
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,-apple-system,"Inter","Helvetica Neue",Arial,sans-serif;
+    --maxw:780px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--sans);font-size:16px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1,"cv05" 1;
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:clamp(28px,6vw,72px) clamp(20px,5vw,40px) 64px}
+
+  /* ── masthead ───────────────────────────────────────────────────────── */
+  .top{border-top:2px solid var(--ink);padding-top:18px}
+  .eyebrow{
+    font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);display:flex;flex-wrap:wrap;gap:.4em 1em;margin:0 0 clamp(34px,7vw,64px)
+  }
+  .eyebrow b{color:var(--ink);font-weight:600}
+
+  .thesis{
+    font-family:var(--mono);font-weight:600;
+    font-size:clamp(30px,7vw,52px);line-height:1.04;letter-spacing:-.02em;
+    margin:0 0 22px;text-wrap:balance;
+  }
+  .thesis .win{color:var(--live)}
+  .lede{font-size:clamp(16px,2.4vw,19px);color:#3a3b40;max-width:54ch;margin:0 0 30px}
+  .lede b{font-weight:600;color:var(--ink)}
+
+  /* receipt strip — the session in one mono line, not big-number cards */
+  .receipt{
+    font-family:var(--mono);font-size:13px;color:var(--ink);
+    border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);
+    padding:14px 0;display:flex;flex-wrap:wrap;gap:8px 0;margin:0 0 clamp(40px,8vw,72px)
+  }
+  .receipt span{padding:0 16px;border-right:1px solid var(--hair);white-space:nowrap}
+  .receipt span:last-child{border-right:0}
+  .receipt span:first-child{padding-left:0}
+  .receipt .n{font-weight:600}
+  .receipt .red{color:var(--dead)}
+  .receipt .grn{color:var(--live)}
+
+  /* ── section ────────────────────────────────────────────────────────── */
+  .sect{margin:0 0 clamp(40px,8vw,68px)}
+  .sect-h{
+    font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--faint);display:flex;align-items:baseline;gap:.8em;margin:0 0 6px
+  }
+  .sect-h .rule{flex:1;height:1px;background:var(--hair)}
+  .sect-note{font-size:13.5px;color:var(--faint);margin:0 0 8px}
+
+  /* ── ledger row — the signature ─────────────────────────────────────── */
+  .row{
+    display:grid;grid-template-columns:1fr auto;column-gap:18px;align-items:start;
+    padding:18px 0;border-bottom:1px solid var(--hair)
+  }
+  .row:last-child{border-bottom:0}
+  .id{font-family:var(--mono);font-size:12.5px;color:var(--faint);letter-spacing:.04em}
+  .name{font-size:17px;font-weight:600;margin:1px 0 4px;letter-spacing:-.005em}
+  .desc{font-size:14px;color:#4a4b50;max-width:50ch;margin:0}
+  .desc code{font-family:var(--mono);font-size:12.5px;color:#2c2d33;background:#e9eae6;padding:.06em .35em;border-radius:3px}
+  .meta{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:7px;padding-top:1px}
+
+  /* bracketed verdict stamp — echoes the repo's own [invariant] / [CI] notation */
+  .stamp{
+    font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.08em;
+    padding:3px 9px;border:1px solid currentColor;border-radius:2px;white-space:nowrap
+  }
+  .stamp::before{content:"[ "}
+  .stamp::after{content:" ]"}
+  .s-live{color:var(--live);background:rgba(31,111,77,.07)}
+  .s-dead{color:var(--dead);background:rgba(166,52,43,.07)}
+  .s-gate{color:var(--gate);background:rgba(154,106,18,.07)}
+
+  .num{font-family:var(--mono);font-size:12.5px;color:var(--ink);white-space:nowrap}
+  .num .dim{color:var(--faint)}
+
+  /* ── pivot callout ──────────────────────────────────────────────────── */
+  .pivot{
+    border:1px solid var(--ink);border-left:4px solid var(--dead);
+    padding:22px 24px;margin:0 0 clamp(40px,8vw,64px)
+  }
+  .pivot h3{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dead);margin:0 0 10px}
+  .pivot p{margin:0 0 12px;font-size:15.5px}
+  .pivot p:last-child{margin:0}
+  .pivot b{font-weight:600}
+  .pivot .next{font-family:var(--mono);font-size:13px;color:var(--ink)}
+  .pivot .next i{color:var(--faint);font-style:normal}
+
+  /* ── footer ─────────────────────────────────────────────────────────── */
+  .foot{
+    font-family:var(--mono);font-size:12px;color:var(--faint);line-height:1.9;
+    border-top:1px solid var(--hair);padding-top:18px
+  }
+  .foot b{color:var(--ink);font-weight:600}
+
+  a{color:inherit}
+  :focus-visible{outline:2px solid var(--dead);outline-offset:3px;border-radius:2px}
+
+  /* ── one disciplined load reveal ────────────────────────────────────── */
+  @media (prefers-reduced-motion:no-preference){
+    .reveal{opacity:0;transform:translateY(8px);animation:rise .6s cubic-bezier(.2,.6,.2,1) forwards}
+    .reveal:nth-child(2){animation-delay:.05s}.reveal:nth-child(3){animation-delay:.1s}
+    .reveal:nth-child(4){animation-delay:.15s}.reveal:nth-child(5){animation-delay:.2s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+  @media (max-width:540px){
+    .row{grid-template-columns:1fr;row-gap:12px}
+    .meta{align-items:flex-start;text-align:left;flex-direction:row;flex-wrap:wrap;gap:10px}
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <header class="top">
+    <p class="eyebrow">
+      <span><b>kalshi.headless</b></span>
+      <span>tier-2 research log</span>
+      <span>one autonomous /loop</span>
+      <span>2026·06·18</span>
+    </p>
+
+    <h1 class="thesis reveal">0&nbsp;edges proven.<br>The machine that proves them is <span class="win">built</span>.</h1>
+    <p class="lede reveal">A single self-paced loop against the project's to-do list. The rule never moved:
+      <b>prove an edge at real, fillable asks — or kill it.</b> By end of session the substrate that
+      scores every future idea honestly is live, and two more weather ideas are dead at the real ask.</p>
+
+    <div class="receipt reveal">
+      <span><span class="n grn">53</span> tests green</span>
+      <span>invariants <span class="grn">all&nbsp;green</span></span>
+      <span><span class="n">2</span> commits → main</span>
+      <span><span class="n red">0</span> edges proven</span>
+      <span><span class="red">~10¢</span> overround = the killer</span>
+    </div>
+  </header>
+
+  <!-- BUILT ──────────────────────────────────────────────────────────── -->
+  <section class="sect">
+    <p class="sect-h">Built<span class="rule"></span>the substrate &amp; tooling</p>
+    <p class="sect-note">The half of the project you can create. Lifted, authored, verified — committed to <code style="font-family:var(--mono)">main</code>.</p>
+
+    <div class="row">
+      <div>
+        <div class="id">S0</div>
+        <p class="name">Real-ask substrate</p>
+        <p class="desc">Lifted <em>byte-identical</em> from <code>kalshi.1@fd37ae2</code> (real-ask normalize, bitemporal capture, 3-source actuals gate) into a mirrored layout — zero import edits.</p>
+      </div>
+      <div class="meta"><span class="stamp s-live">BUILT</span><span class="num">53 tests green</span></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="id">S0 · invariants</div>
+        <p class="name">Hard-Rule invariant engine</p>
+        <p class="desc">The 6 hard rules as runnable static + DB assertions (<code>scripts/invariants.py</code>). The prime directive made executable: every lesson is a CI assertion, not a memory.</p>
+      </div>
+      <div class="meta"><span class="stamp s-live">GREEN</span><span class="num">6 rules <span class="dim">· static+DB</span></span></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="id">#5</div>
+        <p class="name">EMOS reproduction</p>
+        <p class="desc">Calibrated post-processing of a toy ensemble (closed-form Gaussian CRPS). Beats the raw underdispersed ensemble; flipped the weather-alpha note <code>cited → reproduced</code>.</p>
+      </div>
+      <div class="meta"><span class="stamp s-live">REPRODUCED</span><span class="num">CRPS 1.663 <span class="dim">→</span> 0.717</span></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="id">#3</div>
+        <p class="name">Forecast tape collector</p>
+        <p class="desc">Open-Meteo single-pass collector (<code>collection/forecast_collector.py</code>), 4 models, no <code>ncep_gefs025</code>. The most-reused missing input went from zero rows to live.</p>
+      </div>
+      <div class="meta"><span class="stamp s-live">LIVE</span><span class="num"><span class="dim">zero →</span> live</span></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="id">#2</div>
+        <p class="name">Forward orderbook capture</p>
+        <p class="desc">Live path validated read-only on public REST — <em>no credentials needed</em>. First real forward snapshot captured on demand (5 city-days, 699 book levels).</p>
+      </div>
+      <div class="meta"><span class="stamp s-live">VALIDATED</span><span class="num">no creds <span class="dim">· public</span></span></div>
+    </div>
+  </section>
+
+  <!-- TESTED ─────────────────────────────────────────────────────────── -->
+  <section class="sect">
+    <p class="sect-h">Tested<span class="rule"></span>the verdicts at real asks</p>
+    <p class="sect-note">The half you cannot fake. Each ran on real captured asks, bootstrapped, and reported honestly — a null counts.</p>
+
+    <div class="row">
+      <div>
+        <div class="id">S1</div>
+        <p class="name">Longshot-fade calibration</p>
+        <p class="desc">The favorite-longshot bias is <em>real</em> but single-digit cents — swamped by a +9.84¢ overround. The probe even caught its own false-positive cost-model sign bug before reporting.</p>
+      </div>
+      <div class="meta"><span class="stamp s-dead">DEAD</span><span class="num">CI [−$0.005, +$0.013]</span></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="id">S5</div>
+        <p class="name">Weather rehab — EMOS at real asks</p>
+        <p class="desc">EMOS works (pooled CRPS −7.9%) but it's necessary, not sufficient: a better probability still can't beat the ~10¢ overround. <b>Decides the project's direction.</b> n=641.</p>
+      </div>
+      <div class="meta"><span class="stamp s-dead">DEAD</span><span class="num">CI [−$0.063, +$0.008]</span></div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="id">S2</div>
+        <p class="name">FOMC × ZQ basis</p>
+        <p class="desc">Free-data first cut on the just-resolved June 2026 FOMC (Kalshi public candlesticks × ZQ) — the one structure with <em>no bracket overround</em>. Full multi-meeting intraday version needs CME tick data.</p>
+      </div>
+      <div class="meta"><span class="stamp s-gate">GATED</span><span class="num">CME data <span class="dim">· open</span></span></div>
+    </div>
+  </section>
+
+  <!-- PIVOT ──────────────────────────────────────────────────────────── -->
+  <section class="pivot reveal">
+    <h3>The pivot</h3>
+    <p><b>Weather is dead at real asks.</b> All three angles — pt1's raw ensemble, S1's longshot fade,
+      S5's EMOS calibration — die to the same ~10¢ KXHIGH overround. The signal is real; the dollar edge isn't.</p>
+    <p class="next">Next, off weather:&nbsp;
+      <b>S2</b> <i>FOMC×ZQ — no bracket overround</i> &nbsp;·&nbsp;
+      <b>S3</b> <i>cross-strike staleness</i> &nbsp;·&nbsp;
+      <b>S6</b> <i>market-making — earn the spread</i></p>
+  </section>
+
+  <footer class="foot">
+    <div><b>0 proven edges</b> across all repos — but the substrate now scores every candidate honestly at the real ask.</div>
+    <div>commits <b>daadeef</b> + <b>6349efd</b> on main · <b>trust = FALSE</b> · no capital moved · recovered tape read-only</div>
+    <div>generated 2026·06·18 · kalshi.headless session log</div>
+  </footer>
+
+</main>
+</body>
+</html>

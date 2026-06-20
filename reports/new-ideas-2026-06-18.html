@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kalshi.headless — 5 new edge candidates (S7–S11)</title>
+<style>
+  :root{
+    --paper:#f4f5f3; --ink:#17181c; --faint:#8b8d86; --hair:#dcdcd6;
+    --dead:#a6342b; --live:#1f6f4d; --gate:#9a6a12;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,-apple-system,"Inter","Helvetica Neue",Arial,sans-serif;
+    --maxw:880px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:clamp(28px,6vw,72px) clamp(20px,5vw,40px) 72px}
+
+  /* masthead */
+  .top{border-top:2px solid var(--ink);padding-top:18px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);display:flex;flex-wrap:wrap;gap:.4em 1em;margin:0 0 clamp(30px,6vw,52px)}
+  .eyebrow b{color:var(--ink);font-weight:600}
+  .thesis{font-family:var(--mono);font-weight:600;font-size:clamp(28px,6vw,46px);line-height:1.05;
+    letter-spacing:-.02em;margin:0 0 20px;text-wrap:balance}
+  .thesis .n{color:var(--live)}
+  .lede{font-size:clamp(15px,2.3vw,18px);color:#3a3b40;max-width:60ch;margin:0 0 18px}
+  .lede b{font-weight:600;color:var(--ink)}
+  .pipe{font-family:var(--mono);font-size:13px;color:var(--ink);border-top:1px solid var(--hair);
+    border-bottom:1px solid var(--hair);padding:13px 0;display:flex;flex-wrap:wrap;gap:8px 0;
+    margin:0 0 clamp(34px,7vw,56px)}
+  .pipe span{padding:0 15px;border-right:1px solid var(--hair);white-space:nowrap}
+  .pipe span:first-child{padding-left:0}.pipe span:last-child{border-right:0}
+  .pipe .red{color:var(--dead);font-weight:600}.pipe .grn{color:var(--live);font-weight:600}
+
+  /* idea card */
+  .idea{border-top:1px solid var(--hair);padding:26px 0 24px;position:relative}
+  .idea:last-of-type{border-bottom:1px solid var(--hair)}
+  .ihead{display:flex;align-items:baseline;flex-wrap:wrap;gap:.5em .9em;margin:0 0 3px}
+  .rank{font-family:var(--mono);font-size:12.5px;color:var(--faint)}
+  .iid{font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.04em}
+  .src{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--faint)}
+  .stamp{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.07em;
+    padding:2px 8px;border:1px solid currentColor;border-radius:2px;white-space:nowrap;margin-left:auto}
+  .stamp::before{content:"[ "}.stamp::after{content:" ]"}
+  .s-med{color:var(--gate);background:rgba(154,106,18,.07)}
+  .s-low{color:var(--faint);background:rgba(139,141,134,.08)}
+  .s-try{color:var(--live);background:rgba(31,111,77,.08)}
+  .iname{font-size:18.5px;font-weight:600;letter-spacing:-.01em;margin:2px 0 10px}
+  .claim{font-size:15.5px;color:#23242a;border-left:3px solid var(--ink);padding:2px 0 2px 14px;
+    margin:0 0 14px}
+  .mech{font-size:14.5px;color:#42434a;margin:0 0 16px}
+  .mech b{color:var(--ink);font-weight:600}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 26px;margin:0 0 4px}
+  .cell{font-size:13.5px;color:#3f4046}
+  .cell .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--faint);display:block;margin:0 0 2px}
+  .cell code{font-family:var(--mono);font-size:12px;background:#e9eae6;padding:.05em .35em;border-radius:3px}
+  .free{color:var(--live);font-weight:600}
+
+  /* portfolio */
+  .port{border:1px solid var(--ink);border-left:4px solid var(--live);padding:22px 24px;
+    margin:clamp(34px,7vw,54px) 0 0}
+  .port h3{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--live);margin:0 0 12px}
+  .port p{margin:0 0 12px;font-size:15px}.port p:last-child{margin:0}
+  .port b{font-weight:600}
+
+  .foot{font-family:var(--mono);font-size:12px;color:var(--faint);line-height:1.9;
+    border-top:1px solid var(--hair);padding-top:18px;margin-top:clamp(30px,6vw,48px)}
+  .foot b{color:var(--ink);font-weight:600}
+  :focus-visible{outline:2px solid var(--gate);outline-offset:3px;border-radius:2px}
+
+  @media (prefers-reduced-motion:no-preference){
+    .rv{opacity:0;transform:translateY(8px);animation:rise .55s cubic-bezier(.2,.6,.2,1) forwards}
+    .rv:nth-child(2){animation-delay:.04s}.rv:nth-child(3){animation-delay:.08s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+  @media (max-width:560px){.grid{grid-template-columns:1fr}.stamp{margin-left:0}}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <header class="top">
+    <p class="eyebrow"><span><b>kalshi.headless</b></span><span>new edge candidates</span>
+      <span>/first-principles → /peer-review</span><span>2026·06·18</span></p>
+    <h1 class="thesis rv">Off weather. <span class="n">5</span> candidates that attack the overround, not ignore it.</h1>
+    <p class="lede rv">A multi-subagent pass: 5 first-principles generators → adversarial peer-review → synthesis.
+      Every candidate is screened against the one rule that killed weather — <b>does the edge clear the market
+      family's real overround + fees at the fillable ask?</b> None is a proven edge; each is a falsifiable
+      hypothesis with a no-capital binding test.</p>
+    <div class="pipe rv">
+      <span><b>15</b> generated</span>
+      <span><b>5</b> lenses</span>
+      <span class="red">15 skeptic-flagged</span>
+      <span><b>5</b> distilled (S7–S11)</span>
+      <span class="grn">all data free today</span>
+    </div>
+  </header>
+
+  <!-- S7 -->
+  <article class="idea">
+    <div class="ihead"><span class="rank">#1</span><span class="iid">S7</span>
+      <span class="src">cross-venue · segmentation</span><span class="stamp s-try">TRY 1ST</span></div>
+    <h2 class="iname">Kalshi NFL/NBA moneyline vs Pinnacle no-vig line — CLV harvest on a 2-outcome binary</h2>
+    <p class="claim">On liquid game-moneyline binaries, buy the Kalshi side whose taker ask sits below the
+      de-vigged Pinnacle fair probability by more than overround + fee → bootstrapped net-P&amp;L CI &gt; 0 at real asks.</p>
+    <p class="mech"><b>Mechanism:</b> sportsbooks limit winners, so sharps under-participate on Kalshi and
+      <em>squares set the price</em>; Pinnacle's balanced book is the consensus fair value. Regulatory/UX
+      segmentation keeps the two crowds from arbitraging each other.</p>
+    <div class="grid">
+      <div class="cell"><span class="k">Overround verdict</span>Clears plausibly — liquid 2-outcome game binaries ~2–4¢ (vs ~10¢ weather); bar ~3–6¢; sharp-vs-square gaps routinely 3–8pp. Liquid games only.</div>
+      <div class="cell"><span class="k">Data &amp; access</span><span class="free">Free today.</span> Kalshi public candlesticks (proven in the S2 probe) + free Pinnacle/odds-API + public outcomes. A full 2026 season of history.</div>
+      <div class="cell"><span class="k">Binding test</span>Season backtest: per game at close, <code>edge = pinn_fair − normalized_ask − fee</code>; block-bootstrap by game; spread ≤ 3¢ gate; PASS iff lower CI &gt; 0.</div>
+      <div class="cell"><span class="k">30-day falsifier</span>≥150 liquid games and lower CI fails to clear zero, or no systematic Pinnacle-vs-ask gap → kill.</div>
+    </div>
+  </article>
+
+  <!-- S8 -->
+  <article class="idea">
+    <div class="ihead"><span class="rank">#2</span><span class="iid">S8</span>
+      <span class="src">microstructure · settlement basis</span><span class="stamp s-med">MEDIUM</span></div>
+    <h2 class="iname">Crypto-hourly settlement-index basis — CF Benchmarks BRRNY vs the public spot the crowd watches</h2>
+    <p class="claim">In the final minutes before a crypto-hourly settlement, when spot sits in a bracket but the
+      BRRNY 60-second index implies a different terminal by more than the overround, the BRRNY-consistent
+      bracket's taker ask is mispriced → net CI &gt; 0.</p>
+    <p class="mech"><b>Mechanism:</b> retail prices off visible Coinbase/Binance spot and never reconstructs
+      the BRRNY 60-second averaging window — a genuine <em>feed mismatch</em>, not the dead NWS/WU case
+      (averaging provably decorrelates the two intra-minute).</p>
+    <div class="grid">
+      <div class="cell"><span class="k">Overround verdict</span>Favorable — final-minute near-money brackets are near-binary, low overround; 24/7 cadence compounds thin edges (no 8-events/year idle).</div>
+      <div class="cell"><span class="k">Data &amp; access</span><span class="free">Free today.</span> Kalshi candlesticks + CF BRRNY + Coinbase/Binance spot. 15-min markets settle on Kalshi's own captured ref.</div>
+      <div class="cell"><span class="k">Binding test</span>Few hundred settled hours: reconstruct spot path + BRRNY avg + settlement; trade where <code>normalized_ask &lt; P_BRRNY − overround − fee</code>; bootstrap by hour.</div>
+      <div class="cell"><span class="k">30-day falsifier</span>Spot vs BRRNY ρ &gt; 0.999 in the final window (no gap), or CI fails on ≥300 brackets → dead. (Explicit ρ-check guards against repeating NWS/WU.)</div>
+    </div>
+  </article>
+
+  <!-- S9 -->
+  <article class="idea">
+    <div class="ihead"><span class="rank">#3</span><span class="iid">S9</span>
+      <span class="src">cross-venue · info lag</span><span class="stamp s-low">LOW</span></div>
+    <h2 class="iname">Kalshi ↔ Polymarket same-question lead-lag — directional, single-leg on the laggard</h2>
+    <p class="claim">For matched questions, when the two venues diverge by more than Kalshi overround + fee after
+      one leads on a shared shock, take the Kalshi side toward the leader → net CI &gt; 0 before convergence.</p>
+    <p class="mech"><b>Mechanism:</b> regulatory + capital segmentation (Polymarket crypto-settled / KYC-restricted
+      for US; Kalshi CFTC USD) stops free arbitrage, so divergences persist. Trade only the laggard leg — no
+      naked-leg execution risk.</p>
+    <div class="grid">
+      <div class="cell"><span class="k">Overround verdict</span>Clears on overlapping 2-outcome binaries <em>if</em> the divergence is large; documented gaps frequently &gt; 5pp. Only the single Kalshi leg's overround+fee must clear.</div>
+      <div class="cell"><span class="k">Data &amp; access</span><span class="free">Free (live + 30d).</span> Kalshi candlesticks + Polymarket Gamma/CLOB (no key). Deep PM history is paywalled → test uses <em>forward</em> capture.</div>
+      <div class="cell"><span class="k">Binding test</span>Forward probe: poll 3–5 matched live binaries both venues every 1–5 min for 2–3 wks; cross-correlate lead-lag; paper taker on laggard; bootstrap by event-day.</div>
+      <div class="cell"><span class="k">30-day falsifier</span>No stable lead-lag in 3 weeks, convergence faster than fill, CI straddles zero, or resolution criteria differ subtly → dead.</div>
+    </div>
+  </article>
+
+  <!-- S10 -->
+  <article class="idea">
+    <div class="ihead"><span class="rank">#4</span><span class="iid">S10</span>
+      <span class="src">microstructure · time-decay</span><span class="stamp s-low">LOW</span></div>
+    <h2 class="iname">Crypto-hourly reachability decay — stale far-bracket pricing as the hour elapses (Kalshi-only)</h2>
+    <p class="claim">Near expiry, far range-brackets whose reachability under a calibrated remaining-time vol model
+      sits below their normalized ask by more than overround + fee are systematically overpriced → net CI &gt; 0.</p>
+    <p class="mech"><b>Mechanism:</b> retail anchors to the start-of-hour distribution and updates the far tails
+      too slowly as elapsed time + realized vol collapse the reachable set. Distinct from S3 (static monotonicity)
+      — this is the <em>conditional</em> time-decay distribution.</p>
+    <div class="grid">
+      <div class="cell"><span class="k">Overround verdict</span>Favorable on tails — far brackets cheap/near-binary; a 10¢-priced / ~2¢-reachable bracket mis-prices by multiples of overround+fee. Caveat: chunky round-up fee on cheap longshots — the test must net it.</div>
+      <div class="cell"><span class="k">Data &amp; access</span><span class="free">Free today.</span> Kalshi candlesticks (intra-hour per-bracket BBO) + spot for realized vol + settlement.</div>
+      <div class="cell"><span class="k">Binding test</span>At T-5/2 min fit remaining-time reachability from realized vol (anti-leak: path-to-snapshot only); trade where <code>ask − P_reach &gt; overround + fee</code>; clear the artifact noise floor first; bootstrap by hour.</div>
+      <div class="cell"><span class="k">30-day falsifier</span>Signal doesn't clear the BBO-staleness noise floor, net-of-chunky-fee CI fails on ≥300 hours, or far asks already track reachability → dead.</div>
+    </div>
+  </article>
+
+  <!-- S11 -->
+  <article class="idea">
+    <div class="ihead"><span class="rank">#5</span><span class="iid">S11</span>
+      <span class="src">risk premium · liquidity</span><span class="stamp s-low">LOW</span></div>
+    <h2 class="iname">Sharp-anchored maker quoting on illiquid Kalshi binaries — earn the spread, filter pickoffs with Pinnacle</h2>
+    <p class="claim">Resting maker quotes on illiquid game/event binaries, placed only on the side Pinnacle's no-vig
+      fair value calls EV+ net of the 1.75% maker fee → net CI &gt; 0 once adverse selection is modeled.</p>
+    <p class="mech"><b>Mechanism:</b> thin-book retail crosses wide spreads where few makers compete. Adverse
+      selection is the killer; the named defense is the <em>sharp anchor</em> — quote only the side Pinnacle
+      says is a good bet. Distinct from S6 (pure inventory MM with no external truth).</p>
+    <div class="grid">
+      <div class="cell"><span class="k">Overround verdict</span>Clears by construction if it holds — you <em>earn</em> the spread instead of paying overround, and maker fee is 4× cheaper. The question inverts to: captured spread &gt; adverse-selection cost + maker fee.</div>
+      <div class="cell"><span class="k">Data &amp; access</span><span class="free">Free today.</span> Kalshi candlesticks (realized spreads) + Pinnacle odds + outcomes. Fill-intensity needs the forward L2 tape — <code>capture_orderbooks.py</code> already exists.</div>
+      <div class="cell"><span class="k">Binding test</span>Fill-simulation: rest where the book is wrong-side of Pinnacle fair by &gt; maker fee; estimate fills from forward L2 order-arrival intensity (conservative haircut); charge maker fee + modeled adverse selection; bootstrap by game.</div>
+      <div class="cell"><span class="k">30-day falsifier</span>Adverse-selection cost + fee &gt; captured spread even with the filter, books too thin to fill before the line moves, or fills are dominated by stale-quote pickoffs → dead.</div>
+    </div>
+  </article>
+
+  <section class="port">
+    <h3>Portfolio — try first</h3>
+    <p>Deliberately diverse across edge sources, so they don't share one point of failure — and they span the
+      two structural ways to beat the overround that killed weather: <b>clear it</b> on a low-overround 2-outcome
+      family (S7, S9), or <b>earn/sidestep it</b> as a maker (S11), via a settlement basis (S8), or on near-binary tails (S10).</p>
+    <p><b>Try S7 first.</b> Best risk-adjusted bet: lowest-overround family on the platform (2-outcome moneylines,
+      ~2–4¢), every input free <em>today</em> with a deep season of history (a real block-bootstrap, not a forward
+      wait), the best-documented mechanism (CLV literature + sharp-book limits), and a single-leg directional test
+      with zero capital. <b>S8</b> is the strong second — 24/7 crypto cadence gives a bootstrappable n within days.
+      Run S7's gap-vs-overround screen and S8's spot-vs-BRRNY check in parallel on day one; both kill cheaply if the
+      premise fails. S9/S10/S11 are lower-confidence forward/simulation probes to queue only once S7/S8 show signal.</p>
+  </section>
+
+  <footer class="foot">
+    <div><b>0 proven edges</b> — these are hypotheses. Each ships nothing live until a bootstrapped CI clears zero at real asks.</div>
+    <div>generated by <b>/first-principles → /peer-review</b> · 21 agents · 15 → 5 · trust = FALSE · no capital</div>
+    <div>kalshi.headless · candidates S7–S11 · 2026·06·18</div>
+  </footer>
+
+</main>
+</body>
+</html>

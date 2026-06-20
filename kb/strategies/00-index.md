@@ -11,11 +11,26 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 |---|---|---|---|---|---|
 | **S0** | Real-ask substrate (tape + actuals gate + ask primitive) | kalshi.1 + invariants | **built ✅** | 0.9 | substrate, not an edge — enables all scoring (53 tests green, invariants live) |
 | **S1** | Longshot-fade real-ask calibration (weather) | arb-bot-v2 tape · QF Theme 2 | **dead ✗** | 0.45 | TESTED n=990 real-ask brackets: net P&L CI [−$0.005,+$0.013] ⊄ >0 → falsified |
-| **S2** | FOMC × ZQ single-meeting basis | kalshi.ibkr · QF Theme 6 | binding-test-defined | 0.40 | one-meeting replay, real asks − ZQ p_hold − fees; net>0 |
+| **S2** | FOMC × ZQ single-meeting basis | kalshi.ibkr · QF Theme 6 | **first-cut done · gated** | 0.40 | June'26 free-data cut: bracket overround **+3.4¢ (3× cleaner than weather)** → structure HOLDS; full multi-meeting test gated on CME ticks |
 | **S3** | K3 cross-strike monotonicity staleness | kalshi.ibkr · QF Theme 6 | binding-test-defined | 0.30 | 1h calibrate; signal must clear artifact noise floor |
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
+| **S7** | Kalshi NFL/NBA moneyline vs Pinnacle no-vig line (CLV harvest) | FP→PR · cross-venue segmentation | **idea · try 1st** | med | season backtest: Kalshi ask vs devig Pinnacle fair − overround − fee; block-bootstrap by game; CI>0 |
+| **S8** | Crypto-hourly settlement basis (CF BRRNY 60s index vs public spot) | FP→PR · settlement mismatch | idea | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds genuinely differ (ρ guard) |
+| **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward-poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
+| **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
+| **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
+
+## New candidates S7–S11 (2026-06-18, via /first-principles → /peer-review, 21 agents)
+
+15 candidates generated across 5 first-principles lenses; the adversarial peer-review flagged **all 15** (max-skeptic
+bar — every one is an unproven hypothesis); synthesis distilled the 5 most-defensible with kill conditions. Full
+dossiers: `../../reports/new-ideas-2026-06-18.html`. All share one design rule — **attack the overround that killed
+weather** (clear it on a low-overround 2-outcome family, or earn/sidestep it). **Try S7 first** (lowest overround,
+all data free today with deep history, best-documented mechanism, single-leg zero-capital test); **S8** second (24/7
+crypto cadence → bootstrappable n in days). NB: the basis-lens draft logged at 19:40 used preliminary S7/S8/S9 ids —
+the synthesis numbering above supersedes it.
 
 ## Notes on each
 

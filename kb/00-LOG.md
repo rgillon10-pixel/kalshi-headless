@@ -6,6 +6,91 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-06-18 19:55 ET — 5 new edge candidates synthesized (S7–S11) · /first-principles → /peer-review
+
+Multi-subagent workflow (**21 agents**): 5 first-principles generators (one per edge-source lens) → adversarial
+`/peer-review` skeptic on each of 15 candidates → synthesis of the 5 most-defensible. The skeptics flagged **all 15**
+(by design — every candidate is an unproven hypothesis); the 5 below carry their kill conditions. Registered in
+`strategies/00-index.md`; full dossiers + minimalist HTML at `../../reports/new-ideas-2026-06-18.html`.
+
+- **S7 (try 1st · med)** Kalshi NFL/NBA moneyline vs Pinnacle de-vigged line — CLV harvest on a **2-outcome binary**
+  (~2–4¢ overround vs ~10¢ weather). Squares set Kalshi's price (sharp books limit winners); Pinnacle = fair anchor.
+  Season backtest on FREE Kalshi candlesticks + free Pinnacle odds; single-leg, zero-capital.
+- **S8 (med)** Crypto-hourly settlement basis: Kalshi settles on CF Benchmarks BRRNY (60s index), retail prices off
+  spot — a genuine feed mismatch (NOT the dead NWS/WU ρ=0.99999 case; the ρ-check is the first guard). 24/7 cadence.
+- **S9 (low)** Kalshi↔Polymarket same-question lead-lag, directional on the laggard (forward-capture probe).
+- **S10 (low)** Crypto-hourly reachability decay — far brackets priced above time-decayed reachability.
+- **S11 (low)** Sharp-anchored maker quoting on illiquid binaries — earn the wide spread, filter pickoffs with the
+  Pinnacle anchor (distinct from S6's anchor-less A-S).
+
+All attack the overround that killed weather (clear it on low-overround 2-outcome families, or earn/sidestep it). Run
+S7's gap-vs-overround screen + S8's spot-vs-BRRNY ρ-check in parallel day-one — both kill cheaply if the premise
+fails. Process note: a basis-lens generator did web research and wrote a preliminary S7/S8/S9 draft to this log at
+19:40 (kept; its ids are superseded by the synthesis numbering).
+
+---
+
+## 2026-06-18 19:41 ET — S2 FOMC×ZQ free-data first cut: structure validated (n=1), worth the CME spend
+
+Free-data, single-meeting first cut of S2 on the just-resolved June 2026 FOMC — Kalshi PUBLIC historical
+candlesticks (`yes_ask` BBO) × free Yahoo ZQ. `scripts/fomc_zq_basis_s2.py`, `findings/2026-06-18-fomc-zq-s2.md`.
+**n=1 STRUCTURE check, NOT an edge.**
+
+- **FOMC bracket overround = mean +3.35¢** (3–4¢) vs the **~10¢** weather overround that killed pt1/S1/S5 →
+  **~3× cleaner; the prob-to-prob structural thesis HOLDS** — the reason S2 is the post-weather pivot.
+- June was **LOW-INFORMATION**: both venues priced a near-certain hold (Kalshi P(hold) 0.942–0.962, ZQ
+  0.931–0.977); net-of-fee basis mean **−1.39¢/contract**, 5/163 periods positive → no tradeable gap on THIS
+  event (expected for a consensus hold; one event can't yield a CI).
+- **Verdict: structure worth the CME spend.** Full version needs intraday ZQ ticks (daily close too coarse —
+  ZQ P(hold) swung 0.931→0.977 on a single 1-tick move; the `N_post` divisor amplifies it) + many **contested**
+  meetings + block-bootstrap CI (block=meeting) + Kalshi L2 depth + frozen-pre-position risk modeling. GATED on
+  Ryan (CME data sourcing).
+- Honesty: `yes_ask.close` tagged `real_ask` (BBO-at-candle-close caveat — overstates fillable size); ZQ-prob
+  `synthetic`. Prior-contested-meeting pull deferred (2025 tickers use a different target-range scheme +
+  rate-limits), not faked. **53 tests green, invariants --full green.** Tape/DB untouched.
+
+---
+
+## 2026-06-18 19:40 ET — 3 new cross-venue basis candidates drafted (S7/S8/S9) via /first-principles
+
+Ideation pass through the **cross-venue basis lens** (Kalshi vs a different venue pricing the same/
+correlated resolution). Goes BEYOND S2 (FOMC×ZQ prob-to-prob). All three grounded in live
+settlement-spec + data-access research (Perplexity, 2026-06-18; CF Benchmarks RTI, Polymarket CLOB
+docs, Kalshi historical candlestick REST). None is in the dead ledger.
+
+- **S7 — KXBTC vs Polymarket crypto: settlement-index + sampling mismatch.** Kalshi KXBTC/KXETH
+  hourly brackets settle on **CF Benchmarks RTI = 60s average of a multi-exchange index**;
+  Polymarket crypto settles on a **single-exchange (Binance) 1-min candle / last print**. Same
+  nominal hour, different fixing → the two venues' implied "price lands in bracket X" can disagree
+  whenever Binance basis vs the multi-exchange index, or a sub-minute spike, moves the single print
+  off the 60s mean. Mechanism: settlement mismatch, NOT a probability claim. Both real-price histories
+  are FREE/public (Kalshi `/historical/market_candlesticks` yes-OHLC; Polymarket CLOB
+  `/prices-history` + Gamma resolved outcome). Overround note: crypto-hourly binaries are 2-outcome
+  (low overround) BUT Kalshi crypto taker fee is the fat 7%-class — must clear that.
+- **S8 — Kalshi single-game sports vs Pinnacle sharp closing line (directional on the laggard).**
+  Documented: Kalshi order-book sports prices LAG Pinnacle's vig-removed line by minutes after a
+  discrete info shock (injury/scratch/steam); practitioner reports 2–3pp gaps before catch-up;
+  election-market analog measured 12–18 min lag. Mechanism: sharp dealer (Pinnacle) reprices
+  instantly; Kalshi only moves when a taker crosses the book → exploitable catch-up window. Trade
+  the laggard (Kalshi) directionally toward the devigged Pinnacle number. Real ask = Kalshi BBO
+  (candlestick yes_ask OHLC + live book); reference = Pinnacle/odds-API devig. Overround: liquid
+  marquee games show 1–3¢ spreads — thin enough that a 2–3pp lag can clear it.
+- **S9 — Kalshi vs Polymarket same-event PRICE-DISCOVERY lead-lag (timing, not static level).**
+  "Who Wins and Who Loses" (SSRN) + LOOP-violation paper: **Polymarket leads Kalshi in price
+  discovery** (24/7 crypto crowd, zero maker fee) on the SAME politics/macro yes/no event; the
+  static level-wedge has compressed to 1–2% and is NOT cleanly unidirectional, so the edge is the
+  *timing* — fade Kalshi toward Polymarket's already-moved price after a discrete shock, not a
+  standing level arb. Mechanism: segmented user bases + USDC/USD rail friction keep arbitrage from
+  enforcing instant parity. Both prices FREE (Kalshi candlestick + Polymarket CLOB). Overround:
+  Kalshi politics binaries are richer (sum 110–140% multi-outcome); the lead-lag must clear Kalshi's
+  taker fee + spread on the 2-outcome legs.
+
+These graduate to the registry as **S7/S8/S9 (idea)**. Binding tests are all no-capital replays on
+free public history. Returned via the workflow's StructuredOutput; full rationale in the council/
+first-principles brief to follow before any data-collection spend.
+
+---
+
 ## 2026-06-18 15:03 ET — S5 weather rehab TESTED → DEAD. Weather family is dead at real asks.
 
 **The decisive result.** With Ryan's go-ahead, ran the S5 weather-rehab real-ask paper test —
