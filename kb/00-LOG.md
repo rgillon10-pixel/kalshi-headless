@@ -6,30 +6,6 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
-## 2026-06-18 19:55 ET — 5 new edge candidates synthesized (S7–S11) · /first-principles → /peer-review
-
-Multi-subagent workflow (**21 agents**): 5 first-principles generators (one per edge-source lens) → adversarial
-`/peer-review` skeptic on each of 15 candidates → synthesis of the 5 most-defensible. The skeptics flagged **all 15**
-(by design — every candidate is an unproven hypothesis); the 5 below carry their kill conditions. Registered in
-`strategies/00-index.md`; full dossiers + minimalist HTML at `../../reports/new-ideas-2026-06-18.html`.
-
-- **S7 (try 1st · med)** Kalshi NFL/NBA moneyline vs Pinnacle de-vigged line — CLV harvest on a **2-outcome binary**
-  (~2–4¢ overround vs ~10¢ weather). Squares set Kalshi's price (sharp books limit winners); Pinnacle = fair anchor.
-  Season backtest on FREE Kalshi candlesticks + free Pinnacle odds; single-leg, zero-capital.
-- **S8 (med)** Crypto-hourly settlement basis: Kalshi settles on CF Benchmarks BRRNY (60s index), retail prices off
-  spot — a genuine feed mismatch (NOT the dead NWS/WU ρ=0.99999 case; the ρ-check is the first guard). 24/7 cadence.
-- **S9 (low)** Kalshi↔Polymarket same-question lead-lag, directional on the laggard (forward-capture probe).
-- **S10 (low)** Crypto-hourly reachability decay — far brackets priced above time-decayed reachability.
-- **S11 (low)** Sharp-anchored maker quoting on illiquid binaries — earn the wide spread, filter pickoffs with the
-  Pinnacle anchor (distinct from S6's anchor-less A-S).
-
-All attack the overround that killed weather (clear it on low-overround 2-outcome families, or earn/sidestep it). Run
-S7's gap-vs-overround screen + S8's spot-vs-BRRNY ρ-check in parallel day-one — both kill cheaply if the premise
-fails. Process note: a basis-lens generator did web research and wrote a preliminary S7/S8/S9 draft to this log at
-19:40 (kept; its ids are superseded by the synthesis numbering).
-
----
-
 ## 2026-06-18 19:41 ET — S2 FOMC×ZQ free-data first cut: structure validated (n=1), worth the CME spend
 
 Free-data, single-meeting first cut of S2 on the just-resolved June 2026 FOMC — Kalshi PUBLIC historical
