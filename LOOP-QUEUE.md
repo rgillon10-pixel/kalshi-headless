@@ -59,6 +59,16 @@ and/or Kraken equivalent);
 (c) whether `ODDS_API_KEY` exists in env (do NOT print it) and the-odds-api reachability.
 Any blocked host → mark the dependent queue items `BLOCKED(<host>)`.
 
+### Q0b — Egress re-verify (self-healing; stays TODO until it succeeds)
+Status: TODO
+Cheap check, run FIRST while any item is `BLOCKED(egress...)`: re-test the four Q0 hosts
+(`curl --max-time 15` each; do not retry a 403 beyond once per host). If ALL still blocked:
+leave every status untouched, append one log line, and END THE RUN immediately with digest
+`Done: egress still blocked; awaiting environment network change` — do not burn the session
+on anything else. If hosts are NOW reachable: set this item DONE, flip every
+`BLOCKED(egress ...)` status back to TODO, refresh `tape/cloud-env-check.md`, log the
+unblock, then proceed to the topmost TODO item as normal.
+
 ### Q1 — Build sports paired-odds collector (serves S7/S11) — TIME-SENSITIVE: World Cup ends Jul 19
 Status: BLOCKED(egress policy — api.elections.kalshi.com, api.the-odds-api.com; see Q0)
 `collection/sports_pairs.py`, mirroring `collection/capture_orderbooks.py` discipline
