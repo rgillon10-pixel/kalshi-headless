@@ -51,7 +51,7 @@ persisted price, invariants green before commit.
 ## Queue (topmost eligible item wins)
 
 ### Q0 — Cloud environment check
-Status: TODO
+Status: DONE (2026-07-02) — all 4 hosts BLOCKED by org egress policy; see `tape/cloud-env-check.md`
 Verify from the cloud sandbox and record results in `tape/cloud-env-check.md`:
 (a) Kalshi public REST via `python -m collection.capture_orderbooks --limit 3`;
 (b) public crypto spot (Coinbase `GET https://api.exchange.coinbase.com/products/BTC-USD/ticker`
@@ -60,7 +60,7 @@ and/or Kraken equivalent);
 Any blocked host → mark the dependent queue items `BLOCKED(<host>)`.
 
 ### Q1 — Build sports paired-odds collector (serves S7/S11) — TIME-SENSITIVE: World Cup ends Jul 19
-Status: TODO
+Status: BLOCKED(egress policy — api.elections.kalshi.com, api.the-odds-api.com; see Q0)
 `collection/sports_pairs.py`, mirroring `collection/capture_orderbooks.py` discipline
 (bitemporal `fetch_ts`, raw-bytes sha256, honest expected-vs-captured completeness). One pass =
 for every open Kalshi sports moneyline market (soccer/World Cup first, then anything listed):
@@ -71,7 +71,7 @@ Kalshi leg anyway and note the odds leg as BLOCKED(key). Unit tests for ticker p
 de-vig math.
 
 ### Q2 — Build crypto-hourly settlement collector (serves S8/S10)
-Status: TODO
+Status: BLOCKED(egress policy — api.elections.kalshi.com, api.exchange.coinbase.com/api.kraken.com; see Q0)
 `collection/crypto_hourly.py`: one pass = snapshot the CURRENT hour's BTC/ETH hourly bracket
 books (tag `real_ask`) + spot from ≥1 public exchange endpoint (tag `synthetic`), AND fetch
 settlement results for the PREVIOUS hour's markets → paired JSONL under `tape/crypto_hourly/`.
@@ -79,7 +79,7 @@ Store both spot and settle so the S8 ρ-guard (spot-vs-settle correlation) is co
 tape alone.
 
 ### Q3 — Hourly entry point for the collector routine
-Status: TODO (needs Q1 + Q2)
+Status: BLOCKED(needs Q1 + Q2, both egress-blocked; see Q0)
 `collection/hourly_pass.py`: the single command the hourly Haiku routine runs — one
 sports-pairs pass + one crypto-hourly pass; during the 09 UTC hour also run
 `scripts/anomaly_sweep.py` if it exists. Prints the one-line summary the collector digest
@@ -87,7 +87,7 @@ needs (`<n> markets, <m> lines, completeness <ok/FAIL>`). Must be safe to run un
 every hour; a partial failure lowers completeness, it never fakes success.
 
 ### Q4 — S7 historical backtest (sports CLV vs de-vigged sharp line) — the try-first edge
-Status: TODO
+Status: BLOCKED(egress policy — S7a needs Kalshi candlesticks + a historical odds source; see Q0)
 One stage per run:
 **S7a** — source last-season NFL/NBA (+ any completed 2026 World Cup) Kalshi market history
 via public candlesticks + a free historical closing-odds source; document provenance in the
@@ -96,14 +96,14 @@ time, fee model consistent with `scripts/fee_breakeven.py`. **S7c** — block-bo
 → 95% CI, verdict, `findings/<date>-sports-clv-s7.md`, update registry + this file.
 
 ### Q5 — S8 first cut from free candlesticks (crypto settlement basis)
-Status: TODO
+Status: BLOCKED(egress policy — needs Kalshi candlesticks + public spot history; see Q0)
 Same trick as S2's first cut: public candlesticks on crypto-hourly markets vs public spot
 history. FIRST the ρ-guard — if spot-vs-settle ρ≈1 the feed-mismatch thesis dies cheap →
 mark S8 DEAD in the registry and here. Only if the guard passes: final-minutes basis vs
 overround at real asks, block-bootstrap by hour.
 
 ### Q6 — Daily anomaly sweep (serves S3 + free-money detection)
-Status: TODO
+Status: BLOCKED(egress policy — needs live Kalshi market snapshots; see Q0)
 `scripts/anomaly_sweep.py`: one pass over all active markets — bracket sums vs $1 + fees
 (true arb), cross-strike monotonicity violations (S3). Flag ONLY violations clearing the fee
 floor. Append `tape/anomalies/`. Wire into Q3's 09 UTC slot when both exist.
@@ -116,3 +116,5 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
+
+- 2026-07-02T22:43Z · Q0 · all 4 required hosts (Kalshi REST, Coinbase, Kraken, the-odds-api) BLOCKED by org egress policy (proxy CONNECT→403); Q1–Q6 marked BLOCKED(egress policy) pending Ryan widening the sandbox allowlist.

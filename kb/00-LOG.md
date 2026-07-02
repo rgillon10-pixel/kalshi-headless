@@ -6,6 +6,31 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
+
+Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi
+public REST (`python -m collection.capture_orderbooks --limit 3`), Coinbase + Kraken public spot,
+and `api.the-odds-api.com` (plus a presence-only check for `ODDS_API_KEY`, absent). **All 4 hosts
+failed identically** — the sandbox's egress proxy answered every CONNECT with a 403 (`gateway
+answered 403 to CONNECT (policy denial or upstream failure)`), and its `noProxy` allowlist covers
+only package registries + `anthropic.com`, no data provider. Per the proxy runbook this is an
+organization policy denial, not a transient fault — not to be retried or routed around. Full
+evidence and interpretation in `tape/cloud-env-check.md`.
+
+**Consequence:** every downstream collector needs one of these hosts, so Q1, Q2, Q3, Q4, Q5, Q6 are
+now `BLOCKED(egress policy)` in `LOOP-QUEUE.md` — this is essentially the entire active queue. Q0
+itself is the only item this run's cloud sandbox could actually complete; nothing here indicates a
+bug in `capture_orderbooks.py`/`normalize.py` (never got past the TLS tunnel). **This needs Ryan**:
+either widen this environment's egress allowlist to include a Kalshi host, a public crypto spot
+host, and an odds API host, or run the collectors from a pool that already has broader network
+access — no cloud run can change its own policy. Gates: 53 tests green, `invariants --full` green
+(no code changed, so nothing new to gate — recorded for protocol compliance).
+
+**Next:** once egress is widened, Q1 (sports pairs collector, time-sensitive — World Cup ends Jul
+19) is the immediate next milestone.
+
+---
+
 ## 2026-06-18 19:41 ET — S2 FOMC×ZQ free-data first cut: structure validated (n=1), worth the CME spend
 
 Free-data, single-meeting first cut of S2 on the just-resolved June 2026 FOMC — Kalshi PUBLIC historical
