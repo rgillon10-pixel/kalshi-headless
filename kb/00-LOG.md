@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-02 23:16 UTC — Egress unblocked; Q1 sports paired-odds collector built + first live pass
+
+Per Q0b's self-healing re-check (run FIRST while anything is `BLOCKED(egress...)`): re-tested the
+same 4 hosts from the Q0 run below. **All now reachable** — Kalshi REST, Coinbase, and Kraken all
+returned real 200 responses; `api.the-odds-api.com` returned 401 `MISSING_KEY` (host reachable,
+just no key — not a block). The org egress allowlist was widened since Q0. Flipped every
+`BLOCKED(egress ...)` status in `LOOP-QUEUE.md` back to TODO and proceeded to Q1 (topmost, and the
+time-sensitive one — 2026 World Cup ends Jul 19).
+
+Built `collection/sports_pairs.py`: discovers every Kalshi Sports-category series in the
+moneyline ("GAME" ticker suffix) family, groups markets by `event_ticker`, and appends one JSONL
+line per game to `tape/sports_pairs/` with both legs' live yes/no BBO tagged `real_ask` (no
+orderbook fetch needed — the `/markets` list endpoint already returns fractional-dollar ask/bid),
+plus `bracket_sum`/`overround` via the sanctioned `core.pricing` site. 17 new unit tests (ticker
+parsing, `devig_proportional` — a pure proportional de-vig reusing `core.pricing.bracket_sum`,
+tagged `synthetic` — and the-odds-api response parsing against a fixture). `ODDS_API_KEY` is
+absent, so the odds leg records `{"status": "blocked", "reason": "ODDS_API_KEY missing"}` per
+spec; even with a key, team-name matching (Kalshi's short codes vs the-odds-api's full names)
+isn't built yet — documented as a deliberate gap, not guessed.
+
+**First live pass: 357/357 events complete, 29 series, 10 World Cup games, all `real_ask`.**
+Caught and fixed two bugs live, both against real API data (offline fixtures didn't have the
+shape to catch them):
+1. Some `GAME`-suffixed series aren't moneylines at all — `KXWCTEAMSINGAME` ("Will Argentina play
+   Portugal?") and `KXWCGOALEVERYGAME` are single-market props, structurally incapable of ever
+   pairing. Fixed by excluding any series where no event has ≥2 markets, rather than emitting
+   them as chronically-incomplete moneyline pairs.
+2. Guessed a per-series "expected leg count" (2-way vs 3-way-with-a-tie) from whichever events
+   happened to show a `TIE` leg — but `KXLOLGAME` mixes best-of match formats within one series
+   (one match can draw, another can't), so this mislabeled 6 genuinely-complete 2-way esports
+   matches as incomplete. Fixed: there is no per-market fetch here (unlike
+   `capture_orderbooks.py`'s one-HTTP-call-per-market), so the only structurally honest
+   completeness signal at this granularity is "got a real pair" (`n_legs >= 2`); `has_tie_leg` is
+   now descriptive only, never an expectation.
+
+Gates: 72 tests green (55 prior + 17 new), `invariants --full` green. Q3 (hourly entry point)
+still needs Q2 (crypto-hourly) before it can wire both in.
+
+**Next:** Q2 (crypto-hourly collector) is the next topmost TODO item.
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi

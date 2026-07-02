@@ -1,6 +1,27 @@
-# Cloud environment check (Q0)
+# Cloud environment check (Q0 / Q0b)
 
 `run` · 2026-07-02 · cloud sandbox (kalshi-research-loop)
+
+## Update 2026-07-02 (Q0b re-verify) — UNBLOCKED
+
+Re-tested the same 4 hosts per Q0b's protocol (`curl --max-time 15`, one attempt each, no
+retry-past-once on a 403). **All 4 now reachable** — the org egress allowlist was widened since
+the original Q0 run below:
+
+| host | result |
+|---|---|
+| `api.elections.kalshi.com` | 200, real JSON (`exchange_active`, `trading_active`) |
+| `api.exchange.coinbase.com` | 200, real BTC-USD ticker (`ask`/`bid`/`price`) |
+| `api.kraken.com` | 200, real server time |
+| `api.the-odds-api.com` | 401 `MISSING_KEY` — host reachable, just no key (expected, not a block) |
+
+`ODDS_API_KEY` still absent from env (checked presence only, not printed) — the-odds-api *leg*
+of Q1 stays `BLOCKED(key)` even though the host itself is now reachable.
+
+Per Q0b protocol: this item is now DONE; every `BLOCKED(egress ...)` status in `LOOP-QUEUE.md`
+is flipped back to TODO; the run proceeds to the topmost TODO item (Q1).
+
+## Original Q0 run (superseded by the re-verify above, kept for the record)
 
 Purpose: verify which external hosts this cloud sandbox can actually reach, since every
 downstream collector (Q1–Q7) depends on live network access. Method: direct `curl` (and the
