@@ -17,7 +17,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
 | **S7** | Kalshi NFL/NBA moneyline vs Pinnacle no-vig line (CLV harvest) | FP→PR · cross-venue segmentation | **data-collecting** | med | season backtest: Kalshi ask vs devig Pinnacle fair − overround − fee; block-bootstrap by game; CI>0 |
-| **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | idea | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds differ (ρ guard vs NWS/WU) |
+| **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | data-collecting | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds differ (ρ guard vs NWS/WU) |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
@@ -97,6 +97,18 @@ no idea is in the dead ledger.** Full dossiers: `../../reports/new-ideas-2026-06
 - **S11 (low).** Sharp-anchored maker quoting on illiquid binaries — earn the wide spread (maker fee 4×
   cheaper), quote only the side Pinnacle calls EV+ to filter adverse selection. Distinct from S6 (no
   external truth anchor). Needs the forward L2 tape for fill-intensity.
+
+**S8 → data-collecting (2026-07-03).** Q2 built `collection/crypto_hourly.py` — per pass, per
+symbol (BTC/ETH), pairs the current hour's `real_ask` bracket book with the previous hour's
+`broker_truth` settlement (Kalshi's own `result` + `expiration_value`, the CF Benchmarks index
+average it actually settles on) and a `synthetic` Coinbase/Kraken spot read, exactly the (settle,
+spot) pairing the ρ-guard needs. First live pass: both symbols captured complete; BTC's 188-member
+ladder (1 T-tail + 186 $100-wide bands + 1 T-tail, a clean partition like weather's) priced a
+**+$9.27** real_ask bracket overround, ETH +$1.23 — one to two orders of magnitude fatter than
+weather/sports, plausibly an artifact of ~180 deep-out-of-the-money bands each near Kalshi's 1¢
+min-ask floor rather than real probability mass. Un-investigated — Q5 (S8's first cut) needs to
+check this before the ρ-guard or basis calc can mean anything; noted here so it isn't silently
+assumed away.
 
 **S7/S11 → data-collecting (2026-07-03).** Cloud egress unblocked mid-run (Q0b); built
 `collection/sports_pairs.py` (Q1) — discovers Kalshi sports moneyline series by title heuristic,
