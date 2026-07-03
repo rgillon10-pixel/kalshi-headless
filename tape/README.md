@@ -4,7 +4,10 @@ Unlike `data/` (local bulk, gitignored), everything under `tape/` is committed: 
 routine runs are stateless, so git IS their persistence. Append-only JSONL, one line per
 observation, every price tagged (`real_ask` / `synthetic` / …) per `core/source_tag.py`.
 
-- `sports_pairs/` — Kalshi sports moneyline BBO (+ de-vigged sharp odds when key present) — S7/S11
+- `sports_pairs/` — Kalshi sports moneyline BBO (+ de-vigged sharp odds when key present) — S7/S11.
+  Schema `sports_pairs.v2`: `game_start`/`outcome_name` always persisted; `odds_leg.status` ∈
+  matched / blocked_key / unmapped_series / not_selected / sport_not_active / fetch_error /
+  quota_floor / no_match / ambiguous / no_bookmaker (see `collection/odds_api.py`)
 - `crypto_hourly/` — hourly bracket books near settlement + spot + settle outcomes — S8/S10
 - `anomalies/` — daily sweep: bracket-sum / monotonicity violations clearing the fee floor — S3
 - `cloud-env-check.md` — reachability of external APIs from the cloud sandbox (Q0)

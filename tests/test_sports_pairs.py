@@ -108,9 +108,11 @@ class FakeClient:
         return json.dumps({"markets": self.markets_by_series.get(sticker, [])})
 
 
-def _mk_market(ticker, title, event_ticker, yes_ask, yes_bid=None, no_ask=None, no_bid=None):
+def _mk_market(ticker, title, event_ticker, yes_ask, yes_bid=None, no_ask=None, no_bid=None,
+               yes_sub_title=None, occurrence=None):
     return {
         "ticker": ticker, "title": title, "event_ticker": event_ticker,
+        "yes_sub_title": yes_sub_title, "occurrence_datetime": occurrence,
         "yes_ask_dollars": f"{yes_ask:.4f}",
         "yes_bid_dollars": f"{yes_bid:.4f}" if yes_bid is not None else None,
         "no_ask_dollars": f"{no_ask:.4f}" if no_ask is not None else None,
@@ -120,10 +122,14 @@ def _mk_market(ticker, title, event_ticker, yes_ask, yes_bid=None, no_ask=None, 
 
 def _three_way_group():
     event = "KXWCGAME-26JUL06USABEL"
+    kick = "2026-07-07T03:00:00Z"
     return [
-        _mk_market(f"{event}-USA", "USA vs Belgium Winner?", event, 0.37, 0.36, 0.64, 0.63),
-        _mk_market(f"{event}-TIE", "USA vs Belgium Winner?", event, 0.28, 0.27, 0.73, 0.72),
-        _mk_market(f"{event}-BEL", "USA vs Belgium Winner?", event, 0.39, 0.38, 0.62, 0.61),
+        _mk_market(f"{event}-USA", "USA vs Belgium Winner?", event, 0.37, 0.36, 0.64, 0.63,
+                   yes_sub_title="Reg Time: USA", occurrence=kick),
+        _mk_market(f"{event}-TIE", "USA vs Belgium Winner?", event, 0.28, 0.27, 0.73, 0.72,
+                   yes_sub_title="Reg Time: Tie", occurrence=kick),
+        _mk_market(f"{event}-BEL", "USA vs Belgium Winner?", event, 0.39, 0.38, 0.62, 0.61,
+                   yes_sub_title="Reg Time: Belgium", occurrence=kick),
     ]
 
 
@@ -192,13 +198,67 @@ def test_run_ignores_non_moneyline_and_series_errors(tmp_path):
     assert not (tmp_path / f"dt={summary['day']}.jsonl").exists()
 
 
-def test_run_reports_odds_key_presence(tmp_path):
+def _stub_odds_http():
+    """Offline stand-in for the-odds-api: catalogue + one matching WC event via Pinnacle."""
+    event = {
+        "id": "ev1", "sport_key": "soccer_fifa_world_cup",
+        "commence_time": "2026-07-07T03:00:00Z",
+        "home_team": "USA", "away_team": "Belgium",
+        "bookmakers": [{"key": "pinnacle", "title": "Pinnacle",
+                        "last_update": "2026-07-06T20:00:00Z",
+                        "markets": [{"key": "h2h", "last_update": "2026-07-06T20:00:00Z",
+                                     "outcomes": [{"name": "USA", "price": 3.1},
+                                                  {"name": "Belgium", "price": 2.3},
+                                                  {"name": "Draw", "price": 3.4}]}]}],
+    }
+
+    def http_get(url, params):
+        if url.endswith("/sports"):
+            return 200, json.dumps([{"key": "soccer_fifa_world_cup", "active": True}]), {}
+        return 200, json.dumps([event]), {"x-requests-remaining": "480",
+                                          "x-requests-used": "20"}
+    return http_get
+
+
+def test_run_with_key_enriches_odds_leg(tmp_path):
     client = FakeClient(
         series_titles={"KXWCGAME": "World Cup Game"},
         markets_by_series={"KXWCGAME": _three_way_group()},
     )
-    summary = sp.run(client=client, tape_dir=tmp_path, odds_api_key="fake-key")
+    summary = sp.run(client=client, tape_dir=tmp_path, odds_api_key="fake-key",
+                     odds_http_get=_stub_odds_http())
     assert summary["odds_api_key_present"] is True
+    assert summary["odds"]["n_matched"] == 1
+    assert summary["odds"]["quota_remaining"] == 480
+
     out_path = tmp_path / f"dt={summary['day']}.jsonl"
     rec = json.loads(out_path.read_text().splitlines()[0])
-    assert rec["odds_leg"] == {"status": "unmatched"}
+    assert rec["schema_version"] == "sports_pairs.v2"
+    assert rec["game_start"] == "2026-07-07T03:00:00Z"
+    leg = rec["odds_leg"]
+    assert leg["status"] == "matched"
+    assert leg["bookmaker"] == "pinnacle" and leg["bookmaker_preferred"] is True
+    assert leg["price_source_tag"] == "synthetic"          # de-vig is a model, not a fill
+    assert leg["outcome_coverage"] == "full"
+    fair = {o["kalshi_outcome_name"]: o["fair_prob"] for o in leg["outcomes"]}
+    assert fair["Tie"] is not None and sum(fair.values()) == pytest.approx(1.0, abs=1e-9)
+    # the Kalshi legs stay the only fillable prices on the line
+    assert all(o["price_source_tag"] == "real_ask" for o in rec["outcomes"])
+
+
+def test_run_without_key_stays_blocked_and_never_calls_odds_api(tmp_path):
+    client = FakeClient(
+        series_titles={"KXWCGAME": "World Cup Game"},
+        markets_by_series={"KXWCGAME": _three_way_group()},
+    )
+
+    def forbidden(url, params):    # any call would be a discipline violation
+        raise AssertionError("odds http layer must not be touched without a key")
+
+    summary = sp.run(client=client, tape_dir=tmp_path, odds_http_get=forbidden)
+    assert summary["odds_api_key_present"] is False and summary["odds"] is None
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    assert rec["odds_leg"] == {"status": "blocked_key"}
+    # team names + kickoff are persisted even without a key (they make the match replayable)
+    assert {o["outcome_name"] for o in rec["outcomes"]} == {"USA", "Tie", "Belgium"}
+    assert rec["game_start"] == "2026-07-07T03:00:00Z"

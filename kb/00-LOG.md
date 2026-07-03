@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 15:25 UTC — Q1 odds-api leg built (local session): self-activates on ODDS_API_KEY
+
+Ryan is getting an odds-api key, so the Q1 odds leg went from BLOCKED(key) to built-and-armed.
+New `collection/odds_api.py` + a v2 `sports_pairs` record; no key → behavior is byte-for-byte
+the old `blocked_key` path, key present → the hourly pass pairs each Kalshi game with a sharp
+book's de-vigged h2h line with zero code change (same self-healing shape as Q0b).
+
+The design keys off two Kalshi fields probed live this session (and now persisted on every
+record even keyless, so matches are replayable offline): `occurrence_datetime` is the game
+start — it equals the-odds-api's `commence_time`, making kickoff time the PRIMARY match key —
+and `yes_sub_title` is "Reg Time: <team>" — the full per-outcome team name, so matching never
+guesses from 3-letter outcome codes. Team names only confirm (accent-fold + club-suffix-strip
++ containment/initials credit, e.g. Kalshi "Chicago WS" ↔ book "Chicago White Sox"); both
+sides must clear a floor, the pair a total bar, and the winner a margin over the runner-up —
+else honest `no_match`/`ambiguous`, never a guess. Tie ↔ Draw is the one special case.
+
+Trust discipline: the de-vig (moved to `odds_api.devig_multiplicative`, re-exported for
+compat) produces `synthetic` numbers — the matched leg carries `price_source_tag: synthetic`
+and the Kalshi `real_ask` legs remain the only fillable prices on the line. Bookmaker order
+is sharp-first (`pinnacle` > betonlineag > lowvig > ...), falling back to any book but
+recording which (`bookmaker`, `bookmaker_preferred`) so S7 analysis can filter.
+
+Quota discipline (free tier = 500 credits/mo; 1 credit per sport-call at `regions=eu`, the
+region carrying Pinnacle): the static series→sport map (16 entries) is runtime-verified each
+pass against the quota-free `/v4/sports` catalogue (`sport_not_active`, never a guessed
+fetch); default selection is S7's targets only (WC + NFL + NBA ⇒ ~24 credits/day during the
+World Cup, fits the free tier through Jul 19); `ODDS_API_SPORTS=all|<list>` widens;
+`ODDS_API_QUOTA_FLOOR` (default 50) halts further sports in a pass once
+`x-requests-remaining` drops below it — a free key degrades loudly to `quota_floor`, it is
+never silently burned to zero. Quota headers are persisted in every pass summary.
+
+26 new unit tests, fully offline (stub HTTP): normalization/abbreviation scoring, kickoff-
+window + orientation-flip + ambiguity matching, Tie↔Draw and partial-coverage pairing,
+bookmaker preference/fallback, and the orchestration statuses (`unmapped_series`,
+`not_selected`, `sport_not_active`, `fetch_error` isolation per sport, quota floor + env
+override). 130 tests green, invariants green. Live keyless smoke: 176/176 games complete,
+every record carrying `game_start` + full `outcome_name`s.
+
+Key placement when it arrives: claude.ai → the `kalshi-loops` environment → env var
+`ODDS_API_KEY` (the hourly collector inherits it; nothing else to flip). The first keyed
+pass is the real validation of the matcher — eyeball `match_score`/`no_match` rates in
+`tape/sports_pairs/` before trusting pairs for S7.
+
 ## 2026-07-03 10:12 UTC — Q3 hourly entry point built; sports + crypto collectors now unified
 
 Claim-check: no open PRs against `main`, local branch already at `main`'s tip (`f6c946a`).

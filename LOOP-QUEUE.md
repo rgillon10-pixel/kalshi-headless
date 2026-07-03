@@ -89,12 +89,21 @@ on anything else. If hosts are NOW reachable: set this item DONE, flip every
 unblock, then proceed to the topmost TODO item as normal.
 
 ### Q1 — Build sports paired-odds collector (serves S7/S11) — TIME-SENSITIVE: World Cup ends Jul 19
-Status: KALSHI LEG DONE (2026-07-03) — `collection/sports_pairs.py` built + 19 unit tests green;
-two independent live passes both captured (357 events/2026-07-02 pass, 188 games/2026-07-03
-pass — market set shifts between passes, both kept as tape), all `completeness_ok`, mean
-overround +21.3¢ real_ask. Odds-api leg still BLOCKED(key) (`ODDS_API_KEY` absent) —
-`devig_multiplicative` implemented+tested, event-matching not built.
-Remaining for full DONE: wire into Q3's hourly pass once Q2 exists; get an odds-api key.
+Status: CODE DONE, ARMED AWAITING KEY (2026-07-03) — both legs now built. Kalshi leg
+(2026-07-03 AM): `collection/sports_pairs.py` + 19 unit tests green; two independent live
+passes both captured (357 events/2026-07-02 pass, 188 games/2026-07-03 pass — market set
+shifts between passes, both kept as tape), all `completeness_ok`, mean overround +21.3¢
+real_ask. Odds-api leg (2026-07-03 PM, local session — Ryan is acquiring a key):
+`collection/odds_api.py` — kickoff-time-primary event matching (Kalshi `occurrence_datetime`
+= odds-api `commence_time`; `yes_sub_title` team names confirm, honest
+`no_match`/`ambiguous`), Pinnacle-first bookmaker order, de-vig → fair prob tagged
+`synthetic`, quota-floor + default sport selection (WC/NFL/NBA) sized to a free 500/mo key;
+tape schema bumped to `sports_pairs.v2` (`game_start` + per-outcome `outcome_name` persisted
+even keyless). +26 offline tests (130 total green). Self-activates the first hourly pass
+after `ODDS_API_KEY` lands as an env var on the kalshi-loops environment — no code change.
+Remaining for full DONE: Ryan sets the key; then the FIRST keyed pass validates the matcher
+live (check `match_score` / `no_match` / `ambiguous` rates in the tape before S7 trusts the
+pairs) — flip to DONE after that inspection.
 **Note (reconciliation, 2026-07-03):** this milestone was independently built twice this run
 window — two loop firings each rebuilt Q1 from scratch because neither could push straight to
 `main` (see protocol step 0/6 above, fixed after this). Kept the more defensively-built
@@ -172,4 +181,5 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-03T00:14Z · Q1 · built `collection/sports_pairs.py` (discover→confirm→capture, real_ask BBO + bracket_sum/overround via core.pricing) + 19 unit tests; live pass captured 188 confirmed moneyline games (16 series incl. 10 World Cup) to `tape/sports_pairs/dt=2026-07-03.jsonl`, all complete, mean overround +21.3¢ real_ask. Odds-api leg stays BLOCKED(key); de-vig math implemented+tested but unused live.
 - 2026-07-03T (reconciliation, out-of-band) · protocol fix + Q1 dedup · root cause found: cloud sessions cannot `git push origin main` (permission boundary, not a rebase race — both prior runs rebased clean, merge-base==main tip, yet both still fell back to their own branch). Two consecutive firings (`claude/brave-mccarthy-ek6ybp` 23:18Z, `claude/brave-mccarthy-7rnhry` 00:17Z) independently rebuilt Q1 from scratch as a result, each stranded on its own branch, no PR opened either time. Reconciled onto one branch: kept 7rnhry's collector (structural title-regex confirmation, not ticker-suffix alone), folded in ek6ybp's tape capture, merged to `main` via PR. Rewrote protocol steps 0/6: claim-check open PRs before picking work, push-branch+PR+auto-merge-if-green instead of push-to-main-with-branch-fallback — this is the actual fix, not just this run's cleanup.
 - 2026-07-03T05:14Z · Q2 · claim-check: no open PRs, `main` in sync. Built `collection/crypto_hourly.py` (current-hour bracket book real_ask + previous-hour broker_truth settlement via pure hour-token arithmetic + Coinbase/Kraken-fallback synthetic spot) + 21 unit tests; live pass captured BTC+ETH both `pass_complete` to `tape/crypto_hourly/dt=2026-07-03.jsonl`. Excluded a stray long-lived same-grammar group via a close-open duration filter (would otherwise have silently mixed a week-old group into "current hour"). Notable: BTC bracket overround +$9.27 real_ask (188-member fine-band ladder) — flagged un-investigated for Q5, not a verdict. Q3 flipped BLOCKED→TODO (both its dependencies now built). Gates: 89 tests green, invariants green.
+- 2026-07-03T15:25Z (local session, out-of-band) · Q1 odds leg · built `collection/odds_api.py` (kickoff-primary matching + Pinnacle-first de-vig pairing + quota discipline) + `sports_pairs.v2` schema (`game_start`, `outcome_name` persisted keyless); 130 tests green, invariants green; live keyless smoke 176/176 complete. Q1 → ARMED AWAITING KEY: self-activates when Ryan adds `ODDS_API_KEY` to the kalshi-loops cloud environment; first keyed pass = live matcher validation.
 - 2026-07-03T10:12Z · Q3 · claim-check: no open PRs, `main` in sync at f6c946a. Built `collection/hourly_pass.py` — the hourly routine's single entry point: calls `sports_pairs.run()` + `crypto_hourly.run()` independently (one raising never kills the other), ANDs their own honest `completeness_ok` signals, sums `n_markets`/`n_lines` by reading back only the tape lines this pass just wrote (filtered by `capture_id`, so prior passes' lines in the same append-mode file aren't double-counted), and runs `scripts/anomaly_sweep.py` as a subprocess only during the 09 UTC hour (reports `not_built` honestly since Q6 doesn't exist yet — never silently skipped without a trace). 15 new unit tests (offline, injected stub sub-passes, no network): completeness AND-ing, fault isolation on either sub-pass raising, the 09-UTC-only anomaly slot (not-built/ok/error/raises), the tape-accounting helper, and CLI flag wiring. Live smoke: `--sports-limit 3 --crypto-symbols BTC` (188 markets, 1 line) then a full unlimited pass (193 sports games + 2 crypto symbols = 680 markets, 195 lines, completeness ok) — both appended to today's tape. Gates: 104 tests green (89 prior + 15 new), `invariants --full` green.
