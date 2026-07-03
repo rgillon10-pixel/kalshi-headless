@@ -143,13 +143,22 @@ needs (`<n> markets, <m> lines, completeness <ok/FAIL>`). Must be safe to run un
 every hour; a partial failure lowers completeness, it never fakes success.
 
 ### Q4 — S7 historical backtest (sports CLV vs de-vigged sharp line) — the try-first edge
-Status: TODO (2026-07-03) — egress unblocked (Q0b)
-One stage per run:
-**S7a** — source last-season NFL/NBA (+ any completed 2026 World Cup) Kalshi market history
-via public candlesticks + a free historical closing-odds source; document provenance in the
-finding. **S7b** — probe `scripts/sports_clv_s7.py`: Kalshi ask vs de-vig fair at decision
-time, fee model consistent with `scripts/fee_breakeven.py`. **S7c** — block-bootstrap by game
-→ 95% CI, verdict, `findings/<date>-sports-clv-s7.md`, update registry + this file.
+Status: IN-PROGRESS (2026-07-03) — **S7a DONE**: built `collection/sports_history.py`
+(Kalshi settled-event leg + free ESPN/DraftKings closing-odds leg) + 13 unit tests; live
+pass captured 25 World Cup + 40 NBA + 15 NFL Kalshi-side records + 23 WC + 5 NBA ESPN-side
+odds records (108 lines, `tape/sports_history/dt=2026-07-03.jsonl`). **Spec-changing finding:**
+Kalshi purges settled markets ~60 days after close — NFL (last game Feb) is 100% purged, NBA
+only its playoff tail survives (~40 games), World Cup 2026 (in progress, ends Jul 19) is fully
+retained and is now S7's primary dataset. Odds leg is DraftKings-via-ESPN (free, real
+open/close split), not Pinnacle (no free API) — documented downgrade, not silent substitution.
+See `findings/2026-07-03-sports-history-s7a.md` + `kb/strategies/00-index.md` S7 note.
+Remaining stages (unchanged plan, revised inputs):
+**S7b** — join Kalshi events to ESPN events (WC country codes / NBA team abbrevs → ESPN names),
+use ESPN's real kickoff (`event.date`) to pull the correct pregame ask via the already-built
+`candlestick_ask_before`; probe script `scripts/sports_clv_s7.py`: Kalshi ask vs
+de-vig(DraftKings close) fair, fee model consistent with `scripts/fee_breakeven.py`.
+**S7c** — block-bootstrap by game → 95% CI, verdict, `findings/<date>-sports-clv-s7.md`,
+update registry + this file.
 
 ### Q5 — S8 first cut from free candlesticks (crypto settlement basis)
 Status: TODO (2026-07-03) — egress unblocked (Q0b)
@@ -180,3 +189,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-03T05:14Z · Q2 · claim-check: no open PRs, `main` in sync. Built `collection/crypto_hourly.py` (current-hour bracket book real_ask + previous-hour broker_truth settlement via pure hour-token arithmetic + Coinbase/Kraken-fallback synthetic spot) + 21 unit tests; live pass captured BTC+ETH both `pass_complete` to `tape/crypto_hourly/dt=2026-07-03.jsonl`. Excluded a stray long-lived same-grammar group via a close-open duration filter (would otherwise have silently mixed a week-old group into "current hour"). Notable: BTC bracket overround +$9.27 real_ask (188-member fine-band ladder) — flagged un-investigated for Q5, not a verdict. Q3 flipped BLOCKED→TODO (both its dependencies now built). Gates: 89 tests green, invariants green.
 - 2026-07-03T10:12Z · Q3 · claim-check: no open PRs, `main` in sync at f6c946a. Built `collection/hourly_pass.py` — the hourly routine's single entry point: calls `sports_pairs.run()` + `crypto_hourly.run()` independently (one raising never kills the other), ANDs their own honest `completeness_ok` signals, sums `n_markets`/`n_lines` by reading back only the tape lines this pass just wrote (filtered by `capture_id`, so prior passes' lines in the same append-mode file aren't double-counted), and runs `scripts/anomaly_sweep.py` as a subprocess only during the 09 UTC hour (reports `not_built` honestly since Q6 doesn't exist yet — never silently skipped without a trace). 15 new unit tests (offline, injected stub sub-passes, no network): completeness AND-ing, fault isolation on either sub-pass raising, the 09-UTC-only anomaly slot (not-built/ok/error/raises), the tape-accounting helper, and CLI flag wiring. Live smoke: `--sports-limit 3 --crypto-symbols BTC` (188 markets, 1 line) then a full unlimited pass (193 sports games + 2 crypto symbols = 680 markets, 195 lines, completeness ok) — both appended to today's tape. Gates: 104 tests green (89 prior + 15 new), `invariants --full` green.
 - 2026-07-03T15:25Z · ops (local, Ryan-approved) · VPS collector live: Hetzner box cleared of the dead weather apparatus (archiver services disabled, weather crons commented, 32G of weather-only tape/caches deleted after a sampled 123M-row audit found 100% KXHIGH/KXLOWT/UH* series — zero sports/crypto overlap with S7–S11), `kalshi-headless` cloned at `/root/kalshi-headless` with a write deploy key, hourly cron at :23 UTC (offset from cloud collector's :53), first live pass 645 markets / 178 lines / completeness ok pushed as 36c7f4e. Odds-api key slot prepared on the VPS (see Q1 note). Stale `tape/hourly-*` branches pruned (contents verified on main).
+- 2026-07-03T15:30Z · Q4/S7a · claim-check: no open PRs, branch reset onto `main` tip (1abc535, ahead of stale local branch — two hourly `tape:` passes had landed since last research run). Built `collection/sports_history.py` (Kalshi settled-event leg + free ESPN/DraftKings closing-odds leg, no join yet) + 13 unit tests. Found Kalshi purges settled-market data ~60 days after close (NFL fully purged, NBA only playoff tail survives, World Cup fully retained — reshapes S7's dataset from "last-season NFL/NBA" to "World Cup + NBA tail"); also caught and fixed a pre-commit bug where `occurrence_datetime` was mistaken for kickoff (it's actually the resolution time) and would have silently priced "decision" asks from post-settlement candles. Live pass: 25 WC + 40 NBA + 15 NFL Kalshi records, 23 WC + 5 NBA ESPN odds records, 108 lines to `tape/sports_history/dt=2026-07-03.jsonl`. Gates: 117 tests green (104 prior + 13 new), `invariants --full` green. Full writeup: `findings/2026-07-03-sports-history-s7a.md`. Next: S7b (event-matching join + point the candlestick puller at real kickoff).

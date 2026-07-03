@@ -16,7 +16,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
-| **S7** | Kalshi NFL/NBA moneyline vs Pinnacle no-vig line (CLV harvest) | FP→PR · cross-venue segmentation | **data-collecting** | med | season backtest: Kalshi ask vs devig Pinnacle fair − overround − fee; block-bootstrap by game; CI>0 |
+| **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **data-collecting** | med | backtest: Kalshi ask vs devig(DraftKings close) fair − overround − fee; block-bootstrap by game; CI>0 |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | data-collecting | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds differ (ρ guard vs NWS/WU) |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
@@ -122,6 +122,21 @@ odds-api leg stays `blocked_key` (`ODDS_API_KEY` absent) — de-vig math (`devig
 implemented and unit-tested, but event matching against Kalshi tickers is not built yet. Next: let
 the hourly collector (Q3, still blocked on Q2) accumulate tape, then get an `ODDS_API_KEY` to
 unblock the sharp-line leg S7 actually needs.
+
+**S7 → Q4/S7a (2026-07-03): spec revised by a hard retention finding.** `collection/sports_history.py`
+sourced both legs of the *historical* backtest S7 needs (distinct from Q1's live `sports_pairs.py`
+tape). Discovery that reshapes S7's scope: Kalshi's public API purges a settled market's data
+~60 days after close — `/events?status=settled` lists forever, `/markets`/candlesticks don't. **NFL
+is dead as a data source** (0/15 sampled 2025-season events retrievable — full season is >60 days
+old). **NBA** only its playoff tail survives (~40 games, Apr 30 onward; regular season gone).
+**World Cup 2026** (in progress since Jun 11) is fully retained end-to-end — now S7's primary
+dataset, and still time-boxed to Jul 19. Odds source is **DraftKings via ESPN's public summary API**
+(`pickcenter[].moneyline.{open,close}`, free, genuinely closing-line-labeled), not Pinnacle — no free
+Pinnacle API exists; documented as a real fidelity downgrade from the original spec, not silently
+substituted. A second trap was caught pre-commit: `occurrence_datetime` is the market's *resolution*
+time, not kickoff (candlesticks pulled against it showed post-settlement $1.00 prices) — fixed by not
+claiming a decision price from Kalshi alone; S7b must join ESPN's real kickoff timestamp first. Full
+writeup: `findings/2026-07-03-sports-history-s7a.md`.
 
 ## The one rule that orders all of this
 
