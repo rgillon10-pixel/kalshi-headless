@@ -6,6 +6,42 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 — Loop protocol fixed: cloud sessions can't push to `main`; PR + claim-check added
+
+Two consecutive `kalshi-research-loop` firings (23:18Z and 00:17Z, both same 5-hour window)
+each independently rebuilt Q1 (`collection/sports_pairs.py`) from scratch and stranded the
+result on their own branch (`claude/brave-mccarthy-ek6ybp`, `claude/brave-mccarthy-7rnhry`) —
+neither reached `main`, neither opened a PR. Root cause: a cloud session cannot
+`git push origin main` here — confirmed empirically, both runs rebased clean against `main`
+(merge-base == main tip, no conflict) yet both still fell back to their session's own branch,
+which only happens on a permission boundary, not a race. `LOOP-QUEUE.md`'s old protocol
+(step 6: `git push origin main`, fall back to a branch only after 3 failed retries) assumed a
+push that was never going to succeed, so every firing silently fell back and the queue's
+"memory" (Status lines, Log of runs) never actually reached the next firing's starting state.
+
+Fix, in `LOOP-QUEUE.md`:
+- **New step 0 (claim check):** before picking work, list open PRs against `main`; an item
+  named in an open PR is claimed — don't redo it, merge the PR if it's green instead.
+- **Rewrote step 6:** push your own branch → open a PR → merge it immediately (squash) if
+  `pytest` + `invariants --full` are green and the diff is research/data-only (Stop rules
+  already forbid execution/credential code, so this is a re-check, not a new bar). Broken or
+  partial work stays an open PR with an IN-PROGRESS note instead of merging.
+
+Reconciled the stranded work: kept `claude/brave-mccarthy-7rnhry`'s `sports_pairs.py` (title-
+regex + structural per-game confirmation before capture — the defense against exactly the bug
+the other branch had to live-patch, ticker-suffix-only classification letting non-moneyline
+`GAME`-suffixed prop series through) as the surviving implementation, folded the other run's
+tape capture in as extra data (357 events/07-02 pass + 188 games/07-03 pass, different
+timestamps, no conflict), merged to `main` via PR. Gates: 68 tests green, invariants green.
+
+**Why this is the actual fix, not just cleanup:** `LOOP-QUEUE.md` + this log were already
+meant to be the loop's memory system and active to-do list — they just couldn't work while the
+git mechanics silently dropped every firing's state on an orphan branch. The claim-check +
+PR-merge protocol is what makes "pick the topmost item, do the work, persist it" actually
+cumulative across 5-hour firings instead of amnesia dressed up as append-only logging.
+
+---
+
 ## 2026-07-03 00:14 UTC — Egress unblocked (Q0b); Q1 sports-pairs collector built, first live tape
 
 Re-ran the Q0b cheap egress re-check (self-healing item, runs first while anything is
