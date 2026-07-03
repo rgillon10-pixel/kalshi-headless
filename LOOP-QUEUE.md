@@ -111,7 +111,14 @@ Kalshi leg anyway and note the odds leg as BLOCKED(key). Unit tests for ticker p
 de-vig math.
 
 ### Q2 — Build crypto-hourly settlement collector (serves S8/S10)
-Status: TODO (2026-07-03) — egress unblocked (Q0b)
+Status: DONE (2026-07-03) — `collection/crypto_hourly.py` built + 21 unit tests green; one
+live pass captured both BTC and ETH `pass_complete` (current-hour bracket book real_ask +
+previous-hour broker_truth settlement + Coinbase synthetic spot) to
+`tape/crypto_hourly/dt=2026-07-03.jsonl`. Stray long-lived same-grammar group
+(`KXBTC-26JUL0317`, open since 06-26) correctly excluded from "current hour" via a duration
+filter, not a ticker special-case. Notable: BTC bracket overround **+$9.27** (real_ask,
+188-member ladder) — plausibly driven by ~180 fine $100 bands each near Kalshi's 1¢ min ask;
+un-investigated, flagged for whoever runs Q5. See `kb/00-LOG.md` 2026-07-03 05:14 UTC entry.
 `collection/crypto_hourly.py`: one pass = snapshot the CURRENT hour's BTC/ETH hourly bracket
 books (tag `real_ask`) + spot from ≥1 public exchange endpoint (tag `synthetic`), AND fetch
 settlement results for the PREVIOUS hour's markets → paired JSONL under `tape/crypto_hourly/`.
@@ -119,7 +126,8 @@ Store both spot and settle so the S8 ρ-guard (spot-vs-settle correlation) is co
 tape alone.
 
 ### Q3 — Hourly entry point for the collector routine
-Status: BLOCKED(needs Q1 + Q2 built — egress itself no longer blocking, see Q0b)
+Status: TODO (2026-07-03) — both Q1 (`sports_pairs.py`) and Q2 (`crypto_hourly.py`) collectors
+now built, unblocking this item.
 `collection/hourly_pass.py`: the single command the hourly Haiku routine runs — one
 sports-pairs pass + one crypto-hourly pass; during the 09 UTC hour also run
 `scripts/anomaly_sweep.py` if it exists. Prints the one-line summary the collector digest
@@ -161,3 +169,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-03T00:08Z · Q0b · egress now open on all 4 hosts (Kalshi 200, Coinbase 200, Kraken 200, the-odds-api 401=reachable); `capture_orderbooks.py --limit 3` proved live. Q0b DONE, Q1/Q2/Q4/Q5/Q6 flipped BLOCKED(egress)→TODO; ODDS_API_KEY still absent (Q1 odds leg stays BLOCKED(key)). Proceeding to Q1 (time-sensitive, World Cup) per Q0b's own continue-instruction.
 - 2026-07-03T00:14Z · Q1 · built `collection/sports_pairs.py` (discover→confirm→capture, real_ask BBO + bracket_sum/overround via core.pricing) + 19 unit tests; live pass captured 188 confirmed moneyline games (16 series incl. 10 World Cup) to `tape/sports_pairs/dt=2026-07-03.jsonl`, all complete, mean overround +21.3¢ real_ask. Odds-api leg stays BLOCKED(key); de-vig math implemented+tested but unused live.
 - 2026-07-03T (reconciliation, out-of-band) · protocol fix + Q1 dedup · root cause found: cloud sessions cannot `git push origin main` (permission boundary, not a rebase race — both prior runs rebased clean, merge-base==main tip, yet both still fell back to their own branch). Two consecutive firings (`claude/brave-mccarthy-ek6ybp` 23:18Z, `claude/brave-mccarthy-7rnhry` 00:17Z) independently rebuilt Q1 from scratch as a result, each stranded on its own branch, no PR opened either time. Reconciled onto one branch: kept 7rnhry's collector (structural title-regex confirmation, not ticker-suffix alone), folded in ek6ybp's tape capture, merged to `main` via PR. Rewrote protocol steps 0/6: claim-check open PRs before picking work, push-branch+PR+auto-merge-if-green instead of push-to-main-with-branch-fallback — this is the actual fix, not just this run's cleanup.
+- 2026-07-03T05:14Z · Q2 · claim-check: no open PRs, `main` in sync. Built `collection/crypto_hourly.py` (current-hour bracket book real_ask + previous-hour broker_truth settlement via pure hour-token arithmetic + Coinbase/Kraken-fallback synthetic spot) + 21 unit tests; live pass captured BTC+ETH both `pass_complete` to `tape/crypto_hourly/dt=2026-07-03.jsonl`. Excluded a stray long-lived same-grammar group via a close-open duration filter (would otherwise have silently mixed a week-old group into "current hour"). Notable: BTC bracket overround +$9.27 real_ask (188-member fine-band ladder) — flagged un-investigated for Q5, not a verdict. Q3 flipped BLOCKED→TODO (both its dependencies now built). Gates: 89 tests green, invariants green.

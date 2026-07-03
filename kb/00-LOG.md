@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 05:14 UTC — Q2 crypto-hourly settlement collector built + first live pass
+
+Built `collection/crypto_hourly.py`, mirroring `sports_pairs.py`/`capture_orderbooks.py`
+discipline for Kalshi's `KXBTC`/`KXETH` ("Bitcoin/Ethereum range") series, which price a fresh
+hourly bracket ladder every hour (ticker grammar `SERIES-YYMONDDHH-[T|B]<strike>`, `HH` in ET so
+`close_time = HH+4:00Z` during EDT — confirmed empirically against the live API). One pass per
+symbol captures three paired things: **(1)** the CURRENT hour's bracket book (`real_ask` BBO,
+`bracket_sum`/`overround_absorbed` via `core.pricing`); **(2)** the PREVIOUS hour's settlement —
+Kalshi's own `result` + `expiration_value` (the CF Benchmarks index average actually used to
+settle), tagged `broker_truth`; **(3)** spot from Coinbase (Kraken fallback if Coinbase fails),
+tagged `synthetic` per the queue spec (an external reference price, not itself a Kalshi fill).
+Storing all three paired per pass is exactly what S8's ρ-guard (spot-vs-settle correlation) needs
+computable from tape alone, without any live analysis code.
+
+One non-obvious discovery-layer bug avoided: the `KXBTC`/`KXETH` series also carries a stray
+long-lived group reusing the same hourly ticker grammar (`KXBTC-26JUL0317`, empirically observed
+open continuously since 2026-06-26 — a different market shape, not the hourly ladder) sitting
+alongside the genuine current-hour group in the `status=open` response. Naively picking "whatever
+event_ticker is open" would silently mix a week-old group into "current hour" data. Fixed by
+filtering on `close_time - open_time <= 65min` before picking the soonest-closing candidate — a
+duration check, not a ticker-string special case, so it generalizes to any future stray group.
+Previous-hour's event_ticker is derived by pure arithmetic on the current group's date+hour token
+(subtract 1 hour, handle day/month/year rollover) rather than an extra discovery call. 21 new unit
+tests (offline `FakeClient` + monkeypatched HTTP for the spot fallback, no network): hour-token
+arithmetic incl. rollover, stray-group exclusion, honest completeness (missing ask drops that
+outcome), settlement status states (settled/pending/not_found/fetch_error, and disagreeing
+`expiration_value`s surfaced rather than silently picking one), spot fallback + total-failure
+handling (never a stale/fabricated substitute).
+
+**First live pass** (`tape/crypto_hourly/dt=2026-07-03.jsonl`): both symbols `pass_complete`.
+BTC (`KXBTC-26JUL0302`, 188 members: 1 T-tail-below + 186 $100-wide bands + 1 T-tail-above, a
+clean mutually-exclusive partition like weather's `{T-tails + B-bands}` shape): bracket_sum
+**$10.27**, i.e. overround_absorbed **+$9.27** (real_ask) — two orders of magnitude fatter than
+weather's ~9.8¢ or sports' +21.3¢. ETH (`KXETH-26JUL0302`, 75 members): bracket_sum **$2.23**,
+overround **+$1.23**. Plausible mechanism, NOT yet verified as a real edge: 186 very fine ($100)
+bands each carry Kalshi's apparent 1¢ minimum quoted ask even when near-zero-probability, so
+summing ~180 deep-out-of-the-money 1¢ floors alone accounts for most of the excess — this is a
+collector observation for Q5 to actually test, not a backtest result; no CI computed, no verdict
+on S8 yet. Gates: 89 tests green (68 prior + 21 new), `invariants --full` green.
+
+**Next:** Q3 (hourly entry point) can now wire in both Q1 + Q2; Q5 (S8 first cut) can start
+building on this tape once a few hours have accumulated, and should investigate the fine-band
+minimum-ask mechanism above before treating the raw overround as a scoring input.
+
+---
+
 ## 2026-07-03 — Loop protocol fixed: cloud sessions can't push to `main`; PR + claim-check added
 
 Two consecutive `kalshi-research-loop` firings (23:18Z and 00:17Z, both same 5-hour window)
