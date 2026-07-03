@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 23:34 UTC — Q5: S8 crypto-basis first cut — overround flag resolved, ρ-guard inconclusive
+
+Claim-check: only open PR (#4) is Q1's unrelated odds-api work — Q5 unclaimed, picked it up.
+Built `scripts/s8_basis_probe.py`, a read-only pass over the `tape/crypto_hourly/` tape Q2
+already accumulated (13 unique settled hours each for BTC/ETH so far). Two questions, one
+resolved and one blocked:
+
+**Resolved — the +$9.27 BTC overround flag from Q2 is mostly real, not a floor-tick
+artifact.** Deep out-of-the-money bands pinned at Kalshi's 1¢ minimum ask do inflate the
+number (a coherent market prices them near $0, not $0.01), but they only account for **33.9%**
+of BTC's mean +$5.00 overround across 19 passes — **66.1% comes from genuine near-the-money
+spread**, the bands S8's eventual basis trade would actually touch. ETH splits closer to even
+(56.9%/43.1% — its ladder has roughly a third as many outcomes, so the floor bands carry
+proportionally more weight). Either way: the overround is a legitimate cost benchmark, not an
+artifact to explain away.
+
+**Blocked — the ρ-guard itself couldn't be run as the queue specified.** The queue's own
+phrasing ("public candlesticks... vs public spot **history**") calls for spot sampled at the
+settlement instant; what `crypto_hourly.py` actually pairs is Kalshi's exact settlement value
+against whatever Coinbase/Kraken printed whenever that hour's *pass* happened to run — a mean
+**29-minute lag** (VPS `:23`/cloud `:53` cadence vs on-the-hour settlement). Over 29 minutes
+ordinary BTC volatility can move price well past $100, which fully explains the observed
+gaps (max $150.41, 84.6% of hours over half a $100 band) without invoking any real BRRNY-vs-
+spot mismatch — a naive ρ on price *levels* is also close to a foregone 1.0 regardless
+(two price series tracking the same asset correlate on trend alone; not the same situation
+as the weather NWS/WU check, which compared two co-located sensors). Tried the fix — pull
+Coinbase's free, keyless historical `/candles` endpoint at each settlement's exact
+`close_time` — but this session's egress is currently blocked to every external host tested,
+including Kalshi's own API (403 on the CONNECT tunnel, confirmed via the proxy's own status
+endpoint, not a code bug).
+
+**S8 stays `data-collecting`, not DEAD.** Unlike S1/S5 this isn't a CI failing to clear zero
+— no valid CI exists yet because the paired data doesn't answer the right question. This is
+also a standing finding in its own right: `crypto_hourly.py`'s spot capture needs to move to
+settlement-instant sampling (or a historical-candle backfill) before S8's basis-vs-overround
+comparison can mean anything. 0 new unit tests (pure analysis script over existing tape,
+matching the `longshot_fade_probe.py`/`weather_rehab_s5.py` precedent of unit-testing the
+collectors, not the one-off probes); 140 tests green (unchanged), `invariants --full` green.
+Full writeup: `../findings/2026-07-03-crypto-basis-s8-q5.md`.
+
+**Next:** rerun `s8_basis_probe.py` with historical-candle spot the moment egress reopens to
+Coinbase (or Kalshi, to confirm the environment more broadly); only then does the ρ-guard
+verdict — and any subsequent block-bootstrap — mean anything for S8.
+
+---
+
 ## 2026-07-03 19:40 UTC — Q4/S7b: event-matching join built, first real pregame-ask-vs-devig pass
 
 Claim-check: open PR #4 claims Q1's remaining odds-api work (draft, waiting on Ryan's
