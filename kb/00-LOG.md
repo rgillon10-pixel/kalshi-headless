@@ -6,6 +6,37 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 15:30 UTC — Q4/S7a: sourced sports history, found Kalshi's ~60-day retention wall
+
+Claim-check: no open PRs, branch synced to `main` tip (`1abc535`). Built
+`collection/sports_history.py` (Kalshi settled-event leg + free ESPN closing-odds leg,
+captured separately, no join yet — that's S7b) + 13 unit tests, offline/FakeClient, no
+network in CI. Two load-bearing discoveries, both documented in
+`findings/2026-07-03-sports-history-s7a.md`:
+
+1. Kalshi's public API purges a settled market's data (and therefore candlesticks) ~60
+   days after close, even though `/events?status=settled` keeps listing the event forever.
+   Verified by binary search on NBA events. Kills the "last-season NFL" half of S7's
+   original spec outright (0/15 sampled NFL events had retrievable markets — full season
+   ended Feb, all purged); leaves NBA to only its playoff tail (~40 games, Apr 30 onward);
+   leaves **World Cup 2026** (in progress, started Jun 11) as the one series with its
+   entire history-to-date still live — now the strongest S7 candidate, and still
+   time-sensitive (ends Jul 19).
+2. A market's `occurrence_datetime`/`expected_expiration_time` field is NOT kickoff — it's
+   the expected *resolution* time, seconds-to-minutes after `close_time`, both clustered at
+   game END. Caught before commit: a first draft used it as "decision time" and pulled a
+   candlestick showing `yes_ask=1.0` on every outcome of a live 3-way bracket (impossible
+   pregame). Fixed: the collector no longer claims a decision/pregame price from Kalshi
+   alone; it captures raw timing fields + an honestly-labeled `sample_ask_near_close`
+   candlestick, and defers real pregame pricing to S7b (needs ESPN's `event.date`, the
+   actual kickoff, to compute the correct candlestick window).
+
+Live passes: 25 World Cup + 40 NBA + 15 NFL Kalshi-side records, 23 WC + 5 NBA ESPN-side
+DraftKings odds records (open+close both present, tagged `synthetic`) → 108 lines in
+`tape/sports_history/dt=2026-07-03.jsonl`. Gates: 117 tests green (104 prior + 13 new),
+`invariants --full` green. Next: S7b game-matching join (Kalshi 3-4 letter codes ↔ ESPN
+team names) + point `candlestick_ask_before` at real kickoff.
+
 ## 2026-07-03 10:12 UTC — Q3 hourly entry point built; sports + crypto collectors now unified
 
 Claim-check: no open PRs against `main`, local branch already at `main`'s tip (`f6c946a`).
