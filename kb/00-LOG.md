@@ -6,6 +6,57 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 10:12 UTC — Q3 hourly entry point built; sports + crypto collectors now unified
+
+Claim-check: no open PRs against `main`, local branch already at `main`'s tip (`f6c946a`).
+Built `collection/hourly_pass.py` — the single command the hourly Haiku routine runs, per
+the Q3 spec. It calls `sports_pairs.run()` and `crypto_hourly.run()` independently: each is
+wrapped so an exception in one is caught and recorded rather than taking the other sub-pass
+down with it (a partial outage in one collector must not silently zero out the other's
+otherwise-honest capture). Overall `completeness_ok` is the AND of each sub-pass's own
+already-computed honest completeness signal — never re-derived optimistically, never faked.
+
+`n_markets`/`n_lines` needed a small design call the queue text didn't spell out. Each
+`sports_pairs` tape line is one game (2-3 underlying Kalshi markets); each `crypto_hourly`
+line is one symbol's full bracket ladder (up to ~188 underlying markets). Reporting
+"lines written" alone would make a crypto pass and a sports pass look comparable when
+they're wildly different in market coverage, so `hourly_pass` reads back only the tape
+lines it just wrote (filtered by `capture_id`, since the append-mode JSONL files carry
+prior passes' lines too) and sums each record's own `expected_outcomes` into `n_markets`,
+keeping `n_lines` as the plain record count. Both numbers come straight from data the two
+collectors already persist — no changes needed to either already-tested module.
+
+`scripts/anomaly_sweep.py` (Q6) doesn't exist yet, so the 09-UTC-only slot checks for the
+script file and reports `{"status": "not_built"}` honestly rather than skipping silently or
+pretending the slot ran — the moment Q6 lands, `hourly_pass` picks it up with no further
+wiring (subprocess invocation, not a Python import, matching how `invariants.py` is already
+run as a script rather than imported).
+
+15 new unit tests, fully offline (injected stub `sports_fn`/`crypto_fn`/`anomaly_sweep_fn`,
+no network, no real collector code exercised): both sub-passes complete → `completeness_ok`
+True with correct `n_markets`/`n_lines` math (including the stray-capture_id exclusion);
+either sub-pass's own incompleteness propagates; either sub-pass raising is caught, recorded,
+and does not stop the other from running or crash `run()`; the anomaly slot is skipped
+outside hour 9, and inside hour 9 correctly treats `not_built`/`ok` as non-failing and
+`error`/an exception as failing; the tape-accounting helper in isolation; CLI flag wiring
+(`--sports-limit`, `--crypto-symbols`) reaching the real collector functions with correct
+kwargs, and a nonzero exit code on an incomplete pass.
+
+**Live smoke, twice:** first `--sports-limit 3 --crypto-symbols BTC` (188 markets, 1 line,
+ok) to keep it cheap, then a full unlimited pass — 193 confirmed sports games + both crypto
+symbols, 680 underlying markets across 195 tape lines, `completeness ok`. Both passes
+appended for real to `tape/sports_pairs/dt=2026-07-03.jsonl` and
+`tape/crypto_hourly/dt=2026-07-03.jsonl` (kept as genuine tape, not scratch). Gates: 104
+tests green (89 prior + 15 new), `invariants --full` green.
+
+**Next:** Q4 (S7 historical sports-CLV backtest — the try-first edge) and Q5 (S8 crypto
+settlement-basis first cut) are now the topmost eligible TODO items; Q6 (anomaly sweep) still
+needs building before `hourly_pass`'s 09 UTC slot does anything beyond reporting
+`not_built`. The hourly Haiku routine can now run `python -m collection.hourly_pass`
+unattended once wired up on its own schedule (that wiring is outside this repo).
+
+---
+
 ## 2026-07-03 05:14 UTC — Q2 crypto-hourly settlement collector built + first live pass
 
 Built `collection/crypto_hourly.py`, mirroring `sports_pairs.py`/`capture_orderbooks.py`
