@@ -151,22 +151,24 @@ needs (`<n> markets, <m> lines, completeness <ok/FAIL>`). Must be safe to run un
 every hour; a partial failure lowers completeness, it never fakes success.
 
 ### Q4 — S7 historical backtest (sports CLV vs de-vigged sharp line) — the try-first edge
-Status: IN-PROGRESS (2026-07-03) — **S7a DONE**: built `collection/sports_history.py`
-(Kalshi settled-event leg + free ESPN/DraftKings closing-odds leg) + 13 unit tests; live
-pass captured 25 World Cup + 40 NBA + 15 NFL Kalshi-side records + 23 WC + 5 NBA ESPN-side
-odds records (108 lines, `tape/sports_history/dt=2026-07-03.jsonl`). **Spec-changing finding:**
-Kalshi purges settled markets ~60 days after close — NFL (last game Feb) is 100% purged, NBA
-only its playoff tail survives (~40 games), World Cup 2026 (in progress, ends Jul 19) is fully
-retained and is now S7's primary dataset. Odds leg is DraftKings-via-ESPN (free, real
-open/close split), not Pinnacle (no free API) — documented downgrade, not silent substitution.
-See `findings/2026-07-03-sports-history-s7a.md` + `kb/strategies/00-index.md` S7 note.
-Remaining stages (unchanged plan, revised inputs):
-**S7b** — join Kalshi events to ESPN events (WC country codes / NBA team abbrevs → ESPN names),
-use ESPN's real kickoff (`event.date`) to pull the correct pregame ask via the already-built
-`candlestick_ask_before`; probe script `scripts/sports_clv_s7.py`: Kalshi ask vs
-de-vig(DraftKings close) fair, fee model consistent with `scripts/fee_breakeven.py`.
-**S7c** — block-bootstrap by game → 95% CI, verdict, `findings/<date>-sports-clv-s7.md`,
-update registry + this file.
+Status: IN-PROGRESS (2026-07-03) — **S7a DONE, S7b DONE**. S7a built
+`collection/sports_history.py` (Kalshi settled-event leg + free ESPN/DraftKings closing-odds
+leg) + found Kalshi purges settled markets ~60 days after close (NFL 100% purged, NBA only
+playoff tail, World Cup 2026 fully retained → now S7's primary dataset, time-boxed to Jul 19).
+See `findings/2026-07-03-sports-history-s7a.md`. S7b added the join: `extract_kalshi_teams` +
+`match_kalshi_espn` (team-name containment + ±1-day kickoff window, honest
+matched/ambiguous/no_match/unparseable_title — never a silent pick) + `run_clv_join` (real
+pregame ask via `candlestick_ask_before` anchored at ESPN's actual kickoff, de-vig DraftKings'
+close via `sports_pairs.devig_multiplicative`, per-field `real_ask`/`synthetic` source tags).
+37 new unit tests (155 total green), `invariants --full` green. Live pass (fresh ESPN pull for
+the WC round-of-32/16 dates the Kalshi tape actually covers, Jun26-Jul02 — the prior S7a ESPN
+pull's date window didn't overlap the Kalshi events at all): **27 games matched, 78 outcomes
+priced**, mean pregame `bracket_sum` 1.020, mean `edge_after_fee` −0.0241 (real_ask vs
+synthetic-devig, descriptive only — NOT a verdict, n far short of bootstrap-worthy). See
+`findings/2026-07-03-sports-history-s7b.md` + `kb/strategies/00-index.md` S7 note.
+Remaining: **S7c** — accumulate more games as the tournament progresses, block-bootstrap by
+GAME (not by outcome — outcomes within a game aren't independent draws) → 95% CI, verdict,
+`findings/<date>-sports-clv-s7.md`, update registry + this file.
 
 ### Q5 — S8 first cut from free candlesticks (crypto settlement basis)
 Status: TODO (2026-07-03) — egress unblocked (Q0b)
@@ -199,3 +201,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-03T15:25Z · ops (local, Ryan-approved) · VPS collector live: Hetzner box cleared of the dead weather apparatus (archiver services disabled, weather crons commented, 32G of weather-only tape/caches deleted after a sampled 123M-row audit found 100% KXHIGH/KXLOWT/UH* series — zero sports/crypto overlap with S7–S11), `kalshi-headless` cloned at `/root/kalshi-headless` with a write deploy key, hourly cron at :23 UTC (offset from cloud collector's :53), first live pass 645 markets / 178 lines / completeness ok pushed as 36c7f4e. Odds-api key slot prepared on the VPS (see Q1 note). Stale `tape/hourly-*` branches pruned (contents verified on main).
 - 2026-07-03T15:30Z · Q4/S7a · claim-check: no open PRs, branch reset onto `main` tip (1abc535, ahead of stale local branch — two hourly `tape:` passes had landed since last research run). Built `collection/sports_history.py` (Kalshi settled-event leg + free ESPN/DraftKings closing-odds leg, no join yet) + 13 unit tests. Found Kalshi purges settled-market data ~60 days after close (NFL fully purged, NBA only playoff tail survives, World Cup fully retained — reshapes S7's dataset from "last-season NFL/NBA" to "World Cup + NBA tail"); also caught and fixed a pre-commit bug where `occurrence_datetime` was mistaken for kickoff (it's actually the resolution time) and would have silently priced "decision" asks from post-settlement candles. Live pass: 25 WC + 40 NBA + 15 NFL Kalshi records, 23 WC + 5 NBA ESPN odds records, 108 lines to `tape/sports_history/dt=2026-07-03.jsonl`. Gates: 117 tests green (104 prior + 13 new), `invariants --full` green. Full writeup: `findings/2026-07-03-sports-history-s7a.md`. Next: S7b (event-matching join + point the candlestick puller at real kickoff).
 - 2026-07-03T15:32Z · ops (local, Ryan-requested) · Visibility layer live: ntfy phone feed (`config/notify.topic`) wired into all four legs — VPS runner notifies directly, both cloud trigger prompts updated (kept in sync with new protocol step 8), and a new `kalshi-weekly-retro` routine (trig_0147PgZMXWWXYXpb2ZdZHqfm, Sundays 12:00 UTC) sends a plain-English week-in-review + opens a leave-open improvement PR (never self-merged).
+- 2026-07-03T19:40Z · Q4/S7b · claim-check: open PR #4 claims Q1's remaining odds-api work (draft, unmerged, waiting on Ryan's `ODDS_API_KEY`) — skipped Q1, moved to Q4 (topmost eligible IN-PROGRESS item). Built the S7b join: `extract_kalshi_teams`/`match_kalshi_espn` (team-name containment + ±1-day kickoff window) + `run_clv_join` (real pregame ask anchored at ESPN's actual kickoff, de-vig DraftKings' close, per-field source tags) in `collection/sports_history.py`. Found the prior S7a ESPN pull's date window (Jun15-21) didn't overlap the Kalshi WC tape's actual dates (Jun26-Jul02) at all — re-fetched ESPN for the correct window before joining. Live pass: 27 games matched (24 WC + 3 NBA), 78 outcomes priced, mean bracket_sum 1.020, mean edge_after_fee −0.0241 (descriptive only, not a verdict — S7c still owns the bootstrap). 37 new tests (155 total), invariants green. Full writeup: `findings/2026-07-03-sports-history-s7b.md`.
