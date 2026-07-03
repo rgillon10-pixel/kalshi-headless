@@ -171,11 +171,18 @@ GAME (not by outcome — outcomes within a game aren't independent draws) → 95
 `findings/<date>-sports-clv-s7.md`, update registry + this file.
 
 ### Q5 — S8 first cut from free candlesticks (crypto settlement basis)
-Status: TODO (2026-07-03) — egress unblocked (Q0b)
-Same trick as S2's first cut: public candlesticks on crypto-hourly markets vs public spot
-history. FIRST the ρ-guard — if spot-vs-settle ρ≈1 the feed-mismatch thesis dies cheap →
-mark S8 DEAD in the registry and here. Only if the guard passes: final-minutes basis vs
-overround at real asks, block-bootstrap by hour.
+Status: IN-PROGRESS (2026-07-03) — ρ-guard inconclusive, overround flag resolved, BLOCKED(egress)
+`scripts/s8_basis_probe.py` (read-only over `tape/crypto_hourly/`) found the +$9.27 BTC
+overround flag is mostly real (66.1% from near-the-money spread, not the floor-tick artifact
+suspected) but could NOT run the ρ-guard as intended: the tape's paired `spot` read lags each
+settlement by a mean 29 minutes, enough ordinary BTC drift to fully explain the observed gaps
+without any real feed mismatch. A correct guard needs Coinbase's historical `/candles`
+endpoint sampled at the settlement instant — attempted, blocked by this session's egress
+(403 on every external host, including Kalshi). Full writeup:
+`findings/2026-07-03-crypto-basis-s8-q5.md`. Remaining: rerun with historical-candle spot the
+moment egress reopens; only then does "final-minutes basis vs overround, block-bootstrap by
+hour" become meaningful. Do not re-attempt the lagged-spot approach — it's confounded by
+design, not by a missing feature.
 
 ### Q6 — Daily anomaly sweep (serves S3 + free-money detection)
 Status: TODO (2026-07-03) — egress unblocked (Q0b)
@@ -202,3 +209,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-03T15:30Z · Q4/S7a · claim-check: no open PRs, branch reset onto `main` tip (1abc535, ahead of stale local branch — two hourly `tape:` passes had landed since last research run). Built `collection/sports_history.py` (Kalshi settled-event leg + free ESPN/DraftKings closing-odds leg, no join yet) + 13 unit tests. Found Kalshi purges settled-market data ~60 days after close (NFL fully purged, NBA only playoff tail survives, World Cup fully retained — reshapes S7's dataset from "last-season NFL/NBA" to "World Cup + NBA tail"); also caught and fixed a pre-commit bug where `occurrence_datetime` was mistaken for kickoff (it's actually the resolution time) and would have silently priced "decision" asks from post-settlement candles. Live pass: 25 WC + 40 NBA + 15 NFL Kalshi records, 23 WC + 5 NBA ESPN odds records, 108 lines to `tape/sports_history/dt=2026-07-03.jsonl`. Gates: 117 tests green (104 prior + 13 new), `invariants --full` green. Full writeup: `findings/2026-07-03-sports-history-s7a.md`. Next: S7b (event-matching join + point the candlestick puller at real kickoff).
 - 2026-07-03T15:32Z · ops (local, Ryan-requested) · Visibility layer live: ntfy phone feed (`config/notify.topic`) wired into all four legs — VPS runner notifies directly, both cloud trigger prompts updated (kept in sync with new protocol step 8), and a new `kalshi-weekly-retro` routine (trig_0147PgZMXWWXYXpb2ZdZHqfm, Sundays 12:00 UTC) sends a plain-English week-in-review + opens a leave-open improvement PR (never self-merged).
 - 2026-07-03T19:40Z · Q4/S7b · claim-check: open PR #4 claims Q1's remaining odds-api work (draft, unmerged, waiting on Ryan's `ODDS_API_KEY`) — skipped Q1, moved to Q4 (topmost eligible IN-PROGRESS item). Built the S7b join: `extract_kalshi_teams`/`match_kalshi_espn` (team-name containment + ±1-day kickoff window) + `run_clv_join` (real pregame ask anchored at ESPN's actual kickoff, de-vig DraftKings' close, per-field source tags) in `collection/sports_history.py`. Found the prior S7a ESPN pull's date window (Jun15-21) didn't overlap the Kalshi WC tape's actual dates (Jun26-Jul02) at all — re-fetched ESPN for the correct window before joining. Live pass: 27 games matched (24 WC + 3 NBA), 78 outcomes priced, mean bracket_sum 1.020, mean edge_after_fee −0.0241 (descriptive only, not a verdict — S7c still owns the bootstrap). 37 new tests (155 total), invariants green. Full writeup: `findings/2026-07-03-sports-history-s7b.md`.
+- 2026-07-03T23:34Z · Q5 · claim-check: only open PR is #4 (Q1, unrelated) — Q5 unclaimed. Built `scripts/s8_basis_probe.py` (read-only over accumulated `tape/crypto_hourly/`). Resolved the Q2 overround flag: BTC's mean +$5.00 overround (19 passes) is 66.1% real near-the-money spread, only 33.9% the suspected floor-tick artifact (ETH splits 43%/57%, floor-heavier — smaller ladder). Could NOT run the ρ-guard as specified: the tape's paired `spot` lags each settlement by a mean 29 minutes (VPS `:23`/cloud `:53` cadence vs on-the-hour settlement), enough ordinary BTC drift to fully explain the observed gaps (max $150, 84.6% of hours over half a $100 band) without any real feed mismatch — tried to fix this with Coinbase's historical `/candles` endpoint (free, keyless) but this session's egress is currently blocked to every external host tested, including Kalshi itself (403 on CONNECT). Q5 left IN-PROGRESS/BLOCKED(egress), not DEAD — this is a data-adequacy gap the probe surfaced, not a CI failing to clear zero. 0 new unit tests (pure read-only analysis script over existing tape, matching `longshot_fade_probe.py`/`weather_rehab_s5.py` precedent); 140 tests green (unchanged), `invariants --full` green. Full writeup: `findings/2026-07-03-crypto-basis-s8-q5.md`.

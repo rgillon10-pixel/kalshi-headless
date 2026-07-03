@@ -110,6 +110,22 @@ min-ask floor rather than real probability mass. Un-investigated — Q5 (S8's fi
 check this before the ρ-guard or basis calc can mean anything; noted here so it isn't silently
 assumed away.
 
+**S8 → Q5 first cut (2026-07-03): overround flag resolved, ρ-guard inconclusive (stays
+data-collecting).** `scripts/s8_basis_probe.py` (read-only over accumulated
+`tape/crypto_hourly/`) found the earlier +$9.27 flag is **mostly real, not a floor-tick
+artifact**: only 33.9% of BTC's mean overround (+$5.00 across 19 passes) comes from the
+~170 deep-OTM 1¢-floor bands; 66.1% comes from genuine near-the-money spread (ETH splits
+57%/43%, floor-heavier since its ladder has fewer outcomes). The ρ-guard itself could not
+be run as specified: `crypto_hourly`'s paired `spot` read lags each settlement by a mean
+**29 minutes** (VPS `:23`/cloud `:53` cadence vs settlement on the hour) — enough ordinary
+BTC drift in that window to fully explain the observed gaps (max $150.41, 84.6% of hours
+over half a $100 band) without any real BRRNY-vs-spot mismatch. A correct guard needs spot
+sampled **at** the settlement instant (Coinbase's free historical `/candles` endpoint,
+`granularity=60`) — attempted this run, blocked by this session's egress (403 on every
+external host tried, including Kalshi itself). **S8 stays `data-collecting`, not DEAD**:
+unlike S1/S5 this isn't a CI failing to clear zero, it's that the available data can't yet
+answer the question. Full writeup: `../../findings/2026-07-03-crypto-basis-s8-q5.md`.
+
 **S7/S11 → data-collecting (2026-07-03).** Cloud egress unblocked mid-run (Q0b); built
 `collection/sports_pairs.py` (Q1) — discovers Kalshi sports moneyline series by title heuristic,
 confirms each game group structurally (2-3 outcomes, every market titled "&lt;A&gt; vs &lt;B&gt; ...
