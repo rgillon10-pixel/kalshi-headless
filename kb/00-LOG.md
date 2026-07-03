@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 00:14 UTC — Egress unblocked (Q0b); Q1 sports-pairs collector built, first live tape
+
+Re-ran the Q0b cheap egress re-check (self-healing item, runs first while anything is
+`BLOCKED(egress...)`): all 4 hosts that failed yesterday now answer for real — Kalshi REST 200
+(`exchange_active:true`), Coinbase 200 (live BTC ask), Kraken 200 (live server time), the-odds-api
+401 (reachable, just no key). `capture_orderbooks.py --limit 3` proved it end-to-end against live
+Kalshi. This is an environment change (Ryan widened the sandbox allowlist, or an env swap), not a
+code fix. Flipped Q0b DONE and every `BLOCKED(egress...)` item in `LOOP-QUEUE.md` back to TODO;
+refreshed `tape/cloud-env-check.md`. Per Q0b's own instruction, continued straight to the new
+topmost TODO item instead of ending the run there.
+
+**Q1 (time-sensitive — World Cup ends Jul 19):** built `collection/sports_pairs.py`, mirroring
+`capture_orderbooks.py`'s discipline without forcing weather's city/target_date shape onto sports.
+Discovery is two-stage: a title heuristic over the ~2300 Sports-category series narrows the
+API-call budget (`*Game(s)*` minus prop-bet keywords), then every candidate game group is
+structurally confirmed (2-3 mutually exclusive outcomes, every market titled "&lt;A&gt; vs &lt;B&gt;
+... Winner?") before anything is captured — the heuristic only saves calls, it never decides what
+gets persisted. Each confirmed game is one game group priced as a bracket exactly like the weather
+ladders, so `core/pricing.bracket_sum`/`overround` (Hard Rule #3's one sanctioned site) applies
+unchanged. Ticker grammar (`SERIES-YYMonDD<TEAMS>-OUTCOME`, e.g.
+`KXWCGAME-26JUL06USABEL-USA`) parses with a new `parse_sports_ticker`; a `devig_multiplicative`
+function is implemented and unit-tested for the odds-api leg, unused live since `ODDS_API_KEY` is
+absent (Q1's spec: capture the Kalshi leg anyway, mark the odds leg `blocked_key`, never fabricate
+it). 19 new unit tests (offline `FakeClient`, no network): ticker parsing, moneyline-group
+confirmation, de-vig math, and a full capture pass with honest completeness (a missing ask drops
+that outcome and flips `completeness_ok`, never fabricated).
+
+**First live pass:** 197 candidate series → 188 confirmed moneyline games across 16 series (10 of
+them `KXWCGAME` World Cup games), 100% `completeness_ok`, written to
+`tape/sports_pairs/dt=2026-07-03.jsonl`. Mean bracket overround **+21.3¢ (real_ask, n=188)** —
+notably fatter than the ~9.8¢ weather overround that killed S1/S5; plausibly thin/new markets
+rather than a structural property of sports moneylines, needs a liquidity-filtered re-cut before
+it says anything about S7. Flipped S7/S11 to `data-collecting` in the registry (not `tested` — no
+CI computed yet, this is infra + one snapshot). Gates: 68 tests green (49 prior + 19 new),
+`invariants --full` green.
+
+**Next:** accumulate `sports_pairs` tape over multiple passes (needs Q3's hourly entry point,
+which is still blocked on Q2); get an `ODDS_API_KEY` to unblock the Pinnacle/de-vig leg S7's
+binding test actually needs. Q2 (crypto-hourly collector) is now the topmost eligible TODO item.
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi
