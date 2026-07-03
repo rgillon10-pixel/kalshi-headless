@@ -47,18 +47,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 import sys
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from collection.sports_pairs import devig_multiplicative
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
+from core.pricing import bracket_sum
 from validation.v3_market import Kalshi, _load_venue_cfg
 
 TAPE = REPO_ROOT / "tape" / "sports_history"
+CLV_TAPE = REPO_ROOT / "tape" / "sports_clv"
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports"
 DRAFTKINGS_PROVIDER_ID = "100"
 
@@ -264,6 +270,306 @@ def fetch_espn_closing_odds(sport: str, league: str, dates: str,
     return summary
 
 
+# --------------------------------------------------------------------------- #
+# S7b — event matching: Kalshi settled event <-> ESPN closing-odds event
+# --------------------------------------------------------------------------- #
+# A Kalshi game title is one of (all observed live, S7a tape 2026-07-03):
+#   "Switzerland vs Algeria: Regulation Time Moneyline SUI vs DZA (Jul 2)"   (WC, full form)
+#   "Cape Verde vs Saudi Arabia"                                            (WC, bare form)
+#   "Game 5: New York at San Antonio NYK at SAS (Jun 13)"                   (NBA)
+# Strip the trailing "(Mon DD)", the redundant "<CODE> vs/at <CODE>" ticker-code repeat,
+# the ": Regulation Time Moneyline" suffix, and a leading "Game N:" — whichever are
+# present — leaving "<team A> vs/at <team B>" in ticker team-code order.
+_TRAILING_DATE_RE = re.compile(r"\s*\([A-Za-z]+\s+\d{1,2}\)\s*$")
+_TRAILING_CODE_PAIR_RE = re.compile(r"\s+[A-Z]{2,4}\s+(?:vs\.?|at)\s+[A-Z]{2,4}\s*$")
+_TRAILING_MONEYLINE_RE = re.compile(r":\s*Regulation Time Moneyline\s*$", re.I)
+_GAME_PREFIX_RE = re.compile(r"^Game\s+\d+:\s*", re.I)
+_TEAM_SPLIT_RE = re.compile(r"\s+(?:vs\.?|at)\s+", re.I)
+_ESPN_SPLIT_RE = re.compile(r"\s+at\s+", re.I)
+# Event ticker's trailing team-code segment, e.g. "KXWCGAME-26JUL02SUIDZA" -> teams="SUIDZA".
+_EVENT_TICKER_RE = re.compile(r"-(?P<yy>\d{2})(?P<mon>[A-Z]{3})(?P<dd>\d{2})(?P<teams>[A-Z0-9]+)$")
+
+
+def extract_kalshi_teams(title: str) -> Optional[Tuple[str, str]]:
+    """Pull the two full team names out of a Kalshi sports-game title (see forms above).
+    Order is preserved (team A, team B) — assumed (and unit-tested against live samples)
+    to match the event ticker's team-code order, which `_event_team_codes` reads
+    independently. None if the title doesn't parse into an "A vs/at B" shape."""
+    s = title.strip()
+    s = _TRAILING_DATE_RE.sub("", s)
+    s = _TRAILING_CODE_PAIR_RE.sub("", s)
+    s = _TRAILING_MONEYLINE_RE.sub("", s)
+    s = _GAME_PREFIX_RE.sub("", s)
+    parts = _TEAM_SPLIT_RE.split(s, maxsplit=1)
+    if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+        return None
+    return parts[0].strip(), parts[1].strip()
+
+
+def _espn_teams(name: str) -> Optional[Tuple[str, str]]:
+    """ESPN scoreboard `name` is always "<away> at <home>"."""
+    parts = _ESPN_SPLIT_RE.split((name or "").strip(), maxsplit=1)
+    if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+        return None
+    return parts[0].strip(), parts[1].strip()
+
+
+def _event_team_codes(event_ticker: str) -> Optional[Tuple[str, str]]:
+    """Split an event ticker's team-code segment into (code_a, code_b) — a 3+3 letter
+    split (every sampled series, KXWCGAME/KXNBAGAME/KXNFLGAME, uses 3-letter codes;
+    verified against S7a's live tape). None if the segment isn't exactly 6 chars, so a
+    non-conforming series is honestly unmapped rather than mis-split."""
+    m = _EVENT_TICKER_RE.search(event_ticker or "")
+    if not m:
+        return None
+    teams = m["teams"]
+    if len(teams) != 6:
+        return None
+    return teams[:3], teams[3:]
+
+
+def _kalshi_event_date(event_ticker: str):
+    m = _EVENT_TICKER_RE.search(event_ticker or "")
+    if not m:
+        return None
+    try:
+        return datetime.strptime(f"{m['yy']}{m['mon']}{m['dd']}", "%y%b%d").date()
+    except ValueError:
+        return None
+
+
+def _espn_event_date(espn_record: Dict):
+    d = espn_record.get("date")
+    if not d:
+        return None
+    try:
+        return datetime.fromisoformat(d.replace("Z", "+00:00")).date()
+    except ValueError:
+        return None
+
+
+def normalize_team_name(name: str) -> str:
+    """Lowercase, strip accents/punctuation/whitespace — a comparable form for Kalshi vs
+    ESPN team names (e.g. "Türkiye" vs "Turkiye", "Congo DR" vs "Congo DR")."""
+    nfkd = unicodedata.normalize("NFKD", name or "")
+    ascii_form = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", "", ascii_form.lower())
+
+
+def _names_match(a: str, b: str) -> bool:
+    """One normalized name contains the other — handles the NBA city-name-vs-full-team-
+    name case ("sanantonio" in "sanantoniospurs")."""
+    if not a or not b:
+        return False
+    return a in b or b in a
+
+
+def _base_match_row(ke: Dict) -> Dict:
+    return {"kalshi_event_ticker": ke.get("event_ticker"), "series": ke.get("series"),
+            "kalshi_title": ke.get("title")}
+
+
+def match_kalshi_espn(kalshi_events: List[Dict], espn_events: List[Dict],
+                      max_date_delta_days: int = 1) -> List[Dict]:
+    """For each Kalshi settled-event record, find its ESPN closing-odds counterpart by
+    team-name containment (BOTH teams must match one ESPN event) with kickoff-date
+    proximity as a safety check (Kalshi's own date token vs ESPN's real kickoff can differ
+    by a day across timezones — S7a's second trap). `match_status` is one of "matched"
+    (exactly one candidate), "ambiguous" (>1 candidate — never silently picks one),
+    "no_match" (0 candidates), or "unparseable_title" — every input row gets an output
+    row, nothing is silently dropped."""
+    out = []
+    for ke in kalshi_events:
+        teams = extract_kalshi_teams(ke.get("title") or "")
+        if teams is None:
+            out.append({**_base_match_row(ke), "match_status": "unparseable_title"})
+            continue
+        team_a, team_b = teams
+        na, nb = normalize_team_name(team_a), normalize_team_name(team_b)
+        kalshi_date = _kalshi_event_date(ke.get("event_ticker") or "")
+        candidates = []
+        for ee in espn_events:
+            e_teams = _espn_teams(ee.get("name") or "")
+            if e_teams is None:
+                continue
+            away, home = e_teams
+            n_away, n_home = normalize_team_name(away), normalize_team_name(home)
+            a_to_away, a_to_home = _names_match(na, n_away), _names_match(na, n_home)
+            b_to_away, b_to_home = _names_match(nb, n_away), _names_match(nb, n_home)
+            if not ((a_to_away and b_to_home) or (a_to_home and b_to_away)):
+                continue
+            if kalshi_date is not None:
+                e_date = _espn_event_date(ee)
+                if e_date is not None and abs((e_date - kalshi_date).days) > max_date_delta_days:
+                    continue
+            candidates.append((ee, "a_away" if a_to_away else "a_home"))
+        if not candidates:
+            out.append({**_base_match_row(ke), "match_status": "no_match"})
+        elif len(candidates) > 1:
+            out.append({**_base_match_row(ke), "match_status": "ambiguous",
+                        "candidate_espn_ids": [c[0].get("espn_event_id") for c in candidates]})
+        else:
+            ee, orientation = candidates[0]
+            out.append({**_base_match_row(ke), "match_status": "matched",
+                        "espn_event_id": ee.get("espn_event_id"), "espn_record": ee,
+                        "team_a": team_a, "team_b": team_b, "orientation": orientation})
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# S7b — DraftKings-close de-vig + real pregame ask join
+# --------------------------------------------------------------------------- #
+def american_to_decimal(odds) -> float:
+    v = float(odds)
+    if v > 0:
+        return 1.0 + v / 100.0
+    if v < 0:
+        return 1.0 + 100.0 / abs(v)
+    raise ValueError(f"american odds cannot be 0, got {odds!r}")
+
+
+def devig_closing_fair_probs(moneyline: Optional[Dict]) -> Optional[Dict[str, float]]:
+    """De-vig DraftKings' CLOSING line (home/away[/draw]) into fair probabilities via
+    `sports_pairs.devig_multiplicative`. Tagged `synthetic` by the caller (CLAUDE.md: a
+    de-vig is a model, never a fill). None if any required closing price is missing."""
+    if not moneyline:
+        return None
+    keys = ["home", "away"] + (["draw"] if "draw_close" in moneyline else [])
+    raw = [moneyline.get(f"{k}_close") for k in keys]
+    if any(r is None for r in raw):
+        return None
+    fair = devig_multiplicative([american_to_decimal(r) for r in raw])
+    return dict(zip(keys, fair))
+
+
+def _taker_fee_per_contract(price: float, rate: float = 0.07) -> float:
+    """Round-up-to-cent taker fee per contract. Mirrors `scripts/fee_breakeven.py`'s
+    `fee_per_contract` (the documented source of this formula, from Kalshi's published fee
+    schedule) — duplicated as a tiny pure function rather than importing across the
+    scripts/collection boundary, since `scripts/` is not an installed package."""
+    raw = rate * price * (1.0 - price)
+    return math.ceil(raw * 100.0) / 100.0
+
+
+def load_tape_records(path: Path, schema_version: str) -> List[Dict]:
+    """Read back only the rows of one schema from a JSONL tape day-file."""
+    if not path.exists():
+        return []
+    out = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            if rec.get("schema_version") == schema_version:
+                out.append(rec)
+    return out
+
+
+def run_clv_join(client: Kalshi, kalshi_events: List[Dict], espn_events: List[Dict],
+                 tape_dir: Optional[Path] = None) -> Dict:
+    """One join pass (S7b): match already-captured Kalshi settled-event records to
+    already-captured ESPN closing-odds records, pull each matched game's real PREGAME ask
+    per outcome (candlestick anchored at ESPN's actual kickoff — not Kalshi's own timing
+    fields, per S7a's second trap), de-vig DraftKings' close, and persist the paired
+    per-game record with independent per-field `price_source_tag`s. Live network: one
+    `candlestick_ask_before` call per outcome market of every matched game."""
+    tape_dir = Path(tape_dir) if tape_dir is not None else CLV_TAPE
+    cap_ts = datetime.now(timezone.utc)
+    capture_id = cap_ts.strftime("%Y%m%dT%H%M%SZ")
+    day = cap_ts.strftime("%Y-%m-%d")
+
+    matches = match_kalshi_espn(kalshi_events, espn_events)
+    by_ticker = {ke.get("event_ticker"): ke for ke in kalshi_events}
+    lines: List[str] = []
+    n_matched = n_priced = 0
+    status_counts: Dict[str, int] = {}
+    for row in matches:
+        status_counts[row["match_status"]] = status_counts.get(row["match_status"], 0) + 1
+        if row["match_status"] != "matched":
+            continue
+        n_matched += 1
+        ke = by_ticker.get(row["kalshi_event_ticker"])
+        ee = row["espn_record"]
+        kickoff_raw = ee.get("date")
+        fair = devig_closing_fair_probs(ee.get("moneyline"))
+        codes = _event_team_codes(ke.get("event_ticker") or "")
+        a_is_away = row["orientation"] == "a_away"
+        code_to_fair_key: Dict[str, str] = {}
+        if codes:
+            code_a, code_b = codes
+            code_to_fair_key[code_a] = "away" if a_is_away else "home"
+            code_to_fair_key[code_b] = "home" if a_is_away else "away"
+
+        kickoff_ts = None
+        if kickoff_raw:
+            kickoff_ts = datetime.fromisoformat(kickoff_raw.replace("Z", "+00:00"))
+
+        outcomes_out = []
+        yes_asks = []
+        for o in ke.get("outcomes", []):
+            ticker = o.get("ticker", "")
+            outcome_code = ticker.rsplit("-", 1)[-1] if ticker else ""
+            ask = None
+            if kickoff_ts is not None:
+                ask = candlestick_ask_before(client, ke["series"], ticker, kickoff_ts,
+                                             lookback_hours=6)
+            if ask is not None:
+                yes_asks.append(ask["yes_ask"])
+            fair_key = "draw" if outcome_code == "TIE" else code_to_fair_key.get(outcome_code)
+            fair_prob = fair.get(fair_key) if (fair and fair_key) else None
+            outcomes_out.append({
+                "ticker": ticker, "outcome_code": outcome_code, "fair_key": fair_key,
+                "pregame_ask": ask,
+                "fair_prob": fair_prob,
+                "fair_prob_source_tag": "synthetic" if fair_prob is not None else None,
+            })
+
+        bsum = bracket_sum(yes_asks) if yes_asks else None
+        priced_any = False
+        for oc in outcomes_out:
+            ask, fp = oc["pregame_ask"], oc["fair_prob"]
+            if ask is None or fp is None:
+                continue
+            priced_any = True
+            oc["edge_raw"] = fp - ask["yes_ask"]
+            oc["fee_per_contract"] = _taker_fee_per_contract(ask["yes_ask"])
+            oc["edge_after_fee"] = oc["edge_raw"] - oc["fee_per_contract"]
+        if priced_any:
+            n_priced += 1
+
+        record = {
+            "schema_version": "sports_clv_join.v1",
+            "capture_id": capture_id, "captured_at": cap_ts.isoformat(),
+            "kalshi_event_ticker": ke.get("event_ticker"), "series": ke.get("series"),
+            "espn_event_id": ee.get("espn_event_id"), "kickoff_ts": kickoff_raw,
+            "team_a": row["team_a"], "team_b": row["team_b"],
+            "bracket_sum": bsum, "overround_absorbed": (bsum - 1.0) if bsum else None,
+            "outcomes": outcomes_out,
+            "priced": priced_any,
+            "price_source_tag": "mixed",  # composite record — per-field tags are load-bearing
+        }
+        lines.append(canonical_json(record))
+
+    summary = {
+        "capture_id": capture_id, "day": day,
+        "n_kalshi_events": len(kalshi_events), "n_espn_events": len(espn_events),
+        "match_status_counts": status_counts,
+        "n_matched": n_matched, "n_priced": n_priced,
+    }
+    if lines:
+        tape_dir.mkdir(parents=True, exist_ok=True)
+        out_path = tape_dir / f"dt={day}.jsonl"
+        with open(out_path, "a", encoding="utf-8") as f:
+            for ln in lines:
+                f.write(ln + "\n")
+        summary["path"] = str(out_path)
+    print(f"[sports_history:join] {len(kalshi_events)} kalshi events, "
+          f"{len(espn_events)} espn events -> {status_counts}, {n_priced}/{n_matched} priced")
+    return summary
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="S7a historical sourcing (read-only)")
     sub = ap.add_subparsers(dest="leg", required=True)
@@ -278,13 +584,32 @@ def main(argv: Optional[List[str]] = None) -> int:
     pe.add_argument("--league", required=True)
     pe.add_argument("--dates", required=True)
 
+    pj = sub.add_parser("join")
+    pj.add_argument("--history-tape", default=None,
+                    help="path to a sports_history dt=YYYY-MM-DD.jsonl (default: today's)")
+    pj.add_argument("--espn-fetch", nargs="*", default=[],
+                    help="sport:league:dates triples to freshly pull ESPN odds for before "
+                         "joining, e.g. soccer:fifa.world:20260626-20260702")
+    pj.add_argument("--min-interval", type=float, default=0.2)
+
     args = ap.parse_args(argv)
     if args.leg == "kalshi":
         cfg = _load_venue_cfg()
         client = Kalshi(cfg["api_base"], min_interval=args.min_interval)
         fetch_kalshi_settled(client, args.series, args.limit)
-    else:
+    elif args.leg == "espn":
         fetch_espn_closing_odds(args.sport, args.league, args.dates)
+    else:
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        tape_path = Path(args.history_tape) if args.history_tape else TAPE / f"dt={day}.jsonl"
+        for target in args.espn_fetch:
+            sport, league, dates = target.split(":")
+            fetch_espn_closing_odds(sport, league, dates, tape_dir=tape_path.parent)
+        kalshi_events = load_tape_records(tape_path, "sports_history_kalshi.v1")
+        espn_events = load_tape_records(tape_path, "sports_history_espn.v1")
+        cfg = _load_venue_cfg()
+        client = Kalshi(cfg["api_base"], min_interval=args.min_interval)
+        run_clv_join(client, kalshi_events, espn_events)
     return 0
 
 

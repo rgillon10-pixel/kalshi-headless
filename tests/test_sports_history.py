@@ -235,3 +235,194 @@ def test_fetch_espn_closing_odds_summary_fetch_error_recorded_not_raised(monkeyp
     monkeypatch.setattr(sh.requests, "get", fake_get)
     summary = sh.fetch_espn_closing_odds("football", "nfl", "20260101", tape_dir=tmp_path)
     assert summary["n_fetch_errors"] == 1 and summary["n_with_odds"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# S7b — team-name extraction / normalization
+# --------------------------------------------------------------------------- #
+def test_extract_kalshi_teams_wc_full_form():
+    title = "Switzerland vs Algeria: Regulation Time Moneyline SUI vs DZA (Jul 2)"
+    assert sh.extract_kalshi_teams(title) == ("Switzerland", "Algeria")
+
+
+def test_extract_kalshi_teams_wc_bare_form():
+    assert sh.extract_kalshi_teams("Cape Verde vs Saudi Arabia") == ("Cape Verde", "Saudi Arabia")
+
+
+def test_extract_kalshi_teams_nba_game_prefix_and_at_separator():
+    title = "Game 5: New York at San Antonio NYK at SAS (Jun 13)"
+    assert sh.extract_kalshi_teams(title) == ("New York", "San Antonio")
+
+
+def test_extract_kalshi_teams_unparseable_returns_none():
+    assert sh.extract_kalshi_teams("Total Corners Over 9.5?") is None
+
+
+def test_espn_teams_splits_away_at_home():
+    assert sh._espn_teams("New York Knicks at San Antonio Spurs") == \
+        ("New York Knicks", "San Antonio Spurs")
+
+
+def test_event_team_codes_six_char_split():
+    assert sh._event_team_codes("KXWCGAME-26JUL02SUIDZA") == ("SUI", "DZA")
+    assert sh._event_team_codes("KXNBAGAME-26JUN13NYKSAS") == ("NYK", "SAS")
+
+
+def test_event_team_codes_none_when_not_six_chars():
+    assert sh._event_team_codes("KXODDGAME-26JUL02ABCDEFG") is None
+
+
+def test_normalize_team_name_strips_accents_and_case():
+    assert sh.normalize_team_name("Türkiye") == sh.normalize_team_name("Turkiye") == "turkiye"
+
+
+def test_normalize_team_name_strips_punctuation():
+    assert sh.normalize_team_name("Bosnia-Herzegovina") == "bosniaherzegovina"
+
+
+# --------------------------------------------------------------------------- #
+# S7b — american odds -> decimal -> de-vig
+# --------------------------------------------------------------------------- #
+def test_american_to_decimal_favorite_and_underdog():
+    assert sh.american_to_decimal("-1000") == pytest.approx(1.1)
+    assert sh.american_to_decimal("+2000") == pytest.approx(21.0)
+
+
+def test_american_to_decimal_zero_raises():
+    with pytest.raises(ValueError):
+        sh.american_to_decimal("0")
+
+
+def test_devig_closing_fair_probs_three_way_sums_to_one():
+    fair = sh.devig_closing_fair_probs(
+        {"home_close": "-1000", "away_close": "+2000", "draw_close": "+1000"})
+    assert set(fair) == {"home", "away", "draw"}
+    assert fair["home"] == pytest.approx(sum(fair.values()) * fair["home"] / sum(fair.values()))
+    assert sum(fair.values()) == pytest.approx(1.0)
+
+
+def test_devig_closing_fair_probs_two_way_no_draw_key():
+    fair = sh.devig_closing_fair_probs({"home_close": "-625", "away_close": "+455"})
+    assert set(fair) == {"home", "away"}
+
+
+def test_devig_closing_fair_probs_none_when_missing_close():
+    assert sh.devig_closing_fair_probs({"home_close": "-625", "away_close": None}) is None
+    assert sh.devig_closing_fair_probs(None) is None
+    assert sh.devig_closing_fair_probs({}) is None
+
+
+# --------------------------------------------------------------------------- #
+# S7b — match_kalshi_espn: matched / ambiguous / no_match / date-window reject
+# --------------------------------------------------------------------------- #
+def _mk_kalshi_event(event_ticker, title, outcomes=None):
+    return {"schema_version": "sports_history_kalshi.v1", "series": event_ticker.split("-")[0],
+            "event_ticker": event_ticker, "title": title,
+            "outcomes": outcomes if outcomes is not None else []}
+
+
+def _mk_espn_event(espn_id, name, date, moneyline=None):
+    return {"schema_version": "sports_history_espn.v1", "espn_event_id": espn_id,
+            "name": name, "date": date, "moneyline": moneyline}
+
+
+def test_match_kalshi_espn_unique_match():
+    ke = [_mk_kalshi_event("KXWCGAME-26JUL02SUIDZA",
+                           "Switzerland vs Algeria: Regulation Time Moneyline SUI vs DZA (Jul 2)")]
+    ee = [_mk_espn_event("1", "Algeria at Switzerland", "2026-07-02T18:00Z")]
+    out = sh.match_kalshi_espn(ke, ee)
+    assert len(out) == 1 and out[0]["match_status"] == "matched"
+    assert out[0]["espn_event_id"] == "1"
+    assert out[0]["orientation"] == "a_home"   # team_a=Switzerland is ESPN's home side
+
+
+def test_match_kalshi_espn_no_match_different_teams():
+    ke = [_mk_kalshi_event("KXWCGAME-26JUL02SUIDZA", "Switzerland vs Algeria")]
+    ee = [_mk_espn_event("1", "Brazil at France", "2026-07-02T18:00Z")]
+    out = sh.match_kalshi_espn(ke, ee)
+    assert out[0]["match_status"] == "no_match"
+
+
+def test_match_kalshi_espn_ambiguous_when_multiple_candidates():
+    ke = [_mk_kalshi_event("KXNBAGAME-26JUN08SASNYK", "San Antonio at New York")]
+    ee = [_mk_espn_event("1", "San Antonio Spurs at New York Knicks", "2026-06-08T00:30Z"),
+          _mk_espn_event("2", "San Antonio Spurs at New York Knicks", "2026-06-09T00:30Z")]
+    out = sh.match_kalshi_espn(ke, ee)
+    assert out[0]["match_status"] == "ambiguous"
+    assert set(out[0]["candidate_espn_ids"]) == {"1", "2"}
+
+
+def test_match_kalshi_espn_date_window_rejects_far_kickoff():
+    ke = [_mk_kalshi_event("KXWCGAME-26JUL02SUIDZA", "Switzerland vs Algeria")]
+    ee = [_mk_espn_event("1", "Algeria at Switzerland", "2026-06-20T18:00Z")]  # 12 days off
+    out = sh.match_kalshi_espn(ke, ee)
+    assert out[0]["match_status"] == "no_match"
+
+
+def test_match_kalshi_espn_unparseable_title_flagged_not_dropped():
+    ke = [_mk_kalshi_event("KXWCGAME-26JUL02SUIDZA", "Total Corners Over 9.5?")]
+    out = sh.match_kalshi_espn(ke, [])
+    assert out[0]["match_status"] == "unparseable_title"
+
+
+# --------------------------------------------------------------------------- #
+# S7b — run_clv_join: full offline pass (FakeClient candlesticks, no network)
+# --------------------------------------------------------------------------- #
+def test_run_clv_join_offline_prices_matched_game(tmp_path):
+    import datetime as dt
+    kickoff = "2026-07-02T18:00Z"
+    kickoff_ts = dt.datetime(2026, 7, 2, 18, 0, tzinfo=dt.timezone.utc)
+    end_before = int(kickoff_ts.timestamp()) - 600
+    ke = [_mk_kalshi_event("KXWCGAME-26JUL02SUIDZA",
+                           "Switzerland vs Algeria: Regulation Time Moneyline SUI vs DZA (Jul 2)",
+                           outcomes=[
+                               {"ticker": "KXWCGAME-26JUL02SUIDZA-SUI"},
+                               {"ticker": "KXWCGAME-26JUL02SUIDZA-DZA"},
+                               {"ticker": "KXWCGAME-26JUL02SUIDZA-TIE"},
+                           ])]
+    ee = [_mk_espn_event("1", "Algeria at Switzerland", kickoff,
+                         moneyline={"home_close": "-200", "away_close": "+550",
+                                    "draw_close": "+340"})]
+    client = FakeClient(
+        events_pages=[], markets_by_event={},
+        candles_by_ticker={
+            "KXWCGAME-26JUL02SUIDZA-SUI": [_mk_candle(end_before, 0.60)],
+            "KXWCGAME-26JUL02SUIDZA-DZA": [_mk_candle(end_before, 0.20)],
+            "KXWCGAME-26JUL02SUIDZA-TIE": [_mk_candle(end_before, 0.28)],
+        },
+    )
+    summary = sh.run_clv_join(client, ke, ee, tape_dir=tmp_path)
+    assert summary["n_matched"] == 1 and summary["n_priced"] == 1
+    lines = (tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()
+    rec = json.loads(lines[0])
+    assert rec["bracket_sum"] == pytest.approx(1.08)
+    sui = next(o for o in rec["outcomes"] if o["outcome_code"] == "SUI")
+    assert sui["fair_key"] == "home"   # team_a=Switzerland matched ESPN home
+    assert sui["pregame_ask"]["yes_ask"] == pytest.approx(0.60)
+    assert sui["fair_prob_source_tag"] == "synthetic"
+    assert sui["pregame_ask"]["price_source_tag"] == "real_ask"
+    assert "edge_raw" in sui and "edge_after_fee" in sui
+
+
+def test_run_clv_join_unmatched_games_not_priced(tmp_path):
+    ke = [_mk_kalshi_event("KXWCGAME-26JUL02SUIDZA", "Switzerland vs Algeria")]
+    ee = [_mk_espn_event("1", "Brazil at France", "2026-07-02T18:00Z")]
+    client = FakeClient(events_pages=[], markets_by_event={})
+    summary = sh.run_clv_join(client, ke, ee, tape_dir=tmp_path)
+    assert summary["n_matched"] == 0 and summary["n_priced"] == 0
+    assert summary["match_status_counts"] == {"no_match": 1}
+    assert "path" not in summary   # nothing written — no matched games to persist
+
+
+def test_load_tape_records_filters_by_schema_version(tmp_path):
+    p = tmp_path / "dt=2026-07-03.jsonl"
+    p.write_text(
+        json.dumps({"schema_version": "sports_history_kalshi.v1", "x": 1}) + "\n" +
+        json.dumps({"schema_version": "sports_history_espn.v1", "x": 2}) + "\n"
+    )
+    kalshi = sh.load_tape_records(p, "sports_history_kalshi.v1")
+    assert len(kalshi) == 1 and kalshi[0]["x"] == 1
+
+
+def test_load_tape_records_missing_file_returns_empty(tmp_path):
+    assert sh.load_tape_records(tmp_path / "nope.jsonl", "sports_history_kalshi.v1") == []

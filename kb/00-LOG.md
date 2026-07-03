@@ -6,6 +6,37 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-03 19:40 UTC — Q4/S7b: event-matching join built, first real pregame-ask-vs-devig pass
+
+Claim-check: open PR #4 claims Q1's remaining odds-api work (draft, waiting on Ryan's
+`ODDS_API_KEY`) — skipped, moved to Q4 (topmost eligible IN-PROGRESS item). Built the join
+S7a deferred, all in `collection/sports_history.py`:
+
+1. `extract_kalshi_teams` — parses the two team names out of a Kalshi game title (three
+   live title shapes: WC full form with the ticker-code repeat, WC bare form, NBA
+   `"Game N: <A> at <B> <CODE> at <CODE> (Mon DD)"`).
+2. `match_kalshi_espn` — team-name containment match (handles NBA's city-name-vs-full-
+   team-name case) + ±1-day kickoff window; every row comes back `matched` / `ambiguous` /
+   `no_match` / `unparseable_title`, nothing silently dropped or guessed.
+3. `run_clv_join` — for matched games: real pregame ask via `candlestick_ask_before`
+   anchored at ESPN's actual kickoff (not Kalshi's own `occurrence_datetime`, per S7a's
+   second trap), de-vig DraftKings' close (`american_to_decimal` →
+   `sports_pairs.devig_multiplicative`), per-field `real_ask`/`synthetic` source tags.
+
+Found mid-build: the S7a ESPN pull's date window (Jun 15-21, group stage) had zero overlap
+with the Kalshi WC tape's actual event dates (Jun 26-Jul 2, round of 32/16) — the two legs
+were captured for different date ranges by accident. Re-fetched ESPN for the correct window
+(`--espn-fetch soccer:fifa.world:20260626-20260702`) before joining.
+
+Live pass: **27 games matched** (24 WC, 3 NBA Finals; 2 NBA hit `ambiguous` — same two teams
+on consecutive dates, both inside the ±1-day window, correctly flagged rather than guessed),
+**78 outcomes priced**, mean pregame `bracket_sum` **1.020**, mean `edge_after_fee` **−0.0241**
+across the 78 outcomes — small-n and descriptive only, NOT a bootstrap-worthy verdict yet.
+37 new unit tests (155 total green, fully offline), `invariants --full` green. Full writeup:
+`findings/2026-07-03-sports-history-s7b.md`. Next: S7c — accumulate more games as the
+tournament progresses, block-bootstrap **by game** (outcomes within a game aren't independent
+draws), verdict.
+
 ## 2026-07-03 15:30 UTC — Q4/S7a: sourced sports history, found Kalshi's ~60-day retention wall
 
 Claim-check: no open PRs, branch synced to `main` tip (`1abc535`). Built

@@ -138,6 +138,18 @@ time, not kickoff (candlesticks pulled against it showed post-settlement $1.00 p
 claiming a decision price from Kalshi alone; S7b must join ESPN's real kickoff timestamp first. Full
 writeup: `findings/2026-07-03-sports-history-s7a.md`.
 
+**S7 → Q4/S7b (2026-07-03): join built, first real pregame-ask-vs-devig numbers.**
+`match_kalshi_espn` (team-name containment + ±1-day kickoff window) + `run_clv_join` (real
+pregame ask anchored at ESPN's actual kickoff, de-vig DraftKings' close) landed in
+`collection/sports_history.py`. Caught mid-build: S7a's ESPN pull covered WC group-stage
+dates (Jun 15-21) while the Kalshi WC tape's actual events were round-of-32/16 (Jun 26-Jul
+2) — zero date overlap between the two legs as originally captured; re-fetched ESPN for the
+right window before joining. Live pass: **27 games matched** (24 WC + 3 NBA), **78 outcomes
+priced**, mean pregame `bracket_sum` **1.020**, mean `edge_after_fee` **−0.0241** — small-n,
+descriptive only, **not a verdict**. S7c (block-bootstrap by game, 95% CI) is still open;
+status stays `data-collecting` until then. Full writeup:
+`findings/2026-07-03-sports-history-s7b.md`.
+
 ## The one rule that orders all of this
 
 **Update 2026-06-18:** S0 is **built**; **S1 and S5 are dead** at real asks; **weather is decided —
