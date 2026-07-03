@@ -16,7 +16,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
-| **S7** | Kalshi NFL/NBA moneyline vs Pinnacle no-vig line (CLV harvest) | FP→PR · cross-venue segmentation | **idea — try 1st** | med | season backtest: Kalshi ask vs devig Pinnacle fair − overround − fee; block-bootstrap by game; CI>0 |
+| **S7** | Kalshi NFL/NBA moneyline vs Pinnacle no-vig line (CLV harvest) | FP→PR · cross-venue segmentation | **data-collecting** | med | season backtest: Kalshi ask vs devig Pinnacle fair − overround − fee; block-bootstrap by game; CI>0 |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | idea | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds differ (ρ guard vs NWS/WU) |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
@@ -97,6 +97,19 @@ no idea is in the dead ledger.** Full dossiers: `../../reports/new-ideas-2026-06
 - **S11 (low).** Sharp-anchored maker quoting on illiquid binaries — earn the wide spread (maker fee 4×
   cheaper), quote only the side Pinnacle calls EV+ to filter adverse selection. Distinct from S6 (no
   external truth anchor). Needs the forward L2 tape for fill-intensity.
+
+**S7/S11 → data-collecting (2026-07-03).** Cloud egress unblocked mid-run (Q0b); built
+`collection/sports_pairs.py` (Q1) — discovers Kalshi sports moneyline series by title heuristic,
+confirms each game group structurally (2-3 outcomes, every market titled "&lt;A&gt; vs &lt;B&gt; ...
+Winner?") before capture, then persists real-ask BBO + `bracket_sum`/`overround_absorbed` per game
+to `tape/sports_pairs/`. First live pass: 188 confirmed moneyline games across 16 series (10 of them
+`KXWCGAME` World Cup), all `completeness_ok`, mean bracket overround **+21.3¢** (real_ask, n=188) —
+notably fatter than the weather ~9.8¢ that killed S1/S5, consistent with these being thinner/newer
+markets; needs a liquidity-filtered re-cut before it says anything about S7's edge. The Pinnacle/
+odds-api leg stays `blocked_key` (`ODDS_API_KEY` absent) — de-vig math (`devig_multiplicative`) is
+implemented and unit-tested, but event matching against Kalshi tickers is not built yet. Next: let
+the hourly collector (Q3, still blocked on Q2) accumulate tape, then get an `ODDS_API_KEY` to
+unblock the sharp-line leg S7 actually needs.
 
 ## The one rule that orders all of this
 

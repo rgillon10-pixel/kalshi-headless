@@ -1,6 +1,7 @@
 # Cloud environment check (Q0)
 
 `run` · 2026-07-02 · cloud sandbox (kalshi-research-loop)
+`updated 2026-07-03 (Q0b)` — egress now unblocked, see final section.
 
 Purpose: verify which external hosts this cloud sandbox can actually reach, since every
 downstream collector (Q1–Q7) depends on live network access. Method: direct `curl` (and the
@@ -50,3 +51,25 @@ fix.
 `api.elections.kalshi.com`, the crypto spot host(s), and `api.the-odds-api.com` to this
 environment's egress allowlist, or (b) run the collectors from an environment/pool that already
 has broader egress. No cloud loop run can change its own network policy.
+
+## Re-verify (Q0b) — 2026-07-03T00:08Z — UNBLOCKED
+
+Ryan (or an environment change) widened the sandbox's egress allowlist between the 07-02 run and
+this one. Re-ran the identical `curl --max-time 15` probes plus the real collector entry point:
+
+| host | purpose | result | source_tag |
+|---|---|---|---|
+| `api.elections.kalshi.com` | Kalshi public REST | **OK — HTTP 200**, real body (`exchange_active:true`, `trading_active:true`) | n/a |
+| `api.exchange.coinbase.com` | public BTC-USD spot | **OK — HTTP 200**, live ask/bid (`~$61,365`) | n/a |
+| `api.kraken.com` | public BTC spot (Kraken) | **OK — HTTP 200**, live server time | n/a |
+| `api.the-odds-api.com` | the-odds-api reachability | **OK — HTTP 401** (reachable; rejected for missing key, not a network block) | n/a |
+| `ODDS_API_KEY` env var | odds API credential | still **absent** | n/a |
+
+End-to-end proof: `python -m collection.capture_orderbooks --limit 3` succeeded against live
+Kalshi — `1 (city,day) groups, 1 complete, 3 markets, 119 levels` written to
+`data/processed/orderbooks/dt=2026-07-03/`.
+
+**Consequence:** Q0b is DONE. Every `BLOCKED(egress policy ...)` status in `LOOP-QUEUE.md`
+(Q1–Q6; Q7 stays blocked on tape accumulation) flips back to TODO. `ODDS_API_KEY` is still
+missing, so the-odds-api leg of Q1 stays `BLOCKED(key)` specifically — Kalshi-only capture in Q1
+can proceed.
