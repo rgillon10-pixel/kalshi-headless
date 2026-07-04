@@ -18,7 +18,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
 | **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | **dead ✗** | med | TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5's NWS/WU |
-| **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
+| **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **data-collecting** | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
 
@@ -118,6 +118,25 @@ weather/sports, plausibly an artifact of ~180 deep-out-of-the-money bands each n
 min-ask floor rather than real probability mass. Un-investigated — Q5 (S8's first cut) needs to
 check this before the ρ-guard or basis calc can mean anything; noted here so it isn't silently
 assumed away.
+
+**S9 → data-collecting (2026-07-04, Q8).** No unclaimed queue item was eligible this run
+(Q1 claimed by open PR #4 awaiting `ODDS_API_KEY`; Q2-Q6 done; Q7 blocked on ≥7 days of
+Q2 tape) — appended Q8 and started the next un-started candidate. Found a clean same-
+question pair with **no de-vig needed** (unlike S7): Kalshi's `KXWCROUND` series ("Will
+`<team>` qualify for FIFA World Cup `<round>`?") and Polymarket's "World Cup: Nation To
+Reach `<round>`" events are the identical Yes/No question on both venues, one market per
+(round, team). Built `collection/polymarket_pairs.py`: Polymarket events discovered via
+its public `/public-search` endpoint (keyword-narrowed, then structurally confirmed by
+title regex — no hardcoded event IDs), Kalshi leg via the existing `Kalshi` client,
+matched by exact (round, normalized-team-name) with honest unmatched/ambiguous
+accounting. Polymarket prices come off its live CLOB order book (`real_ask`, not the
+`outcomePrices` last-trade reference) via `clob.polymarket.com/book`. 20 new unit tests,
+live pass: **48/48 Kalshi round markets matched**, completeness ok, mean
+`price_gap_yes_ask` (Kalshi yes_ask − Polymarket best_ask) **+0.20¢**, range −3¢/+3¢ —
+small and roughly symmetric on this single snapshot, descriptive only, not a verdict.
+World Cup ends Jul 19 — the round ladder (quarterfinals→semifinals→final) only has a few
+weeks of life; next step is accumulating repeated passes (wire into the hourly collector)
+to get enough snapshots for an actual lead-lag cross-correlation.
 
 **S8 → Q5 first cut (2026-07-03): overround flag resolved, ρ-guard inconclusive (stays
 data-collecting).** `scripts/s8_basis_probe.py` (read-only over accumulated

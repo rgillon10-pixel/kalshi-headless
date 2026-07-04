@@ -6,6 +6,50 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 15:15 UTC — Q8 (new): Kalshi↔Polymarket World Cup round-market collector built (S9)
+
+Claim-check: `git fetch origin main` in sync at `640da43` (only hourly `tape:` passes
+since the last research run); the only open PR (#4) still claims Q1's odds-api leg
+(unrelated, waiting on `ODDS_API_KEY`). But this time Q2 through Q6 are all DONE and Q7 is
+BLOCKED (needs ≥7 days of Q2 crypto-hourly tape; only 2 days have accumulated) — **no
+queue item was eligible** for the first time this project has hit that state. Per
+LOOP-QUEUE.md's own append-don't-rewrite rule, appended Q8 and started the next
+un-started registry candidate (S9) instead of ending the run early.
+
+**Why S9, and why it's tractable now:** S9 (Kalshi↔Polymarket same-question lead-lag) was
+idea-stage since 2026-06-18, blocked in spirit by "which same question exists on both
+venues, priced the same way." Checked Polymarket's public API live and found a clean
+match: Kalshi's `KXWCROUND` series ("Will `<team>` qualify for FIFA World Cup `<round>`?")
+and Polymarket's "World Cup: Nation To Reach `<round>`" events are the IDENTICAL Yes/No
+question on both venues — one binary market per (round, team), no de-vig needed (unlike
+S7's moneyline-vs-sportsbook-odds), because both sides are already a single fillable price.
+
+**Built `collection/polymarket_pairs.py`.** Kalshi leg: existing `Kalshi` client against
+`KXWCROUND` (ticker grammar `KXWCROUND-<round_raw>-<team_code>`, title carries the full
+team name). Polymarket leg: discovered via its public `/public-search` endpoint (a keyword
+narrows the API-call budget, same role as `_SERIES_TITLE_RE` in `sports_pairs.py`), then
+every hit is structurally re-confirmed by title/round regex before being trusted — no
+hardcoded event IDs. Matched by exact (round, normalized team name); anything that doesn't
+line up 1:1 is recorded `unmatched`/`ambiguous`, never guessed. Polymarket prices come off
+its live CLOB order book (`clob.polymarket.com/book`, tagged `real_ask` — a real fillable
+book, NOT the `outcomePrices` field on the market list, which is a last-trade/mid
+reference and would have been a Hard-Rule-#4 violation to treat as a fill).
+
+20 new unit tests (offline: FakeClient for Kalshi, monkeypatched `requests.get` for
+Polymarket, injected `pm_discover`/`fetch_book` for the full `run()` pass — no network in
+CI). Live pass against production: **48/48 open Kalshi `KXWCROUND` markets matched** to a
+Polymarket counterpart, completeness ok, mean `price_gap_yes_ask` (Kalshi yes_ask minus
+Polymarket best_ask) **+0.20¢**, range −3¢ to +3¢ — small and roughly symmetric on this
+single snapshot, purely descriptive, not a verdict of any kind yet. `kb/strategies/00-
+index.md` S9 flipped idea → data-collecting. 189 tests green (169 prior + 20 new),
+`invariants --full` green.
+
+**Next:** wire this into Q3's hourly pass so repeated snapshots accumulate (World Cup ends
+Jul 19 — a narrow window), then run an actual lead-lag cross-correlation once there's
+enough tape; the single-snapshot gap above says nothing about which venue moves first.
+
+---
+
 ## 2026-07-04 10:30 UTC — Q6: daily anomaly sweep built (S3 + free-money detection)
 
 Claim-check: `git fetch origin main` in sync; the only open PR (#4) still claims Q1's
