@@ -26,6 +26,16 @@ persisted price, invariants green before commit.
    **claimed** — do not redo it. If the PR is green (checks pass) and unmodified for a while,
    merge it yourself (squash) before doing anything else, so `main` catches up; if it's stale
    or broken, note that in the digest and pick the next eligible item instead.
+0b. **Stranded-tape sweep (added 2026-07-04, after 10 collector passes silently stranded).**
+   The hourly collector's push to `main` fails intermittently and falls back to a
+   `tape/hourly-*` branch; that tape never reaches `main` on its own. As part of every
+   research run: `git ls-remote --heads origin 'refs/heads/tape/hourly-*'`; for each such
+   branch, union-append any JSONL lines missing from `main`'s per-day tape files into your
+   run's own commit (line-level dedupe is safe — tape is append-only JSONL with unique
+   capture identity per line; never rewrite or reorder existing lines), then, only after
+   your PR containing those lines has merged, delete the swept branch. Skip any branch
+   whose commit is younger than 30 minutes (may still be mid-run).
+
 1. Read `CLAUDE.md`, this file, `kb/strategies/00-index.md` — from `main` HEAD, post claim-check.
 2. Env: `pip install -e ".[dev,analysis]"` (venv optional in a throwaway sandbox).
 3. Pick the TOPMOST unclaimed item whose status is TODO or IN-PROGRESS (skip DONE / BLOCKED /
@@ -251,6 +261,61 @@ reference). 20 new unit tests (offline, monkeypatched HTTP + FakeClient). Live p
 Q3's hourly pass (World Cup ends Jul 19 — narrow window to accumulate repeated snapshots),
 then a lead-lag cross-correlation once enough passes exist.
 
+### Q9 — S13 maker-side fill-sim on the proven sports rich-ask — TIME-SENSITIVE: WC ends Jul 19
+Status: TODO (added 2026-07-04, from `findings/2026-07-04-edge-candidates-s12-s18.md`)
+S7c proved Kalshi pregame asks run +2.35¢ rich vs DraftKings-devig fair (95% CI ±0.10¢,
+n=80 games) — the taker side is DEAD, the bid side is explicitly untested. Build a read-only
+fill-sim over the existing `tape/sports_history/` + `tape/sports_pairs/` data plus Kalshi
+candlesticks: simulate resting a bid at devig-fair − 1¢ from capture time to kickoff; a fill
+= the candlestick low trading through the bid level; measure fill rate AND `edge_after_fee`
+*conditional on being filled* (adverse selection: compare fair-at-fill vs fair-at-entry,
+never assume the entry edge survives the fill). Block-bootstrap by game, 95% CI. All Kalshi
+prices `real_ask`, devig `synthetic`, per S7b conventions. Output
+`findings/<date>-sports-maker-s13.md` + registry update. No order code — paper fill-sim only.
+
+### Q10 — S12 econ-print collector (CPI/payrolls/GDP ladders + nowcast leg) — TIME-SENSITIVE: 60-day purge
+Status: TODO (added 2026-07-04)
+`collection/econ_prints.py`, mirroring `crypto_hourly.py` discipline: discover Kalshi's CPI /
+payrolls / GDP bracket series, snapshot full real-ask ladders (tag `real_ask`, persist
+`bracket_sum`/`overround_absorbed`), pair with the Cleveland Fed inflation nowcast (public,
+free — tag `synthetic`; GDPNow for the GDP leg) and, post-release, the Kalshi settlement
+result (`broker_truth`). Wire into `hourly_pass.py` at a cheap cadence (one pass per day is
+enough except release mornings). Kalshi purges settled markets ~60 days after close (S7a
+finding) — every un-collected release is data lost forever; the S12 gate needs ≥20 releases,
+so collection must start now. Unit tests offline per house style.
+
+### Q11 — S15 cross-event implication-pair scanner (extends Q6's sweep)
+Status: TODO (added 2026-07-04)
+Extend `scripts/anomaly_sweep.py` with a third check: a hand-curated implication graph
+(config file, each pair added ONLY after reading both markets' rules text — settlement-term
+mismatch is the classic Theme-6 trap, document the audit per pair) of cross-event pairs
+where A ⇒ B logically (e.g. "wins final" ⇒ "reaches final" across KXWCROUND rounds;
+"wins presidency" ⇒ "wins nomination"). A hit = YES(B)_ask + NO(A)_ask ≤ $1 − both fees at
+one snapshot with fillable size (`real_ask` only), i.e. a locked payoff — same fee-floor
+math as `core/pricing.true_arb_edge`. Runs in the existing 09 UTC slot automatically. Kill
+condition per registry: 0 fee-clearing hits in 60 days of sweeps.
+
+### Q12 — S17 retarget Kalshi↔Polymarket matcher to recurring macro pairs
+Status: TODO (added 2026-07-04; do after Q8's hourly wiring so both share the pass)
+`collection/polymarket_pairs.py` currently only discovers World Cup round markets, which die
+Jul 19. Add a second discovery family: Fed-decision and CPI/inflation questions listed on
+both venues, same exact-question matching discipline (structural title confirmation, honest
+unmatched/ambiguous accounting, Polymarket CLOB book = `real_ask`, never `outcomePrices`).
+Wire alongside the WC pairs in `hourly_pass.py` so cross-venue collection outlives the
+tournament. S17's gate needs ≥5 matched live-book pairs/month — if Polymarket's macro books
+are too thin to quote a real ask, record that honestly; it is S17's kill condition, not a
+collection failure.
+
+### Q13 — S14 ladder-underwriting fill-sim from accumulated hourly tape
+Status: BLOCKED(needs ≥10 days of Q3 hourly tape; eligible ~2026-07-13)
+Read-only fill-sim of S14 (sell the complete bracket ladder as maker, collect the measured
++10–21¢ overround): from `tape/sports_pairs/` + `tape/crypto_hourly/` snapshots plus
+candlestick volume, estimate P(complete fill of all-strike short-YES quotes at BBO asks
+within horizon H) and the mark-to-real-ask loss on partial sets. Gate per registry:
+E[overround × P(complete)] − E[loss | partial] > 0, 95% CI over ≥30 event-days. The
+adverse-selection question (winning strike fills eagerly, wings never do) IS the test —
+report it either way.
+
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
@@ -270,3 +335,4 @@ then a lead-lag cross-correlation once enough passes exist.
 - 2026-07-04T05:20Z · Q5 · claim-check: `git fetch origin main` showed only hourly `tape:` passes since the last research run; open PR #4 still claims Q1's odds-api leg (unrelated) — skipped Q1. Re-verified egress directly: all hosts 200, including Coinbase's `/candles` endpoint that 403'd last run — the exact unblock Q5 was waiting on. Added `--historical-spot` to `scripts/s8_basis_probe.py`: fetched Coinbase's 1-minute candle at the exact settlement-instant bucket for all 36 accumulated settled hours (18/symbol), fixing the 29-minute live-spot lag confound (lag now 0s, zero gaps, cached to `tape/crypto_hourly_historical_spot/`). Also fixed a latent bug where the half-band check used a fixed $100 width for both symbols instead of ETH's actual $20 strike spacing. Corrected ρ: BTC 0.963→0.9997, ETH 0.947→0.9998 (weather-precedent kill territory); max gap never crosses half a bracket width for either symbol (BTC $38.93/$50, ETH $0.94/$10). **S8 verdict: DEAD** — the ρ-guard's own cheap-kill criterion triggers, no bootstrap needed (BTC shows a small +$16.43 non-zero-centered basis, plausibly real but an order of magnitude below the bracket width). Q5 flipped IN-PROGRESS → DONE; `kb/strategies/00-index.md` S8 flipped to `dead ✗`. 7 new unit tests (`tests/test_s8_basis_probe.py`, offline/monkeypatched), 147 tests green, `invariants --full` green. Full writeup: `findings/2026-07-04-crypto-basis-s8-verdict.md`.
 - 2026-07-04T (research loop) · Q6 · claim-check: `git fetch origin main` in sync, only open PR (#4) claims Q1 (unrelated) — Q6 was the topmost eligible TODO. Built `scripts/anomaly_sweep.py` (platform-wide `/markets?status=open` pagination, no category filter) + `core/pricing.py` additions (`fee_per_contract`, `true_arb_edge`, `monotonicity_crossing_edge` — the sanctioned Hard Rule #3 site) for two real-fillable checks: complete-ladder true arb (bracket sum vs $1+fees) and S3's cross-strike monotonicity (nested "greater"/"less" strikes, real ask/no_ask hedge). Found live that Kalshi's open-market count is far larger than assumed (10,000+ in the first 10 pages, cursor unexhausted) — an unbounded pull grew RSS past 3GB before being capped; added a `--limit 20000` default with an honest `markets_truncated` flag on every tape record. Live-validated the bracket-arb check directly against KXBTC's real 188-member ladder (bracket_sum 7.78, correctly not flagged — matches Q2/Q5's already-documented fine-band overround, not a new arb). Three capped live sweeps run (300/3000/20000 markets), all `completeness_ok`, 0 anomalies (expected). Automatically wired into Q3's 09 UTC slot (no code change — `hourly_pass.py` already invokes the script by path once it exists). 22 new unit tests (17 in `tests/test_anomaly_sweep.py` + 5 pricing tests), 169 tests green, `invariants --full` green.
 - 2026-07-04T (research loop) · Q8 (new) · claim-check: `git fetch origin main` in sync at 640da43 (hourly `tape:` passes only); only open PR (#4) claims Q1 (unrelated, awaiting `ODDS_API_KEY`) — Q2-Q6 all DONE, Q7 BLOCKED (only 2 days of Q2 tape, needs ≥7) — **no eligible TODO/IN-PROGRESS item existed**. Appended Q8 and started S9 (next un-started registry candidate) rather than idle the run. Found Kalshi's `KXWCROUND` series and Polymarket's "World Cup: Nation To Reach `<round>`" events are the identical Yes/No question (one market per round×team) on both venues — no de-vig needed, unlike S7. Built `collection/polymarket_pairs.py`: Polymarket discovery via its public `/public-search` endpoint (keyword-narrowed, title-regex-confirmed, no hardcoded event IDs), matched to Kalshi by exact (round, normalized team name), Polymarket price pulled from its live CLOB order book (`real_ask`, not the `outcomePrices` reference). 20 new unit tests (offline). Live pass: 48/48 Kalshi round markets matched, completeness ok, mean `price_gap_yes_ask` +0.20¢ (range −3¢/+3¢, one snapshot, descriptive only). `kb/strategies/00-index.md` S9 flipped idea→data-collecting. 189 tests green (169 prior + 20 new), `invariants --full` green.
+- 2026-07-04T16:20Z · ops (interactive, Ryan-requested) · Loop health audit + restock: all 3 triggers verified enabled and firing today (collector last 15:53Z, research 15:07Z, retro next Sun 12:00Z). Found 10 collector passes stranded on `tape/hourly-*` fallback branches (push-to-main failed intermittently) — union-appended their 1,674 missing tape lines into the canonical per-day files, added protocol step 0b (stranded-tape sweep every research run), swept branches deleted post-merge. Seeded registry S12–S18 from `findings/2026-07-04-edge-candidates-s12-s18.md` (19 raw → 7 survivors) and appended Q9–Q13 so the queue has ~a week of eligible milestones (queue was one item from dry: only Q8 eligible, Q7 blocked to ~Jul 10). ntfy feed unreachable from this sandbox (egress), verified loop health via git/GitHub instead.
