@@ -12,7 +12,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S0** | Real-ask substrate (tape + actuals gate + ask primitive) | kalshi.1 + invariants | **built ✅** | 0.9 | substrate, not an edge — enables all scoring (53 tests green, invariants live) |
 | **S1** | Longshot-fade real-ask calibration (weather) | arb-bot-v2 tape · QF Theme 2 | **dead ✗** | 0.45 | TESTED n=990 real-ask brackets: net P&L CI [−$0.005,+$0.013] ⊄ >0 → falsified |
 | **S2** | FOMC × ZQ single-meeting basis | kalshi.ibkr · QF Theme 6 | **first-cut done · gated** | 0.40 | June'26 free-data cut: bracket overround +3.4¢ (3× cleaner than weather) → structure HOLDS; full test gated on CME ticks |
-| **S3** | K3 cross-strike monotonicity staleness | kalshi.ibkr · QF Theme 6 | binding-test-defined | 0.30 | 1h calibrate; signal must clear artifact noise floor |
+| **S3** | K3 cross-strike monotonicity staleness | kalshi.ibkr · QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q6, 2026-07-04) sweeps daily @09 UTC for real fee-floor-clearing crossings; 0 so far in 3 capped live passes (expected, rare); verdict needs accumulated tape |
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
@@ -52,8 +52,17 @@ entry in the trader's favor.
 overround** (Theme 6 no-arbitrage). But it's a directional pre-position (Kalshi halts before
 settlement), unbounded per-event downside, ~8 events/year. Replay one meeting at real asks first.
 
-**S3 — cross-strike monotonicity.** Theme 6 again: P(≥80°F) ≥ P(≥85°F) must hold; staleness can
-violate it briefly. Cheapest Kalshi-only probe. Taker-by-construction → ~8¢ round-trip floor binds.
+**S3 — cross-strike monotonicity. → DATA-COLLECTING (probe built 2026-07-04).** Theme 6 again:
+P(≥80°F) ≥ P(≥85°F) must hold; staleness can violate it briefly. Taker-by-construction → ~8¢
+round-trip floor binds. `scripts/anomaly_sweep.py` (Q6) now sweeps every open market platform-
+wide daily at 09 UTC (wired into the hourly collector automatically) for two real-fillable
+checks: a complete strike ladder's yes_asks summing under $1+fees (true arb), and nested
+"greater"/"less" strikes where buying YES(wider)+NO(narrower) at real asks pays a guaranteed
+≥$1 for under $1+fees (the actual fee-floor-clearing version of this candidate's hypothesis,
+not just an ask-vs-ask gap). Live-validated against KXBTC's real 188-member ladder (correctly
+did NOT flag the already-known fine-band overround as an arb). 0 anomalies in 3 capped live
+passes so far — expected, real arbs are rare; the daily sweep needs to accumulate tape before
+a frequency×magnitude verdict is possible, same path S7c/S8 took to their bootstraps.
 
 **S4 — FEx fat tails.** Theme 5 tail mispricing across venues. Blocked until the FEx tape archiver
 (#24) is fixed — unrunnable, do not start until tape persists.

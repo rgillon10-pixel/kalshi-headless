@@ -198,10 +198,34 @@ history (overround-composition first cut, the lag-confound diagnosis) unchanged,
 `findings/2026-07-03-crypto-basis-s8-q5.md`.
 
 ### Q6 — Daily anomaly sweep (serves S3 + free-money detection)
-Status: TODO (2026-07-03) — egress unblocked (Q0b)
-`scripts/anomaly_sweep.py`: one pass over all active markets — bracket sums vs $1 + fees
-(true arb), cross-strike monotonicity violations (S3). Flag ONLY violations clearing the fee
-floor. Append `tape/anomalies/`. Wire into Q3's 09 UTC slot when both exist.
+Status: DONE (2026-07-04) — `scripts/anomaly_sweep.py` built + 22 new unit tests (17 in
+`tests/test_anomaly_sweep.py`, 5 new pricing tests in `tests/test_substrate_primitives.py`);
+real-ask
+fee-floor math (`fee_per_contract`, `true_arb_edge`, `monotonicity_crossing_edge`) added to
+`core/pricing.py` (the sanctioned Hard-Rule-#3 site) alongside `bracket_sum`. Two checks,
+both requiring a real fillable cost under $1 net of fees, not just an implied-probability
+gap: (1) **bracket_arb** — a complete less+between+greater strike ladder under one
+event_ticker whose yes_asks sum below $1+fees; only scored when the sorted segments
+bookend the full real line with no gap past a 2-cent tolerance (the observed Kalshi tick
+gap). (2) **cross_strike_monotonicity** (S3) — nested "greater"/"less" strikes where
+buying YES(wider)+NO(narrower), both real asks, pays a guaranteed >=$1 for under $1+fees.
+Discovery has NO series/category filter (literally every open market, per this item's own
+wording) via `/markets?status=open` pagination. **Real-world surprise:** Kalshi's open-
+market count runs into the tens of thousands (confirmed live: 10,000+ inside the first 10
+pages alone, cursor still unexhausted; an unbounded pull grew this sandbox past 3GB RSS
+before it was capped) — `main()` now defaults to `--limit 20000` and every tape record
+carries an honest `markets_truncated` flag (never silently claims full coverage); `--limit
+0` opts into an unbounded run for a beefier box (e.g. the VPS). Three live passes run
+(300/3000/20000-market caps, all `completeness_ok`, 0 anomalies — expected, real arbs are
+rare) plus a direct live probe of KXBTC's real 188-member ladder proving the pipeline fires
+correctly on production data: bracket_sum 7.78 (matches Q2/Q5's already-documented "fine
+$100-band, 1¢-min-ask" overround, correctly NOT flagged as an arb). No live multi-member
+"greater"/"less" group was found in the small weather sample probed to exercise
+`cross_strike_monotonicity` end-to-end on real data; that check is proven via realistic
+unit-test fixtures instead and will fire automatically once the daily sweep tape
+accumulates a case. Wired into Q3's 09 UTC slot automatically (no code change needed —
+`hourly_pass.py` already ran `scripts/anomaly_sweep.py` as a subprocess whenever the file
+exists). Gates: 169 tests green, `invariants --full` green.
 
 ### Q7 — S10 reachability-decay probe from accumulated crypto tape
 Status: BLOCKED(needs ≥7 days of Q2 tape)
@@ -225,3 +249,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-03T23:34Z · Q5 · claim-check: only open PR is #4 (Q1, unrelated) — Q5 unclaimed. Built `scripts/s8_basis_probe.py` (read-only over accumulated `tape/crypto_hourly/`). Resolved the Q2 overround flag: BTC's mean +$5.00 overround (19 passes) is 66.1% real near-the-money spread, only 33.9% the suspected floor-tick artifact (ETH splits 43%/57%, floor-heavier — smaller ladder). Could NOT run the ρ-guard as specified: the tape's paired `spot` lags each settlement by a mean 29 minutes (VPS `:23`/cloud `:53` cadence vs on-the-hour settlement), enough ordinary BTC drift to fully explain the observed gaps (max $150, 84.6% of hours over half a $100 band) without any real feed mismatch — tried to fix this with Coinbase's historical `/candles` endpoint (free, keyless) but this session's egress is currently blocked to every external host tested, including Kalshi itself (403 on CONNECT). Q5 left IN-PROGRESS/BLOCKED(egress), not DEAD — this is a data-adequacy gap the probe surfaced, not a CI failing to clear zero. 0 new unit tests (pure read-only analysis script over existing tape, matching `longshot_fade_probe.py`/`weather_rehab_s5.py` precedent); 140 tests green (unchanged), `invariants --full` green. Full writeup: `findings/2026-07-03-crypto-basis-s8-q5.md`.
 - 2026-07-04T (research loop) · Q4/S7c · claim-check: `git fetch origin main` showed main had advanced (hourly tape passes + a merged PR #7 adding the check-ntfy skill and Q5 writeup); rebased clean. Open PR #4 still claims Q1's odds-api leg (draft, unmerged, waiting on `ODDS_API_KEY`) — skipped Q1, moved to Q4 (topmost eligible IN-PROGRESS item). Re-fetched Kalshi's `KXWCGAME` settled tape at a higher limit (87 events now retained, full tournament to date vs S7b's 25) + fresh ESPN closing odds for the matching window (20260611-20260703, 88/88 events with DraftKings odds), re-ran the join: 77/87 matched, 0 ambiguous, 0 unparseable. Combined with S7b's 3 NBA games (deduped by event ticker, kept latest capture): **80 unique games, 237 priced outcomes** — ~3x S7b's n. New read-only `scripts/s7c_sports_clv_bootstrap.py` block-bootstraps `edge_after_fee` by GAME (not outcome), 10,000 resamples: mean −0.0235, 95% CI [−0.0245, −0.0225] — strictly below zero. **S7 verdict: DEAD** (taker side vs DraftKings-close). Q4 flipped IN-PROGRESS → DONE; `kb/strategies/00-index.md` S7 row + notes updated. 0 new unit tests (read-only analysis script over existing tape, same precedent as `s8_basis_probe.py`); 140 tests green (unchanged), `invariants --full` green. Full writeup: `findings/2026-07-04-sports-clv-s7-verdict.md`.
 - 2026-07-04T05:20Z · Q5 · claim-check: `git fetch origin main` showed only hourly `tape:` passes since the last research run; open PR #4 still claims Q1's odds-api leg (unrelated) — skipped Q1. Re-verified egress directly: all hosts 200, including Coinbase's `/candles` endpoint that 403'd last run — the exact unblock Q5 was waiting on. Added `--historical-spot` to `scripts/s8_basis_probe.py`: fetched Coinbase's 1-minute candle at the exact settlement-instant bucket for all 36 accumulated settled hours (18/symbol), fixing the 29-minute live-spot lag confound (lag now 0s, zero gaps, cached to `tape/crypto_hourly_historical_spot/`). Also fixed a latent bug where the half-band check used a fixed $100 width for both symbols instead of ETH's actual $20 strike spacing. Corrected ρ: BTC 0.963→0.9997, ETH 0.947→0.9998 (weather-precedent kill territory); max gap never crosses half a bracket width for either symbol (BTC $38.93/$50, ETH $0.94/$10). **S8 verdict: DEAD** — the ρ-guard's own cheap-kill criterion triggers, no bootstrap needed (BTC shows a small +$16.43 non-zero-centered basis, plausibly real but an order of magnitude below the bracket width). Q5 flipped IN-PROGRESS → DONE; `kb/strategies/00-index.md` S8 flipped to `dead ✗`. 7 new unit tests (`tests/test_s8_basis_probe.py`, offline/monkeypatched), 147 tests green, `invariants --full` green. Full writeup: `findings/2026-07-04-crypto-basis-s8-verdict.md`.
+- 2026-07-04T (research loop) · Q6 · claim-check: `git fetch origin main` in sync, only open PR (#4) claims Q1 (unrelated) — Q6 was the topmost eligible TODO. Built `scripts/anomaly_sweep.py` (platform-wide `/markets?status=open` pagination, no category filter) + `core/pricing.py` additions (`fee_per_contract`, `true_arb_edge`, `monotonicity_crossing_edge` — the sanctioned Hard Rule #3 site) for two real-fillable checks: complete-ladder true arb (bracket sum vs $1+fees) and S3's cross-strike monotonicity (nested "greater"/"less" strikes, real ask/no_ask hedge). Found live that Kalshi's open-market count is far larger than assumed (10,000+ in the first 10 pages, cursor unexhausted) — an unbounded pull grew RSS past 3GB before being capped; added a `--limit 20000` default with an honest `markets_truncated` flag on every tape record. Live-validated the bracket-arb check directly against KXBTC's real 188-member ladder (bracket_sum 7.78, correctly not flagged — matches Q2/Q5's already-documented fine-band overround, not a new arb). Three capped live sweeps run (300/3000/20000 markets), all `completeness_ok`, 0 anomalies (expected). Automatically wired into Q3's 09 UTC slot (no code change — `hourly_pass.py` already invokes the script by path once it exists). 22 new unit tests (17 in `tests/test_anomaly_sweep.py` + 5 pricing tests), 169 tests green, `invariants --full` green.
