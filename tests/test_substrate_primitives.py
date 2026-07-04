@@ -6,7 +6,8 @@ from __future__ import annotations
 import pytest
 
 from collection.normalize import normalize_snapshot
-from core.pricing import bracket_sum, normalized_ask, overround, yes_implied_prob
+from core.pricing import (bracket_sum, fee_per_contract, monotonicity_crossing_edge,
+                          normalized_ask, overround, true_arb_edge, yes_implied_prob)
 from core.source_tag import (DEFAULT_TAG, FILLABLE_TAGS, VALID_SOURCE_TAGS,
                              is_fillable, require_fillable, tag_or_synthetic)
 from core.stats import MIN_MEMBERS, safe_pstdev
@@ -34,6 +35,43 @@ def test_yes_implied_prob_is_normalized_ask():
 def test_bracket_sum_zero_rejected():
     with pytest.raises(ValueError):
         normalized_ask(0.4, 0.0)
+
+
+# ─── Q6 anomaly-sweep helpers: fee floor + real-fillable arb edges (Hard Rule #3) ──
+
+def test_fee_per_contract_matches_kalshi_roundup_to_cent():
+    # rate*p*(1-p) = 0.07*0.5*0.5 = 0.0175 -> rounds UP to 2 cents, not down to 1
+    assert fee_per_contract(0.50) == pytest.approx(0.02)
+    # a near-zero price still rounds up to a whole cent, never to $0.00
+    assert fee_per_contract(0.01) == pytest.approx(0.01)
+
+
+def test_true_arb_edge_positive_when_ladder_underpriced():
+    asks = [0.05, 0.30, 0.30, 0.05]  # sums to 0.70, a badly underpriced complete ladder
+    bs = bracket_sum(asks)
+    fees = sum(fee_per_contract(a) for a in asks)
+    edge = true_arb_edge(bs, fees)
+    assert edge == pytest.approx(1.0 - (bs + fees))
+    assert edge > 0
+
+
+def test_true_arb_edge_negative_under_ordinary_overround():
+    asks = [0.30, 0.30, 0.30, 0.20]  # sums to 1.10, an ordinary bracket overround
+    bs = bracket_sum(asks)
+    fees = sum(fee_per_contract(a) for a in asks)
+    assert true_arb_edge(bs, fees) < 0
+
+
+def test_monotonicity_crossing_edge_positive_on_a_real_cross():
+    # outer cheap (0.40) + inner's no_ask cheap (0.45, i.e. inner overpriced) -> real arb
+    edge = monotonicity_crossing_edge(0.40, 0.45)
+    assert edge > 0
+    fees = fee_per_contract(0.40) + fee_per_contract(0.45)
+    assert edge == pytest.approx(1.0 - (0.40 + 0.45) - fees)
+
+
+def test_monotonicity_crossing_edge_negative_when_ordinarily_priced():
+    assert monotonicity_crossing_edge(0.60, 0.71) < 0
 
 
 # ─── source_tag (trust=FALSE default + Rule #4) ────────────────────────────────

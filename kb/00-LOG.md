@@ -6,6 +6,72 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 10:30 UTC — Q6: daily anomaly sweep built (S3 + free-money detection)
+
+Claim-check: `git fetch origin main` in sync; the only open PR (#4) still claims Q1's
+odds-api leg (draft, waiting on `ODDS_API_KEY`) — skipped Q1. Every other candidate with a
+completed first cut is now DEAD or gated, so Q6 (daily anomaly sweep) was the topmost
+eligible TODO — the last unbuilt collector, and the first genuinely fresh candidate source
+since S1/S5/S7/S8 all died to the overround.
+
+**Built `scripts/anomaly_sweep.py`.** Discovers via `/markets?status=open` with NO
+category/series filter — every active market on the platform, matching the item's own
+wording, not just weather/crypto/sports. Two checks, both gated on a REAL fillable arb (a
+cost strictly under $1 net of taker fees), not just an implied-probability curiosity:
+
+1. **bracket_arb** — a complete strike ladder (a "less" catch-all + contiguous "between"
+   bands + a "greater" catch-all, the exact shape Q2 found on KXBTC/KXETH) under one
+   event_ticker whose yes_asks sum under $1+fees. Only scored when the sorted segments
+   bookend the full real line (-inf..+inf) with no gap wider than the observed 2-cent
+   Kalshi tick — an event missing an open-ended tail, or with a hole (one sibling market
+   already closed), can't prove exhaustiveness and is skipped, not guessed at.
+2. **cross_strike_monotonicity (S3)** — for nested "greater"/"less" threshold markets
+   (e.g. temp>=80 subset of temp>=70), buying YES(wider)+NO(narrower) — both REAL asks,
+   never a bid-derived synthetic price — pays a guaranteed >=$1 whenever that costs under
+   $1 net of both legs' fees. An ask-vs-ask gap alone (the naive read of "monotonicity
+   violation") can be closed by an unfilled quote; this is the fillable bar instead.
+
+Added the fee/edge math (`fee_per_contract`, `true_arb_edge`, `monotonicity_crossing_edge`)
+to `core/pricing.py` — the sanctioned Hard Rule #3 site, alongside `bracket_sum`.
+
+**Real-world surprise the live pass surfaced:** Kalshi's open-market count is far larger
+than any prior collector in this repo had touched — 10,000+ markets inside the first 10
+pages alone, cursor still unexhausted. A genuinely unbounded pull grew this sandbox's RSS
+past 3GB before it was capped. `main()` now defaults to `--limit 20000` (a real memory/time
+bound, not a scope judgment call) and every tape record carries an honest
+`markets_truncated` flag — a capped pass never claims full coverage it didn't do. `--limit
+0` opts into an unbounded run for a box with more headroom (the VPS collector, say).
+
+**Live-validated the pipeline against real data, not just fixtures.** Pulled KXBTC's actual
+188-member current-hour ladder directly and ran it through `check_bracket_arb`: bracket_sum
+**7.78**, correctly NOT flagged (edge deeply negative after fees) — this matches Q2/Q5's
+already-documented "fine $100-band, 1¢-minimum-ask" structural overround, not a new
+anomaly, confirming the check doesn't cry wolf on a known non-arb shape. Three capped live
+sweeps (300 / 3,000 / 20,000 markets), all `completeness_ok`, 0 anomalies flagged — expected,
+real cross-market arbs are rare by construction. No live multi-member "greater"/"less"
+group turned up in the small weather sample probed to exercise `cross_strike_monotonicity`
+end-to-end on production data; that check is proven correct via realistic synthetic
+fixtures instead and will fire automatically the day the accumulating sweep tape contains
+a real crossed pair.
+
+**Wired into Q3's 09 UTC slot with zero code changes** — `hourly_pass.py` already invoked
+`scripts/anomaly_sweep.py` as a subprocess by path, reporting `not_built` only because the
+file didn't exist yet; it now runs for real every day at 09 UTC.
+
+22 new unit tests (17 in `tests/test_anomaly_sweep.py`, offline `FakeClient` fixtures +
+5 pricing tests in `tests/test_substrate_primitives.py`), 169 tests green, `invariants
+--full` green. `kb/strategies/00-index.md` S3 moved `binding-test-defined` →
+`data-collecting` (the sweep now runs daily; a verdict needs accumulated tape, same as
+S7/S8 needed theirs).
+
+**Next:** let the daily 09 UTC sweep accumulate tape in `tape/anomalies/`; once enough
+days/passes exist, bootstrap S3's actual edge frequency×magnitude the same way S7c/S8 did.
+No other candidate has a fresh angle right now — everything else is DEAD or blocked on
+external inputs (Ryan's `ODDS_API_KEY` for Q1's odds leg, CME data for S2, the FEx tape
+archiver for S4).
+
+---
+
 ## 2026-07-04 05:20 UTC — Q5: S8 crypto-basis verdict — DEAD (ρ-guard kill)
 
 Claim-check: `git fetch origin main` showed only hourly `tape:` passes since the last
