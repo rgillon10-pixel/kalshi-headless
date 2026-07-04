@@ -6,6 +6,51 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 20:08 UTC — Q9/S13 maker fill-sim TESTED → DEAD (null result); stranded-tape sweep
+
+Research loop. Claim-check: only open PR (#4) claims Q1 (unrelated, awaiting `ODDS_API_KEY`) —
+Q9 (S13) was the topmost eligible TODO. Step 0b stranded-tape sweep first: of 12
+`tape/hourly-*` fallback branches, 10 were fully redundant with `main` (verified line-by-line,
+0 missing); 1 (73min old) had 187 lines `main` lacked (union-appended into this run's commit);
+1 (~13min old) skipped per the freshness rule. Note: `git push origin --delete` failed on
+every branch — the same permission boundary blocking `push origin main` also blocks remote
+branch deletion from a cloud session, so the redundant branches remain (harmless, but Ryan or
+a session with delete rights should prune them eventually).
+
+**S13 built and tested.** `scripts/s13_maker_fillsim.py`: the mirror-image test to S7's
+already-proven taker-side result — rest a bid at DraftKings-close-devig fair minus 1¢, does a
+real trade ever cross at/below it between the market's `open_time` and the game's actual
+kickoff (hourly candlestick `price.low_dollars`, not the ask low)? Live pass over the
+accumulated `tape/sports_clv/` + `tape/sports_history/` dataset (n=80 games) plus one new live
+(cached) Kalshi candlestick pull per outcome ticker: **94.1% fill rate** (223/237 priced
+outcomes), but `edge_after_fee` conditional on fill block-bootstraps to **+0.00009, 95% CI
+[−0.00021, +0.00039]** — straddles zero. **Verdict: DEAD**, and a genuinely different flavor
+of dead than S7/S8: not falsified on the wrong side, just a wash. The mechanism is structural:
+Kalshi's maker fee (0.0175, not the 0.07 taker rate) is itself close to 1¢/contract across
+most of this dataset's bid-price range, so it alone eats almost the entire assumed penny of
+edge before any real market effect (adverse selection, informational drift) gets a chance to
+matter — separately measured via DraftKings' open-vs-close line move, that drift was a
+favorable but tiny +0.00168, an order of magnitude too small to rescue the point estimate.
+
+**Two bugs caught and fixed before the verdict was final** (both would have understated the
+edge or wasted disk, not overstated an edge — caught by testing/re-checking, not by luck):
+(1) a first draft called `core.pricing.fee_per_contract` with its default taker rate (0.07)
+instead of the maker rate the situation actually calls for (0.0175) — a 4x fee overcharge that
+made the first live run look clearly negative (−0.00614 point, CI [−0.00683,−0.00542]) before
+the fix flipped it to the true near-zero result; (2) a first cache design persisted every raw
+candlestick per ticker and hit **98MB for 237 tickers** (several World Cup moneyline markets
+open 4+ months before kickoff — one ticker's `open_time` was February for a June game) —
+trimmed the cache to just the window's minimum trade price and its timestamp (93KB, same
+237 tickers), and fixed an O(n²) bug where the cache file was being fully re-read from disk on
+every single ticker lookup instead of once per run.
+
+22 new unit tests (`tests/test_s13_maker_fillsim.py`, fully offline — candlestick fetch always
+injected), 210 tests green, `invariants --full` green (one false-positive catch along the way:
+a docstring's prose "OHLC/yes_ask/yes_bid" tripped the Hard-Rule-#3 arithmetic scanner via the
+literal `/yes_ask` substring — reworded, not suppressed). `kb/strategies/00-index.md` S13
+flipped to `dead ✗`; S1/S5/S7/S8/S13 are now all decided at real asks, none live. Full
+writeup: `findings/2026-07-04-sports-maker-s13-verdict.md`.
+
 ## 2026-07-04 16:20 UTC — Loop health audit, stranded-tape recovery, and candidate restock S12–S18
 
 Interactive session (Ryan-requested): verify today's scheduled runs, the memory system, and
