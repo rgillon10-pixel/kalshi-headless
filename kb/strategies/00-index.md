@@ -21,6 +21,13 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **data-collecting** | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
+| **S12** | Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred) | 2026-07-04 gen pass · QF Themes 1+5 × econ category | idea | med | ≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where \|nowcast−implied\| > overround share+fee; block-bootstrap by release; CI>0 |
+| **S13** | S7-maker — bid side of the proven sports rich-ask | 2026-07-04 gen pass · S7c verdict inversion × maker lens | idea | med | fill-sim resting bids at DK-devig fair −1¢ (fills via candlestick trade-through); fill-rate × edge_after_fee conditioned on fill; block-bootstrap by game; CI>0 |
+| **S14** | Ladder overround underwriting (short the complete bracket set) | 2026-07-04 gen pass · overround inversion × QF Theme 3 | idea | low | L2-tape fill-sim: E[overround × P(complete fill)] − E[loss on partial sets @ real asks] > 0, CI over ≥30 event-days |
+| **S15** | Cross-event logical-implication scanner (A⇒B ⇒ P(A)≤P(B)) | 2026-07-04 gen pass · S3 extension × QF Theme 6 | idea | low | daily sweep over hand-audited implication graph; hit = YES(B)_ask+NO(A)_ask ≤ $1−fees at one snapshot, fillable size; kill if 0 hits in 60 days |
+| **S16** | FedWatch-anchored shock fade on KXFED | 2026-07-04 gen pass · QF Theme 7 × S2 adjacency | idea | low | enter only \|Kalshi−FedWatch\| > spread+fee around releases; paper exit on convergence/T+24h; bootstrap by shock; CI>0; kill if Kalshi leads ZQ |
+| **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | idea | low | retarget matcher to Fed/CPI questions; ≥5 live-book pairs/month both venues; lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
+| **S18** | Single-poll overreaction fade (Congress-control markets) | 2026-07-04 gen pass · QF Theme 7 × elections category | idea | low | paper fade @ real ask when single-poll jump >3¢ while polling average moved <1¢-eq; exit reversion/T+72h; bootstrap by poll event; CI>0 before 2026-11 |
 
 ## Notes on each
 
@@ -225,6 +232,17 @@ side of the same mispricing (a different trade), and a sharper (Pinnacle-anchore
 price should one ever become free. Full writeup:
 `findings/2026-07-04-sports-clv-s7-verdict.md`.
 
+## New candidates S12–S18 (2026-07-04 · interactive generation pass)
+
+Second post-weather idea set, generated the same way as S7–S11 (19 raw lens-rotated ideas →
+adversarial rejection of 12 → 7 survivors), seeded from the S7/S8 verdicts and the untouched
+market categories (econ prints, elections, cross-event structure, the maker side). Full
+dossier with mechanisms, both data legs named, kill conditions in cents, and the
+not-a-dead-idea-repeat argument for each: `findings/2026-07-04-edge-candidates-s12-s18.md`.
+Priority by (proven-mispricing proximity × data readiness): **S13 → S12 → S14 → S15 → S16 →
+S17 → S18**. S13/S12/S14/S15/S17 have queue items (Q9–Q13 in `LOOP-QUEUE.md`); S16/S18 stay
+registry-only until the queue drains to them.
+
 ## The one rule that orders all of this
 
 **Update 2026-06-18:** S0 is **built**; **S1 and S5 are dead** at real asks; **weather is decided —
@@ -240,3 +258,8 @@ block-bootstrapped by game (n=80 games/237 outcomes), 95% CI **[−0.0245,−0.0
 on the wrong side. That's S1/S5/S7 all falsified at real asks; S8 remains the most promising open
 candidate (data-collecting, ρ-guard blocked on egress to a historical-candle spot feed) with S9-S11
 still at `idea`. Still 0 proven edges — the bar has not moved, only the candidate list has shrunk.
+
+**Update 2026-07-04 (later):** S8's ρ-guard ran and killed it (see its row/notes) — S1/S5/S7/S8
+all falsified at real asks. Candidate list restocked the same day: **S12–S18 seeded** (section
+above) with Q9–Q13 queued, so the loop has ~a week of eligible milestones again. Still 0 proven
+edges; the restock widens the search, it does not lower the bar.

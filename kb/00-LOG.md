@@ -6,6 +6,36 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 16:20 UTC — Loop health audit, stranded-tape recovery, and candidate restock S12–S18
+
+Interactive session (Ryan-requested): verify today's scheduled runs, the memory system, and
+that R&D has runway. Three findings, three fixes:
+
+1. **Triggers healthy.** All three loop triggers verified enabled and firing on schedule
+   today — hourly collector (last fired 15:53 UTC), 5-hourly research loop (last 15:07 UTC,
+   next 20:07), weekly retro (Sundays 12:00, next tomorrow). The VPS collector's :23 passes
+   are landing on `main` every hour.
+2. **Stranded tape recovered + protocol hardened.** The cloud collector's `git push origin
+   main` fails intermittently (same permission boundary the research loop hit 2026-07-03) and
+   its fallback branches were accumulating unnoticed: 10 passes across Jul 3–4 (15:55, 19:54,
+   20:55, 21:55 / 00:54, 05:54, 09:54, 10:55, 12:54, 14:54 UTC) never reached `main` — a real
+   hole in the canonical tape and in Q7's "days of tape" clock. Union-appended all **1,674
+   missing lines** (20 crypto_hourly, 1,654 sports_pairs) into the per-day files with two-way
+   verification, and added protocol step **0b** to LOOP-QUEUE.md so every research run sweeps
+   `tape/hourly-*` branches automatically from now on. Swept branches deleted after merge.
+3. **Queue was one item from dry — restocked.** Only Q8 was eligible (Q7 blocked to ~Jul 10;
+   Q1 claimed by draft PR #4 awaiting `ODDS_API_KEY`). Ran a full generation pass (19 raw
+   lens-rotated ideas → adversarial cut rejected 12 → 7 survivors): **S12–S18** appended to
+   the registry — econ-print nowcast overlay (S12), the maker/bid side of S7's proven sports
+   rich-ask (S13), ladder-overround underwriting (S14), cross-event implication scanner (S15),
+   FedWatch-anchored shock fade (S16), Polymarket-macro parity (S17), single-poll fade (S18).
+   Full dossier: `findings/2026-07-04-edge-candidates-s12-s18.md`. Queue items **Q9–Q13**
+   appended (S13, S12, S15, S17, S14 in that order) — the loop now has ~a week of eligible
+   milestones. Ryan's one open action: paste `ODDS_API_KEY` into the VPS env to un-block Q1.
+
+Note: ntfy.sh is egress-blocked from this sandbox (HTTP 000 on CONNECT), so loop health was
+verified from git history + trigger state instead of the phone feed.
+
 ## 2026-07-04 15:15 UTC — Q8 (new): Kalshi↔Polymarket World Cup round-market collector built (S9)
 
 Claim-check: `git fetch origin main` in sync at `640da43` (only hourly `tape:` passes
