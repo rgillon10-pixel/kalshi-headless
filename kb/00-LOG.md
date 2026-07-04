@@ -6,6 +6,57 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 15:30 UTC — Recent-scans review; today's goal set + Q8 wired into the hourly pass
+
+**Task:** review the recent scans (tape, findings, kill verdicts) and the open edge options,
+then set a concrete goal for the day.
+
+**What the scans say right now:** four candidates are decided **dead** at real asks (S1
+longshot-fade, S5 weather-EMOS, S7 sports CLV, S8 crypto basis — all killed by either the ~10¢
+overround or a ρ-guard that never showed a meaningful residual). S3 (cross-strike
+monotonicity) is data-collecting via the daily `anomaly_sweep` but has found 0 anomalies in 3
+capped passes so far — expected, needs more accumulated tape before a frequency verdict is
+possible. Q7 (S10, reachability decay) is blocked until `tape/crypto_hourly/` reaches 7 days —
+only 2 (`dt=2026-07-03`, `dt=2026-07-04`) exist. Q1's odds-api leg (S7's would-be sharper sibling
+via S11) is stuck on PR #4, waiting for Ryan to paste `ODDS_API_KEY`. S6/S11 are still idea-stage,
+no collector built. **Net: S9 (Kalshi↔Polymarket World Cup round-market lead-lag, Q8) is the only
+candidate anyone can move forward today** — and it has a hard deadline: the `KXWCROUND` round
+ladder disappears when the World Cup ends **Jul 19**, 15 days out.
+
+**Goal set (see `LOOP-QUEUE.md` "## Goal — 2026-07-04" for the full writeup):** stop taking S9
+one manual pass at a time and get it accumulating automatically, since a lead-lag
+cross-correlation needs many snapshots, not one.
+
+**Done:** wired `collection/polymarket_pairs.run()` into `collection/hourly_pass.py` as a third
+sub-pass (alongside `sports_pairs`/`crypto_hourly`) — every future hourly firing now banks one
+more Kalshi/Polymarket snapshot. Its own `completeness_ok` and matched-pair count fold into the
+pass's existing honest AND/sum accounting the same way the other two sub-passes already do (read
+back tape lines by `capture_id`, never double-count an append-mode file's earlier lines); a
+legitimately-zero-matched hour (e.g. between rounds) is correctly not treated as a failure, same
+precedent as `anomaly_sweep`'s "0 found is expected" reasoning. Updated the 10 existing offline
+`tests/test_hourly_pass.py` cases to stub all three sub-passes (previously two — the CLI-wiring
+tests would otherwise have silently called the real network default the moment a third pass was
+added) and added 3 new tests for the polymarket sub-pass's incomplete/zero-match/raises behavior.
+191 tests green, `invariants.py --full` green.
+
+**Not done — live proof.** Attempted `python -m collection.hourly_pass --sports-limit 3
+--crypto-symbols BTC`: `sports_pairs` and `polymarket_pairs` both failed with `gateway answered
+403 to CONNECT` on `api.elections.kalshi.com` (confirmed directly via
+`$HTTPS_PROXY/__agentproxy/status`'s `recentRelayFailures` — Kalshi, Coinbase, and Kraken all
+403'd). This is the same intermittent sandbox-egress-policy block Q0/Q0b already documented
+(2026-07-02's first run hit it fully blocked; 2026-07-03/07-04 runs later found it open) — not
+every session gets the same network allowance. Left the milestone honestly at "code+tests done,
+live-unverified" rather than claiming a pass that didn't happen; the next session with open
+egress should run one real hourly pass and confirm `tape/polymarket_pairs/` gets a new line
+before calling Q8's hourly-wiring goal fully closed.
+
+**Next:** once egress opens, confirm the live pass, then let hourly snapshots accumulate toward
+S9's lead-lag cross-correlation before Jul 19. In parallel (not blocking): watch
+`tape/crypto_hourly/` for its 7th day (unblocks Q7/S10) and watch for `ODDS_API_KEY` landing
+(unblocks Q1/PR #4).
+
+---
+
 ## 2026-07-04 15:15 UTC — Q8 (new): Kalshi↔Polymarket World Cup round-market collector built (S9)
 
 Claim-check: `git fetch origin main` in sync at `640da43` (only hourly `tape:` passes

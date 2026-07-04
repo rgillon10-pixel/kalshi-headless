@@ -225,6 +225,16 @@ side of the same mispricing (a different trade), and a sharper (Pinnacle-anchore
 price should one ever become free. Full writeup:
 `findings/2026-07-04-sports-clv-s7-verdict.md`.
 
+**S9 → hourly wiring (2026-07-04, Q8 continued).** After a review of all recent scans and every
+open edge option, S9 was picked as today's goal — it's the only candidate that can make forward
+progress right now (S1/S5/S7/S8 dead; S3/S10 waiting on tape; Q1 waiting on Ryan for a key), and
+its data window is short (World Cup round ladder gone Jul 19). `collection/polymarket_pairs.run()`
+is now called every hour from `collection/hourly_pass.py` (third sub-pass alongside sports_pairs/
+crypto_hourly), so repeated snapshots accumulate automatically instead of needing manual passes.
+191 tests green, `invariants --full` green. Live end-to-end confirmation is blocked this session
+by an egress-policy 403 to Kalshi (see `LOOP-QUEUE.md` Q8/Goal) — code is unit-tested, not yet
+live-proven through the real hourly entry point.
+
 ## The one rule that orders all of this
 
 **Update 2026-06-18:** S0 is **built**; **S1 and S5 are dead** at real asks; **weather is decided —

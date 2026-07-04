@@ -1,6 +1,8 @@
 """Hourly collector entry point (READ-ONLY) — the single command the hourly routine runs.
 
-LOOP-QUEUE.md Q3: one `collection.sports_pairs` pass + one `collection.crypto_hourly` pass
+LOOP-QUEUE.md Q3: one `collection.sports_pairs` pass + one `collection.crypto_hourly` pass +
+one `collection.polymarket_pairs` pass (Q8, S9's Kalshi<->Polymarket World Cup round-market
+lead-lag needs repeated snapshots to cross-correlate, not a single point-in-time capture)
 every hour; during the 09 UTC hour also runs `scripts/anomaly_sweep.py` as a subprocess if
 that script exists yet (Q6, not built as of this module's authorship — its absence is
 recorded as `not_built`, never silently skipped without a trace).
@@ -11,11 +13,12 @@ caught and recorded rather than allowed to take the other sub-pass down with it.
 computed by that sub-pass per Hard Rule discipline) — a partial failure here always shows up
 as `completeness_ok: False`, it is never absorbed into a false "ok".
 
-`n_markets` counts underlying Kalshi market contracts captured this pass (summed from each
-freshly-written tape record's own `expected_outcomes`, e.g. a sports game's 2-3 markets or a
-crypto symbol's full bracket ladder); `n_lines` counts the JSONL tape records written (one
-per game / one per symbol) — the two numbers are usually different because one crypto-hourly
-"line" can represent 100+ markets.
+`n_markets` counts underlying Kalshi/Polymarket market contracts captured this pass (summed
+from each freshly-written tape record's own `expected_outcomes`, e.g. a sports game's 2-3
+markets, a crypto symbol's full bracket ladder, or a matched round-market pair's 1 Kalshi + 1
+Polymarket leg); `n_lines` counts the JSONL tape records written (one per game / one per
+symbol / one per matched round pair) — the two numbers are usually different because one
+crypto-hourly "line" can represent 100+ markets.
 
 Run one pass:
     python -m collection.hourly_pass
@@ -32,7 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from collection import crypto_hourly, sports_pairs
+from collection import crypto_hourly, polymarket_pairs, sports_pairs
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -48,6 +51,10 @@ def _default_sports_pass() -> Dict[str, Any]:
 
 def _default_crypto_pass() -> Dict[str, Any]:
     return crypto_hourly.run()
+
+
+def _default_polymarket_pass() -> Dict[str, Any]:
+    return polymarket_pairs.run()
 
 
 def _run_anomaly_sweep_subprocess() -> Dict[str, Any]:
@@ -105,22 +112,31 @@ def _crypto_expected_outcomes(rec: Dict[str, Any]) -> int:
     return (rec.get("current") or {}).get("expected_outcomes", 0) or 0
 
 
+def _polymarket_expected_outcomes(rec: Dict[str, Any]) -> int:
+    # every matched-pair tape line is exactly one Kalshi market + one Polymarket market
+    return 2
+
+
 # --------------------------------------------------------------------------- #
 # one hourly pass
 # --------------------------------------------------------------------------- #
 def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         crypto_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        polymarket_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         anomaly_sweep_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
-    """One hourly pass: sports_pairs + crypto_hourly, plus anomaly_sweep during the 09 UTC
-    hour. `sports_fn`/`crypto_fn`/`anomaly_sweep_fn`/`now` are injectable for offline
-    testing; each defaults to the real, network-touching implementation."""
+    """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs, plus anomaly_sweep
+    during the 09 UTC hour. `sports_fn`/`crypto_fn`/`polymarket_fn`/`anomaly_sweep_fn`/`now`
+    are injectable for offline testing; each defaults to the real, network-touching
+    implementation."""
     ts = now if now is not None else datetime.now(timezone.utc)
     sports_fn = sports_fn or _default_sports_pass
     crypto_fn = crypto_fn or _default_crypto_pass
+    polymarket_fn = polymarket_fn or _default_polymarket_pass
 
     sports = _safe_call(sports_fn)
     crypto = _safe_call(crypto_fn)
+    polymarket = _safe_call(polymarket_fn)
 
     completeness_ok = True
     n_markets = 0
@@ -146,6 +162,16 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     else:
         completeness_ok = False
 
+    if polymarket["status"] == "ok":
+        r = polymarket["result"]
+        n_matched = r.get("n_matched", 0)
+        n_lines += n_matched
+        n_markets += _sum_expected_markets_from_tape(
+            r.get("path"), r.get("capture_id", ""), _polymarket_expected_outcomes)
+        completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
+    else:
+        completeness_ok = False
+
     anomaly: Optional[Dict[str, Any]] = None
     if ts.hour == ANOMALY_SWEEP_UTC_HOUR:
         sweep_fn = anomaly_sweep_fn or _run_anomaly_sweep_subprocess
@@ -158,6 +184,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "captured_at": ts.isoformat(),
         "sports_pairs": sports,
         "crypto_hourly": crypto,
+        "polymarket_pairs": polymarket,
         "anomaly_sweep": anomaly,
         "n_markets": n_markets,
         "n_lines": n_lines,
