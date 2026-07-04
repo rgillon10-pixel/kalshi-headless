@@ -17,7 +17,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
 | **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
-| **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | data-collecting | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds differ (ρ guard vs NWS/WU) |
+| **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | **dead ✗** | med | TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5's NWS/WU |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
@@ -125,6 +125,22 @@ sampled **at** the settlement instant (Coinbase's free historical `/candles` end
 external host tried, including Kalshi itself). **S8 stays `data-collecting`, not DEAD**:
 unlike S1/S5 this isn't a CI failing to clear zero, it's that the available data can't yet
 answer the question. Full writeup: `../../findings/2026-07-03-crypto-basis-s8-q5.md`.
+
+**S8 → DEAD (2026-07-04, ρ-guard kill).** Egress reopened; `s8_basis_probe.py --historical-spot`
+fetched Coinbase's free `/candles` endpoint at the exact settlement-instant minute bucket for
+all 36 accumulated settled hours (18/symbol), fixing the 29-minute lag confound (lag now 0s
+every hour, zero gaps). Corrected ρ jumps from 0.963/0.947 (lagged) to **0.9997/0.9998**
+(BTC/ETH) — the same territory as S5's NWS-vs-WU 0.99999 kill — and, more decisively, the max
+observed settle-vs-spot gap **never once crosses half a bracket width** for either symbol
+(BTC worst case $38.93 of a $50 half-band; ETH $0.94 of a $10 half-band; also fixed a latent
+bug where the half-band check used a fixed $100 width for both symbols instead of ETH's actual
+$20 strike spacing). BTC shows a small, real, non-zero-centered basis (mean +$16.43, 17/18
+hours positive — CF Benchmarks likely runs a hair above raw Coinbase spot) but it's an order of
+magnitude below the bracket width, so it never would have flipped a settlement outcome relative
+to naive spot-watching in this sample. **Verdict: DEAD**, same cheap-kill mechanism as S1/S5,
+no bootstrap needed since the guard itself fails to show a meaningful residual. n=18/symbol is
+thin — noted as a first-cut kill, not a large-sample proof — but clears no further bar for
+continued collection. Full writeup: `../../findings/2026-07-04-crypto-basis-s8-verdict.md`.
 
 **S7/S11 → data-collecting (2026-07-03).** Cloud egress unblocked mid-run (Q0b); built
 `collection/sports_pairs.py` (Q1) — discovers Kalshi sports moneyline series by title heuristic,

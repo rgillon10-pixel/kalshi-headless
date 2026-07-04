@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 05:20 UTC — Q5: S8 crypto-basis verdict — DEAD (ρ-guard kill)
+
+Claim-check: `git fetch origin main` showed only hourly `tape:` passes since the last
+research run; open PR #4 still claims Q1's odds-api leg (draft, waiting on
+`ODDS_API_KEY`) — skipped Q1. Re-verified egress directly (`curl` to Kalshi, Coinbase
+spot, and Coinbase's historical `/candles` endpoint) — all 200, including the exact host
+that was 403'd last run. That's the unblock Q5 was waiting on, so picked it up as the
+topmost eligible item.
+
+**Fixed the lag confound Q5 flagged as the actual problem.** Added a `--historical-spot`
+mode to `scripts/s8_basis_probe.py`: for each of the 36 unique settled hours accumulated
+in `tape/crypto_hourly/` (18/symbol, up from 13), fetch Coinbase's free 1-minute candle
+for the exact bucket at the settlement boundary instant instead of reusing the already-
+lagged live `spot` snapshot. All 36 fetches landed an exact-epoch bucket match (Kalshi's
+hourly grid always lands on a UTC minute) — lag drops from a mean ~1650s to **0s**
+everywhere. Fetches are cached (`synthetic`-tagged, sha256'd) to
+`tape/crypto_hourly_historical_spot/` so reruns don't refetch. Also caught and fixed a
+latent unit bug while in this code: the half-band-crossing check used a fixed $100 width
+for both symbols, but ETH's ladder actually steps $20 (confirmed from the tape's own
+`floor_strike` spacing) — now per-symbol.
+
+**Result: the ρ-guard, run for real this time, kills S8.** Corrected ρ: BTC 0.963→**0.9997**,
+ETH 0.947→**0.9998** — the same territory as S5's weather NWS-vs-WU 0.99999 kill. More
+decisive than ρ alone: the max observed settle-vs-spot gap **never crosses half a bracket
+width for either symbol** across all 18 hours each (BTC worst $38.93 of a $50 half-band;
+ETH worst $0.94 of a $10 half-band). One honest nuance: BTC's gap is small but not
+zero-centered (mean +$16.43, 17/18 hours positive) — plausibly a real, small structural
+premium of the CF Benchmarks settlement index over raw Coinbase spot — but it's an order
+of magnitude below the bracket width, so it never would have flipped a settlement outcome
+relative to naive spot-watching in this sample.
+
+**Verdict: S8 DEAD.** This is the guard's own designated cheap-kill gate triggering clean,
+same mechanism as S5 — no bootstrap needed to reach it. n=18/symbol is thin (a first-cut
+kill, not a large-sample proof), noted plainly, but there's no case for more Q5 data
+collection. `kb/strategies/00-index.md` S8 flipped to `dead ✗`. 7 new unit tests
+(`tests/test_s8_basis_probe.py`, offline/monkeypatched HTTP — the new fetch/cache/report
+logic is genuinely testable, unlike the pure-analysis code the rest of the probe already
+had); 147 tests green, `invariants --full` green. Full writeup:
+`../findings/2026-07-04-crypto-basis-s8-verdict.md`.
+
+**Next:** every candidate with a completed first cut is now DEAD (S1, S5, S7, S8) or
+gated/blocked (S2, S3, S4, S7's maker side, S9-S11). Q6 (daily anomaly sweep) is the
+topmost untouched TODO item and the most promising near-term source of a fresh candidate.
+
+---
+
 ## 2026-07-04 00:12 UTC — Q4/S7c: sports CLV verdict — DEAD
 
 Claim-check: main had advanced (hourly tape + merged PR #7 adding the check-ntfy skill and
