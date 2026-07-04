@@ -6,6 +6,51 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 00:12 UTC — Q4/S7c: sports CLV verdict — DEAD
+
+Claim-check: main had advanced (hourly tape + merged PR #7 adding the check-ntfy skill and
+Q5's writeup); rebased clean. Open PR #4 still claims Q1's odds-api leg (draft, waiting on
+`ODDS_API_KEY`) — skipped Q1, picked up Q4 (topmost eligible IN-PROGRESS item, S7c was the
+one remaining sub-stage).
+
+**Accumulated the rest of the tournament.** S7b's join ran on a partial Kalshi tape (25
+`KXWCGAME` events) because the original fetch used a low page limit. Re-fetched with
+`--limit 100`: Kalshi actually retains **87 settled World Cup games** end-to-end so far
+(Jun 11 group stage through Jul 3). Re-fetched ESPN closing odds for the matching window
+and re-ran the join: **77/87 matched**, 0 ambiguous, 0 unparseable (S7b's 27/27 match rate
+on a narrower window generalizes cleanly to the wider one). Combined with S7b's 3 already-
+joined NBA games (deduped by `kalshi_event_ticker`, no new NBA fetch this pass): **80
+unique priced games, 237 priced outcomes** — about 3x S7b's descriptive n.
+
+**Ran the binding test.** New read-only `scripts/s7c_sports_clv_bootstrap.py` (no network;
+reads `tape/sports_clv/*.jsonl`) block-bootstraps `edge_after_fee` (DraftKings-close de-vig
+fair prob minus Kalshi's real pregame ask minus the taker fee) **by game** — not by
+outcome, since a game's 2-3 outcomes share one de-vig and one kickoff and are not
+independent draws. 10,000 resamples: mean **−0.0235**, 95% CI **[−0.0245, −0.0225]**. Both
+bounds sit clearly below zero — this isn't a near-miss, Kalshi's pregame ask is running
+richer than the DraftKings-implied fair price by more than the fee covers.
+
+**Verdict: S7 is DEAD** (taker side, vs DraftKings-close) — CLAUDE.md's bar is a CI that
+clears zero, and this one doesn't just fail to clear it, it sits confidently on the wrong
+side. Per the Stop rules a DEAD verdict from a real, block-bootstrapped test is a success:
+it's decided, `kb/strategies/00-index.md` S7 flipped to `dead ✗`, and the loop stops
+spending cycles on it. Two things this verdict does *not* cover, flagged for anyone
+revisiting the sports family: the maker/bid side of the same mispricing (a different trade,
+untested here), and what happens with a sharper (Pinnacle) fair-price anchor if one ever
+becomes free — DraftKings retail vig is a documented, not eliminated, source of noise in
+`fair_prob`.
+
+0 new unit tests (pure read-only analysis script over existing tape, same precedent as
+`s8_basis_probe.py`/`longshot_fade_probe.py` — probes aren't unit-tested, collectors are);
+140 tests green (unchanged), `invariants --full` green. Full writeup:
+`../findings/2026-07-04-sports-clv-s7-verdict.md`.
+
+**Next:** S8 (crypto-hourly settlement basis) is now the most-advanced open candidate —
+still blocked on the ρ-guard needing historical-candle spot instead of lagged live spot;
+Q6 (daily anomaly sweep) is the topmost untouched TODO item.
+
+---
+
 ## 2026-07-03 23:34 UTC — Q5: S8 crypto-basis first cut — overround flag resolved, ρ-guard inconclusive
 
 Claim-check: only open PR (#4) is Q1's unrelated odds-api work — Q5 unclaimed, picked it up.

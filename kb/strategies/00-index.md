@@ -16,7 +16,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
-| **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **data-collecting** | med | backtest: Kalshi ask vs devig(DraftKings close) fair − overround − fee; block-bootstrap by game; CI>0 |
+| **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | data-collecting | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds differ (ρ guard vs NWS/WU) |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
@@ -166,6 +166,21 @@ descriptive only, **not a verdict**. S7c (block-bootstrap by game, 95% CI) is st
 status stays `data-collecting` until then. Full writeup:
 `findings/2026-07-03-sports-history-s7b.md`.
 
+**S7 → Q4/S7c (2026-07-04): verdict — DEAD.** Re-fetched Kalshi settled `KXWCGAME` (87
+events, full tournament to date) + ESPN closing odds for the matching window, re-ran the
+join: 77/87 matched, 0 ambiguous. Combined with S7b's 3 NBA games (deduped by event ticker):
+**80 unique games, 237 priced outcomes** — roughly 3x S7b's n. New read-only
+`scripts/s7c_sports_clv_bootstrap.py` block-bootstraps `edge_after_fee` by **game** (not
+outcome — outcomes within a game are correlated draws), 10,000 resamples: mean **−0.0235**,
+95% CI **[−0.0245, −0.0225]**. Both bounds sit well below zero, not just failing to clear
+it — Kalshi's real pregame ask runs richer than DraftKings' de-vigged fair price by more
+than the taker fee covers. **S7 (taker side, vs DraftKings-close) is DEAD** — a real-ask
+block-bootstrap failing to clear zero is a successful, decided result per the Stop rules,
+not a reason to keep collecting. Untested and NOT covered by this verdict: the bid/maker
+side of the same mispricing (a different trade), and a sharper (Pinnacle-anchored) fair
+price should one ever become free. Full writeup:
+`findings/2026-07-04-sports-clv-s7-verdict.md`.
+
 ## The one rule that orders all of this
 
 **Update 2026-06-18:** S0 is **built**; **S1 and S5 are dead** at real asks; **weather is decided —
@@ -175,3 +190,9 @@ weather) — its full multi-meeting test is GATED on CME ticks. The non-weather 
 **S7–S11** (above), with **S7 (sports CLV vs Pinnacle) as try-first** — lowest overround, all data free,
 deep history, single-leg. No capital moves until a real-ask CI clears zero — **nothing has yet** (still
 0 proven edges; the substrate scores every candidate honestly).
+
+**Update 2026-07-04:** **S7 is now dead ✗** too — taker-side WC/NBA moneyline vs DraftKings-close CLV,
+block-bootstrapped by game (n=80 games/237 outcomes), 95% CI **[−0.0245,−0.0225]**, well clear of zero
+on the wrong side. That's S1/S5/S7 all falsified at real asks; S8 remains the most promising open
+candidate (data-collecting, ρ-guard blocked on egress to a historical-candle spot feed) with S9-S11
+still at `idea`. Still 0 proven edges — the bar has not moved, only the candidate list has shrunk.
