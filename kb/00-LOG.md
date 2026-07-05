@@ -6,6 +6,54 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-05 20:09 UTC — Q8: first S9 lead-lag cross-correlation cut (zero in-window shocks found)
+
+Research loop. Claim-check: `git fetch origin main` force-updated the local ref to `d1ae913`
+(hourly `tape:` passes only since the last run); open PRs unchanged — #4 still claims Q1
+(draft, unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly retro's protocol-amendment
+proposal (never self-merged by a loop run, left for Ryan). Queue scan: Q2–Q6/Q9/Q10/Q11 DONE,
+Q7/Q13 BLOCKED — **Q8 (IN-PROGRESS)** was topmost eligible by the letter of the protocol; the
+last several runs treated its "let snapshots accumulate" remainder as no-code-yet and skipped
+to the next TODO, but by this run's time (~19h of continuous hourly-ish collection since the
+2026-07-05T00:11Z wiring, 37 distinct captures) there was finally enough tape to actually
+attempt the lead-lag cross-correlation Q8's own spec calls for — so this run did that instead
+of skipping again.
+
+Step 0b stranded-tape sweep first: of 27 `tape/hourly-*` branches, 2 (`20260705T155348Z`,
+`20260705T1655Z`, both >30min old) carried lines `main` was missing — 4 `crypto_hourly` + 80
+`polymarket_pairs` + 360 `sports_pairs` (checked by exact line-set diff per file, union-deduped
+across both branches, every line validated as parseable JSON) — union-appended into this run's
+commit. `git push origin --delete` still fails from a cloud session (same permission boundary
+documented since 2026-07-03).
+
+**Q8/S9 milestone.** Built `scripts/s9_leadlag_probe.py` (read-only over
+`tape/polymarket_pairs/`): pools every consecutive-capture (Δkalshi_yes_ask,
+Δpolymarket_best_ask) pair across the 40 markets with ≥10 captures into a lag-0/lag±1
+cross-correlation — contemporaneous ρ **+0.293** (n=1,440), kalshi-leads-polymarket ρ +0.044,
+polymarket-leads-kalshi ρ −0.007 (both n=1,400, both noise-level). More important than the
+correlation numbers: `market_membership_changes()` — the honest proxy for "did a round
+actually transition inside the window" — found **zero** in-window round-transition events; the
+one membership change on record predates continuous hourly collection entirely (a
+pre-wiring smoke-test artifact from 2026-07-04T15:15Z, not something that happened while the
+collector was running). S9's actual thesis — does one venue visibly lag the other around a
+real information shock (a team advancing or being eliminated) — is therefore **still
+untested**; every tick observed so far is ordinary book noise on markets whose underlying
+question hasn't resolved yet. No CI, no verdict claimed; explicitly reported as a
+noise-floor characterization, not a lead-lag finding. 20 new unit tests (offline, synthetic
+capture series incl. one hand-built market where polymarket is kalshi shifted by exactly one
+step, confirming the pooled stat recovers the correct lag direction). 265 tests green (245
+prior + 20 new), `invariants --full` green. `kb/strategies/00-index.md` S9 note updated
+(stays `data-collecting`). See
+`findings/2026-07-05-polymarket-leadlag-s9-first-cut.md`.
+
+**Next:** keep accumulating hourly snapshots; re-run `s9_leadlag_probe.py` once an actual
+round transition lands in the tape and inspect that specific market's captures around the
+transition. Q12 (S17, retarget the matcher to recurring macro pairs) remains the topmost TODO
+item with unstarted real work if Q8 gets skipped again before a shock arrives; Q7 unblocks
+around 2026-07-10, Q13 around 2026-07-13.
+
+---
+
 ## 2026-07-05 15:13 UTC — Q10: GDPNow nowcast leg built (S12 econ-print collector now fully DONE)
 
 Research loop. Claim-check: `git fetch origin main` forced-updated the local ref (session

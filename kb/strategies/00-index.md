@@ -145,6 +145,19 @@ World Cup ends Jul 19 — the round ladder (quarterfinals→semifinals→final) 
 weeks of life; next step is accumulating repeated passes (wire into the hourly collector)
 to get enough snapshots for an actual lead-lag cross-correlation.
 
+**S9 → first cross-correlation cut (2026-07-05, Q8 continued) — stays data-collecting.**
+`scripts/s9_leadlag_probe.py` (read-only over accumulated `tape/polymarket_pairs/`, 37
+captures/48 markets/40 with ≥10 captures) pooled every consecutive-capture price-change pair
+into a lag-0/lag±1 cross-correlation: contemporaneous ρ +0.293 (n=1,440), kalshi-leads-poly
+ρ +0.044, poly-leads-kalshi ρ −0.007 (both n=1,400, both noise-level). More importantly:
+`market_membership_changes()` — the honest proxy for "did a round actually transition inside
+the window" — found **zero** in-window round-transition events (the one change on record
+predates continuous hourly collection, a startup artifact). S9's actual thesis (does one
+venue visibly lag the other around a real information shock) is therefore still untested —
+every observed tick so far is book noise, not a shock. No CI, no verdict; stays
+`data-collecting` until an actual elimination/advance lands in the tape (several should occur
+before the WC ends Jul 19). See `findings/2026-07-05-polymarket-leadlag-s9-first-cut.md`.
+
 **S8 → Q5 first cut (2026-07-03): overround flag resolved, ρ-guard inconclusive (stays
 data-collecting).** `scripts/s8_basis_probe.py` (read-only over accumulated
 `tape/crypto_hourly/`) found the earlier +$9.27 flag is **mostly real, not a floor-tick
