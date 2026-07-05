@@ -21,7 +21,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **data-collecting** | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
-| **S12** | Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred) | 2026-07-04 gen pass · QF Themes 1+5 × econ category | idea | med | ≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where \|nowcast−implied\| > overround share+fee; block-bootstrap by release; CI>0 |
+| **S12** | Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred) | 2026-07-04 gen pass · QF Themes 1+5 × econ category | **data-collecting** | med | ≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where \|nowcast−implied\| > overround share+fee; block-bootstrap by release; CI>0 |
 | **S13** | S7-maker — bid side of the proven sports rich-ask | 2026-07-04 gen pass · S7c verdict inversion × maker lens | **dead ✗** | med | TESTED n=80 games/223 filled outcomes (94.1% fill rate): mean edge_after_fee +0.00009, 95% block-bootstrap-by-game CI [−0.00021,+0.00039] — straddles zero → null result. The maker fee alone (~1¢ at mid-range bid prices) consumes essentially the whole assumed 1¢ bid-under-fair margin. |
 | **S14** | Ladder overround underwriting (short the complete bracket set) | 2026-07-04 gen pass · overround inversion × QF Theme 3 | idea | low | L2-tape fill-sim: E[overround × P(complete fill)] − E[loss on partial sets @ real asks] > 0, CI over ≥30 event-days |
 | **S15** | Cross-event logical-implication scanner (A⇒B ⇒ P(A)≤P(B)) | 2026-07-04 gen pass · S3 extension × QF Theme 6 | idea | low | daily sweep over hand-audited implication graph; hit = YES(B)_ask+NO(A)_ask ≤ $1−fees at one snapshot, fillable size; kill if 0 hits in 60 days |
@@ -256,6 +256,15 @@ rescue the edge). A first draft of this script used the wrong fee rate (taker 0.
 maker 0.0175, a 4× overcharge) and a naive full-candle cache that hit 98MB for 237 tickers —
 both caught and fixed before this verdict. Full writeup:
 `findings/2026-07-04-sports-maker-s13-verdict.md`.
+
+**S12 — DATA-COLLECTING (2026-07-05, Q10).** `collection/econ_prints.py` now captures the
+Kalshi side of this candidate every day at 09 UTC: 5 flagship series (`KXCPI`/`KXCPIYOY`/
+`KXCPICORE`/`KXPAYROLLS`/`KXGDP`), full open-ladder real_ask per strike plus the most-recent
+settlement (Kalshi's own published print value, `broker_truth`) — 60-day purge risk means this
+leg had to start now regardless of the nowcast side being ready. The nowcast leg (Cleveland Fed
+CPI / GDPNow) is BLOCKED(nowcast-scrape): Cleveland Fed's page has no static/API-discoverable
+number, GDPNow's does but needs nontrivial quarter-window slicing — both left for a follow-up
+pass. S12's ≥20-releases gate can't be scored until that leg lands.
 
 ## The one rule that orders all of this
 
