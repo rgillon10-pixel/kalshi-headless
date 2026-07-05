@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-05 06:08 ET — Q11: cross-event logical-implication scanner built (S15 idea → data-collecting)
+
+Research loop. Claim-check: sandbox branch was already at `origin/main`'s real tip (hourly
+`tape:` passes only since the last run); only open PR (#4) still claims Q1 (draft, unrelated,
+awaiting `ODDS_API_KEY`). Queue scan: Q2/Q3/Q4/Q5/Q6/Q9/Q10 DONE, Q7/Q13 BLOCKED, Q8's only
+remaining gap is letting hourly snapshots accumulate (no code) — **Q11 (S15, TODO)** was the
+topmost eligible item with actual work.
+
+Step 0b stranded-tape sweep first: of 21 `tape/hourly-*` branches, 4 (all >30min old) carried
+lines `main` was missing — 8 `crypto_hourly`, 160 `polymarket_pairs`, 816 `sports_pairs` —
+union-appended into this run's commit (checked: 0 exact-duplicate lines, every appended line
+valid JSON). The newest branch (~12min old) was skipped per the freshness rule. `git push
+origin --delete` still fails from a cloud session on every branch (same permission boundary
+documented since 2026-07-03) — redundant branches persist, harmless.
+
+**Q11 milestone.** Extended `scripts/anomaly_sweep.py` (Q6) with a third real-ask check,
+`check_cross_event_implication`, and a new config file, `config/implication_pairs.yaml` — the
+"hand-curated implication graph" Q11 called for. Unlike Q6's existing `cross_strike_monotonicity`
+check (which proves nesting because both legs share one `event_ticker`), a cross-event pair
+can't lean on that structural shortcut — the config's job is to hold, per family, the actual
+audit of both markets' settlement rules text that proves A ⇒ B. One family is populated so
+far: `kxwcround_progression` — for Kalshi's `KXWCROUND` series ("Will `<team>` qualify for
+FIFA World Cup `<round>`?", the same grammar `collection/polymarket_pairs.py` already
+discovers+confirms structurally), reaching a later round in a single-elimination bracket is a
+strict superset of reaching every earlier round for the *same* team — no settlement-term
+mismatch is possible within one entity/series, which is exactly the audit the config's `audit`
+field records. Q11's own second example ("wins presidency" ⇒ "wins nomination") has no
+matching live Kalshi series yet; left as a documented TODO in the config rather than guessed
+at.
+
+The check itself reuses `core.pricing.monotonicity_crossing_edge` completely unchanged — same
+fee-floor math Q6's check 2 already uses (buy YES(B) + NO(A), A = harder/narrower round, B =
+easier/wider round, hit when the combined cost clears below $1 net of both legs' taker fees).
+10 new unit tests cover the pair-generation logic (one entity's full round chain, non-matching
+series ignored, missing prices skipped, unknown family kinds skipped) plus the config loader;
+2 more wire it into `run()`'s existing tape record (`n_implication_pairs_checked` alongside the
+existing `n_bracket_groups_checked`/`n_monotonicity_groups_checked`). No `hourly_pass.py` change
+needed — same as Q6, the third check just runs inside the same subprocess call already wired
+into the daily 09 UTC slot.
+
+Live-validated directly against Kalshi's real, currently-open `KXWCROUND` markets (bypassing
+the platform-wide sweep's pagination, which doesn't reach WC tickers within a bounded
+`--limit`): 40 open markets, 38 generated round pairs, **0 fee-clearing hits** — expected,
+matching Q6's and Q8's own "real arbs are rare" precedent, and the sampled pair confirms the
+check discriminates correctly (Team USA: SEMIFINALS priced 19¢ vs QUARTERFINALS' 52¢ — properly
+monotonic, harder round cheaper). `kb/strategies/00-index.md` S15 flipped `idea` →
+`data-collecting`; kill condition (per registry, dated from this run) is 0 fee-clearing hits in
+60 days of the existing daily sweep. 238 tests green (228 prior + 10 new), `invariants --full`
+green.
+
+**Next:** Q12 (S17, retarget the Kalshi↔Polymarket matcher to recurring macro pairs) is next
+in queue order; Q7 unblocks around 2026-07-10 (needs ≥7 days of Q2 crypto tape).
+
+---
+
 ## 2026-07-05 05:19 UTC — Q10: econ-print (CPI/payrolls/GDP) collector built — Kalshi leg DONE, nowcast leg BLOCKED
 
 Research loop. Claim-check: `git fetch origin main` at `9de63e2` (only hourly `tape:` passes

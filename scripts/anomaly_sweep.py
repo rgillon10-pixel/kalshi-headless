@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""anomaly_sweep.py — LOOP-QUEUE.md Q6: daily anomaly sweep over ALL active Kalshi markets.
+"""anomaly_sweep.py — LOOP-QUEUE.md Q6 (+ Q11): daily anomaly sweep over ALL active Kalshi
+markets.
 
-Two real-ask checks, mirroring capture_orderbooks/sports_pairs/crypto_hourly discipline
+Three real-ask checks, mirroring capture_orderbooks/sports_pairs/crypto_hourly discipline
 (bitemporal `captured_at`, raw-bytes sha256 provenance, honest completeness — a discovery
-failure lowers `completeness_ok`, it never silently drops markets). Both checks flag ONLY
-violations that clear the taker fee floor (core.pricing.fee_per_contract) — an implied-
-probability curiosity is not the same as a real fillable arb, and this project's prime
-directive is "prove edge at real asks", not at raw quotes.
+failure lowers `completeness_ok`, it never silently drops markets). All three checks flag
+ONLY violations that clear the taker fee floor (core.pricing.fee_per_contract) — an
+implied-probability curiosity is not the same as a real fillable arb, and this project's
+prime directive is "prove edge at real asks", not at raw quotes.
 
   1. **bracket_arb** — a COMPLETE, mutually-exclusive-and-exhaustive strike ladder under one
      event_ticker (a "less" catch-all + contiguous "between" bands + a "greater" catch-all,
@@ -26,6 +27,14 @@ directive is "prove edge at real asks", not at raw quotes.
      pays a guaranteed >=$1 (core.pricing.monotonicity_crossing_edge) whenever that costs
      less than $1 net of both legs' fees — an ask-vs-ask gap alone can be closed by an
      unfilled quote, a real cost-under-$1 hedge cannot.
+  3. **cross_event_implication** (S15, Q11) — the same nested-subset idea as check 2, but
+     across DIFFERENT event_tickers, per a hand-curated implication graph
+     (`config/implication_pairs.yaml`, each family audited against both markets' actual
+     settlement rules text before being added — a cross-event pair can't lean on "same
+     event_ticker" the way check 2 does to prove nesting). A ⇒ B (A narrower/harder, B
+     wider/easier, e.g. "reach FINAL" ⇒ "reach QUARTERFINALS" for the same World Cup team):
+     buy YES(B) + NO(A), same `core.pricing.monotonicity_crossing_edge` fee-floor math as
+     check 2.
 
 Discovers via `/markets?status=open` with NO series/category filter — every active market
 on the platform, per Q6's own wording. Confirmed live 2026-07-04: Kalshi's open-market
@@ -45,11 +54,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+import yaml
 
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
@@ -57,6 +69,7 @@ from core.pricing import bracket_sum, fee_per_contract, monotonicity_crossing_ed
 from validation.v3_market import Kalshi, _load_venue_cfg
 
 TAPE = REPO_ROOT / "tape" / "anomalies"
+IMPLICATION_PAIRS_CONFIG = REPO_ROOT / "config" / "implication_pairs.yaml"
 
 # Empirically observed Kalshi between-band tick gap (e.g. crypto's 50799.99 -> 50800.00,
 # or an exact touch like 69299.99 -> 69299.99 between a "between" cap and a "greater"
@@ -208,12 +221,98 @@ def check_monotonicity(event_ticker: str, members: List[Dict[str, Any]], strike_
 
 
 # --------------------------------------------------------------------------- #
+# check 3 — cross-event logical implication (S15, Q11): hand-curated graph
+# --------------------------------------------------------------------------- #
+def load_implication_families(path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Load `config/implication_pairs.yaml`'s `families` list. Missing file/key -> no
+    families (the check simply finds nothing to do, never an error — this config is
+    additive curation, not a required input)."""
+    path = path or IMPLICATION_PAIRS_CONFIG
+    if not path.exists():
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        doc = yaml.safe_load(f) or {}
+    return doc.get("families") or []
+
+
+def _round_progression_pairs(markets: List[Dict[str, Any]], family: Dict[str, Any]
+                             ) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+    """From the currently discovered open markets, generate (market_a, market_b) pairs for
+    one `kind: round_progression` family: A = harder/higher-rank round, B = easier/
+    lower-rank round, same entity, per `family`'s audited round ordering. Ticker parse
+    misses (wrong series, unknown round suffix) are skipped, not guessed at."""
+    regex = re.compile(family["ticker_regex"])
+    rank_map = family["round_order_raw_suffix_to_rank"]
+    series = family["series"]
+
+    entity_rounds: Dict[str, Dict[int, Dict[str, Any]]] = defaultdict(dict)
+    for m in markets:
+        ticker = m.get("ticker") or ""
+        match = regex.match(ticker)
+        if not match:
+            continue
+        fields = match.groupdict()
+        if fields.get("series") != series:
+            continue
+        round_raw = fields.get("round_raw", "")
+        suffix = re.sub(r"^\d+", "", round_raw)
+        rank = rank_map.get(suffix)
+        if rank is None:
+            continue
+        entity_rounds[fields["entity"]][rank] = m
+
+    pairs: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
+    for entity, by_rank in entity_rounds.items():
+        ranks = sorted(by_rank)
+        for i in range(len(ranks)):
+            for j in range(i + 1, len(ranks)):
+                rank_b, rank_a = ranks[i], ranks[j]  # b = easier/lower rank, a = harder
+                pairs.append((by_rank[rank_a], by_rank[rank_b]))
+    return pairs
+
+
+def check_cross_event_implication(markets: List[Dict[str, Any]],
+                                  families: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Check every family's generated (A, B) pairs, A ⇒ B, for a fee-clearing arb: buy
+    YES(B) + NO(A) (core.pricing.monotonicity_crossing_edge — identical fee-floor math to
+    check 2, just across two different event_tickers instead of one)."""
+    anomalies: List[Dict[str, Any]] = []
+    for family in families:
+        if family.get("kind") != "round_progression":
+            continue  # only kind implemented so far; unknown kinds skipped, not guessed at
+        for market_a, market_b in _round_progression_pairs(markets, family):
+            a_no_ask = _f(market_a, "no_ask_dollars")
+            b_ask = _f(market_b, "yes_ask_dollars")
+            if a_no_ask is None or b_ask is None:
+                continue
+            edge = monotonicity_crossing_edge(b_ask, a_no_ask)
+            if edge > 0:
+                anomalies.append({
+                    "kind": "cross_event_implication",
+                    "family_id": family.get("id"),
+                    "a_ticker": market_a.get("ticker", ""),
+                    "a_event_ticker": market_a.get("event_ticker", ""),
+                    "b_ticker": market_b.get("ticker", ""),
+                    "b_event_ticker": market_b.get("event_ticker", ""),
+                    "a_no_ask": a_no_ask,
+                    "b_ask": b_ask,
+                    "edge": edge,
+                    "price_source_tag": "real_ask",
+                })
+    return anomalies
+
+
+# --------------------------------------------------------------------------- #
 # sweep — one pass over every open event group
 # --------------------------------------------------------------------------- #
 def run(limit: Optional[int] = None, min_interval: float = 0.2,
-        client: Optional[Kalshi] = None, tape_dir: Optional[Path] = None) -> Dict[str, Any]:
-    """One read-only anomaly sweep. `client`/`tape_dir` injectable for offline testing."""
+        client: Optional[Kalshi] = None, tape_dir: Optional[Path] = None,
+        implication_families: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """One read-only anomaly sweep. `client`/`tape_dir`/`implication_families` injectable
+    for offline testing."""
     tape_dir = Path(tape_dir) if tape_dir is not None else TAPE
+    if implication_families is None:
+        implication_families = load_implication_families()
     if client is None:
         cfg = _load_venue_cfg()
         client = Kalshi(cfg["api_base"], min_interval=min_interval)
@@ -255,6 +354,12 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
                 n_monotonicity_groups_checked += 1
                 anomalies.extend(check_monotonicity(et, grp, st))
 
+    n_implication_pairs_checked = sum(
+        len(_round_progression_pairs(markets, fam))
+        for fam in implication_families if fam.get("kind") == "round_progression"
+    )
+    anomalies.extend(check_cross_event_implication(markets, implication_families))
+
     # fetch success (no exception) and full-coverage (no truncation) are DISTINCT honest
     # signals — a capped sweep isn't a fetch failure, but it isn't "swept everything"
     # either; both surface, neither is silently absorbed into the other.
@@ -266,6 +371,7 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         "n_event_groups": len(groups),
         "n_bracket_groups_checked": n_bracket_groups_checked,
         "n_monotonicity_groups_checked": n_monotonicity_groups_checked,
+        "n_implication_pairs_checked": n_implication_pairs_checked,
         "n_anomalies": len(anomalies),
         "anomalies": anomalies,
         "fetch_error": fetch_error,
