@@ -160,6 +160,106 @@ def test_monotonicity_skips_missing_no_ask():
 
 
 # --------------------------------------------------------------------------- #
+# check 3 — cross-event logical implication (S15, Q11)
+# --------------------------------------------------------------------------- #
+_WC_FAMILY = {
+    "id": "test_kxwcround_progression",
+    "kind": "round_progression",
+    "series": "KXWCROUND",
+    "ticker_regex": r"^(?P<series>[A-Z0-9]+)-(?P<round_raw>\d{2}[A-Z]+)-(?P<entity>[A-Z]+)$",
+    "round_order_raw_suffix_to_rank": {"QUAR": 1, "SEMI": 2, "FINAL": 3},
+}
+
+
+def test_implication_flags_real_crossing():
+    # FINAL (harder, A) mispriced ABOVE QUARTERFINALS (easier, B) -> P(A) > P(B), impossible
+    markets = [
+        _mk_market("KXWCROUND-26FINAL-USA", "KXWCROUND-26FINAL", None, 0.55, no_ask=0.45),
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+    ]
+    hits = sweep.check_cross_event_implication(markets, [_WC_FAMILY])
+    assert len(hits) == 1
+    hit = hits[0]
+    assert hit["kind"] == "cross_event_implication"
+    assert hit["family_id"] == "test_kxwcround_progression"
+    assert hit["a_ticker"] == "KXWCROUND-26FINAL-USA"
+    assert hit["b_ticker"] == "KXWCROUND-26QUAR-USA"
+    assert hit["edge"] > 0
+    assert hit["price_source_tag"] == "real_ask"
+
+
+def test_implication_not_flagged_when_normally_priced():
+    # ordinary case: harder round priced lower than easier round, as expected
+    markets = [
+        _mk_market("KXWCROUND-26FINAL-USA", "KXWCROUND-26FINAL", None, 0.10, no_ask=0.92),
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+    ]
+    assert sweep.check_cross_event_implication(markets, [_WC_FAMILY]) == []
+
+
+def test_implication_skips_missing_price():
+    markets = [
+        _mk_market("KXWCROUND-26FINAL-USA", "KXWCROUND-26FINAL", None, 0.55, no_ask=None),
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+    ]
+    assert sweep.check_cross_event_implication(markets, [_WC_FAMILY]) == []
+
+
+def test_implication_generates_every_round_pair_for_one_entity():
+    # 3 rounds -> C(3,2) = 3 ordered (harder, easier) pairs for one team
+    markets = [
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+        _mk_market("KXWCROUND-26SEMI-USA", "KXWCROUND-26SEMI", None, 0.20, no_ask=0.81),
+        _mk_market("KXWCROUND-26FINAL-USA", "KXWCROUND-26FINAL", None, 0.10, no_ask=0.92),
+    ]
+    pairs = sweep._round_progression_pairs(markets, _WC_FAMILY)
+    assert len(pairs) == 3
+    seen = {(a["ticker"], b["ticker"]) for a, b in pairs}
+    assert ("KXWCROUND-26SEMI-USA", "KXWCROUND-26QUAR-USA") in seen
+    assert ("KXWCROUND-26FINAL-USA", "KXWCROUND-26QUAR-USA") in seen
+    assert ("KXWCROUND-26FINAL-USA", "KXWCROUND-26SEMI-USA") in seen
+
+
+def test_implication_ignores_non_matching_series():
+    markets = [
+        _mk_market("OTHERSERIES-26FINAL-USA", "OTHERSERIES-26FINAL", None, 0.55, no_ask=0.45),
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+    ]
+    assert sweep.check_cross_event_implication(markets, [_WC_FAMILY]) == []
+
+
+def test_implication_unknown_family_kind_skipped():
+    markets = [
+        _mk_market("KXWCROUND-26FINAL-USA", "KXWCROUND-26FINAL", None, 0.55, no_ask=0.45),
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+    ]
+    unknown = dict(_WC_FAMILY, kind="explicit_pair")
+    assert sweep.check_cross_event_implication(markets, [unknown]) == []
+
+
+def test_load_implication_families_reads_config_yaml(tmp_path):
+    cfg = tmp_path / "implication_pairs.yaml"
+    cfg.write_text(
+        "families:\n"
+        "  - id: fam1\n"
+        "    kind: round_progression\n"
+        "    series: KXTEST\n"
+        "    ticker_regex: '^(?P<series>[A-Z]+)-(?P<round_raw>\\d{2}[A-Z]+)-(?P<entity>[A-Z]+)$'\n"
+        "    round_order_raw_suffix_to_rank:\n"
+        "      A: 1\n"
+        "      B: 2\n",
+        encoding="utf-8",
+    )
+    families = sweep.load_implication_families(cfg)
+    assert len(families) == 1
+    assert families[0]["id"] == "fam1"
+
+
+def test_load_implication_families_missing_file_returns_empty(tmp_path):
+    assert sweep.load_implication_families(tmp_path / "nope.yaml") == []
+
+
+# --------------------------------------------------------------------------- #
 # fully offline sweep pass
 # --------------------------------------------------------------------------- #
 def test_run_flags_a_true_arb_end_to_end(tmp_path):
@@ -218,6 +318,33 @@ def test_run_skips_singleton_event_groups(tmp_path):
     assert rec["n_bracket_groups_checked"] == 0
     assert rec["n_monotonicity_groups_checked"] == 0
     assert rec["n_anomalies"] == 0
+
+
+def test_run_flags_cross_event_implication_end_to_end(tmp_path):
+    # each market is its own singleton event_ticker -> checks 1/2 find nothing, only the
+    # cross-event implication family (check 3) sees the mispricing across the two events
+    members = [
+        _mk_market("KXWCROUND-26FINAL-USA", "KXWCROUND-26FINAL", None, 0.55, no_ask=0.45),
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+    ]
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path, implication_families=[_WC_FAMILY])
+    assert summary["n_anomalies"] == 1
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    assert rec["n_bracket_groups_checked"] == 0
+    assert rec["n_monotonicity_groups_checked"] == 0
+    assert rec["n_implication_pairs_checked"] == 1
+    assert rec["anomalies"][0]["kind"] == "cross_event_implication"
+
+
+def test_run_defaults_to_config_file_implication_families(tmp_path, monkeypatch):
+    # no implication_families passed -> run() loads config/implication_pairs.yaml itself;
+    # point it at an empty family list so this stays a pure offline unit test
+    monkeypatch.setattr(sweep, "load_implication_families", lambda: [])
+    members = [_mk_market("SOLO", "SOLO-EVT", "greater", 0.5, no_ask=0.5, floor_strike=10)]
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path)
+    assert summary["n_anomalies"] == 0
 
 
 def test_main_returns_nonzero_on_incomplete_pass(tmp_path, monkeypatch):
