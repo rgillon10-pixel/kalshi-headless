@@ -6,6 +6,63 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-05 05:19 UTC — Q10: econ-print (CPI/payrolls/GDP) collector built — Kalshi leg DONE, nowcast leg BLOCKED
+
+Research loop. Claim-check: `git fetch origin main` at `9de63e2` (only hourly `tape:` passes
+since the last run); only open PR (#4) still claims Q1 (draft, unrelated, awaiting
+`ODDS_API_KEY`). Queue scan: Q2/Q3/Q4/Q5/Q6/Q9 DONE, Q7/Q13 BLOCKED (tape not old enough),
+Q8 IN-PROGRESS but its only remaining gap is letting hourly snapshots accumulate (no code to
+write) — **Q10 (S12, TODO, time-sensitive)** was the topmost eligible item with actual work.
+
+Step 0b stranded-tape sweep first: of 17 `tape/hourly-*`/`tape/hourly-amended-*` branches, 15
+were fully reconciled with `main` already (0 missing lines, verified line-by-line against the
+real `origin/main` tip); 2 branches (`20260704T2355Z` 181 lines, `20260705T0055Z` 256 lines —
+both >30min old) had lines `main` lacked, union-appended into this run's commit; 1 branch
+(`20260705T0455Z`, ~13min old) skipped per the freshness rule. `git push origin --delete`
+remains blocked from a cloud session (same documented permission boundary) — redundant
+branches persist, harmless.
+
+**Q10 milestone.** Live API discovery confirmed 5 flagship econ-print series
+(`/series?category=Economics` + a structural check against `/markets`): `KXCPI` (CPI MoM),
+`KXCPIYOY`, `KXCPICORE` (core CPI MoM), `KXPAYROLLS` (nonfarm payrolls), `KXGDP` (real GDP QoQ).
+All 5 are NESTED MONOTONIC "will the print exceed threshold T" ladders sharing one
+`event_ticker` per release — structurally different from `crypto_hourly`'s KXBTC/KXETH
+complete-partition brackets — so `core.pricing.bracket_sum` (the sanctioned Hard-Rule-#3 site
+for partitions) is deliberately NOT called here; each strike's `yes_ask` is persisted as its
+own `real_ask`, nothing summed/normalized (the nested-threshold arb shape these ladders DO
+admit is already covered platform-wide by Q6's `cross_strike_monotonicity`).
+
+Built `collection/econ_prints.py`: (1) **open_events** — every open event_ticker per series,
+full per-strike real_ask ladder, honest expected-vs-captured completeness; (2)
+**recent_settlement** — the single most-recently-settled event per series, Kalshi's own
+`result` + `expiration_value` (the actual published BLS/BEA print, confirmed live — e.g. CPI
+MoM settled at "0.5", payrolls at "57,000") tagged `broker_truth`. Kalshi purges settled
+markets ~60 days after close (S7a finding) — this leg runs every pass regardless of the open
+ladder so no release is lost. 12 new unit tests (offline, FakeClient). Live pass: all 5 series
+`pass_complete` (24 open events / 296 strikes captured, settlement resolved for all 5,
+including CPI MoM/YoY/core, payrolls, and GDP). Wired into `collection/hourly_pass.py`'s
+existing 09-UTC-only slot (alongside `anomaly_sweep`) since releases are infrequent — a daily
+cadence is what the spec asked for; 9 hourly_pass tests updated with a zero-contribution
+econ_prints stub, 4 new tests added for the wiring itself.
+
+**Nowcast leg (Cleveland Fed CPI / GDPNow) left BLOCKED(nowcast-scrape), same shape as Q1's
+odds-api leg.** Checked live: the Cleveland Fed inflation-nowcasting page renders its number
+client-side with no static data or discoverable API in the served HTML. Atlanta Fed's GDPNow
+page DOES embed its full forecast history as raw JS arrays
+(`gdpForecast`/`forecastDates`/`forecastQuarters`) — scrapable in principle — but reliably
+slicing the current quarter's window out of that structure is nontrivial and left for a
+follow-up pass rather than forced this run. Every record's `nowcast` field is an honest
+`{"status": "not_built"}`, never a fabricated placeholder — the S12 gate (≥20 releases +
+nowcast comparison) still needs this leg before any edge can be scored, but the URGENT,
+purge-at-risk half (the Kalshi ladders + settlements) is now collecting.
+
+228 tests green (212 prior + 16 new: 12 for `econ_prints` + 4 for the `hourly_pass` wiring),
+`invariants --full` green. No findings doc (collection
+infrastructure, not a strategy verdict yet) — `kb/strategies/00-index.md` S12 updated to
+`data-collecting`; `LOOP-QUEUE.md` Q10 status updated.
+
+---
+
 ## 2026-07-04 20:14 ET — Q8: polymarket_pairs wired into the hourly collector; stranded-tape sweep
 
 Research loop. Claim-check: `git fetch origin main` at `092196c` (only hourly `tape:` passes
