@@ -127,10 +127,79 @@ def test_fetch_recent_settlement_disagreeing_expiration_values_surfaced_not_hidd
 
 
 # --------------------------------------------------------------------------- #
-# nowcast stub — honest not_built, never fabricated
+# nowcast — cpi/payrolls stay an honest not_built stub; gdp routes to GDPNow
 # --------------------------------------------------------------------------- #
-def test_fetch_nowcast_not_built():
+def test_fetch_nowcast_not_built_for_non_gdp_series():
     assert ep.fetch_nowcast("cpi_mom") == {"status": "not_built"}
+    assert ep.fetch_nowcast("payrolls") == {"status": "not_built"}
+
+
+def test_fetch_nowcast_routes_gdp_to_injected_fetcher():
+    sentinel = {"status": "ok", "value_pct": 1.19}
+    assert ep.fetch_nowcast("gdp", gdp_fetcher=lambda: sentinel) is sentinel
+
+
+def _mk_gdpnow_html(quarters_dates_vals):
+    """Build a minimal page fragment with the three parallel JS arrays GDPNow embeds,
+    in the real page's block order (newest quarter first, each block date-ascending)."""
+    quarters = ",".join(f'"{q}"' for q, _, _ in quarters_dates_vals)
+    dates = ",".join(f'"{d}"' for _, d, _ in quarters_dates_vals)
+    vals = ",".join("null" if v is None else str(v) for _, _, v in quarters_dates_vals)
+    return (
+        f"var forecastDatesArray = [], gdpForecastArray = [];\n"
+        f"forecastDates = [{dates}];\n"
+        f"forecastQuarters = [{quarters}];\n"
+        f"gdpForecast = [{vals}];\n"
+    )
+
+
+def test_parse_gdpnow_nowcast_picks_last_entry_of_newest_quarter_block():
+    html = _mk_gdpnow_html([
+        ("6/30/2026", "6/1/2026", 3.0),
+        ("6/30/2026", "6/15/2026", 2.5),
+        ("6/30/2026", "7/1/2026", 1.19),
+        ("3/31/2026", "3/1/2026", 4.0),
+        ("3/31/2026", "3/28/2026", 2.2),
+    ])
+    rec = ep.parse_gdpnow_nowcast(html)
+    assert rec["status"] == "ok"
+    assert rec["target_quarter_end"] == "6/30/2026"
+    assert rec["as_of"] == "7/1/2026"
+    assert rec["value_pct"] == 1.19
+    assert rec["n_updates_this_quarter"] == 3
+    assert rec["price_source_tag"] == "synthetic"
+
+
+def test_parse_gdpnow_nowcast_missing_array_is_parse_error():
+    html = "forecastDates = [\"6/1/2026\"]; forecastQuarters = [\"6/30/2026\"];"
+    rec = ep.parse_gdpnow_nowcast(html)
+    assert rec["status"] == "parse_error"
+
+
+def test_parse_gdpnow_nowcast_mismatched_lengths_is_parse_error():
+    html = _mk_gdpnow_html([("6/30/2026", "6/1/2026", 3.0)])
+    html = html.replace('gdpForecast = [3.0]', 'gdpForecast = [3.0,4.0]')
+    rec = ep.parse_gdpnow_nowcast(html)
+    assert rec["status"] == "parse_error"
+
+
+def test_parse_gdpnow_nowcast_null_latest_entry_is_parse_error():
+    html = _mk_gdpnow_html([("6/30/2026", "6/1/2026", None)])
+    rec = ep.parse_gdpnow_nowcast(html)
+    assert rec["status"] == "parse_error"
+
+
+def test_fetch_nowcast_gdp_ok_end_to_end():
+    html = _mk_gdpnow_html([("6/30/2026", "7/1/2026", 1.19)])
+    rec = ep.fetch_nowcast_gdp(html_fetcher=lambda: html)
+    assert rec["status"] == "ok" and rec["value_pct"] == 1.19
+
+
+def test_fetch_nowcast_gdp_fetch_error_never_fabricates():
+    def boom():
+        raise RuntimeError("network down")
+    rec = ep.fetch_nowcast_gdp(html_fetcher=boom)
+    assert rec == {"status": "fetch_error", "error": "network down"}
 
 
 # --------------------------------------------------------------------------- #
@@ -181,9 +250,14 @@ def test_run_two_series_independent(tmp_path):
         ("KXCPI", "open"): cpi, ("KXCPI", "settled"): [],
         ("KXGDP", "open"): gdp, ("KXGDP", "settled"): [],
     })
+    gdp_nowcast = {"status": "ok", "value_pct": 1.19}
     summary = ep.run(client=client, tape_dir=tmp_path,
-                     series={"cpi_mom": "KXCPI", "gdp": "KXGDP"})
+                     series={"cpi_mom": "KXCPI", "gdp": "KXGDP"},
+                     gdp_nowcast_fetcher=lambda: gdp_nowcast)
     assert summary["n_series"] == 2
     out_path = tmp_path / f"dt={summary['day']}.jsonl"
     recs = [json.loads(ln) for ln in out_path.read_text().splitlines()]
     assert {r["series_key"] for r in recs} == {"cpi_mom", "gdp"}
+    by_key = {r["series_key"]: r for r in recs}
+    assert by_key["cpi_mom"]["nowcast"] == {"status": "not_built"}
+    assert by_key["gdp"]["nowcast"] == gdp_nowcast

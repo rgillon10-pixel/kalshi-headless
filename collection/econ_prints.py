@@ -24,13 +24,17 @@ One pass, per series:
      uncollected release is data lost forever, so this leg runs every pass regardless of
      the open ladder. Kalshi's own `result` + `expiration_value` (the actual BLS/BEA
      print) are `broker_truth`.
-  3. **nowcast** — BLOCKED(nowcast-scrape), status always `not_built` this run: the
-     Cleveland Fed inflation-nowcasting page renders its number client-side with no
-     static data or discoverable API in the served HTML (checked live 2026-07-05); the
-     Atlanta Fed GDPNow page DOES embed its full history as raw JS arrays
-     (`gdpForecast`/`forecastDates`/`forecastQuarters`) but reliably slicing the current
-     quarter's window is nontrivial and left for a follow-up pass. Never fabricated as a
-     placeholder number.
+  3. **nowcast** — GDP leg built this run: the Atlanta Fed GDPNow page embeds its full
+     forecast history as raw JS arrays (`gdpForecast`/`forecastDates`/`forecastQuarters`,
+     confirmed live 2026-07-05, ~1900 entries, oldest to 2014) — parallel arrays grouped
+     into quarter-blocks ordered newest-first, each block internally date-ascending, so
+     "the current nowcast" is simply the last entry whose `forecastQuarters` tag matches
+     the first (newest) tag in the array. Tagged `synthetic` (a model estimate, not a
+     Kalshi fill). The Cleveland Fed CPI-nowcast leg stays BLOCKED(nowcast-scrape): its
+     page renders the number client-side with no static data or discoverable API in the
+     served HTML (checked live 2026-07-05) — `cpi_mom`/`cpi_yoy`/`cpi_core_mom`/
+     `payrolls` all report an honest `not_built`, never a fabricated placeholder. A
+     GDPNow page-structure change surfaces as `parse_error`, never a stale/guessed value.
 
 Run one pass:
     python -m collection.econ_prints
@@ -40,16 +44,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import requests
 
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
 from validation.v3_market import Kalshi, _load_venue_cfg
 
 TAPE = REPO_ROOT / "tape" / "econ_prints"
+
+GDPNOW_URL = "https://www.atlantafed.org/cqer/research/gdpnow"
+_UA = {"User-Agent": "kalshi-headless/0.0 (research)"}
 
 # Confirmed live 2026-07-05 via `/series?category=Economics` + a structural check (each
 # has >=1 open event whose markets carry a numeric `floor_strike` / `strike_type ==
@@ -191,12 +201,84 @@ def fetch_recent_settlement(client: Kalshi, series_ticker: str) -> Dict[str, Any
 
 
 # --------------------------------------------------------------------------- #
-# nowcast leg — not built this run (BLOCKED, honestly recorded, never faked)
+# nowcast leg — GDPNow built this run; Cleveland Fed (CPI legs) still BLOCKED
 # --------------------------------------------------------------------------- #
-def fetch_nowcast(series_key: str) -> Dict[str, Any]:
-    """Cleveland Fed (CPI legs) / GDPNow (gdp leg) forward model comparator. Not built
-    this run — see module docstring for why. Always an honest `not_built`, never a
-    fabricated placeholder number."""
+def fetch_gdpnow_page(url: str = GDPNOW_URL) -> str:
+    r = requests.get(url, timeout=20, headers=_UA)
+    r.raise_for_status()
+    return r.text
+
+
+def _extract_array(html: str, name: str) -> List[str]:
+    """Raw comma-split items (still quoted/unparsed) of a `name = [...]` JS array literal.
+    Requires an exact `name =` (word-boundary + immediate `=`) so a same-prefixed sibling
+    var (e.g. `forecastDatesArray`) can't be mistaken for it — confirmed live 2026-07-05
+    each of the three arrays this parser needs appears exactly once in the served page."""
+    m = re.search(r'\b' + re.escape(name) + r'\s*=\s*\[([^\]]*)\]', html)
+    if not m:
+        raise ValueError(f"{name} not found in page")
+    return [x.strip() for x in m.group(1).split(",") if x.strip()]
+
+
+def parse_gdpnow_nowcast(html: str) -> Dict[str, Any]:
+    """Extract the latest GDPNow estimate for the currently-tracked quarter.
+    `forecastDates`/`forecastQuarters`/`gdpForecast` are parallel arrays, grouped into
+    quarter-blocks ordered newest-quarter-first, each block internally date-ascending
+    (empirically confirmed 2026-07-05) — so the current quarter's latest update is simply
+    the last entry whose `forecastQuarters` tag matches the array's first (newest) tag.
+    A page-structure change (missing array, length mismatch, empty block) surfaces as an
+    honest `parse_error`, never a stale or fabricated value."""
+    try:
+        dates = [x.strip("'\"") for x in _extract_array(html, "forecastDates")]
+        quarters = [x.strip("'\"") for x in _extract_array(html, "forecastQuarters")]
+        raw_vals = _extract_array(html, "gdpForecast")
+    except Exception as exc:
+        return {"status": "parse_error", "error": str(exc)}
+
+    if not (dates and quarters and raw_vals) or not (len(dates) == len(quarters) == len(raw_vals)):
+        return {"status": "parse_error", "error": "missing or mismatched-length arrays"}
+
+    try:
+        vals = [None if v == "null" else float(v) for v in raw_vals]
+    except ValueError as exc:
+        return {"status": "parse_error", "error": f"non-numeric forecast value: {exc}"}
+
+    target_quarter = quarters[0]
+    block = [(d, v) for d, q, v in zip(dates, quarters, vals) if q == target_quarter]
+    if not block:
+        return {"status": "parse_error", "error": "empty current-quarter block"}
+
+    as_of, value_pct = block[-1]
+    if value_pct is None:
+        return {"status": "parse_error", "error": "latest current-quarter entry is null"}
+
+    return {
+        "status": "ok",
+        "source": "atlanta_fed_gdpnow",
+        "target_quarter_end": target_quarter,
+        "as_of": as_of,
+        "value_pct": value_pct,
+        "n_updates_this_quarter": len(block),
+        "price_source_tag": "synthetic",
+    }
+
+
+def fetch_nowcast_gdp(html_fetcher: Callable[[], str] = fetch_gdpnow_page) -> Dict[str, Any]:
+    try:
+        html = html_fetcher()
+    except Exception as exc:
+        return {"status": "fetch_error", "error": str(exc)}
+    return parse_gdpnow_nowcast(html)
+
+
+def fetch_nowcast(series_key: str,
+                   gdp_fetcher: Callable[[], Dict[str, Any]] = fetch_nowcast_gdp) -> Dict[str, Any]:
+    """`gdp` routes to the GDPNow scrape (built this run). The three CPI legs and
+    `payrolls` stay `not_built` — Cleveland Fed's inflation-nowcast page renders its
+    number client-side with no static/discoverable data (checked live 2026-07-05); no
+    equivalent free nowcast source is known for payrolls. Never a fabricated placeholder."""
+    if series_key == "gdp":
+        return gdp_fetcher()
     return {"status": "not_built"}
 
 
@@ -204,9 +286,11 @@ def fetch_nowcast(series_key: str) -> Dict[str, Any]:
 # capture — one JSONL line per series per pass
 # --------------------------------------------------------------------------- #
 def run(min_interval: float = 0.2, client: Optional[Kalshi] = None,
-        tape_dir: Optional[Path] = None, series: Optional[Dict[str, str]] = None
+        tape_dir: Optional[Path] = None, series: Optional[Dict[str, str]] = None,
+        gdp_nowcast_fetcher: Callable[[], Dict[str, Any]] = fetch_nowcast_gdp
         ) -> Dict[str, Any]:
-    """One read-only capture pass. `client`/`tape_dir` injectable for offline testing."""
+    """One read-only capture pass. `client`/`tape_dir`/`gdp_nowcast_fetcher` injectable
+    for offline testing."""
     tape_dir = Path(tape_dir) if tape_dir is not None else TAPE
     if client is None:
         cfg = _load_venue_cfg()
@@ -230,7 +314,7 @@ def run(min_interval: float = 0.2, client: Optional[Kalshi] = None,
         open_result = discover_open_events(client, series_ticker)
         record["open_events"] = open_result
         record["recent_settlement"] = fetch_recent_settlement(client, series_ticker)
-        record["nowcast"] = fetch_nowcast(series_key)
+        record["nowcast"] = fetch_nowcast(series_key, gdp_fetcher=gdp_nowcast_fetcher)
 
         open_ok = (
             open_result["status"] == "ok"
