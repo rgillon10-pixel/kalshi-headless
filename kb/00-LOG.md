@@ -6,6 +6,56 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-05 15:13 UTC — Q10: GDPNow nowcast leg built (S12 econ-print collector now fully DONE)
+
+Research loop. Claim-check: `git fetch origin main` forced-updated the local ref (session
+sandbox was stale) to `a5f1291`; open PRs unchanged from prior runs — #4 still claims Q1
+(draft, unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly-retro's own protocol-amendment
+proposal (never self-merged by a loop run, left for Ryan). Queue scan: Q2–Q6/Q9/Q11 DONE,
+Q7/Q13 BLOCKED, Q8's only remaining gap is letting hourly snapshots accumulate (no code) —
+**Q10 (KALSHI LEG DONE, nowcast leg BLOCKED)** was the topmost eligible item with real work,
+per the same precedent the last two runs used to skip Q8.
+
+Step 0b stranded-tape sweep first: of 24 `tape/hourly-*`/amended branches, 22 were already
+fully reconciled with `main` (checked by exact line-set diff per file, not just `git diff
+--stat` — a pure stat diff would have wrongly flagged several already-merged branches as
+"missing" content that was really just reordered/rewritten upstream); 2 (`20260705T1155Z`,
+`20260705T1253Z`) had real gaps `main` lacked — 4 `crypto_hourly` + 80 `polymarket_pairs` + 389
+`sports_pairs` lines (union-deduped across both branches, order preserved, every line
+validated as parseable JSON before commit) — union-appended into this run's commit. The
+newest branch (`20260705T1455Z`, ~13min old) was skipped per the freshness rule. `git push
+origin --delete` still fails from a cloud session (same permission boundary documented since
+2026-07-03).
+
+**Q10 milestone.** Built the GDPNow leg of `collection/econ_prints.py`'s nowcast field
+(`fetch_nowcast_gdp`/`parse_gdpnow_nowcast`), closing the one gap the Kalshi-leg-only version
+left open. Confirmed live (2026-07-05) that the Atlanta Fed's GDPNow page embeds its entire
+forecast history as three parallel JS arrays (`forecastDates`/`forecastQuarters`/
+`gdpForecast`, ~1,900 entries back to 2014) grouped into quarter-blocks ordered
+newest-quarter-first, each block internally date-ascending — so "the current nowcast" is
+just the last entry whose quarter tag matches the array's first tag. Parser never fabricates:
+a missing array, a length mismatch, an empty block, or a null latest value all surface as an
+honest `parse_error`, not a stale or guessed number; a real network failure is `fetch_error`.
+Tagged `synthetic` (a model estimate, not a Kalshi fill) per CLAUDE.md's trust defaults. Live
+end-to-end check: current GDPNow read is **+1.19% annualized for the quarter ending
+2026-06-30, as of its 2026-07-01 update** (27 updates so far that quarter) — descriptive only,
+not yet joined against Kalshi's `KXGDP` ladder (that join is S12's eventual gate work, not this
+milestone's job). The Cleveland Fed CPI-nowcast leg stays `not_built` as before — its page has
+no scrapable static data, a genuinely different blocker than GDPNow's (which just needed the
+array-slicing logic this run built), so it isn't reattempted.
+
+7 new unit tests (offline, synthetic HTML fixtures — parser edge cases, fetch-error handling,
+and the `gdp` vs everything-else routing in `fetch_nowcast`) plus one existing test
+(`test_run_two_series_independent`) updated to inject a stub GDP fetcher so it stays network-free.
+245 tests green (238 prior + 7 new), `invariants --full` green. `kb/strategies/00-index.md` S12
+row unchanged (still `data-collecting` — the nowcast leg unblocks future analysis, it isn't
+itself a verdict). Q10 flipped from "KALSHI LEG DONE" to full **DONE**.
+
+**Next:** Q12 (S17, retarget the Kalshi↔Polymarket matcher to recurring macro pairs) is the
+topmost remaining TODO with real work; Q7 unblocks around 2026-07-10, Q13 around 2026-07-13.
+
+---
+
 ## 2026-07-05 06:08 ET — Q11: cross-event logical-implication scanner built (S15 idea → data-collecting)
 
 Research loop. Claim-check: sandbox branch was already at `origin/main`'s real tip (hourly

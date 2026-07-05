@@ -266,6 +266,14 @@ CPI / GDPNow) is BLOCKED(nowcast-scrape): Cleveland Fed's page has no static/API
 number, GDPNow's does but needs nontrivial quarter-window slicing — both left for a follow-up
 pass. S12's ≥20-releases gate can't be scored until that leg lands.
 
+**Update (2026-07-05, same-day follow-up Q10 run).** The GDPNow half of the nowcast leg is
+now built and live: the Atlanta Fed embeds its full forecast history as three parallel JS
+arrays, sliceable to the current quarter's latest update (current read: **+1.19% annualized**
+for the quarter ending 2026-06-30, `synthetic`). The Cleveland Fed CPI-nowcast leg stays
+`not_built` — a genuinely separate blocker (no scrapable static data at all), not reattempted
+this run. S12's gate still needs ≥20 accumulated releases (months of real time) before any
+bootstrap is attemptable; still `data-collecting`.
+
 ## The one rule that orders all of this
 
 **Update 2026-06-18:** S0 is **built**; **S1 and S5 are dead** at real asks; **weather is decided —
