@@ -5,6 +5,10 @@ every hour; during the 09 UTC hour also runs `scripts/anomaly_sweep.py` as a sub
 that script exists yet (Q6, not built as of this module's authorship — its absence is
 recorded as `not_built`, never silently skipped without a trace).
 
+LOOP-QUEUE.md Q8 (2026-07-05): also runs one `collection.polymarket_pairs` pass every hour
+(World Cup ends Jul 19 — repeated snapshots are the prerequisite for S9's lead-lag
+cross-correlation, and every skipped hour is a snapshot lost for good).
+
 Never fakes success: each sub-pass is invoked independently and its exception (if any) is
 caught and recorded rather than allowed to take the other sub-pass down with it. Overall
 `completeness_ok` is the AND of each sub-pass's own honest completeness signal (already
@@ -32,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from collection import crypto_hourly, sports_pairs
+from collection import crypto_hourly, polymarket_pairs, sports_pairs
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -48,6 +52,10 @@ def _default_sports_pass() -> Dict[str, Any]:
 
 def _default_crypto_pass() -> Dict[str, Any]:
     return crypto_hourly.run()
+
+
+def _default_polymarket_pass() -> Dict[str, Any]:
+    return polymarket_pairs.run()
 
 
 def _run_anomaly_sweep_subprocess() -> Dict[str, Any]:
@@ -110,17 +118,21 @@ def _crypto_expected_outcomes(rec: Dict[str, Any]) -> int:
 # --------------------------------------------------------------------------- #
 def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         crypto_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        polymarket_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         anomaly_sweep_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
-    """One hourly pass: sports_pairs + crypto_hourly, plus anomaly_sweep during the 09 UTC
-    hour. `sports_fn`/`crypto_fn`/`anomaly_sweep_fn`/`now` are injectable for offline
-    testing; each defaults to the real, network-touching implementation."""
+    """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs, plus anomaly_sweep
+    during the 09 UTC hour. `sports_fn`/`crypto_fn`/`polymarket_fn`/`anomaly_sweep_fn`/`now`
+    are injectable for offline testing; each defaults to the real, network-touching
+    implementation."""
     ts = now if now is not None else datetime.now(timezone.utc)
     sports_fn = sports_fn or _default_sports_pass
     crypto_fn = crypto_fn or _default_crypto_pass
+    polymarket_fn = polymarket_fn or _default_polymarket_pass
 
     sports = _safe_call(sports_fn)
     crypto = _safe_call(crypto_fn)
+    polymarket = _safe_call(polymarket_fn)
 
     completeness_ok = True
     n_markets = 0
@@ -146,6 +158,15 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     else:
         completeness_ok = False
 
+    if polymarket["status"] == "ok":
+        r = polymarket["result"]
+        n_matched = r.get("n_matched", 0)
+        n_lines += n_matched
+        n_markets += n_matched
+        completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
+    else:
+        completeness_ok = False
+
     anomaly: Optional[Dict[str, Any]] = None
     if ts.hour == ANOMALY_SWEEP_UTC_HOUR:
         sweep_fn = anomaly_sweep_fn or _run_anomaly_sweep_subprocess
@@ -158,6 +179,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "captured_at": ts.isoformat(),
         "sports_pairs": sports,
         "crypto_hourly": crypto,
+        "polymarket_pairs": polymarket,
         "anomaly_sweep": anomaly,
         "n_markets": n_markets,
         "n_lines": n_lines,

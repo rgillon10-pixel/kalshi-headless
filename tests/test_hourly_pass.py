@@ -1,6 +1,7 @@
 """collection.hourly_pass — sub-pass wiring, honest completeness aggregation, n_markets/
 n_lines accounting from freshly-written tape, and the 09-UTC-only anomaly-sweep slot.
-Fully offline: sports_fn/crypto_fn/anomaly_sweep_fn are injected stubs, no network."""
+Fully offline: sports_fn/crypto_fn/polymarket_fn/anomaly_sweep_fn are injected stubs, no
+network."""
 from __future__ import annotations
 
 import json
@@ -44,6 +45,18 @@ def _crypto_summary(tmp_path, capture_id="cap2", n_symbols=2, n_complete=2, per_
     return {"capture_id": capture_id, "n_symbols": n_symbols, "n_complete": n_complete, "path": path}
 
 
+# a zero-contribution stub: keeps existing n_lines/n_markets math untouched in tests that
+# aren't exercising the polymarket sub-pass itself
+_EMPTY_POLYMARKET = {"n_matched": 0, "n_kalshi_markets": 0, "completeness_ok": True}
+
+
+def _polymarket_summary(n_matched=3, n_kalshi_markets=3, completeness_ok=True):
+    return {
+        "n_matched": n_matched, "n_kalshi_markets": n_kalshi_markets,
+        "completeness_ok": completeness_ok,
+    }
+
+
 NOT_ANOMALY_HOUR = 5
 ANOMALY_HOUR = hp.ANOMALY_SWEEP_UTC_HOUR
 
@@ -60,7 +73,8 @@ def test_run_all_complete_outside_anomaly_hour(tmp_path):
     crypto = _crypto_summary(tmp_path, n_symbols=2, n_complete=2, per_symbol_outcomes=188)
 
     summary = hp.run(
-        sports_fn=lambda: sports, crypto_fn=lambda: crypto, now=_ts(NOT_ANOMALY_HOUR))
+        sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["n_lines"] == 2 + 2
@@ -72,7 +86,8 @@ def test_run_prints_expected_digest_line(tmp_path, capsys):
     sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
     crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
 
-    hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto, now=_ts(NOT_ANOMALY_HOUR))
+    hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+           polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
 
     out = capsys.readouterr().out
     assert "[hourly_pass] 12 markets, 2 lines, completeness ok" in out
@@ -86,7 +101,8 @@ def test_run_sports_incomplete_marks_overall_incomplete(tmp_path):
     crypto = _crypto_summary(tmp_path, n_symbols=2, n_complete=2)
 
     summary = hp.run(
-        sports_fn=lambda: sports, crypto_fn=lambda: crypto, now=_ts(NOT_ANOMALY_HOUR))
+        sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -96,9 +112,24 @@ def test_run_crypto_incomplete_marks_overall_incomplete(tmp_path):
     crypto = _crypto_summary(tmp_path, n_symbols=2, n_complete=1)
 
     summary = hp.run(
-        sports_fn=lambda: sports, crypto_fn=lambda: crypto, now=_ts(NOT_ANOMALY_HOUR))
+        sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
+
+
+def test_run_polymarket_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=2, n_complete=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=2, n_complete=2)
+    polymarket = _polymarket_summary(n_matched=2, n_kalshi_markets=3, completeness_ok=False)
+
+    summary = hp.run(
+        sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+        polymarket_fn=lambda: polymarket, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["n_lines"] == 2 + 2 + 2
+    assert summary["n_markets"] == 2 * 3 + 2 * 188 + 2
 
 
 # --------------------------------------------------------------------------- #
@@ -110,7 +141,8 @@ def test_run_sports_raises_crypto_still_runs(tmp_path):
     def _boom():
         raise RuntimeError("simulated sports_pairs failure")
 
-    summary = hp.run(sports_fn=_boom, crypto_fn=lambda: crypto, now=_ts(NOT_ANOMALY_HOUR))
+    summary = hp.run(sports_fn=_boom, crypto_fn=lambda: crypto,
+                      polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["sports_pairs"]["status"] == "error"
@@ -126,13 +158,33 @@ def test_run_crypto_raises_sports_still_runs(tmp_path):
     def _boom():
         raise RuntimeError("simulated crypto_hourly failure")
 
-    summary = hp.run(sports_fn=lambda: sports, crypto_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=_boom,
+                      polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["crypto_hourly"]["status"] == "error"
     assert summary["sports_pairs"]["status"] == "ok"
     assert summary["n_markets"] == 3
     assert summary["n_lines"] == 1
+
+
+def test_run_polymarket_raises_others_still_run(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=3)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated polymarket_pairs failure")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                      polymarket_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["polymarket_pairs"]["status"] == "error"
+    assert "simulated polymarket_pairs failure" in summary["polymarket_pairs"]["error"]
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+    assert summary["n_markets"] == 3 + 10
+    assert summary["n_lines"] == 1 + 1
 
 
 # --------------------------------------------------------------------------- #
@@ -148,6 +200,7 @@ def test_anomaly_sweep_not_invoked_outside_09_utc(tmp_path):
         return {"status": "ok"}
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      anomaly_sweep_fn=_sweep, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
@@ -159,6 +212,7 @@ def test_anomaly_sweep_not_built_does_not_fail_completeness(tmp_path):
     crypto = _crypto_summary(tmp_path)
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      anomaly_sweep_fn=lambda: {"status": "not_built"}, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
@@ -170,6 +224,7 @@ def test_anomaly_sweep_error_marks_incomplete(tmp_path):
     crypto = _crypto_summary(tmp_path)
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      anomaly_sweep_fn=lambda: {"status": "error", "returncode": 1},
                      now=_ts(ANOMALY_HOUR))
 
@@ -184,6 +239,7 @@ def test_anomaly_sweep_raising_marks_incomplete_not_crash(tmp_path):
         raise RuntimeError("simulated anomaly sweep crash")
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      anomaly_sweep_fn=_boom, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
@@ -226,8 +282,12 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
         calls["crypto"] = {"symbols": symbols}
         return {"capture_id": "c", "n_symbols": 0, "n_complete": 0}
 
+    def fake_polymarket_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
 
     rc = hp.main(["--sports-limit", "3", "--crypto-symbols", "BTC"])
 
@@ -243,7 +303,11 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     def fake_crypto_run(**kwargs):
         return {"capture_id": "c", "n_symbols": 0, "n_complete": 0}
 
+    def fake_polymarket_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
 
     assert hp.main([]) == 1

@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-04 20:14 ET — Q8: polymarket_pairs wired into the hourly collector; stranded-tape sweep
+
+Research loop. Claim-check: `git fetch origin main` at `092196c` (only hourly `tape:` passes
+since the last run); open PR #4 still claims Q1 (draft, unrelated, awaiting `ODDS_API_KEY`).
+Queue scan: Q2/Q3/Q4/Q5/Q6/Q9 all DONE, Q7/Q13 BLOCKED (tape not old enough yet), Q1 claimed —
+**Q8 (IN-PROGRESS)** was the topmost eligible item.
+
+Step 0b stranded-tape sweep first, and caught a bug in the sweep itself: an earlier `git diff`
+comparison used this sandbox's *local* `main` ref, which was stale at 2026-07-02 (two days
+behind `origin/main`) — every one of the 15 `tape/hourly-*` branches looked like it had
+thousands of "missing" lines vs that stale ref, including in files the hourly collector never
+touches (`sports_history`, `sports_clv`, `sports_maker_fillsim` — outputs of one-off research
+scripts, not append-only collector tape). Re-pointed local `main` at `origin/main` before
+trusting any diff. Against the real tip, 12 of 15 branches were already fully reconciled by
+the prior run (0 missing lines); 3 branches (`20260704T1955Z`/`2055Z`/`2155Z`) had a combined
+**8 crypto_hourly + 536 sports_pairs lines** `main` was missing — union-appended into this
+run's tape files (verified: append-only, no reordering, every new line still valid JSON). One
+branch (`20260704T2355Z`, ~19min old) skipped per the 30-min freshness rule. `git push origin
+--delete` still fails from a cloud session on every branch (same permission boundary as
+documented 2026-07-04) — redundant branches remain, harmless.
+
+**Q8 milestone.** Wired `collection/polymarket_pairs.py` into `collection/hourly_pass.py` as a
+third sub-pass (alongside `sports_pairs`/`crypto_hourly`), same fault-isolation discipline: its
+own exception never takes the other two down, and its own honest `completeness_ok` (computed
+inside `polymarket_pairs.run` itself — matched-count, book-fetch, and ambiguity checks) ANDs
+into the overall signal exactly like the other two. Each matched (round, team) pair counts as
+one Kalshi market contract for `n_markets`/`n_lines` accounting, consistent with the module's
+existing convention. 2 new offline unit tests (`test_run_polymarket_incomplete_marks_overall_incomplete`,
+`test_run_polymarket_raises_others_still_run`); all 9 existing `hourly_pass` tests updated to
+inject a zero-contribution polymarket stub so they keep testing sports/crypto math in
+isolation. Live smoke (`python -m collection.hourly_pass --sports-limit 2 --crypto-symbols
+BTC`): polymarket sub-pass fired for real, 40/40 Kalshi round markets matched to Polymarket,
+completeness ok — proof the wiring works end-to-end, not just against stubs. This closes Q8's
+main remaining gap (World Cup ends Jul 19 — every hour without a snapshot was a data point lost
+for good); the lead-lag cross-correlation itself still needs the accumulated repeated-snapshot
+history to build up over the coming days.
+
+212 tests green (210 prior + 2 new), `invariants --full` green. No new findings doc (this is
+collection infrastructure, not a strategy verdict) — `kb/strategies/00-index.md` unchanged;
+`LOOP-QUEUE.md` Q8 status updated.
+
+---
+
 ## 2026-07-04 20:08 UTC — Q9/S13 maker fill-sim TESTED → DEAD (null result); stranded-tape sweep
 
 Research loop. Claim-check: only open PR (#4) claims Q1 (unrelated, awaiting `ODDS_API_KEY`) —
