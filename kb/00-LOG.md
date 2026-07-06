@@ -6,6 +6,41 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-06 UTC — Q8 closed: S9 lead-lag resolution decision (dead ✗, data-adequacy)
+
+Research loop. Claim-check: `git fetch origin main` at `24b155f`, local branch already at
+the real tip (hourly `tape:` passes only since the last run); open PRs unchanged — #4 still
+claims Q1 (unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly retro's protocol-amendment
+proposal (never self-merged, left for Ryan). Queue scan against the real tip: Q1 claimed,
+Q2/Q4/Q5/Q6/Q9/Q10/Q11 DONE, Q7/Q13 BLOCKED — **Q8 (IN-PROGRESS)** was topmost eligible.
+Step 0b stranded-tape sweep: all currently-listed `tape/hourly-*` branches already fully
+reconciled with `main` (0 missing lines across every family) — nothing to append this run.
+
+Q8's own remaining-work note (from the 2026-07-06 05:17Z shock event-study, below) asked for
+a resolution decision: either build a sub-hourly capture burst around the World Cup's
+remaining matches, or accept the lead-lag question as untestable and mark it dead. Checked
+the loop's actual scheduling primitives (`create_trigger`, `send_later`) before deciding:
+recurring cron triggers are hard-capped at hourly minimum interval (the tool's own schema
+states it) — no recurring sub-hourly poll is possible. One-shot triggers aren't
+cadence-limited, but bracketing a match's real end-time with them needs a kickoff timestamp
+the accumulated tape doesn't carry for KXWCROUND markets, and wiring up N one-shot captures
+per remaining match (semis, final) is a new class of unattended multi-day automation — the
+same category as the VPS collector and `ntfy-watch`, both stood up as Ryan-requested ops
+changes, not something a research-loop run should decide alone. Building that unilaterally
+is outside this milestone's scope.
+
+**Verdict:** split S9 into its two sub-questions. **Lead-lag** (does one venue reprice first
+around a shock?) → **dead ✗, data-adequacy** — not falsified by a CI (there's no bootstrap to
+run on n=8 ticker-steps), just structurally untestable with hourly-minimum automation and no
+kickoff-time signal to burst around. **Cross-venue parity** (do the two venues quote the same
+price on average, right now?) → stays alive, already answered well by the 2026-07-04 first
+cut (48/48 matched, +0.20¢ mean gap) and continues under S17's Fed-decision generalization,
+which needs no sub-hourly resolution. Per the Stop rules, a DEAD verdict recorded honestly is
+a success. No new code — a decision on already-collected evidence, not a new probe. 297
+tests unchanged (pre-existing baseline), `invariants --full` green. `kb/strategies/00-index.md`
+S9 flipped to dead ✗; `LOOP-QUEUE.md` Q8 flipped IN-PROGRESS → DONE. See
+`findings/2026-07-06-polymarket-leadlag-s9-resolution.md`.
+
 ## 2026-07-06 05:17 UTC — Q8: first real shock event-study (S9 stays data-collecting)
 
 Research loop. Claim-check: `git fetch origin main` at `a6567cf`, local branch already at
