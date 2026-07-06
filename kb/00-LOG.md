@@ -61,6 +61,44 @@ remaining work is accumulation, then the eventual lead-lag cross-correlation (sa
 S9, which was closed dead ✗ on data-adequacy grounds this run window — S17 doesn't share
 that constraint since it needs no sub-hourly resolution).
 
+## 2026-07-06 15:06 UTC — Agent team stood up + lessons ledger (compounding layer) + full tape audit
+
+Ops run, Ryan-requested (interactive session, not a loop firing). Three things landed:
+
+**1. Agent team (`.claude/agents/`).** A **Fable lead on high reasoning** (`research-lead`,
+`model: fable`, `effort: high`) that plans, decomposes, and reviews but never edits files
+itself, guiding five **Opus workers**: `collector-engineer` (collection modules + offline
+tests, bitemporal/source-tag/honest-completeness discipline), `edge-prober` (one falsifiable
+probe milestone per invocation, block-bootstrap by the independent unit, real-ask bar),
+`verifier` (adversarial skeptic — re-runs the producing script and attacks provenance,
+statistics, fees, and data windows before any number enters kb/ or findings/),
+`kb-distiller` (owns the lessons ledger below, escalates UNENFORCED lessons into
+invariants/tests), `tape-auditor` (read-only coverage/completeness/stranded-branch
+reports). Every charter embeds the Stop rules and cites the precedent scripts, so a worker
+starts from house discipline instead of rediscovering it. `LOOP-QUEUE.md` gained a
+"Subagent roster" section wiring this into the run protocol.
+
+**2. The compounding layer: `kb/lessons/00-lessons.md`.** The gap between "learned it the
+hard way" and "it's a CI assertion" is where knowledge evaporated between stateless runs —
+the ledger makes it visible. 17 lessons mined from the run history (L1 synthetic-never-a-
+fill through L17 stranded-tape sweep), each with provenance and an **enforcement status**
+(`invariant` / `test` / `protocol` / `UNENFORCED` / `ledger-only`); UNENFORCED rows are the
+kb-distiller's standing work queue, and converting one into an assert is always an eligible
+idle-run milestone. Append-only, supersede-by-reference, same trust rules as the rest of kb.
+
+**3. Tape audit (`findings/2026-07-06-tape-audit.md`).** 29,363 lines / 10 families /
+2026-07-02→07-06, all valid JSON, ~2 passes/hour landing (both collectors alive). All 12
+incomplete crypto passes are ONE venue-side hole: Kalshi lists no hourly BTC/ETH group
+during the 20 UTC hour, daily (new lesson L15). Step-0b sweep executed: 1,158 stranded
+lines union-appended from 6 fallback branches. Eligibility from real tape days: Q7 ~Jul
+09/10, Q13 ~Jul 12/13 (WC ends Jul 19 — S14's sports window is narrow). Tape is 36MB raw
+and crosses the README's ~50MB decision point ~mid-July — Ryan's call, flagged not acted.
+
+Gates: 297 tests green, `invariants --full` green. Explicitly NOT done: registering the
+PreToolUse invariants hook in `.claude/settings.json` — attempted, permission-gated in this
+harness, and PROVENANCE.md already reserves that wiring for Ryan's explicit approval; it
+remains the one unwired piece of Tier-2 enforcement.
+
 ## 2026-07-06 UTC — Q8 closed: S9 lead-lag resolution decision (dead ✗, data-adequacy)
 
 Research loop. Claim-check: `git fetch origin main` at `24b155f`, local branch already at
