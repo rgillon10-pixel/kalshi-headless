@@ -49,6 +49,9 @@ def _crypto_summary(tmp_path, capture_id="cap2", n_symbols=2, n_complete=2, per_
 # aren't exercising the polymarket sub-pass itself
 _EMPTY_POLYMARKET = {"n_matched": 0, "n_kalshi_markets": 0, "completeness_ok": True}
 
+# same role as _EMPTY_POLYMARKET, for the Q12 Fed-decision macro-pairs sub-pass
+_EMPTY_POLYMARKET_MACRO = {"n_matched": 0, "n_kalshi_markets": 0, "completeness_ok": True}
+
 
 def _polymarket_summary(n_matched=3, n_kalshi_markets=3, completeness_ok=True):
     return {
@@ -78,7 +81,8 @@ def test_run_all_complete_outside_anomaly_hour(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["n_lines"] == 2 + 2
@@ -91,7 +95,8 @@ def test_run_prints_expected_digest_line(tmp_path, capsys):
     crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
 
     hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-           polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+           polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     out = capsys.readouterr().out
     assert "[hourly_pass] 12 markets, 2 lines, completeness ok" in out
@@ -106,7 +111,8 @@ def test_run_sports_incomplete_marks_overall_incomplete(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -117,7 +123,8 @@ def test_run_crypto_incomplete_marks_overall_incomplete(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -129,7 +136,8 @@ def test_run_polymarket_incomplete_marks_overall_incomplete(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: polymarket, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: polymarket,
+        polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["n_lines"] == 2 + 2 + 2
@@ -146,7 +154,8 @@ def test_run_sports_raises_crypto_still_runs(tmp_path):
         raise RuntimeError("simulated sports_pairs failure")
 
     summary = hp.run(sports_fn=_boom, crypto_fn=lambda: crypto,
-                      polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["sports_pairs"]["status"] == "error"
@@ -163,7 +172,8 @@ def test_run_crypto_raises_sports_still_runs(tmp_path):
         raise RuntimeError("simulated crypto_hourly failure")
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=_boom,
-                      polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["crypto_hourly"]["status"] == "error"
@@ -180,7 +190,8 @@ def test_run_polymarket_raises_others_still_run(tmp_path):
         raise RuntimeError("simulated polymarket_pairs failure")
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-                      polymarket_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_fn=_boom,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["polymarket_pairs"]["status"] == "error"
@@ -205,6 +216,7 @@ def test_anomaly_sweep_not_invoked_outside_09_utc(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=_sweep, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
@@ -217,6 +229,7 @@ def test_anomaly_sweep_not_built_does_not_fail_completeness(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON, now=_ts(ANOMALY_HOUR))
 
@@ -230,6 +243,7 @@ def test_anomaly_sweep_error_marks_incomplete(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "error", "returncode": 1},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON, now=_ts(ANOMALY_HOUR))
 
@@ -245,6 +259,7 @@ def test_anomaly_sweep_raising_marks_incomplete_not_crash(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=_boom, econ_prints_fn=lambda: _NOT_BUILT_ECON,
                      now=_ts(ANOMALY_HOUR))
 
@@ -271,6 +286,7 @@ def test_econ_prints_not_invoked_outside_09_utc(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=_econ, now=_ts(NOT_ANOMALY_HOUR))
 
@@ -284,6 +300,7 @@ def test_econ_prints_all_complete_does_not_fail_completeness(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 5},
                      now=_ts(ANOMALY_HOUR))
@@ -298,6 +315,7 @@ def test_econ_prints_partial_marks_incomplete(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 3},
                      now=_ts(ANOMALY_HOUR))
@@ -314,6 +332,7 @@ def test_econ_prints_raising_marks_incomplete_not_crash(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=_boom, now=_ts(ANOMALY_HOUR))
 
@@ -355,9 +374,13 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     def fake_polymarket_run(**kwargs):
         return dict(_EMPTY_POLYMARKET)
 
+    def fake_polymarket_macro_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_MACRO)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
 
     rc = hp.main(["--sports-limit", "3", "--crypto-symbols", "BTC"])
 
@@ -376,8 +399,12 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     def fake_polymarket_run(**kwargs):
         return dict(_EMPTY_POLYMARKET)
 
+    def fake_polymarket_macro_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_MACRO)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
 
     assert hp.main([]) == 1
