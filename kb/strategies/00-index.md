@@ -26,7 +26,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S14** | Ladder overround underwriting (short the complete bracket set) | 2026-07-04 gen pass · overround inversion × QF Theme 3 | idea | low | L2-tape fill-sim: E[overround × P(complete fill)] − E[loss on partial sets @ real asks] > 0, CI over ≥30 event-days |
 | **S15** | Cross-event logical-implication scanner (A⇒B ⇒ P(A)≤P(B)) | 2026-07-04 gen pass · S3 extension × QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q11, 2026-07-05) 3rd check + `config/implication_pairs.yaml` (hand-audited `kxwcround_progression` family); runs in existing daily 09 UTC slot; live-validated against real KXWCROUND markets (38 pairs/40 open markets, 0 hits — expected); kill if 0 fee-clearing hits in 60 days |
 | **S16** | FedWatch-anchored shock fade on KXFED | 2026-07-04 gen pass · QF Theme 7 × S2 adjacency | idea | low | enter only \|Kalshi−FedWatch\| > spread+fee around releases; paper exit on convergence/T+24h; bootstrap by shock; CI>0; kill if Kalshi leads ZQ |
-| **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | idea | low | retarget matcher to Fed/CPI questions; ≥5 live-book pairs/month both venues; lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
+| **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | **data-collecting** | low | retarget matcher to Fed/CPI questions; ≥5 live-book pairs/month both venues; lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
 | **S18** | Single-poll overreaction fade (Congress-control markets) | 2026-07-04 gen pass · QF Theme 7 × elections category | idea | low | paper fade @ real ask when single-poll jump >3¢ while polling average moved <1¢-eq; exit reversion/T+72h; bootstrap by poll event; CI>0 before 2026-11 |
 
 ## Notes on each
@@ -313,3 +313,19 @@ test** — a genuine null (CI straddles zero), not a falsification on the wrong 
 Kalshi's own maker fee eats almost the whole assumed 1¢ edge before any real market effect
 gets a chance to matter. S1/S5/S7/S8/S13 now all decided at real asks — none of them live. S9
 remains the only `data-collecting` candidate; S6/S10-S12/S14-S18 still at `idea`.
+
+**Update 2026-07-06 (Q12):** **S17 flipped idea → data-collecting.** `collection/polymarket_pairs.py`
+gained a second discovery family, `run_fed_decision()`, retargeting the S9 matcher discipline at
+Fed rate-decision meetings (Kalshi's `KXFEDDECISION` 5-bucket ladder vs Polymarket's "Fed Decision
+in `<Month>`?" events — same partition on both venues, matched by meeting month/year + bucket, never
+the Kalshi ticker's bps suffix alone). Wired into `hourly_pass.py` as a fourth cross-venue sub-pass
+so collection outlives the World Cup. Live pass: **15/15 currently-listed Polymarket Fed-decision
+markets matched** (Jul/Sep/Oct 2026 meetings — the only ones Polymarket has created so far;
+Kalshi's own forward calendar runs to Jan 2028, all correctly recorded as `unmatched_kalshi` and
+explicitly NOT gating completeness, since that gap is normal forward-calendar noise, not a data
+problem), 0 ambiguous, 0 book errors, `completeness_ok`. One-snapshot gaps ranged −3¢ to +15¢
+(descriptive only, not a verdict). CPI/inflation matching is explicitly deferred: Kalshi prices a
+cumulative "≥ threshold" ladder while Polymarket prices an exact bucket — pairing those needs a
+derived/synthetic transform, not a same-question real_ask pair, so it isn't faked here. S17's own
+gate (≥5 matched live-book pairs/month) is already cleared by this one pass; remaining work is
+accumulation + the eventual lead-lag cross-correlation, same shape as S9.

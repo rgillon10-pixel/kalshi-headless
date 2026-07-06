@@ -6,6 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-06 00:22 UTC — Q12: Fed-decision leg built (S17 now data-collecting)
+
+Research loop. Claim-check: `git fetch origin main` at `1337175`, local branch already at
+the real tip; open PRs unchanged — #4 still claims Q1 (draft, unrelated, awaiting
+`ODDS_API_KEY`), #18 is the weekly retro's protocol-amendment proposal (never self-merged,
+left for Ryan). Queue scan: Q1 claimed, Q4/Q5/Q6/Q9/Q10/Q11 DONE, Q7/Q13 BLOCKED
+(need ≥7/≥10 days of tape, not yet elapsed), Q8 (IN-PROGRESS) had only ~4h of new
+accumulation since its 2026-07-05T20:09Z lead-lag cut (44 vs 37 captures, no round
+transition) — rerunning it would have reproduced the same "still just noise" result with
+barely more data. **Q12 (S17, TODO with unstarted real work)** was the topmost item where
+this run's effort would actually move something forward, matching the precedent the prior
+run itself named ("Q12 remains the topmost TODO item with unstarted real work if Q8 gets
+skipped again before a shock arrives").
+
+Step 0b stranded-tape sweep first: of 29 `tape/hourly-*` branches, 2
+(`20260705T2155Z`/`2255Z`, both >30min old) carried lines `main` was missing — 4
+`crypto_hourly` + 76 `polymarket_pairs` + 304 `sports_pairs` (checked by exact line-set diff
+per file, union-deduped, every line validated as parseable JSON) — union-appended into this
+run's commit. `git push origin --delete` still fails from a cloud session (same permission
+boundary documented since 2026-07-03).
+
+**Q12/S17 milestone.** Built `collection/polymarket_pairs.run_fed_decision()`: a second
+Kalshi↔Polymarket discovery family (Fed rate-decision meetings) using the same match
+discipline the WC-round leg already proved out, so cross-venue collection outlives the
+World Cup. Kalshi's `KXFEDDECISION` 5-bucket meeting ladder (cut>25/cut25/no-change/
+hike25/hike>25) matched to Polymarket's "Fed Decision in `<Month>`?" events by (meeting
+month+year, bucket) — confirmed via each side's own title/question text, not the Kalshi
+ticker's bps suffix alone (it uses `"26"` as a stand-in for ">25", confirmed live). One real
+design call: completeness is graded against Polymarket's side, not Kalshi's — Kalshi lists
+meetings ~18 months out (to January 2028) while Polymarket only creates an event closer to
+it, so grading against Kalshi's full calendar would make this leg report FAIL forever, a
+structural non-issue rather than a real one; a Polymarket market this pass fails to pair
+(`unmatched_polymarket`) does still gate. Wired into `hourly_pass.py` as a fourth cross-venue
+sub-pass, own tape family `tape/polymarket_macro_pairs/` (kept separate from the WC-round
+tape — different record shape). 22 new unit tests, 287 total green, `invariants --full`
+green. Live pass: **15/15 currently-listed Polymarket Fed-decision markets matched**
+(Jul/Sep/Oct 2026 — the only meetings Polymarket has created so far), 0 ambiguous, 0 book
+errors, `completeness_ok`; gaps ranged −3¢ to +15¢ across the 15 pairs (one snapshot,
+descriptive only). CPI/inflation matching explicitly deferred — Kalshi's cumulative
+"≥threshold" ladder and Polymarket's exact-bucket partition are different shapes; pairing
+them would need a derived/synthetic transform, not a same-question `real_ask` pair, so it
+isn't faked here. `kb/strategies/00-index.md` S17 flipped idea → data-collecting; its own
+gate (≥5 matched live-book pairs/month) is already cleared by this one pass. Full writeup:
+`findings/2026-07-06-fed-decision-macro-pairs-q12-first-cut.md`.
+
+**Next:** accumulate hourly Fed-decision snapshots (already wired), then run a lead-lag
+cross-correlation once enough history exists, same shape as `s9_leadlag_probe.py` — the
+next FOMC meeting is a natural information shock to watch for. Q7 unblocks ~2026-07-10,
+Q13 ~2026-07-13; Q8 (S9) still worth revisiting once a real round transition lands.
+
+---
+
 ## 2026-07-05 20:09 UTC — Q8: first S9 lead-lag cross-correlation cut (zero in-window shocks found)
 
 Research loop. Claim-check: `git fetch origin main` force-updated the local ref to `d1ae913`
