@@ -30,6 +30,7 @@ VIOLATIONS = {
     "no_pstdev_import": "from statistics import pstdev",
     "no_yes_ask_arithmetic": "p = yes_ask / bracket_sum",
     "no_static_rho_point_four": "rho = 0.4",
+    "no_handrolled_fee_rate": "FEE_RATE = 0.07",
     "no_http_server": "from fastapi import FastAPI",
 }
 
@@ -57,6 +58,87 @@ def test_yes_ask_arithmetic_exempt_in_sanctioned_pricing_site():
 def test_sentinel_line_is_skipped():
     line = "MODELS = ['ncep_gefs025']  # inv-pattern-def"
     assert inv.scan_text(GENERIC, line) == []
+
+
+# ─── no_handrolled_fee_rate (L5) ──────────────────────────────────────────────
+
+@pytest.mark.parametrize("snippet", [
+    "FEE_RATE = 0.07",                       # taker constant, name-bound
+    "MAKER_FEE_RATE = 0.0175",               # maker constant, name-bound
+    "SP500_FEE_RATE = 0.035",                # sp500/ndx constant, name-bound
+    "FEE_COEFF = 0.07",                       # coeff token as trailing segment
+    "SP500_NDX_FEE_RATE = 0.035",             # multi-segment name with digits still fires
+    "fee = fee_per_contract(bid, rate=0.0175)",  # rate= kwarg binding
+    "f = fee_per_contract(p, 0.07)",         # positional literal into a fee call
+    "rate: float = 0.07",                    # annotated default (the sports_history shape)
+])
+def test_fee_rate_rule_fires(snippet):
+    failures = inv.scan_text(GENERIC, snippet)
+    assert any("[no_handrolled_fee_rate]" in f for f in failures), (snippet, failures)
+
+
+def test_fee_rate_rule_exempt_in_sanctioned_pricing_site():
+    # core/pricing.py is the single home of the fee-schedule rate constants.
+    assert inv.scan_text(ROOT / "core" / "pricing.py", "TAKER_FEE_RATE = 0.07") == []
+
+
+def test_fee_rate_rule_skips_comment_lines():
+    # A commented example must not trip the rule (parity with the rho rule's comment guard).
+    assert inv.scan_text(GENERIC, "    # rate = 0.07 is the taker rate") == []
+
+
+@pytest.mark.parametrize("snippet", [
+    "MAKER_FEE = 0.0035",                    # longshot's modeling haircut, NOT a schedule rate
+    "fee = fee_per_contract(0.07)",          # 0.07 here is the PRICE (first positional arg)
+    "rate = core.pricing.TAKER_FEE_RATE",    # bound to the constant, not a literal
+])
+def test_fee_rate_rule_silent_on_non_schedule_uses(snippet):
+    assert not any("[no_handrolled_fee_rate]" in f for f in inv.scan_text(GENERIC, snippet))
+
+
+@pytest.mark.parametrize("snippet", [
+    "accurate = 0.07",                       # 'rate' is a substring, not a token segment
+    "coffee = 0.035",                        # 'fee' is a substring, not a token segment
+    "separate = 0.0175",                     # 'rate' substring
+    "generate = 0.07",                       # 'rate' substring
+    "moderate = 0.035",                      # 'rate' substring
+    "corporate = 0.07",                      # 'rate' substring
+])
+def test_fee_rate_rule_silent_on_benign_substring_names(snippet):
+    # pattern A is token-delimited: fee/rate/coeff must be a whole underscore-delimited
+    # segment, so identifiers that merely CONTAIN the substring must not fire (verifier catch).
+    assert not any("[no_handrolled_fee_rate]" in f for f in inv.scan_text(GENERIC, snippet))
+
+
+# ─── stranded-tape warning (L17: non-gating advisory) ─────────────────────────
+
+def test_stranded_tape_warning_none_when_empty():
+    assert inv.stranded_tape_warning([]) is None
+
+
+def test_stranded_tape_warning_message_content():
+    msg = inv.stranded_tape_warning(["origin/tape/hourly-20260706T1255Z"])
+    assert msg is not None
+    assert "origin/tape/hourly-20260706T1255Z" in msg
+    assert "non-gating" in msg
+    assert "0b" in msg
+
+
+def test_git_tape_refs_returns_list_without_raising():
+    refs = inv._git_tape_refs()
+    assert isinstance(refs, list)
+    assert all(isinstance(r, str) for r in refs)
+
+
+def test_stranded_tape_warning_never_gates_exit_code(monkeypatch, capsys):
+    # Even with stranded refs present, a clean tree must still exit 0 — warnings never gate.
+    monkeypatch.setattr(inv, "_git_tape_refs", lambda: ["origin/tape/hourly-FAKE"])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "invariants: all green" in captured.out
 
 
 def test_real_tree_is_green():

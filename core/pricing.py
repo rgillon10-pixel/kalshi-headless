@@ -53,9 +53,22 @@ def overround(asks: Iterable[float]) -> float:
     return bracket_sum(asks) - 1.0
 
 
-def fee_per_contract(price: float, rate: float = 0.07) -> float:
+# ─── Kalshi fee-schedule rates — THE single source of truth (Hard Rule / lesson L5) ──
+# From the published Kalshi fee schedule (https://kalshi.com/docs/kalshi-fee-schedule.pdf,
+# docs.kalshi.com/getting_started/fee_rounding; distilled in kb/kalshi-api/03-fees-and-
+# breakeven.md). A first S13 draft charged maker fills the taker rate — a 4x overcharge that
+# alone ate a 1c edge (finding 2026-07-04-sports-maker-s13-verdict). These constants exist so
+# no module hand-rolls a fee coefficient; scripts/invariants.py::no_handrolled_fee_rate
+# statically forbids the banned literals anywhere but this file.
+TAKER_FEE_RATE = 0.07       # standard taker fills — the conservative default fee rate
+MAKER_FEE_RATE = 0.0175     # maker fills (resting order that gets lifted): a quarter of taker
+SP500_NDX_FEE_RATE = 0.035  # S&P 500 / Nasdaq-100 products
+
+
+def fee_per_contract(price: float, rate: float = TAKER_FEE_RATE) -> float:
     """Kalshi taker fee per contract, dollars, round-up-to-cent on the whole order
     (docs.kalshi.com/getting_started/fee_rounding): fee = roundup_cent(rate * P * (1-P)).
+    The default is the conservative TAKER rate; pass MAKER_FEE_RATE for resting-order fills.
     Mirrors scripts/fee_breakeven.py's formula; lives here too because Q6's anomaly sweep
     (LOOP-QUEUE.md) needs it alongside bracket_sum to gate a mispricing on REAL fillable
     edge, not just a raw ask/bid gap."""
@@ -71,7 +84,7 @@ def true_arb_edge(bracket_sum_value: float, total_fees: float) -> float:
 
 
 def monotonicity_crossing_edge(outer_ask: float, inner_no_ask: float,
-                               rate: float = 0.07) -> float:
+                               rate: float = TAKER_FEE_RATE) -> float:
     """Dollar edge of the cross-strike hedge for two NESTED threshold markets (Q6 /
     S3): `inner`'s YES-region is a subset of `outer`'s (e.g. temp>=80 subset of
     temp>=70). Buying YES(outer) + NO(inner) — both REAL taker asks, never a

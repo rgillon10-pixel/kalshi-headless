@@ -60,7 +60,7 @@ import requests
 from collection.sports_pairs import devig_multiplicative
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
-from core.pricing import bracket_sum
+from core.pricing import bracket_sum, TAKER_FEE_RATE
 from validation.v3_market import Kalshi, _load_venue_cfg
 
 TAPE = REPO_ROOT / "tape" / "sports_history"
@@ -442,11 +442,11 @@ def devig_closing_fair_probs(moneyline: Optional[Dict]) -> Optional[Dict[str, fl
     return dict(zip(keys, fair))
 
 
-def _taker_fee_per_contract(price: float, rate: float = 0.07) -> float:
+def _taker_fee_per_contract(price: float, rate: float = TAKER_FEE_RATE) -> float:
     """Round-up-to-cent taker fee per contract. Mirrors `scripts/fee_breakeven.py`'s
     `fee_per_contract` (the documented source of this formula, from Kalshi's published fee
-    schedule) — duplicated as a tiny pure function rather than importing across the
-    scripts/collection boundary, since `scripts/` is not an installed package."""
+    schedule) — the rate default is `core.pricing.TAKER_FEE_RATE`, never a hand-rolled literal
+    (lesson L5)."""
     raw = rate * price * (1.0 - price)
     return math.ceil(raw * 100.0) / 100.0
 
