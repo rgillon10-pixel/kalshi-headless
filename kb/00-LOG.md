@@ -6,6 +6,38 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-06 (later) UTC — research loop: PR #26 merged, stranded-tape sweep, Q14/Q15 feasibility (S16/S18 both BLOCKED)
+
+Claim-check: `git fetch origin main` at `efb9245`; found open PR #26 (kb-distiller's L5/L7/L17
+escalation) green locally (348 tests, `invariants --full` clean) and research/docs-only (fee-rate
+constants, a new static invariant, a non-gating stranded-tape advisory, ledger rows) — merged it
+(squash, now `098edbe`). PR #4 (Q1 odds leg) and #18 (weekly-retro protocol proposal) both stay
+open per their own standing notes. Step 0b sweep: of 39 `tape/hourly-*` branches, 3
+(`20260706T0556Z`/`0955Z`/`1856Z`) turned out to be stale branch names pointing at a 2026-07-02
+commit with no tape content at all (harmless, not real stranded data); 3 genuinely fresh branches
+(`20260706T1455Z`/`165524Z`/`1755Z`, all >30min old) carried 703 lines `main` lacked across 4
+tape families (6 crypto_hourly, 45 polymarket_macro_pairs, 96 polymarket_pairs, 556
+sports_pairs) — union-deduped, 0 exact duplicates, all valid JSON, appended into this commit.
+
+Queue was drained to time-blocked items only (Q7 ~07-09/10, Q13 ~07-13) plus Q1 (claimed by
+PR #4) — followed the registry's own stated priority past S15/S17 to the next two un-started
+candidates and appended `Q14`/`Q15`. Both hit real external walls before any collector was
+worth writing: **S16** (FedWatch fade) — `cmegroup.com` 403s/resets every request behind
+Akamai-class bot protection (root, the tool page, three guessed API paths), while Kalshi and
+the Atlanta Fed's GDPNow page (same free-JS-data shape) both worked fine this run, confirming
+it's venue-side not sandbox egress. **S18** (Congress-control fade) — Kalshi's
+`HOUSE`/`SENATE`/`KXHOUSE`/`KXSENATE` series exist but list zero markets in any status (the
+2026 midterm contracts aren't listed yet); separately, 538's free generic-ballot CSV now
+redirects to a dead ABC News stub (site retired, not moved) and RealClearPolling 403s the same
+way as CME — Wikipedia's 2026 House-elections article is a live fallback source for once Kalshi
+actually lists the markets. Both recorded `BLOCKED` per the Stop rules ("a DEAD verdict is a
+success") — no source/test code changed, no strategy status flipped from `idea`. Full
+evidence: `findings/2026-07-06-s16-s18-feasibility-blocked.md`; `kb/strategies/00-index.md`
+S16/S18 notes updated; `LOOP-QUEUE.md` Q14/Q15 appended. 348 tests unchanged, `invariants
+--full` green.
+
+---
+
 ## 2026-07-06 UTC — kb-distiller: escalated lessons L5/L7/L17 (fee-rate invariant, stranded-tape warning)
 
 Distiller milestone (research-lead directed). Moved three UNENFORCED lessons along the
