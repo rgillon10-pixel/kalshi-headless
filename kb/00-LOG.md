@@ -6,6 +6,54 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-06 05:17 UTC — Q8: first real shock event-study (S9 stays data-collecting)
+
+Research loop. Claim-check: `git fetch origin main` at `a6567cf`, local branch already at
+the real tip (only hourly `tape:` passes since the last run); open PRs unchanged — #4 still
+claims Q1 (draft, unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly retro's protocol-
+amendment proposal (never self-merged, left for Ryan). Queue scan: Q1 claimed, Q2/Q4/Q5/Q6/
+Q9/Q10/Q11 DONE, Q7/Q13 BLOCKED — Q8 (IN-PROGRESS) was topmost eligible, and this run's own
+check of `tape/polymarket_pairs/` found something the last two runs didn't have: real round
+transitions. `market_membership_changes()` showed two teams eliminated since the last cut —
+Brazil and Mexico, both quarterfinal losses — so Q8's own remaining-work note ("once an
+actual round transition lands, re-run and inspect that market's captures around the
+transition specifically") was finally actionable instead of a repeat no-op.
+
+Step 0b stranded-tape sweep first: of the `tape/hourly-*` branches, one
+(`20260706T0256Z`, >30min old) carried lines `main` was missing — 2 `crypto_hourly` + 15
+`polymarket_macro_pairs` + 36 `polymarket_pairs` + 182 `sports_pairs` (checked by exact
+line-set diff per file against `origin/main`, union-deduped, every line validated as
+parseable JSON) — union-appended into this run's commit. `git push origin --delete` still
+fails from a cloud session (same permission boundary documented since 2026-07-03).
+
+**Q8/S9 milestone.** Built `scripts/s9_shock_eventstudy.py`: isolates real transitions from
+`market_membership_changes()` (excluding the one documented startup artifact — the diff
+between the pre-wiring smoke-test capture and the first capture of continuous hourly
+collection) and, for each ticker a transition removed from the open-markets set, reports the
+last two captured rows on both venues (the actual repricing step — the capture at which a
+ticker vanishes is not itself a price observation). Result across the 2 real events / 8
+affected tickers: Kalshi and Polymarket moved together every single time — mean
+`|Δkalshi − Δpolymarket|` 2.2¢, max 8¢, no consistent one-venue-leads pattern, both venues
+already reflecting the outcome by the very next capture (30–60min later). Mexico's data
+additionally showed the reprice trailing off over 2+ hourly captures rather than one clean
+jump, still with both venues moving in lockstep at each step.
+
+**The actual finding is methodological, not a null result on the thesis:** a match resolves
+within minutes of the final whistle, but the collection cadence here is 30–60 minutes — too
+coarse to ever resolve which venue moves first inside that window. S9's lead-lag thesis
+cannot be tested at this resolution as built. 10 new unit tests (297 total, offline synthetic
+fixtures), `invariants --full` green. `kb/strategies/00-index.md` S9 note updated, stays
+`data-collecting`. Full writeup:
+`findings/2026-07-06-polymarket-leadlag-s9-shock-eventstudy.md`.
+
+**Next:** a resolution decision on S9 before the WC ends Jul 19 — either add a sub-hourly
+capture burst around scheduled game-end times for the remaining matches (semifinals, final)
+to actually test lead-lag, or accept this infrastructure only answers a cross-venue parity
+question and mark the lead-lag angle a data-adequacy DEAD. Q7 unblocks ~2026-07-10, Q13
+~2026-07-13; Q12's CPI/inflation leg and its own lead-lag accumulation are still open.
+
+---
+
 ## 2026-07-06 00:22 UTC — Q12: Fed-decision leg built (S17 now data-collecting)
 
 Research loop. Claim-check: `git fetch origin main` at `1337175`, local branch already at

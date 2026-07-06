@@ -158,6 +158,21 @@ every observed tick so far is book noise, not a shock. No CI, no verdict; stays
 `data-collecting` until an actual elimination/advance lands in the tape (several should occur
 before the WC ends Jul 19). See `findings/2026-07-05-polymarket-leadlag-s9-first-cut.md`.
 
+**S9 → first real shock event-study (2026-07-06, Q8 continued) — stays data-collecting.**
+Two real round transitions have now landed: Brazil and Mexico both eliminated (quarterfinal
+losses). New `scripts/s9_shock_eventstudy.py` isolates real transitions from
+`market_membership_changes()` and reports each affected ticker's last two captured rows (the
+actual repricing step) on both venues. Result across n=8 ticker-steps: Kalshi and Polymarket
+moved together every time — mean `|Δkalshi − Δpolymarket|` = 2.2¢, max 8¢, no consistent
+one-venue-leads pattern, both venues already reflecting the outcome by the very next capture
+(30–60min later). **The actual finding is methodological, not a null result on the thesis
+itself:** collection cadence (hourly-ish) is coarser than the event (a match resolves within
+minutes) — S9's lead-lag thesis cannot be tested at this resolution without either sub-hourly
+captures around scheduled game-end times or accepting this infra only answers a cross-venue
+parity question, not lead-lag. Stays `data-collecting`; flagged for a resolution decision
+before the WC ends Jul 19 (only a handful of transitions remain). See
+`findings/2026-07-06-polymarket-leadlag-s9-shock-eventstudy.md`.
+
 **S8 → Q5 first cut (2026-07-03): overround flag resolved, ρ-guard inconclusive (stays
 data-collecting).** `scripts/s8_basis_probe.py` (read-only over accumulated
 `tape/crypto_hourly/`) found the earlier +$9.27 flag is **mostly real, not a floor-tick
