@@ -381,3 +381,20 @@ Polymarket events, one bucket's derived probability came back negative
 (`monotonicity_violation: true`, a thin/stale Kalshi strike, recorded not clipped). S17's
 own gate was already cleared by the Fed leg; this closes the item's only documented
 remaining-work gap besides accumulation.
+
+**Update 2026-07-06 (Q14/Q15, S16 + S18 feasibility): both stay `idea`, both hit real
+data-adequacy walls.** With the queue drained to time-blocked items, followed the registry's
+own stated priority past S15/S17 to the next two un-started candidates. **S16** (FedWatch
+fade): `cmegroup.com` is behind Akamai-class bot protection — every path tried (root, the
+FedWatch tool page, three guessed widget/API endpoints) 403'd or reset the connection with a
+real browser UA over HTTP/1.1, while Kalshi and the Atlanta Fed's GDPNow page (a structurally
+similar free-JS-data target) both worked fine this same run, so the block is venue-side, not
+sandbox egress. **S18** (Congress-control fade): Kalshi's `HOUSE`/`SENATE`/`KXHOUSE`/`KXSENATE`
+series exist but list **zero markets in any status** — the 2026 midterm control contracts
+aren't listed yet, so there's no Kalshi print to build against; separately, the classic free
+generic-ballot polling feeds are gone (538's CSV redirects to a dead ABC News stub, not just
+moved; RealClearPolling 403s the same way as CME) — Wikipedia's 2026 House-elections article
+is a live fallback source for whenever Kalshi actually lists the markets. Neither is a CI
+falsification — both are honest `BLOCKED` verdicts per the Stop rules, recorded so a future
+run doesn't re-spend a milestone on the same dead ends. See
+`findings/2026-07-06-s16-s18-feasibility-blocked.md`.
