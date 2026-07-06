@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-06 (later) UTC — Q12 closed: S17 CPI/inflation leg (derived-transform pairing)
+
+Research loop. `git fetch origin main` at `4b76056`; local `main` ref was found badly
+stale (2026-07-02, ~50 commits and 4 days behind the real `origin/main` tip) — fixed with
+`git branch -f main origin/main` before trusting any diff, exactly the bug PR #18's
+weekly-retro proposal flagged (a stale local `main` inflates the stranded-branch sweep).
+Open PRs unchanged: #4 still claims Q1 (unrelated, awaiting `ODDS_API_KEY`), #18 is the
+retro's protocol-amendment proposal (never self-merged, left for Ryan). Queue scan against
+the real tip: Q1 claimed, Q2–Q6/Q8–Q11 all DONE, Q7/Q13 BLOCKED — **Q12** (FED-DECISION LEG
+DONE, real remaining work: the deferred CPI/inflation leg) was topmost eligible.
+
+Step 0b stranded-tape sweep (against the corrected `main`): 5 of 35 `tape/hourly-*`
+branches (`202607051954Z`, `20260705T0957Z`, `20260705T1455Z`, `20260706T0855Z`,
+`20260706T1255Z`, all >30min old) carried lines `main` was missing across 9 tape files —
+union-deduped per file (each branch is an independent snapshot, not a superset of the
+others, so the union had to be taken across all of them, not just the newest), 1,158 lines
+total (554 + 374 sports_pairs, 120 + 64 polymarket_pairs, 30 polymarket_macro_pairs, plus
+crypto_hourly/econ_prints/anomalies remainders), every line validated as parseable JSON
+with 0 exact duplicates, appended into this commit.
+
+Built the CPI/inflation leg Q12's own prior cut deferred: `collection/polymarket_pairs.run_cpi()`
+pairs Kalshi's `KXCPI`/`KXCPIYOY`/`KXCPICORE` cumulative "exceed threshold T" ladders against
+Polymarket's exact 0.1-point bucket partition for the same 3 US print series. Confirmed live
+that both venues quote all 3 series in identical 0.1-point steps, then built
+`price_cpi_bucket_from_kalshi` — the differencing transform (floor = 1 − ask(T); exact =
+ask(T−step) − ask(T); ceiling = ask(T−step) directly) that turns two adjacent Kalshi `real_ask`
+fills into one Polymarket-shaped bucket probability, tagged `synthetic` per Hard Rule #3's
+spirit (a computed transform, not a fill, even though its inputs are). Never fabricates: a
+bucket whose required Kalshi strike(s) are missing returns `None` (recorded via
+`n_buckets_priced < n_buckets_total`, which correctly fails completeness) rather than being
+guessed at or silently dropped; a negative derived probability (`monotonicity_violation: true`)
+is recorded as-is, never clipped. 23 new unit tests (320 total), wired into `hourly_pass.py`'s
+existing 09 UTC daily slot (CPI releases monthly, same cadence reasoning as Q10's
+`econ_prints` — 4 new wiring tests, 6 existing 09-UTC-hour tests updated with a zero-contribution
+stub). `invariants --full` green.
+
+Live pass: 17 open Kalshi CPI events across the 3 series, 3 matched to currently-listed
+Polymarket events (current core-MoM/YoY/headline-MoM prints), 0 unmatched/ambiguous
+Polymarket events, 22/28 buckets priced. The 6 unpriced buckets need Kalshi strikes further
+out-of-the-money than its ladder currently lists (Polymarket's core-CPI-MoM/headline-CPI-MoM
+events both extend one bucket past Kalshi's quoted range) — an honest, expected coverage gap,
+correctly counted against `completeness_ok` rather than hidden. One bucket (`cpi_core_mom`
+2026-07, exact 0.5%) came back with `monotonicity_violation: true` — Kalshi's raw ladder for
+that far-forward month has a thin strike (`T0.5` priced ABOVE `T0.4`, which cannot be true in
+a coherent market), the exact kind of thin/stale-quote artifact this project's discipline says
+to record honestly rather than paper over. `kb/strategies/00-index.md` S17 note updated;
+`LOOP-QUEUE.md` Q12 flipped FED-DECISION-LEG-DONE → full DONE. See tape at
+`tape/polymarket_cpi_pairs/dt=2026-07-06.jsonl`.
+
+**Next:** S17's own gate (≥5 matched live-book pairs/month) was already cleared by the Fed
+leg; both Fed and CPI legs now run automatically at their appropriate cadence, so the only
+remaining work is accumulation, then the eventual lead-lag cross-correlation (same shape as
+S9, which was closed dead ✗ on data-adequacy grounds this run window — S17 doesn't share
+that constraint since it needs no sub-hourly resolution).
+
 ## 2026-07-06 UTC — Q8 closed: S9 lead-lag resolution decision (dead ✗, data-adequacy)
 
 Research loop. Claim-check: `git fetch origin main` at `24b155f`, local branch already at

@@ -34,15 +34,24 @@ same "don't trust the ticker suffix alone" lesson the Q1 reconciliation note alr
 carries). Multi-month bundle events (e.g. "Fed decisions (Jul-Oct)") and off-topic hits
 (e.g. the FOMC dissent-count market) are a different shape and are structurally excluded,
 not guessed at. Written to a separate tape family (`tape/polymarket_macro_pairs/`) since
-it's a distinct market shape from the WC-round pairs above. CPI/inflation matching is
-explicitly OUT of scope here: Kalshi's CPI ladder prices a cumulative ">= threshold T"
-(see `collection/econ_prints.py`) while Polymarket prices an exact bucket — pairing those
-would require a derived/synthetic transform (differencing adjacent Kalshi thresholds),
-not a same-question real_ask pair, so it's left for a follow-up rather than faked here.
+it's a distinct market shape from the WC-round pairs above.
+
+LOOP-QUEUE.md Q12 CPI follow-up (2026-07-06): third discovery family, `run_cpi()`, pairs
+Kalshi's `KXCPI`/`KXCPIYOY`/`KXCPICORE` cumulative ">= threshold T" ladders (see
+`collection/econ_prints.py`) against Polymarket's exact 0.1-point bucket partition for the
+same three US print series ("<Month> Inflation US - Monthly/Annual", "Core CPI MoM -
+<Month> <Year>", confirmed live 2026-07-06). This is NOT a same-question `real_ask` pair
+like the two families above: a Polymarket bucket probability must be DERIVED by
+differencing two adjacent Kalshi asks (`price_cpi_bucket_from_kalshi`), so every derived
+value is tagged `synthetic` per Hard Rule #3's spirit even though its two inputs are each
+a genuine `real_ask` fill — faking a same-question pair here would violate that rule's
+intent, which is exactly why this leg was deferred rather than guessed at originally.
+Written to its own tape family (`tape/polymarket_cpi_pairs/`).
 
 Run one pass:
     python -m collection.polymarket_pairs
     python -c "from collection import polymarket_pairs as p; print(p.run_fed_decision())"
+    python -c "from collection import polymarket_pairs as p; print(p.run_cpi())"
 """
 from __future__ import annotations
 
@@ -652,6 +661,352 @@ def run_fed_decision(client: Optional[Kalshi] = None, tape_dir: Optional[Path] =
         print(f"[polymarket_macro_pairs] WARN polymarket discovery failed: {pm_error}", file=sys.stderr)
     if book_errors:
         print(f"[polymarket_macro_pairs] WARN {len(book_errors)} CLOB book fetches failed", file=sys.stderr)
+    return summary
+
+
+# --------------------------------------------------------------------------- #
+# CPI/inflation leg (Q12 follow-up) — derived-transform pairing, see module docstring.
+# --------------------------------------------------------------------------- #
+TAPE_CPI = REPO_ROOT / "tape" / "polymarket_cpi_pairs"
+
+# Confirmed live 2026-07-06: all 3 series list one open event per report month, ticker
+# shape SERIES-<yy><MON>, e.g. KXCPICORE-26JUL, KXCPIYOY-26JUN. Reusing econ_prints' own
+# series-key -> Kalshi-series-ticker map keeps the two collectors' series naming in sync.
+CPI_SERIES = {
+    "cpi_mom": "KXCPI",
+    "cpi_yoy": "KXCPIYOY",
+    "cpi_core_mom": "KXCPICORE",
+}
+# Both venues quote all 3 series in 0.1-point increments (confirmed live 2026-07-06 against
+# both Kalshi's floor_strike ladder and Polymarket's groupItemTitle buckets) — a differencing
+# step of anything else would silently mismatch bucket boundaries, so this is asserted, not
+# just assumed, at the one call site that uses it (see `price_cpi_bucket_from_kalshi`).
+_CPI_BUCKET_STEP = 0.1
+
+_KALSHI_CPI_EVENT_RE = re.compile(r"^(?P<series>[A-Z]+)-(?P<yy>\d{2})(?P<mon>[A-Z]{3})$")
+
+
+def discover_kalshi_cpi_events(client: Kalshi) -> Tuple[Dict[Tuple[str, int, int], Dict[str, Any]], List[str]]:
+    """Every open event across the 3 US CPI series, reduced to {floor_strike: yes_ask} per
+    (series_key, year, month) — nothing derived yet, see `price_cpi_bucket_from_kalshi`.
+    A market missing a live ask or not the 'greater' (cumulative) strike shape is dropped,
+    never fabricated (mirrors `econ_prints._capture_strikes`)."""
+    events: Dict[Tuple[str, int, int], Dict[str, Any]] = {}
+    raw_pages: List[str] = []
+    for series_key, series_ticker in CPI_SERIES.items():
+        markets: List[Dict] = []
+        cursor: Optional[str] = None
+        while True:
+            params: Dict[str, Any] = {"series_ticker": series_ticker, "status": "open", "limit": 1000}
+            if cursor:
+                params["cursor"] = cursor
+            text = client.get_text("/markets", **params)
+            raw_pages.append(text)
+            j = json.loads(text)
+            items = j.get("markets") or []
+            markets.extend(items)
+            cursor = j.get("cursor")
+            if not cursor or not items:
+                break
+
+        by_event: Dict[str, List[Dict]] = {}
+        for m in markets:
+            by_event.setdefault(m.get("event_ticker", ""), []).append(m)
+
+        for event_ticker, ms in by_event.items():
+            em = _KALSHI_CPI_EVENT_RE.match(event_ticker)
+            if not em or em["series"] != series_ticker:
+                continue
+            month = _month_num(em["mon"])
+            if month is None:
+                continue
+            year = 2000 + int(em["yy"])
+            strikes: Dict[float, float] = {}
+            for m in ms:
+                floor_strike = m.get("floor_strike")
+                yes_ask = m.get("yes_ask_dollars")
+                if floor_strike is None or yes_ask is None or m.get("strike_type") != "greater":
+                    continue
+                strikes[round(float(floor_strike), 1)] = float(yes_ask)
+            if strikes:
+                events[(series_key, year, month)] = {"event_ticker": event_ticker, "strikes": strikes}
+    return events, raw_pages
+
+
+def price_cpi_bucket_from_kalshi(strikes: Dict[float, float], bucket_kind: str, bucket_value: float,
+        step: float = _CPI_BUCKET_STEP) -> Optional[Dict[str, Any]]:
+    """Derive one Polymarket-shaped bucket's probability from Kalshi's cumulative 'exceed
+    T' ladder — the differencing transform this whole leg exists for (see module
+    docstring). Never fabricates: if the strike(s) this bucket needs aren't in `strikes`
+    (a thin/unlisted threshold), returns None rather than guessing. A result outside
+    [0, 1] is still returned (never clipped) with `monotonicity_violation: True` — a real,
+    honestly-recorded signature of a thin/stale Kalshi strike, not hidden."""
+    v = round(bucket_value, 10)
+    if bucket_kind == "floor":
+        # Polymarket "<= V" == 1 - Kalshi P(exceed V)
+        if v not in strikes:
+            return None
+        p = 1.0 - strikes[v]
+        inputs = {"exceed_le": None, "exceed_ge": v}
+    elif bucket_kind == "ceiling":
+        # Polymarket "V or more" == Kalshi P(exceed V-step) directly
+        lo = round(v - step, 10)
+        if lo not in strikes:
+            return None
+        p = strikes[lo]
+        inputs = {"exceed_le": lo, "exceed_ge": None}
+    elif bucket_kind == "exact":
+        # Polymarket "== V" == Kalshi P(exceed V-step) - P(exceed V)
+        lo = round(v - step, 10)
+        if v not in strikes or lo not in strikes:
+            return None
+        p = strikes[lo] - strikes[v]
+        inputs = {"exceed_le": lo, "exceed_ge": v}
+    else:
+        return None
+    return {
+        "derived_prob": p,
+        "kalshi_inputs": inputs,
+        "monotonicity_violation": not (-1e-9 <= p <= 1 + 1e-9),
+        "price_source_tag": "synthetic",
+    }
+
+
+PM_CPI_SEARCH_QUERIES: Tuple[str, ...] = ("CPI", "Inflation")
+
+# Structural confirmation only — every hit still needs a groupItemTitle bucket to parse
+# before being trusted. cpi_mom/cpi_yoy titles carry no year (e.g. "June Inflation US -
+# Monthly"); year is inferred from the event's own endDate (release date), see
+# `_infer_cpi_year`. cpi_core_mom's title does carry the year explicitly.
+_PM_CPI_EVENT_PATTERNS: Tuple[Tuple[str, Any], ...] = (
+    ("cpi_core_mom", re.compile(r"^Core CPI MoM - (?P<month>[A-Za-z]+) (?P<year>\d{4})$")),
+    ("cpi_mom", re.compile(r"^(?P<month>[A-Za-z]+) Inflation US - Monthly$")),
+    ("cpi_yoy", re.compile(r"^(?P<month>[A-Za-z]+) Inflation US - Annual$")),
+)
+
+_PM_CPI_BUCKET_LABEL_RE = re.compile(r"(-?\d+\.?\d*)")
+
+
+def _parse_pm_cpi_bucket_label(label: str) -> Tuple[Optional[str], Optional[float]]:
+    """groupItemTitle -> (kind, value). Observed live 2026-07-06 shapes: floor '<=0.0%'/
+    '≤0.0%', exact '0.3%', ceiling '0.6%+'/'≥3.3%' — inconsistent open-ended
+    marker (leading vs trailing) across events, so both are checked."""
+    t = (label or "").strip()
+    m = _PM_CPI_BUCKET_LABEL_RE.search(t)
+    if not m:
+        return None, None
+    value = float(m.group(1))
+    if t.startswith("≤") or t.startswith("<"):
+        return "floor", value
+    if t.startswith("≥") or t.startswith(">") or t.endswith("+"):
+        return "ceiling", value
+    return "exact", value
+
+
+def _infer_cpi_year(report_month: int, end_date_iso: Optional[str]) -> Optional[int]:
+    """cpi_mom/cpi_yoy events carry no year in their title — infer it from the event's
+    release (`endDate`): the release always falls in the report month or later, EXCEPT a
+    December report, which releases the following January (year rolls over)."""
+    if not end_date_iso:
+        return None
+    try:
+        end_dt = datetime.fromisoformat(end_date_iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return end_dt.year if end_dt.month >= report_month else end_dt.year - 1
+
+
+def discover_polymarket_cpi_events(
+        queries: Tuple[str, ...] = PM_CPI_SEARCH_QUERIES) -> Tuple[List[Dict], List[str]]:
+    """Structural discovery of the 3 US CPI/inflation events (skips every other country's
+    inflation event and off-topic hits, e.g. egg/beef-price markets that also match 'CPI'/
+    'Inflation' keyword search — none share the title shape in `_PM_CPI_EVENT_PATTERNS`).
+    Returns one dict per matched event: {series_key, year, month, event_id, buckets: [...]}."""
+    seen_event_ids: set = set()
+    events_out: List[Dict] = []
+    raw_pages: List[str] = []
+    for q in queries:
+        resp = _pm_get_json("/public-search", q=q, limit_per_type=20, events_status="active")
+        raw_pages.append(canonical_json(resp))
+        for event in (resp.get("events") or []):
+            title = (event.get("title") or "").strip()
+            series_key = None
+            month = None
+            year = None
+            for key, pattern in _PM_CPI_EVENT_PATTERNS:
+                em = pattern.match(title)
+                if not em:
+                    continue
+                month = _month_num(em["month"])
+                if month is None:
+                    continue
+                year = int(em["year"]) if "year" in em.groupdict() and em["year"] else \
+                    _infer_cpi_year(month, event.get("endDate"))
+                series_key = key
+                break
+            if series_key is None or month is None or year is None:
+                continue
+            event_id = event.get("id")
+            if event_id in seen_event_ids:
+                continue
+            seen_event_ids.add(event_id)
+
+            buckets: List[Dict[str, Any]] = []
+            for mkt in (event.get("markets") or []):
+                kind, value = _parse_pm_cpi_bucket_label(mkt.get("groupItemTitle") or "")
+                if kind is None:
+                    continue
+                try:
+                    token_ids = json.loads(mkt.get("clobTokenIds") or "[]")
+                    outcomes = json.loads(mkt.get("outcomes") or "[]")
+                except json.JSONDecodeError:
+                    token_ids, outcomes = [], []
+                yes_token = None
+                if "Yes" in outcomes:
+                    idx = outcomes.index("Yes")
+                    if idx < len(token_ids):
+                        yes_token = token_ids[idx]
+                buckets.append({
+                    "market_id": mkt.get("id"), "bucket_kind": kind, "bucket_value": value,
+                    "question": mkt.get("question"), "yes_token_id": yes_token,
+                })
+            if buckets:
+                events_out.append({
+                    "event_id": event_id, "series_key": series_key, "year": year, "month": month,
+                    "buckets": buckets,
+                })
+    return events_out, raw_pages
+
+
+def run_cpi(client: Optional[Kalshi] = None, tape_dir: Optional[Path] = None,
+        min_interval: float = 0.2,
+        pm_discover: Callable[[], Tuple[List[Dict], List[str]]] = discover_polymarket_cpi_events,
+        fetch_book: Callable[[str], Dict[str, Any]] = fetch_clob_book) -> Dict:
+    """One read-only capture pass over the CPI/inflation derived-bucket pairing (Q12
+    follow-up). Same honest-completeness discipline as `run_fed_decision`, judged against
+    Polymarket's side for the same reason (Kalshi's series lists events months further
+    forward than Polymarket creates them) — plus a bucket-level gap when a Polymarket
+    bucket's required Kalshi strike(s) are missing (`no_kalshi_strike`), recorded, never
+    silently dropped from completeness."""
+    tape_dir = Path(tape_dir) if tape_dir is not None else TAPE_CPI
+    if client is None:
+        cfg = _load_venue_cfg()
+        client = Kalshi(cfg["api_base"], min_interval=min_interval)
+
+    cap_ts = datetime.now(timezone.utc)
+    captured_at = cap_ts.isoformat()
+    capture_id = cap_ts.strftime("%Y%m%dT%H%M%SZ")
+    day = cap_ts.strftime("%Y-%m-%d")
+
+    kalshi_events, kalshi_raw = discover_kalshi_cpi_events(client)
+
+    pm_error: Optional[str] = None
+    try:
+        pm_events, _pm_raw = pm_discover()
+    except Exception as exc:
+        pm_events, pm_error = [], str(exc)
+
+    pm_index: Dict[Tuple[str, int, int], List[Dict]] = {}
+    for ev in pm_events:
+        pm_index.setdefault((ev["series_key"], ev["year"], ev["month"]), []).append(ev)
+
+    ambiguous_pm: List[str] = []
+    unmatched_pm: List[str] = []
+    lines: List[str] = []
+    book_errors: List[Dict[str, str]] = []
+    n_buckets_total = 0
+    n_buckets_priced = 0
+
+    for key, candidates in pm_index.items():
+        if len(candidates) > 1:
+            ambiguous_pm.append(str(candidates[0]["event_id"]))
+            continue
+        pm_ev = candidates[0]
+        kalshi_ev = kalshi_events.get(key)
+        if kalshi_ev is None:
+            unmatched_pm.append(str(pm_ev["event_id"]))
+            continue
+        strikes = kalshi_ev["strikes"]
+        for bucket in pm_ev["buckets"]:
+            n_buckets_total += 1
+            priced = price_cpi_bucket_from_kalshi(strikes, bucket["bucket_kind"], bucket["bucket_value"])
+            if priced is None:
+                continue
+            n_buckets_priced += 1
+            book = None
+            if bucket.get("yes_token_id"):
+                try:
+                    book = fetch_book(bucket["yes_token_id"])
+                except Exception as exc:
+                    book_errors.append({"market_id": str(bucket.get("market_id")), "error": str(exc)})
+            pm_best_ask = (book or {}).get("best_ask")
+            record = {
+                "schema_version": "polymarket_cpi_pairs.v1",
+                "capture_id": capture_id,
+                "captured_at": captured_at,
+                "family": "cpi",
+                "series": key[0],
+                "period": f"{key[1]:04d}-{key[2]:02d}",
+                "bucket_kind": bucket["bucket_kind"],
+                "bucket_value": bucket["bucket_value"],
+                "kalshi": {
+                    "event_ticker": kalshi_ev["event_ticker"],
+                    "derived_prob": priced["derived_prob"],
+                    "kalshi_inputs": priced["kalshi_inputs"],
+                    "monotonicity_violation": priced["monotonicity_violation"],
+                    "price_source_tag": "synthetic",
+                },
+                "polymarket": {
+                    "event_id": pm_ev["event_id"], "market_id": bucket["market_id"],
+                    "best_bid": (book or {}).get("best_bid"), "best_ask": pm_best_ask,
+                    "book_fetch_ok": book is not None,
+                    "price_source_tag": "real_ask",
+                },
+                "prob_gap": (
+                    priced["derived_prob"] - pm_best_ask
+                    if pm_best_ask is not None else None
+                ),
+            }
+            lines.append(canonical_json(record))
+
+    # Completeness gates on Polymarket's side, same rationale as run_fed_decision: Kalshi's
+    # forward calendar runs further out than Polymarket creates events for, so an
+    # unmatched Kalshi event is normal, not a failure.
+    completeness_ok = (
+        pm_error is None and not book_errors and not ambiguous_pm and not unmatched_pm
+        and n_buckets_priced == n_buckets_total
+    )
+    summary = {
+        "capture_id": capture_id, "day": day, "captured_at": captured_at,
+        "n_kalshi_events": len(kalshi_events),
+        "n_polymarket_events": len(pm_events),
+        "n_matched": len(lines),
+        "n_buckets_total": n_buckets_total,
+        "n_buckets_priced": n_buckets_priced,
+        "unmatched_polymarket": unmatched_pm,
+        "ambiguous_polymarket": ambiguous_pm,
+        "n_book_errors": len(book_errors),
+        "book_errors": book_errors,
+        "polymarket_discovery_error": pm_error,
+        "completeness_ok": completeness_ok,
+        "raw_kalshi_sha256": sha256_hex("".join(kalshi_raw).encode("utf-8")),
+    }
+
+    if lines:
+        tape_dir.mkdir(parents=True, exist_ok=True)
+        out_path = tape_dir / f"dt={day}.jsonl"
+        with open(out_path, "a", encoding="utf-8") as f:
+            for ln in lines:
+                f.write(ln + "\n")
+        summary["path"] = str(out_path)
+
+    print(f"[polymarket_cpi_pairs] {capture_id}: {len(kalshi_events)} kalshi cpi events, "
+          f"{n_buckets_priced}/{n_buckets_total} buckets priced, "
+          f"completeness={'ok' if completeness_ok else 'FAIL'}")
+    if pm_error:
+        print(f"[polymarket_cpi_pairs] WARN polymarket discovery failed: {pm_error}", file=sys.stderr)
+    if book_errors:
+        print(f"[polymarket_cpi_pairs] WARN {len(book_errors)} CLOB book fetches failed", file=sys.stderr)
     return summary
 
 

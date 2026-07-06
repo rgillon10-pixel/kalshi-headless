@@ -67,6 +67,9 @@ ANOMALY_HOUR = hp.ANOMALY_SWEEP_UTC_HOUR
 # fires at ANOMALY_HOUR but isn't exercising econ_prints itself
 _NOT_BUILT_ECON = {"status": "not_built"}
 
+# same role as _NOT_BUILT_ECON, for the Q12-follow-up CPI-pairs 09-UTC-only slot
+_EMPTY_POLYMARKET_CPI = {"n_matched": 0, "n_buckets_total": 0, "n_buckets_priced": 0, "completeness_ok": True}
+
 
 def _ts(hour):
     return datetime(2026, 7, 3, hour, 0, 0, tzinfo=timezone.utc)
@@ -231,7 +234,7 @@ def test_anomaly_sweep_not_built_does_not_fail_completeness(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["anomaly_sweep"]["result"]["status"] == "not_built"
@@ -245,7 +248,7 @@ def test_anomaly_sweep_error_marks_incomplete(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "error", "returncode": 1},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -261,7 +264,7 @@ def test_anomaly_sweep_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=_boom, econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["anomaly_sweep"]["status"] == "error"
@@ -303,7 +306,7 @@ def test_econ_prints_all_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 5},
-                     now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["econ_prints"]["result"] == {"n_series": 5, "n_complete": 5}
@@ -318,7 +321,7 @@ def test_econ_prints_partial_marks_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 3},
-                     now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -334,10 +337,83 @@ def test_econ_prints_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=_boom, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=_boom, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["econ_prints"]["status"] == "error"
+
+
+# --------------------------------------------------------------------------- #
+# polymarket_cpi_pairs (Q12 follow-up): only during the 09 UTC hour, never fakes success
+# --------------------------------------------------------------------------- #
+def test_polymarket_cpi_not_invoked_outside_09_utc(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    calls = []
+
+    def _cpi():
+        calls.append(1)
+        return dict(_EMPTY_POLYMARKET_CPI)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=_cpi, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert calls == []
+    assert summary["polymarket_cpi_pairs"] is None
+
+
+def test_polymarket_cpi_complete_does_not_fail_completeness(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=lambda: {"n_matched": 4, "completeness_ok": True},
+                     now=_ts(ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is True
+    assert summary["polymarket_cpi_pairs"]["result"]["n_matched"] == 4
+    assert summary["n_lines"] == sports["n_games"] + crypto["n_symbols"] + 4
+
+
+def test_polymarket_cpi_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=lambda: {"n_matched": 2, "completeness_ok": False},
+                     now=_ts(ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_polymarket_cpi_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    def _boom():
+        raise RuntimeError("simulated polymarket_cpi crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=_boom, now=_ts(ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["polymarket_cpi_pairs"]["status"] == "error"
 
 
 # --------------------------------------------------------------------------- #
@@ -377,10 +453,14 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     def fake_polymarket_macro_run(**kwargs):
         return dict(_EMPTY_POLYMARKET_MACRO)
 
+    def fake_polymarket_cpi_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_CPI)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
 
     rc = hp.main(["--sports-limit", "3", "--crypto-symbols", "BTC"])
 
@@ -402,9 +482,13 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     def fake_polymarket_macro_run(**kwargs):
         return dict(_EMPTY_POLYMARKET_MACRO)
 
+    def fake_polymarket_cpi_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_CPI)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
 
     assert hp.main([]) == 1
