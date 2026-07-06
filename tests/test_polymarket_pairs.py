@@ -512,4 +512,264 @@ def test_run_fed_decision_polymarket_discovery_error_isolated_not_fatal(tmp_path
                                    fetch_book=lambda t: {"best_bid": 0.1, "best_ask": 0.2})
     assert summary["polymarket_discovery_error"] == "simulated network failure"
     assert summary["completeness_ok"] is False
+
+
+# --------------------------------------------------------------------------- #
+# CPI/inflation leg (Q12 follow-up) — derived-transform pairing
+# --------------------------------------------------------------------------- #
+def _kalshi_cpi_market(event_ticker, floor_strike, yes_ask, strike_type="greater"):
+    return {"event_ticker": event_ticker, "floor_strike": floor_strike,
+            "strike_type": strike_type, "yes_ask_dollars": yes_ask}
+
+
+class FakeKalshiCpiClient:
+    base = "https://fake.test"
+
+    def __init__(self, markets_by_series):
+        self._markets_by_series = markets_by_series
+
+    def get_text(self, path, **params):
+        assert path == "/markets"
+        return json.dumps({"markets": self._markets_by_series.get(params.get("series_ticker"), [])})
+
+
+def test_discover_kalshi_cpi_events_parses_series_year_month_and_builds_strike_map():
+    client = FakeKalshiCpiClient({
+        "KXCPICORE": [
+            _kalshi_cpi_market("KXCPICORE-26JUL", 0.2, 0.87),
+            _kalshi_cpi_market("KXCPICORE-26JUL", 0.3, 0.30),
+        ],
+    })
+    events, raw = pp.discover_kalshi_cpi_events(client)
+    assert len(raw) == 3  # one /markets call per series, even when empty
+    entry = events[("cpi_core_mom", 2026, 7)]
+    assert entry["event_ticker"] == "KXCPICORE-26JUL"
+    assert entry["strikes"] == {0.2: 0.87, 0.3: 0.30}
+
+
+def test_discover_kalshi_cpi_events_drops_missing_ask_and_non_greater_strikes():
+    client = FakeKalshiCpiClient({
+        "KXCPICORE": [
+            _kalshi_cpi_market("KXCPICORE-26JUL", 0.2, None),
+            _kalshi_cpi_market("KXCPICORE-26JUL", 0.3, 0.30, strike_type="less"),
+            _kalshi_cpi_market("KXCPICORE-26JUL", 0.4, 0.10),
+        ],
+    })
+    events, _ = pp.discover_kalshi_cpi_events(client)
+    assert events[("cpi_core_mom", 2026, 7)]["strikes"] == {0.4: 0.10}
+
+
+def test_price_cpi_bucket_from_kalshi_floor():
+    r = pp.price_cpi_bucket_from_kalshi({0.0: 0.90}, "floor", 0.0)
+    assert r["derived_prob"] == pytest.approx(0.10)
+    assert r["price_source_tag"] == "synthetic" and r["monotonicity_violation"] is False
+
+
+def test_price_cpi_bucket_from_kalshi_exact():
+    r = pp.price_cpi_bucket_from_kalshi({0.2: 0.60, 0.3: 0.30}, "exact", 0.3)
+    assert r["derived_prob"] == pytest.approx(0.30)
+    assert r["kalshi_inputs"] == {"exceed_le": 0.2, "exceed_ge": 0.3}
+
+
+def test_price_cpi_bucket_from_kalshi_ceiling():
+    r = pp.price_cpi_bucket_from_kalshi({0.5: 0.08}, "ceiling", 0.6)
+    assert r["derived_prob"] == pytest.approx(0.08)
+    assert r["kalshi_inputs"] == {"exceed_le": 0.5, "exceed_ge": None}
+
+
+def test_price_cpi_bucket_from_kalshi_missing_strike_returns_none():
+    assert pp.price_cpi_bucket_from_kalshi({0.2: 0.60}, "exact", 0.3) is None
+    assert pp.price_cpi_bucket_from_kalshi({}, "floor", 0.0) is None
+
+
+def test_price_cpi_bucket_from_kalshi_monotonicity_violation_flagged_not_clipped():
+    """A thin/stale ladder can price 'exceed 0.2' BELOW 'exceed 0.3' (should never happen
+    in a coherent market) — the negative derived probability is recorded honestly, never
+    clipped to zero or silently dropped."""
+    r = pp.price_cpi_bucket_from_kalshi({0.2: 0.10, 0.3: 0.90}, "exact", 0.3)
+    assert r["derived_prob"] == pytest.approx(-0.80)
+    assert r["monotonicity_violation"] is True
+
+
+def test_parse_pm_cpi_bucket_label_floor_variants():
+    assert pp._parse_pm_cpi_bucket_label("≤0.0%") == ("floor", 0.0)
+    assert pp._parse_pm_cpi_bucket_label("<1.0%") == ("floor", 1.0)
+
+
+def test_parse_pm_cpi_bucket_label_ceiling_variants():
+    assert pp._parse_pm_cpi_bucket_label("0.6%+") == ("ceiling", 0.6)
+    assert pp._parse_pm_cpi_bucket_label("≥3.3%") == ("ceiling", 3.3)
+
+
+def test_parse_pm_cpi_bucket_label_exact():
+    assert pp._parse_pm_cpi_bucket_label("0.3%") == ("exact", 0.3)
+
+
+def test_parse_pm_cpi_bucket_label_unparseable_returns_none():
+    assert pp._parse_pm_cpi_bucket_label("no number here") == (None, None)
+
+
+def test_infer_cpi_year_normal_case():
+    # July release (month 7) for a June report (month 6) -> same year
+    assert pp._infer_cpi_year(6, "2026-07-15T03:59:00Z") == 2026
+
+
+def test_infer_cpi_year_december_rollover():
+    # January release for a December report -> report year is the PRIOR year
+    assert pp._infer_cpi_year(12, "2027-01-14T03:59:00Z") == 2026
+
+
+def test_infer_cpi_year_missing_end_date_returns_none():
+    assert pp._infer_cpi_year(6, None) is None
+
+
+def _pm_cpi_event(title, markets, event_id="E1", end_date=None):
+    ev = {"id": event_id, "title": title, "markets": markets}
+    if end_date:
+        ev["endDate"] = end_date
+    return ev
+
+
+def _pm_cpi_market(group_item_title, question, market_id=None, token_yes="TOKY", token_no="TOKN"):
+    return {"id": market_id or f"m-{group_item_title}", "groupItemTitle": group_item_title,
+            "question": question, "outcomes": json.dumps(["Yes", "No"]),
+            "clobTokenIds": json.dumps([token_yes, token_no])}
+
+
+def test_discover_polymarket_cpi_events_confirms_structurally_and_excludes_offtopic(monkeypatch):
+    events_payload = {"events": [
+        _pm_cpi_event("Core CPI MoM - July 2026", [
+            _pm_cpi_market("≤0.0%", "Will Core CPI MoM be 0.0% or less in July?"),
+            _pm_cpi_market("0.1%", "Will Core CPI MoM be 0.1% in July?"),
+        ]),
+        _pm_cpi_event("Japan Core-Core CPI YoY in 2026",
+                      [_pm_cpi_market("≤1.9%", "irrelevant, different country/series shape")]),
+        _pm_cpi_event("Price of Dozen Eggs in June?", [_pm_cpi_market("<$1.50", "irrelevant, not CPI")]),
+    ]}
+    monkeypatch.setattr(pp.requests, "get", lambda url, **kw: _FakeResp(events_payload))
+    out, raw = pp.discover_polymarket_cpi_events(queries=("CPI",))
+    assert len(out) == 1
+    ev = out[0]
+    assert ev["series_key"] == "cpi_core_mom" and ev["year"] == 2026 and ev["month"] == 7
+    assert len(ev["buckets"]) == 2
+    floor_bucket = next(b for b in ev["buckets"] if b["bucket_kind"] == "floor")
+    assert floor_bucket["bucket_value"] == pytest.approx(0.0) and floor_bucket["yes_token_id"] == "TOKY"
+
+
+def test_discover_polymarket_cpi_events_infers_year_from_end_date_when_title_has_none(monkeypatch):
+    events_payload = {"events": [
+        _pm_cpi_event("June Inflation US - Monthly",
+                      [_pm_cpi_market("≤0.1%", "Will monthly inflation increase by 0.1% or less in June?")],
+                      end_date="2026-07-15T03:59:00Z"),
+    ]}
+    monkeypatch.setattr(pp.requests, "get", lambda url, **kw: _FakeResp(events_payload))
+    out, _ = pp.discover_polymarket_cpi_events(queries=("Inflation",))
+    assert len(out) == 1
+    assert out[0]["series_key"] == "cpi_mom" and out[0]["year"] == 2026 and out[0]["month"] == 6
+
+
+def test_discover_polymarket_cpi_events_dedupes_across_queries(monkeypatch):
+    events_payload = {"events": [
+        _pm_cpi_event("Core CPI MoM - July 2026", [_pm_cpi_market("≤0.0%", "irrelevant")]),
+    ]}
+    monkeypatch.setattr(pp.requests, "get", lambda url, **kw: _FakeResp(events_payload))
+    out, _ = pp.discover_polymarket_cpi_events(queries=("CPI", "Inflation"))
+    assert len(out) == 1
+
+
+def test_run_cpi_matches_and_computes_gap(tmp_path):
+    client = FakeKalshiCpiClient({
+        "KXCPICORE": [
+            _kalshi_cpi_market("KXCPICORE-26JUL", 0.0, 0.90),
+            _kalshi_cpi_market("KXCPICORE-26JUL", 0.1, 0.40),
+        ],
+    })
+    pm_events = [{
+        "event_id": "E1", "series_key": "cpi_core_mom", "year": 2026, "month": 7,
+        "buckets": [{"market_id": "M1", "bucket_kind": "floor", "bucket_value": 0.0,
+                     "question": "q", "yes_token_id": "TOKY"}],
+    }]
+    summary = pp.run_cpi(client=client, tape_dir=tmp_path,
+                          pm_discover=lambda: (pm_events, ["raw"]),
+                          fetch_book=lambda tok: {"best_bid": 0.08, "best_ask": 0.12})
+    assert summary["n_matched"] == 1
+    assert summary["n_buckets_total"] == 1 and summary["n_buckets_priced"] == 1
+    assert summary["completeness_ok"] is True
+
+    lines = (tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()
+    assert len(lines) == 1
+    rec = json.loads(lines[0])
+    assert rec["family"] == "cpi" and rec["series"] == "cpi_core_mom" and rec["period"] == "2026-07"
+    assert rec["kalshi"]["derived_prob"] == pytest.approx(0.10)
+    assert rec["kalshi"]["price_source_tag"] == "synthetic"
+    assert rec["polymarket"]["best_ask"] == pytest.approx(0.12)
+    assert rec["polymarket"]["price_source_tag"] == "real_ask"
+    assert rec["prob_gap"] == pytest.approx(0.10 - 0.12)
+
+
+def test_run_cpi_kalshi_forward_calendar_unmatched_does_not_fail_completeness(tmp_path):
+    """A Kalshi CPI event with no Polymarket counterpart (Kalshi's series typically lists
+    events several months further out than Polymarket creates them) is normal, not a
+    failure — same rationale as the Fed-decision leg."""
+    client = FakeKalshiCpiClient({
+        "KXCPICORE": [_kalshi_cpi_market("KXCPICORE-26NOV", 0.0, 0.99)],
+    })
+    summary = pp.run_cpi(client=client, tape_dir=tmp_path, pm_discover=lambda: ([], ["raw"]),
+                          fetch_book=lambda tok: {"best_bid": 0.1, "best_ask": 0.2})
+    assert summary["n_matched"] == 0
+    assert summary["completeness_ok"] is True
+    assert not (tmp_path / f"dt={summary['day']}.jsonl").exists()
+
+
+def test_run_cpi_unmatched_polymarket_event_fails_completeness(tmp_path):
+    client = FakeKalshiCpiClient({"KXCPICORE": [_kalshi_cpi_market("KXCPICORE-26JUL", 0.0, 0.90)]})
+    pm_events = [{"event_id": "E1", "series_key": "cpi_core_mom", "year": 2026, "month": 8,
+                  "buckets": [{"market_id": "M1", "bucket_kind": "floor", "bucket_value": 0.0,
+                               "question": "q", "yes_token_id": "TOKY"}]}]
+    summary = pp.run_cpi(client=client, tape_dir=tmp_path, pm_discover=lambda: (pm_events, ["raw"]),
+                          fetch_book=lambda tok: {"best_bid": 0.1, "best_ask": 0.2})
+    assert summary["n_matched"] == 0
+    assert summary["unmatched_polymarket"] == ["E1"]
+    assert summary["completeness_ok"] is False
+
+
+def test_run_cpi_ambiguous_polymarket_events_for_same_period_recorded_not_guessed(tmp_path):
+    client = FakeKalshiCpiClient({"KXCPICORE": [_kalshi_cpi_market("KXCPICORE-26JUL", 0.0, 0.90)]})
+    pm_events = [
+        {"event_id": "E1", "series_key": "cpi_core_mom", "year": 2026, "month": 7, "buckets": []},
+        {"event_id": "E2", "series_key": "cpi_core_mom", "year": 2026, "month": 7, "buckets": []},
+    ]
+    summary = pp.run_cpi(client=client, tape_dir=tmp_path, pm_discover=lambda: (pm_events, ["raw"]),
+                          fetch_book=lambda tok: {"best_bid": 0.1, "best_ask": 0.2})
+    assert summary["ambiguous_polymarket"] == ["E1"]
+    assert summary["completeness_ok"] is False
+
+
+def test_run_cpi_bucket_missing_kalshi_strike_recorded_and_fails_completeness(tmp_path):
+    """A Polymarket bucket whose required Kalshi strike(s) aren't listed (a thin/unlisted
+    threshold) is a real integrity gap for that bucket specifically — recorded via
+    n_buckets_priced < n_buckets_total, never silently skipped from the count."""
+    client = FakeKalshiCpiClient({
+        "KXCPICORE": [_kalshi_cpi_market("KXCPICORE-26JUL", 0.0, 0.90)],
+    })
+    pm_events = [{"event_id": "E1", "series_key": "cpi_core_mom", "year": 2026, "month": 7,
+                  "buckets": [{"market_id": "M1", "bucket_kind": "exact", "bucket_value": 0.3,
+                               "question": "q", "yes_token_id": "TOKY"}]}]
+    summary = pp.run_cpi(client=client, tape_dir=tmp_path, pm_discover=lambda: (pm_events, ["raw"]),
+                          fetch_book=lambda tok: {"best_bid": 0.1, "best_ask": 0.2})
+    assert summary["n_buckets_total"] == 1 and summary["n_buckets_priced"] == 0
+    assert summary["completeness_ok"] is False
+    assert not (tmp_path / f"dt={summary['day']}.jsonl").exists()
+
+
+def test_run_cpi_polymarket_discovery_error_isolated_not_fatal(tmp_path):
+    client = FakeKalshiCpiClient({"KXCPICORE": [_kalshi_cpi_market("KXCPICORE-26JUL", 0.0, 0.90)]})
+
+    def raising_pm_discover():
+        raise RuntimeError("simulated network failure")
+
+    summary = pp.run_cpi(client=client, tape_dir=tmp_path, pm_discover=raising_pm_discover,
+                          fetch_book=lambda tok: {"best_bid": 0.1, "best_ask": 0.2})
+    assert summary["polymarket_discovery_error"] == "simulated network failure"
+    assert summary["completeness_ok"] is False
     assert summary["n_matched"] == 0

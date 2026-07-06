@@ -26,7 +26,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S14** | Ladder overround underwriting (short the complete bracket set) | 2026-07-04 gen pass · overround inversion × QF Theme 3 | idea | low | L2-tape fill-sim: E[overround × P(complete fill)] − E[loss on partial sets @ real asks] > 0, CI over ≥30 event-days |
 | **S15** | Cross-event logical-implication scanner (A⇒B ⇒ P(A)≤P(B)) | 2026-07-04 gen pass · S3 extension × QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q11, 2026-07-05) 3rd check + `config/implication_pairs.yaml` (hand-audited `kxwcround_progression` family); runs in existing daily 09 UTC slot; live-validated against real KXWCROUND markets (38 pairs/40 open markets, 0 hits — expected); kill if 0 fee-clearing hits in 60 days |
 | **S16** | FedWatch-anchored shock fade on KXFED | 2026-07-04 gen pass · QF Theme 7 × S2 adjacency | idea | low | enter only \|Kalshi−FedWatch\| > spread+fee around releases; paper exit on convergence/T+24h; bootstrap by shock; CI>0; kill if Kalshi leads ZQ |
-| **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | **data-collecting** | low | retarget matcher to Fed/CPI questions; ≥5 live-book pairs/month both venues; lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
+| **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | **data-collecting** | low | Fed + CPI matchers both built (2026-07-06); ≥5 live-book pairs/month cleared; remaining: accumulate + lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
 | **S18** | Single-poll overreaction fade (Congress-control markets) | 2026-07-04 gen pass · QF Theme 7 × elections category | idea | low | paper fade @ real ask when single-poll jump >3¢ while polling average moved <1¢-eq; exit reversion/T+72h; bootstrap by poll event; CI>0 before 2026-11 |
 
 ## Notes on each
@@ -364,3 +364,20 @@ cumulative "≥ threshold" ladder while Polymarket prices an exact bucket — pa
 derived/synthetic transform, not a same-question real_ask pair, so it isn't faked here. S17's own
 gate (≥5 matched live-book pairs/month) is already cleared by this one pass; remaining work is
 accumulation + the eventual lead-lag cross-correlation, same shape as S9.
+
+**Update 2026-07-06 (Q12 CPI follow-up):** built the deferred CPI/inflation leg,
+`run_cpi()` — a third discovery family pairing Kalshi's `KXCPI`/`KXCPIYOY`/`KXCPICORE`
+cumulative "exceed T" ladders against Polymarket's exact 0.1-point bucket partition for
+the same 3 US print series. Not a same-question `real_ask` pair like the WC-round/Fed
+families: `price_cpi_bucket_from_kalshi` derives each Polymarket bucket's probability by
+differencing two adjacent Kalshi asks, tagged `synthetic` per Hard Rule #3's spirit even
+though both inputs are genuine `real_ask` fills — this is exactly the transform the prior
+cut deferred rather than fake. 23 new unit tests, wired into `hourly_pass.py`'s existing
+09 UTC daily slot (CPI releases monthly — no need for hourly cadence). Live pass: 17 open
+Kalshi CPI events, 3 matched Polymarket events (current core-MoM/YoY/headline-MoM prints),
+22/28 buckets priced — the other 6 need Kalshi strikes beyond what its ladder currently
+lists (a real, honestly-recorded coverage gap, not a bug) — 0 unmatched/ambiguous
+Polymarket events, one bucket's derived probability came back negative
+(`monotonicity_violation: true`, a thin/stale Kalshi strike, recorded not clipped). S17's
+own gate was already cleared by the Fed leg; this closes the item's only documented
+remaining-work gap besides accumulation.
