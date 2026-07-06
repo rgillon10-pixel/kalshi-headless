@@ -18,7 +18,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
 | **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | **dead ✗** | med | TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5's NWS/WU |
-| **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **data-collecting** | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
+| **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **dead ✗** | low | RESOLVED 2026-07-06: n=8 ticker-steps across 2 real round transitions, both venues repriced together every time (mean \|Δk−Δp\| 2.2¢) — collection cadence (hourly-min, platform trigger constraint) is coarser than the event itself; data-adequacy DEAD, not a CI falsification. Parity sub-question survives under S17. |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
 | **S12** | Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred) | 2026-07-04 gen pass · QF Themes 1+5 × econ category | **data-collecting** | med | ≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where \|nowcast−implied\| > overround share+fee; block-bootstrap by release; CI>0 |
@@ -172,6 +172,26 @@ captures around scheduled game-end times or accepting this infra only answers a 
 parity question, not lead-lag. Stays `data-collecting`; flagged for a resolution decision
 before the WC ends Jul 19 (only a handful of transitions remain). See
 `findings/2026-07-06-polymarket-leadlag-s9-shock-eventstudy.md`.
+
+**S9 → resolution decision (2026-07-06, Q8 closed): lead-lag flips dead ✗ (data-adequacy),
+parity sub-question survives under S17.** Checked this loop's actual scheduling primitives
+before deciding: recurring cron triggers are hard-capped at hourly minimum interval (the
+tool's own schema states it), ruling out a sub-hourly recurring poll. One-shot triggers
+aren't cadence-limited, but placing them around a match's real end-time needs a kickoff
+timestamp the accumulated `tape/polymarket_pairs/` doesn't carry (round/team/price only) and
+neither collector currently resolves for KXWCROUND markets — and wiring up N one-shot
+captures per remaining match is a new class of unattended multi-day automation, the same
+category as the VPS collector and `ntfy-watch`, both of which were Ryan-requested ops
+changes rather than something a research-loop run decided alone. Building that
+infrastructure unilaterally is outside a single milestone's scope. Per the Stop rules, a
+DEAD verdict recorded honestly is a success: the **lead-lag** sub-thesis (does one venue
+reprice first around a shock?) is dead by data-adequacy — not falsified by a CI, just
+untestable with hourly-minimum automation and no kickoff-time signal to burst around. The
+**cross-venue parity** sub-thesis (do the two venues quote the same price on average right
+now?) is a different, already-useful question the existing infra answers fine (48/48 matched,
++0.20¢ mean gap, 2026-07-04 first cut) and continues under S17's Fed-decision generalization,
+which doesn't need sub-hourly resolution. No new code this run — a decision on already-
+collected evidence. See `findings/2026-07-06-polymarket-leadlag-s9-resolution.md`.
 
 **S8 → Q5 first cut (2026-07-03): overround flag resolved, ρ-guard inconclusive (stays
 data-collecting).** `scripts/s8_basis_probe.py` (read-only over accumulated
