@@ -234,7 +234,8 @@ def test_simulate_outcomes_uses_maker_not_taker_fee_rate():
     bid = rows[0]["bid_price"]
     assert rows[0]["fee_per_contract"] == pytest.approx(
         sim.fee_per_contract(bid, rate=sim.MAKER_FEE_RATE))
-    assert rows[0]["fee_per_contract"] != pytest.approx(sim.fee_per_contract(bid, rate=0.07))
+    assert rows[0]["fee_per_contract"] != pytest.approx(
+        sim.fee_per_contract(bid, rate=sim.TAKER_FEE_RATE))
 
 
 def test_simulate_outcomes_no_fill_skips_edge_fields():

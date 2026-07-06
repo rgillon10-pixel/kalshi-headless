@@ -119,8 +119,8 @@ directional pre-position with unbounded per-event downside (dossier caveat). We 
 Kalshi leg to SETTLEMENT (H0 = YES -> $1.00).
 
 Net-of-fee per 1 contract ($1 notional):
-  * Kalshi taker fee = ceil(fee_coeff * p * (1-p) * contracts) cents, fee_coeff=0.07
-    (config/venues.yaml; p = normalized hold prob). Charged in CENTS, rounded UP -> back to $.
+  * Kalshi taker fee = ceil(fee_coeff * p * (1-p) * contracts) cents, where fee_coeff is
+    core.pricing.TAKER_FEE_RATE (p = normalized hold prob). Charged in CENTS, rounded UP -> $.
   * ZQ commission: ZQ_COMMISSION per contract (round-turn retail futures, conservative).
   * ZQ slippage: 1 ZQ tick. ZQ tick = 0.0025 price pts = $10.4175 per contract; on a $1-notional
     per-contract basis we charge ZQ_TICK_BP_AS_PROB as a probability-space haircut (1 tick of
@@ -162,7 +162,7 @@ import numpy as np
 # Make the substrate importable however this script is invoked.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.canonical import sha256_hex  # noqa: E402
-from core.pricing import bracket_sum, normalized_ask, overround  # noqa: E402
+from core.pricing import bracket_sum, normalized_ask, overround, TAKER_FEE_RATE  # noqa: E402
 from core.source_tag import tag_or_synthetic  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -177,7 +177,7 @@ OUTCOME_SUFFIXES = ["H0", "H25", "H26", "C25", "C26"]
 HOLD_SUFFIX = "H0"
 
 # ── fee / cost model constants (see docstring; all stated assumptions) ──────────
-KALSHI_FEE_COEFF = 0.07         # config/venues.yaml: ceil(0.07*p*(1-p)*contracts) cents
+KALSHI_FEE_COEFF = TAKER_FEE_RATE  # core.pricing single fee source (L5): ceil(coeff*p*(1-p)) cents
 ZQ_COMMISSION_USD = 0.012       # conservative retail round-turn commission per ZQ contract ($)
 # 1 ZQ tick = 0.0025 rate pts. As an implied-prob haircut over a 25bp decision grid, one tick
 # of rate is 0.0025/0.25 = 0.01 of the move's probability weight -> ~1c of prob slippage,
@@ -393,7 +393,7 @@ def zq_p_hold_from_close(close: float, n_pre: int, n_post: int,
 # ─── fee model ──────────────────────────────────────────────────────────────────
 def kalshi_taker_fee_usd(p: float, contracts: int = 1) -> float:
     """Kalshi taker fee in DOLLARS: ceil(fee_coeff * p*(1-p) * contracts) cents -> dollars.
-    config/venues.yaml fee_coeff=0.07. p is the normalized hold probability (the trade price)."""
+    fee_coeff is core.pricing.TAKER_FEE_RATE. p is the normalized hold probability (trade price)."""
     cents = math.ceil(KALSHI_FEE_COEFF * p * (1.0 - p) * contracts * 100.0)
     return cents / 100.0
 

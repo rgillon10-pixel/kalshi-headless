@@ -6,6 +6,55 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-06 UTC — kb-distiller: escalated lessons L5/L7/L17 (fee-rate invariant, stranded-tape warning)
+
+Distiller milestone (research-lead directed). Moved three UNENFORCED lessons along the
+invariants-over-memory gradient; ledger rows L18–L20 appended (append-only, superseding by
+reference).
+
+**L5 → invariant (`no_handrolled_fee_rate`).** The Kalshi fee-schedule rates now live solely
+in `core/pricing.py` as module constants `TAKER_FEE_RATE` (0.07) / `MAKER_FEE_RATE` (0.0175)
+/ `SP500_NDX_FEE_RATE` (0.035); `fee_per_contract` and `monotonicity_crossing_edge` default
+to `TAKER_FEE_RATE` (same value, conservative default). A new static rule in
+`scripts/invariants.py` flags, outside `core/pricing.py`, (A) a fee/rate/coeff-named constant
+or kwarg bound to a banned literal and (B) a banned literal passed positionally into
+`fee_per_contract()`; comment lines are skipped and 0.0035 (longshot's modeling haircut, not a
+schedule rate) deliberately does not fire. Refactored every existing hit value-identical:
+`collection/sports_history.py`, `scripts/s13_maker_fillsim.py`, `scripts/weather_rehab_s5.py`,
+`scripts/fomc_zq_basis_s2.py`, `scripts/fee_breakeven.py` (now imports the three constants; KB
+proof still runs with identical output), and `tests/test_s13_maker_fillsim.py:237` (rewritten
+to use the imported `TAKER_FEE_RATE` so the maker≠taker assertion intent survives). A few
+docstring/print-string prose lines were reworded rather than sentinel-littered. Honest scope:
+constants and literal call-args are enforced; a from-scratch reimplementation using an
+imported rate is not statically catchable and remains protocol. Post-review tightening: after
+the verifier flagged that pattern A's identifier class matched fee/rate/coeff as raw substrings
+(benign names like `accurate`/`coffee`/`separate` would have poisoned the gate), the rule now
+requires fee/rate/coeff to be a whole underscore-delimited token segment — `SP500_NDX_FEE_RATE`
+/`FEE_COEFF` still fire, the benign substrings no longer do (tests pin both directions).
+
+**L7 → protocol (terminal, no invariant).** A numeric width literal is indistinguishable from
+any other constant at regex level, and the one live site (`s8_basis_probe.py`'s documented
+`BAND_WIDTH_DOLLARS_BY_SYMBOL` schedule map) would force a false-positive or a vacuous
+sanction. Recorded as an honest terminal state, plus a residual hazard this review surfaced:
+`s8_basis_probe.py`'s `.get(symbol, 100.0)` silent $100 fallback would repeat the ETH-class
+bug for any new symbol — S8 is dead and the script historical (NOT edited), but future crypto
+probes (Q7/S10) must derive spacing from the ladder or fail loudly.
+
+**L17 → protocol + non-gating invariants warning.** `invariants.py --full` (and default tree
+scan only — never `--pre-edit-hook` or `--db`) now prints a stderr advisory listing
+locally-known stranded `tape/hourly-*` refs. `_git_tape_refs()` is fully offline-safe (any git
+failure → no refs); `stranded_tape_warning()` is pure. It never touches the exit code — 35
+stranded refs print on today's tree and the gate still exits 0. LOOP-QUEUE step 0b remains the
+binding sweep.
+
+Gate unchanged: warnings never gate. `pytest -q` 340 passed; `invariants.py --full` exit 0
+(the stranded-branch warning on stderr is expected). No strategy status changed
+(`kb/strategies/00-index.md` untouched — these are lessons, not verdicts). Findings linked:
+`findings/2026-07-04-sports-maker-s13-verdict.md` (L5), `findings/2026-07-04-crypto-basis-s8-verdict.md`
+(L7), `findings/2026-07-06-tape-audit.md` (L17).
+
+---
+
 ## 2026-07-06 (later) UTC — Q12 closed: S17 CPI/inflation leg (derived-transform pairing)
 
 Research loop. `git fetch origin main` at `4b76056`; local `main` ref was found badly

@@ -60,7 +60,7 @@ from collection.sports_history import american_to_decimal  # noqa: E402
 from collection.sports_pairs import devig_multiplicative  # noqa: E402
 from core.canonical import canonical_json, sha256_hex  # noqa: E402
 from core.io import REPO_ROOT  # noqa: E402
-from core.pricing import fee_per_contract  # noqa: E402
+from core.pricing import fee_per_contract, MAKER_FEE_RATE, TAKER_FEE_RATE  # noqa: E402
 from scripts.s7c_sports_clv_bootstrap import block_bootstrap, load_games  # noqa: E402
 
 CLV_TAPE_GLOB = str(REPO_ROOT / "tape" / "sports_clv" / "dt=*.jsonl")
@@ -68,11 +68,11 @@ HISTORY_TAPE_GLOB = str(REPO_ROOT / "tape" / "sports_history" / "dt=*.jsonl")
 CANDLES_CACHE_DIR = REPO_ROOT / "tape" / "sports_maker_fillsim"
 BID_OFFSET = 0.01
 MIN_PRICE, MAX_PRICE = 0.01, 0.99
-# A resting bid that gets filled is a MAKER fill, not a taker one — Kalshi's published fee
-# schedule (kb/kalshi-api/03-fees-and-breakeven.md) charges 0.0175, a quarter of the 0.07
-# taker rate `core.pricing.fee_per_contract`'s own default models. Passing that default here
-# unmodified would silently overcharge every simulated fill by 4x its real fee.
-MAKER_FEE_RATE = 0.0175
+# A resting bid that gets filled is a MAKER fill, not a taker one — the maker rate is a quarter
+# of the taker rate `core.pricing.fee_per_contract`'s own default models. Passing that default
+# here unmodified would silently overcharge every simulated fill by 4x its real fee (lesson L5).
+# MAKER_FEE_RATE is imported above from core.pricing (the single fee-schedule source of truth)
+# and used under that same name throughout this module — no local literal.
 
 
 # --------------------------------------------------------------------------- #
