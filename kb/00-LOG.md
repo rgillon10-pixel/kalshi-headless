@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-07 11:08 ET — research loop: stranded-tape sweep only (queue/lessons/registry all genuinely idle)
+
+Claim-check: `git fetch origin main` at `97ad331`, local branch already at the real tip. Open
+PRs unchanged — #4 still claims Q1 (odds-api leg, unrelated, awaiting `ODDS_API_KEY`; open
+since 2026-07-03, now just under 4 days — still short of PR #18's flagged 5-day escalation
+mark) and #18 (weekly-retro protocol amendments, left for Ryan, never self-merged).
+
+Queue check: Q2–Q6/Q8–Q12/Q16 all DONE. Q7 needs ≥7 distinct days of `tape/crypto_hourly/`
+tape — counted the actual files on disk: 5 days (`dt=2026-07-03`…`dt=2026-07-07`), still
+BLOCKED, eligible ~2026-07-09/10. Q13 needs ≥10 distinct days of `tape/sports_pairs/` tape —
+counted: 6 days (`dt=2026-07-02`…`dt=2026-07-07`), still BLOCKED, eligible ~2026-07-12/13.
+No numbered queue item was eligible.
+
+Lessons ledger check (`kb/lessons/00-lessons.md`): every row is now either an `invariant`,
+a `test`, a terminal `protocol`/`ledger-only` state, or (L22) already resolved by L24 last
+run. Zero `UNENFORCED` rows remain — the standing lessons queue is drained too.
+
+Registry check (`kb/strategies/00-index.md`): every `idea`-stage candidate is externally
+blocked — S4 (unrelated-repo FEx archiver), S10=Q7 and S14=Q13 (tape day-count, above), S11
+(needs the same Pinnacle/odds-api anchor Q1 is already blocked on), S16=Q14 and S18=Q15
+(data-adequacy BLOCKED, re-checked live this run: `HOUSE`/`SENATE`/`KXHOUSE`/`KXSENATE` still
+list 0 markets in any status — 2026 midterm contracts still not listed, `ODDS_API_KEY` still
+absent from env). No new milestone was actionable — genuinely nothing to append past what the
+last several runs already exhausted.
+
+Step 0b sweep (the one real piece of work this run did): of 50 `tape/hourly-*` branches, 5
+fresh ones since the last run's cutoff (`20260707T0456Z`/`055501Z`/`202607070749Z`/`0756Z`/
+`0956Z`, all >30min old) carried lines `main` lacked — 10 crypto_hourly + 3,458
+orderbook_depth + 75 polymarket_macro_pairs + 120 polymarket_pairs + 889 sports_pairs + 5
+econ_prints + 1 anomalies = **4,558 lines total**, union-deduped across all 5 branches (every
+line validated as parseable JSON, 0 exact duplicates), appended into this run's commit.
+`tape/hourly-20260707T1359Z` confirmed a stale branch name pointing at a pre-project commit
+(`6cde523`, zero real tape content, harmless — same pattern as prior runs). `git push origin
+--delete` not reattempted this run (documented permission boundary, failed every time it's
+been tried since 2026-07-03; PR #18 already proposes dropping the retry). 362 tests green
+(unchanged — no source/test code touched), `invariants --full` green.
+
+No strategy status changed; no code changed. This is an honest maintenance-only run — the
+loop's own queue, lessons ledger, and idea registry are all simultaneously drained pending
+external clocks (tape day-counts) and external walls (odds-api key, Congress-market listing,
+CME bot-wall). Nothing here should be read as stalled; it's the expected shape of a run that
+lands inside a 2-3 day accumulation gap.
+
 ## 2026-07-07 UTC — research loop: stranded-tape sweep + L22 resolution (real_bid taxonomy decision)
 
 Claim-check: `git fetch origin main` at `e20f026`; open PRs unchanged — #4 still claims Q1
