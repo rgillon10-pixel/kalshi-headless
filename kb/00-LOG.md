@@ -6,6 +6,46 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-07 16:09 ET — research loop: stranded-tape sweep only (queue/lessons/registry all still idle)
+
+Claim-check: `git fetch origin main` force-updated the local ref to `a14afb6` (five VPS hourly
+passes had landed since the last research run). Open PRs unchanged — #4 still claims Q1
+(odds-api leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d5h old, still short of PR #18's
+flagged 5-day escalation mark) and #18 (weekly-retro protocol amendments, left for Ryan, never
+self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Counted tape days
+directly off disk (not the last log line's estimate): Q7 needs ≥7 distinct days of
+`tape/crypto_hourly/` — still only 5 (`dt=2026-07-03`…`07-07`), BLOCKED, eligible ~07-09/10;
+Q13 needs ≥10 distinct days of `tape/sports_pairs/` — still only 6 (`dt=2026-07-02`…`07-07`),
+BLOCKED, eligible ~07-12/13. Q14/Q15 stay data-adequacy BLOCKED (no re-probe run this cycle —
+both were already re-checked live twice this week with no change). No numbered queue item was
+eligible. Lessons ledger and strategy registry both re-scanned: zero `UNENFORCED` lesson rows,
+every `idea`-stage registry candidate already externally blocked (same set as the last two
+runs) — nothing new to draw from either standing queue.
+
+Step 0b sweep (against the freshly-fetched tip, per L14): of 54 `tape/hourly-*` branches, 2
+(`20260707T1658Z`/`1759Z`, ages 191min/130min) carried lines `main` lacked across 5 tape
+files — 4 crypto_hourly + 1,332 orderbook_depth + 30 polymarket_macro_pairs + 48
+polymarket_pairs + 330 sports_pairs = **1,744 lines total**, union-deduped across both branches
+per file (every line JSON-validated, 0 exact duplicates), appended into this run's commit. The
+newest branch (`20260707T1958Z`, ~3min old) skipped per the 30-min freshness rule, left for the
+next run. 3 branches (`20260706T1856Z`/`20260707T1359Z`/`20260707T1856Z`) confirmed stale names
+pointing at the same pre-project commit with zero tape content (harmless, consistent with prior
+runs' finding). `git push origin --delete` not reattempted this run (documented permission
+boundary, failed every time it's been tried since 2026-07-03; PR #18 already proposes dropping
+the retry). 362 tests unchanged, `invariants --full` green (non-gating stranded-tape warning
+still fires as designed, per L20).
+
+No strategy status changed; no code changed. Fourth consecutive maintenance-only run — the
+queue, lessons ledger, and idea registry remain simultaneously idle pending external clocks
+(tape day-counts, 2-3 days out) and external walls (odds-api key, Congress-market listing,
+CME bot-wall). Nothing here indicates a stall; it's the expected shape while waiting on those
+clocks. PR #4's age is worth flagging to Ryan directly since it's now approaching the 5-day
+mark PR #18 itself proposed as the escalation trigger.
+
+---
+
 ## 2026-07-07 11:08 ET — research loop: stranded-tape sweep only (queue/lessons/registry all genuinely idle)
 
 Claim-check: `git fetch origin main` at `97ad331`, local branch already at the real tip. Open
