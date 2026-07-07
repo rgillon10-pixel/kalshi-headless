@@ -417,6 +417,106 @@ def test_polymarket_cpi_raising_marks_incomplete_not_crash(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# orderbook_depth (S6): full-depth sub-pass — count folding, completeness, fault isolation,
+# and same-pass ticker gathering read straight back from the sports/crypto tape
+# --------------------------------------------------------------------------- #
+# a zero-contribution depth stub for tests not exercising the depth sub-pass itself
+_EMPTY_DEPTH = {"n_captured": 0, "n_expected": 0, "n_lines": 0, "completeness_ok": True}
+
+
+def test_depth_counts_fold_into_totals(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _depth(tickers):
+        return {"n_captured": 4, "n_expected": 4, "completeness_ok": True}
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     depth_fn=_depth, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is True
+    # 1 game line + 1 symbol line + 4 depth lines; markets = 1*2 + 1*10 + 4 depth markets
+    assert summary["n_lines"] == 1 + 1 + 4
+    assert summary["n_markets"] == 1 * 2 + 1 * 10 + 4
+    assert summary["orderbook_depth"]["result"]["n_captured"] == 4
+
+
+def test_depth_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    def _depth(tickers):
+        return {"n_captured": 2, "n_expected": 3, "completeness_ok": False}
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     depth_fn=_depth, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_depth_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom(tickers):
+        raise RuntimeError("simulated orderbook_depth crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     depth_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["orderbook_depth"]["status"] == "error"
+    # the other sub-passes and their counts survive the depth crash (fault isolation)
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+    assert summary["n_lines"] == 1 + 1
+    assert summary["n_markets"] == 2 + 10
+
+
+def test_depth_receives_this_passes_discovered_tickers(tmp_path):
+    # sports tape line carries outcomes[].ticker; crypto tape carries current.outcomes[].ticker.
+    # _gather_depth_tickers must read exactly those, filtered by capture_id.
+    sports_path = _write_tape(tmp_path, "sports_od.jsonl", [
+        {"capture_id": "capA", "outcomes": [{"ticker": "KX-A"}, {"ticker": "KX-B"}]},
+        {"capture_id": "other", "outcomes": [{"ticker": "STALE"}]},
+    ])
+    crypto_path = _write_tape(tmp_path, "crypto_od.jsonl", [
+        {"capture_id": "capB", "current": {"outcomes": [{"ticker": "KXBTC-1"}]}},
+    ])
+    sports = {"capture_id": "capA", "n_games": 1, "n_complete": 1, "path": sports_path}
+    crypto = {"capture_id": "capB", "n_symbols": 1, "n_complete": 1, "path": crypto_path}
+
+    seen = {}
+
+    def _depth(tickers):
+        seen["tickers"] = list(tickers)
+        return {"n_captured": len(tickers), "n_expected": len(tickers), "completeness_ok": True}
+
+    hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+           polymarket_fn=lambda: _EMPTY_POLYMARKET,
+           polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+           depth_fn=_depth, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert seen["tickers"] == ["KX-A", "KX-B", "KXBTC-1"]
+
+
+def test_gather_depth_tickers_empty_when_subpass_errored(tmp_path):
+    # a raised sports sub-pass yields no path -> no tickers from it (never a stale sweep)
+    crypto_path = _write_tape(tmp_path, "crypto_g.jsonl", [
+        {"capture_id": "capB", "current": {"outcomes": [{"ticker": "KXBTC-1"}]}},
+    ])
+    sports = {"status": "error", "error": "boom"}
+    crypto = {"status": "ok", "result": {"capture_id": "capB", "path": crypto_path}}
+    assert hp._gather_depth_tickers(sports, crypto) == ["KXBTC-1"]
+
+
+# --------------------------------------------------------------------------- #
 # n_markets accounting helper, in isolation
 # --------------------------------------------------------------------------- #
 def test_sum_expected_markets_from_tape_filters_by_capture_id(tmp_path):
