@@ -6,6 +6,59 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-07 UTC — research loop: stranded-tape sweep, S6 orderbook-depth collector built (Q16, new)
+
+Claim-check: `git fetch origin main` at `c238b17`; local `main` ref re-pointed via
+`git branch -f main origin/main` (session branch was already at the real tip, per L14). Open
+PRs unchanged — #4 still claims Q1 (odds-api leg, unrelated, awaiting `ODDS_API_KEY`; open
+since 2026-07-03, approaching but not yet past the 5-day mark PR #18's retro proposal flagged
+for a priority escalation) and #18 (weekly-retro protocol amendments, left for Ryan, never
+self-merged). Q2–Q6/Q8–Q12 all DONE; Q7 BLOCKED (only ~4 days of Q2 tape, needs ≥7); Q13
+BLOCKED (only ~4 days of Q3 tape, needs ≥10) — **no numbered queue item was eligible.**
+
+Step 0b sweep: of 42 `tape/hourly-*` branches, 2 fresh ones (`20260706T2059Z`/`2255Z`, both
+>30min old) carried lines `main` lacked — 8 crypto_hourly + 60 polymarket_macro_pairs + 124
+polymarket_pairs + 710 sports_pairs, union-deduped across both branches (every line validated
+as parseable JSON, 0 exact duplicates), appended into this run's commit. `git push origin
+--delete` still fails from a cloud session on every already-reconciled branch (same documented
+permission boundary).
+
+With the queue drained to time-blocked items and Q1 claimed, checked the registry for the next
+un-started, non-externally-blocked candidate: S4 depends on an unrelated repo's FEx tape
+archiver, S10=Q7 and S11 both already blocked the same way as Q7/Q1 — **S6** (inventory-aware
+market-making) was the only remaining `idea`-stage candidate with no external block, so
+appended **Q16** and built it via the `collector-engineer` subagent. Built
+`collection/orderbook_depth.py`: full L2 book depth capture (`yes_bids`/`no_bids` price+size
+ladders, not just BBO) reusing `collection/normalize.py:normalize_snapshot` verbatim, fed by
+the exact tickers `sports_pairs`/`crypto_hourly` already discover each pass — read straight
+back from their own freshly-written tape by `capture_id`, no platform re-sweep (L10). Every
+book read tagged `real_ask`/`real_bid`; honest per-ticker completeness (a failed fetch is a
+DROP, never absorbed). Wired into `hourly_pass.py` as a fifth fault-isolated sub-pass. 13 new
+unit tests (361 total), `invariants --full` green.
+
+Live pass against real Kalshi data: fed 6 tickers from the current-hour `KXBTC-26JUL0621`
+group into the collector — 6/6 captured, `completeness_ok=True`, sample reading
+`KXBTC-26JUL0621-T71799.99` depth=71, `best_no_bid=0.99 → best_yes_ask=0.01` (correct `1−bid`
+complement). Caught and fixed a would-be false-drop bug before commit: far-strike wing markets
+legitimately have an empty ladder on one side, and the collector must record that as valid
+data (`depth=0`, still captured), not a DROP — confirmed against this same live pass.
+
+**Honest limitation, recorded in the module's own docstring:** this loop's recurring collector
+cadence is hard-capped at hourly (the same floor S9's lead-lag work hit) — hourly depth
+snapshots give S6 a repeated-sample series, not a continuous order-flow tape. Any
+arrival-intensity estimate built on this data must be labeled snapshot-sampled, not treated as
+a message-level fill-sim input. `kb/strategies/00-index.md` S6 flipped idea → data-collecting.
+
+Three lesson candidates recorded in `kb/lessons/00-lessons.md`: **L21** (read tickers back from
+an upstream sub-pass's freshly-written tape by `capture_id` instead of re-discovering or
+threading a new return field through every sibling collector), **L22** (`real_bid` has no slot
+in the canonical `VALID_SOURCE_TAGS` enum — flagged UNENFORCED for the kb-distiller, harmless
+today since JSONL tape isn't invariant-scanned, but would trip the DB-side check the moment a
+`real_bid` value lands in a table), **L23** (an empty one-sided ladder is valid data, not a
+drop — pinned in a test, confirmed live).
+
+---
+
 ## 2026-07-06 (later) UTC — research loop: PR #26 merged, stranded-tape sweep, Q14/Q15 feasibility (S16/S18 both BLOCKED)
 
 Claim-check: `git fetch origin main` at `efb9245`; found open PR #26 (kb-distiller's L5/L7/L17

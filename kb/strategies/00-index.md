@@ -15,7 +15,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S3** | K3 cross-strike monotonicity staleness | kalshi.ibkr · QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q6, 2026-07-04) sweeps daily @09 UTC for real fee-floor-clearing crossings; 0 so far in 3 capped live passes (expected, rare); verdict needs accumulated tape |
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
-| **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
+| **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | **data-collecting** | — | A-S quotes; spread income > adverse-selection cost; `collection/orderbook_depth.py` (Q16, 2026-07-07) now captures full L2 depth hourly for sports/crypto tickers |
 | **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | **dead ✗** | med | TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5's NWS/WU |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **dead ✗** | low | RESOLVED 2026-07-06: n=8 ticker-steps across 2 real round transitions, both venues repriced together every time (mean \|Δk−Δp\| 2.2¢) — collection cadence (hourly-min, platform trigger constraint) is coarser than the event itself; data-adequacy DEAD, not a CI falsification. Parity sub-question survives under S17. |
@@ -89,6 +89,23 @@ longshot-fade S1, EMOS-calibrated S5) are now dead to the overround. Pivot to no
 fee is 4× cheaper (`../kalshi-api/03-fees-and-breakeven.md`). The structural long-term play if a
 forecast edge never materializes — but adverse selection in thin books is the killer. Idea-stage;
 needs the forward tape (S0) to even estimate order-arrival intensity.
+
+**S6 → DATA-COLLECTING (2026-07-07, Q16).** With the queue drained to time-blocked items
+(Q7/Q13) and Q1 claimed by an open PR, S6 was the only remaining `idea`-stage candidate not
+blocked by external data (S4/S10/S11/S14 all already blocked). `collection/orderbook_depth.py`
+now captures full L2 book depth (`yes_bids`/`no_bids` price+size ladders, not just BBO) for the
+tickers `sports_pairs`/`crypto_hourly` already discover each pass — reusing
+`normalize.py:normalize_snapshot` and the tickers read straight back from those collectors'
+own freshly-written tape (no platform re-sweep). Every book read is tagged `real_ask`/`real_bid`
+(a live order book is a genuine fillable quote). Wired into `hourly_pass.py` as a fifth
+sub-pass; live-validated against 6 real current-hour KXBTC tickers, all captured,
+`completeness_ok=True`. **Honest limitation:** this loop's recurring collector cadence is
+hard-capped at hourly (the same floor S9's lead-lag work hit) — hourly depth snapshots give a
+repeated-sample series, not a continuous order-flow tape, so any arrival-intensity estimate
+built on this data is snapshot-sampled and must be labeled as such, not treated as a true
+message-level fill-sim input. Remaining for S6: accumulate depth snapshots, then attempt a
+first-cut arrival-intensity/adverse-selection estimate honestly scoped to what an hourly
+sample can support.
 
 ## New candidates S7–S11 (2026-06-18 · /first-principles → /peer-review, 21 agents)
 
