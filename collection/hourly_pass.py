@@ -23,6 +23,14 @@ LOOP-QUEUE.md Q12 CPI follow-up (2026-07-06): also runs one
 `econ_prints` (CPI prints release monthly — a daily cadence is enough, and the underlying
 Kalshi ladder this leg reads doesn't move faster than that either).
 
+S6 forward-depth (2026-07-07): also runs one `collection.orderbook_depth` pass every hour,
+snapshotting FULL L2 book depth for exactly the tickers the sports/crypto sub-passes just
+discovered THIS pass (read straight back from their freshly-written tape by capture_id — no
+re-sweep of the 10k+ open universe, lesson L10). Serves S6 (inventory-aware market-making),
+whose gate note needs the forward tape to estimate order-arrival intensity. Honest cadence
+caveat lives in that module's docstring: hourly snapshots are coarse for intensity, not a
+continuous order-flow tape.
+
 Never fakes success: each sub-pass is invoked independently and its exception (if any) is
 caught and recorded rather than allowed to take the other sub-pass down with it. Overall
 `completeness_ok` is the AND of each sub-pass's own honest completeness signal (already
@@ -50,7 +58,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from collection import crypto_hourly, econ_prints, polymarket_pairs, sports_pairs
+from collection import (crypto_hourly, econ_prints, orderbook_depth, polymarket_pairs,
+                        sports_pairs)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -141,6 +150,55 @@ def _crypto_expected_outcomes(rec: Dict[str, Any]) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# forward-depth (S6) ticker gathering — reuse THIS pass's already-discovered set,
+# read straight back from the tape the sports/crypto sub-passes just wrote (no re-sweep,
+# no extra discovery API calls — lesson L10: never re-pull the 10k+ open universe)
+# --------------------------------------------------------------------------- #
+def _tickers_from_tape(path: Optional[str], capture_id: str,
+                       extract: Callable[[Dict[str, Any]], List[str]]) -> List[str]:
+    if not path:
+        return []
+    out: List[str] = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec.get("capture_id") != capture_id:
+                continue
+            out.extend(extract(rec))
+    return out
+
+
+def _sports_depth_tickers(rec: Dict[str, Any]) -> List[str]:
+    return [o.get("ticker") for o in (rec.get("outcomes") or []) if o.get("ticker")]
+
+
+def _crypto_depth_tickers(rec: Dict[str, Any]) -> List[str]:
+    return [o.get("ticker")
+            for o in ((rec.get("current") or {}).get("outcomes") or []) if o.get("ticker")]
+
+
+def _gather_depth_tickers(sports: Dict[str, Any], crypto: Dict[str, Any]) -> List[str]:
+    """The exact tickers this pass already discovered — pulled from the freshly-written
+    sports/crypto tape lines (filtered by their capture_id), never a fresh platform sweep."""
+    tickers: List[str] = []
+    if sports.get("status") == "ok":
+        r = sports["result"]
+        tickers += _tickers_from_tape(r.get("path"), r.get("capture_id", ""),
+                                      _sports_depth_tickers)
+    if crypto.get("status") == "ok":
+        r = crypto["result"]
+        tickers += _tickers_from_tape(r.get("path"), r.get("capture_id", ""),
+                                      _crypto_depth_tickers)
+    return tickers
+
+
+def _default_depth_pass(tickers: List[str]) -> Dict[str, Any]:
+    return orderbook_depth.run(tickers=tickers)
+
+
+# --------------------------------------------------------------------------- #
 # one hourly pass
 # --------------------------------------------------------------------------- #
 def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
@@ -150,6 +208,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         anomaly_sweep_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         econ_prints_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         polymarket_cpi_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        depth_fn: Optional[Callable[[List[str]], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
     polymarket_pairs.run_fed_decision (Fed meetings), plus anomaly_sweep, econ_prints, and
@@ -189,6 +248,20 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         n_markets += _sum_expected_markets_from_tape(
             r.get("path"), r.get("capture_id", ""), _crypto_expected_outcomes)
         completeness_ok = completeness_ok and (n_symbols == n_complete)
+    else:
+        completeness_ok = False
+
+    # forward-depth (S6): snapshot full L2 depth for THIS pass's already-discovered tickers.
+    # Fault-isolated like every sibling; one line per ticker, each ticker one market.
+    depth_tickers = _gather_depth_tickers(sports, crypto)
+    d_fn = depth_fn or _default_depth_pass
+    depth = _safe_call(lambda: d_fn(depth_tickers))
+    if depth["status"] == "ok":
+        r = depth["result"]
+        n_captured = r.get("n_captured", 0)
+        n_lines += n_captured
+        n_markets += n_captured
+        completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
     else:
         completeness_ok = False
 
@@ -244,6 +317,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "captured_at": ts.isoformat(),
         "sports_pairs": sports,
         "crypto_hourly": crypto,
+        "orderbook_depth": depth,
         "polymarket_pairs": polymarket,
         "polymarket_macro_pairs": polymarket_macro,
         "anomaly_sweep": anomaly,

@@ -525,6 +525,26 @@ carries no purge deadline, so there is no reason to build the stub early. See
 `HOUSE`/`SENATE` markets for the 2026 cycle (watch via a cheap periodic `/markets?series_ticker=`
 check, no need for a standing collector until then).
 
+### Q16 — S6 forward L2 order-book depth collector (market-making order-arrival data) — new, 2026-07-07
+Status: TODO (added 2026-07-07) — with the queue drained to time-blocked items (Q7 ~07-09/10,
+Q13 ~07-13) and Q1 claimed by open PR #4, followed the registry's own priority order to the
+next un-started, non-externally-blocked candidate: **S6** (inventory-aware market-making) is
+the only remaining `idea`-stage candidate not blocked by external data (S4 needs an unrelated
+repo's FEx archiver, S10=Q7 and S11 both already blocked). S6's own gate note says it "needs
+the forward tape (S0) to even estimate order-arrival intensity" — no non-weather full L2 depth
+collector exists yet; `collection/capture_orderbooks.py`'s fetch+normalize logic
+(`collection/normalize.py:normalize_snapshot`, pure/reusable) is weather-scoped only via its
+`discover_groups`. Build a new collector that captures full L2 depth (yes_bids/no_bids price+size
+ladders, not just BBO) for the tickers `sports_pairs`/`crypto_hourly` already discover each pass
+(reuse their discovery, don't re-sweep the platform — L10's 10,000+-market lesson) — tag every
+book read `real_ask`/`real_bid` (a live order book is fillable). Honest expected-vs-captured
+completeness per ticker, same discipline as every other collector. Wire into `hourly_pass.py`
+as a new sub-pass. Unit tests offline. **Scope note:** this is the collector-build stage only
+(mirrors Q1/Q2's own scope) — it does NOT attempt S6's actual fill-sim/arrival-intensity
+estimation yet, and it should honestly flag that hourly cadence is coarse for arrival-rate
+estimation (recurring cron is hard-capped at hourly per S9/Q8's own finding) — record that
+limitation rather than oversell what hourly L2 snapshots can support.
+
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
