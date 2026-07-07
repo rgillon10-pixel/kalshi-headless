@@ -206,3 +206,20 @@ def test_db_probability_out_of_range_is_caught(tmp_path):
     )
     fails = inv.scan_db(db)
     assert any("probability_in_range" in f for f in fails), fails
+
+
+def test_db_real_bid_tag_is_caught_as_invalid_enum(tmp_path):
+    """kb/lessons/00-lessons.md L22: `real_bid` (collection/orderbook_depth.py's tag for a
+    genuine resting bid) is deliberately NOT in VALID_SOURCE_TAGS — that enum is CLAUDE.md's
+    literal trust-taxonomy contract (real_ask/broker_truth/midpoint/synthetic) and widening it
+    is a project-contract change, not a research-loop milestone. This pins the claim that made
+    the gap "harmless today": if a `real_bid`-tagged value ever reached a DB's
+    `price_source_tag` column, the existing enum check would catch it exactly like any other
+    invalid tag, same as `test_db_invalid_enum_value_is_caught`'s generic 'guess' case."""
+    db = _db(
+        tmp_path, "realbid.db",
+        "CREATE TABLE signals (price_source_tag TEXT);",
+        ["INSERT INTO signals VALUES ('real_bid')"],
+    )
+    fails = inv.scan_db(db)
+    assert any("price_source_tag" in f for f in fails), fails

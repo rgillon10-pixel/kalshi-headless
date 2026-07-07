@@ -6,6 +6,47 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-07 UTC — research loop: stranded-tape sweep + L22 resolution (real_bid taxonomy decision)
+
+Claim-check: `git fetch origin main` at `e20f026`; open PRs unchanged — #4 still claims Q1
+(odds-api leg, unrelated, awaiting `ODDS_API_KEY`; open since 2026-07-03, still short of the
+5-day mark PR #18's retro proposal flagged for priority escalation) and #18 (weekly-retro
+protocol amendments, left for Ryan, never self-merged). Q2–Q6/Q8–Q12/Q16 all DONE; Q7 BLOCKED
+(only 5 of the needed ≥7 days of Q2 tape); Q13 BLOCKED (only 5 of the needed ≥10 days of Q3
+tape) — no numbered queue item was eligible.
+
+Step 0b sweep: of 44 `tape/hourly-*` branches, 3 (`202607070056Z`/`20260707T015503Z`/
+`202607070356Z`, all >30min old) carried lines `main` lacked — 6 crypto_hourly + 700
+orderbook_depth + 544 sports_pairs + 45 polymarket_macro_pairs + 80 polymarket_pairs lines,
+union-deduped across all three branches (every line validated as parseable JSON, 0 exact
+duplicates), appended into this run's commit. The newest branch (`20260707T0456Z`, ~12min old)
+skipped per the freshness rule; 3 branches (`20260706T0556Z`/`0955Z`/`1856Z`) confirmed to be
+stale names pointing at a pre-project commit with zero tape content (harmless). `git push
+origin --delete` still fails from a cloud session on every already-reconciled branch (same
+documented permission boundary).
+
+With the queue drained to time-blocked items and Q1 claimed, checked the registry for the next
+un-started, non-externally-blocked candidate first (same process as the last 3 runs): S4/S10
+(=Q7)/S14(=Q13)/S16(=Q14)/S18(=Q15) all already explicitly blocked; S11 needs the same
+Pinnacle/odds-api anchor as Q1's blocked leg, so appending it would only restate Q1's own
+blocker. No genuinely new collector/probe milestone was actionable this run — instead drew from
+`kb/lessons/00-lessons.md`'s standing UNENFORCED queue (roster note: "converting a lesson into
+an invariant/test is always an eligible milestone, no queue item needed"): **L22** asked
+whether `real_bid` (orderbook_depth.py's tag for a genuine resting bid, from Q16) should join
+`VALID_SOURCE_TAGS` or stay a separate tape-only namespace. Decided to keep it separate — that
+enum mirrors CLAUDE.md's own literal four-tag trust-taxonomy contract, and widening a
+project-contract enum is outside a single research-loop milestone's authority, the same class
+of call as S9's automation decision and the PreToolUse-hook registration (both left for Ryan).
+Closed the "harmless today" half of L22 with proof rather than inspection: a new regression
+test (`tests/test_invariants.py::test_db_real_bid_tag_is_caught_as_invalid_enum`) confirms the
+existing DB-side enum check already rejects `real_bid` the moment one reaches a
+`price_source_tag` column — no live gap exists to fix. `core/source_tag.py`'s docstring now
+cross-references the decision. Recorded as **L24** (supersedes L22) in the lessons ledger. 362
+tests green (361 prior + 1 new), `invariants --full` green.
+
+No strategy status changed (no probe run this cycle — this was a substrate/documentation
+milestone plus the standing tape reconciliation).
+
 ## 2026-07-07 UTC — research loop: stranded-tape sweep, S6 orderbook-depth collector built (Q16, new)
 
 Claim-check: `git fetch origin main` at `c238b17`; local `main` ref re-pointed via
