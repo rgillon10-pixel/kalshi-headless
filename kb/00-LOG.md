@@ -6,6 +6,55 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-07 20:15 ET — research loop: fully idle, tape sweep clean for the first time
+
+Claim-check: `git fetch origin main` force-updated the local ref to `b938307` (a VPS hourly
+pass landed since the last research run). Open PRs unchanged — #4 still claims Q1 (odds-api
+leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d9h old, still short of PR #18's proposed
+5-day escalation mark) and #18 (weekly-retro protocol amendments, left for Ryan, never
+self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Tape day-counts
+recounted directly off disk: Q7 needs ≥7 distinct days of `tape/crypto_hourly/` — still only 5
+(`dt=2026-07-03`…`07-07`), BLOCKED, eligible ~07-09/10; Q13 needs ≥10 distinct days of
+`tape/sports_pairs/` — still only 6 (`dt=2026-07-02`…`07-07`), BLOCKED, eligible ~07-12/13.
+Q14/Q15 re-probed live this run (not just assumed): `ODDS_API_KEY` still absent from env;
+Kalshi's `KXHOUSE`/`KXSENATE` series still list **zero** markets in any status — both stay
+data-adequacy BLOCKED, same as every prior check. No numbered queue item was eligible.
+Lessons ledger re-scanned: zero live `UNENFORCED` rows (all resolved by L18–L20/L24).
+Strategy registry re-scanned: every `idea`-stage candidate (S10=Q7, S11, S14=Q13, S16, S18)
+is externally blocked by one of the walls above — nothing new to draw from either standing
+queue.
+
+Step 0b sweep (against the freshly-fetched tip, per L14): 9 `tape/hourly-*`/`-corrected-`/
+`-followup-` branches postdating the last run's sweep cutoff (`20260707T1958Z` through
+`2256Z`, ages 64min–244min, all past the 30-min freshness rule) were diffed line-by-line
+against `main` across all 5 tape families they touch (`crypto_hourly`, `orderbook_depth`,
+`polymarket_macro_pairs`, `polymarket_pairs`, `sports_pairs`) — **zero lines missing from
+main in every branch and every family.** This is new: every previous sweep this week found
+at least some stranded content; this time the VPS collector's direct pushes to `main` (it
+has been landing hourly `tape:` commits straight onto `main` all day, e.g. the `b938307` tip
+itself) had already fully reconciled everything before this run started. The one branch newer
+than 30 minutes (`20260707T2356Z`, ~12min old) was skipped per the freshness rule, left for
+the next run. `git push origin --delete` not reattempted (documented permission boundary,
+failed every time since 2026-07-03; PR #18 already proposes dropping the retry).
+
+Gates re-verified from a clean env this run (`pip install -e ".[dev,analysis]"` then
+`python3 -m pytest -q` and `python scripts/invariants.py --full`): 362 tests green (unchanged
+from the last run — no code touched), invariants clean (the non-gating stranded-tape warning
+still fires as designed per L20, listing local refs the live sweep above already proved
+harmless).
+
+No strategy status changed; no code changed; no tape lines appended (nothing was stranded).
+Fifth consecutive maintenance-only run, and the first one with truly nothing to commit —
+queue, lessons, registry, and tape are all simultaneously reconciled and idle pending the same
+external clocks (tape day-counts, 2-3 days out) and external walls (odds-api key,
+Congress-market listing, CME bot-wall) as the last several runs. Nothing here indicates a
+stall. PR #4 is now ~4d9h old; worth a direct nudge to Ryan if it crosses 5 days before the
+next run picks it up.
+
+---
+
 ## 2026-07-07 16:09 ET — research loop: stranded-tape sweep only (queue/lessons/registry all still idle)
 
 Claim-check: `git fetch origin main` force-updated the local ref to `a14afb6` (five VPS hourly
