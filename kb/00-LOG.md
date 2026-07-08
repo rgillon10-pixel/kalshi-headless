@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-08 01:08 ET — research loop: stranded-tape sweep (841+ lines recovered), queue still idle
+
+Claim-check: `git fetch origin main` force-updated the local ref to `12f794c` (VPS + cloud
+hourly passes landed since the last run). Open PRs unchanged — #4 still claims Q1 (odds-api
+leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d14h old, still short of PR #18's proposed
+5-day escalation mark — worth a direct nudge if it's still open next run) and #18 (weekly-retro
+protocol amendments, left for Ryan, never self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Tape day-counts
+recounted directly off disk: Q7 needs ≥7 distinct days of `tape/crypto_hourly/` — only 6
+(`dt=2026-07-03`…`07-08`), still BLOCKED, eligible ~07-09/10; Q13 needs ≥10 distinct days of
+`tape/sports_pairs/` — only 7 (`dt=2026-07-02`…`07-08`), still BLOCKED, eligible ~07-12/13.
+Q14/Q15 re-probed live (not assumed): CME's FedWatch page still returns HTTP 403 (Akamai-class
+bot wall, same as every prior check) — Q14 stays BLOCKED; `KXHOUSE`/`KXSENATE`/`HOUSE`/`SENATE`
+still list **zero** markets in open/unopened/closed status on Kalshi's live API — Q15 stays
+BLOCKED. `ODDS_API_KEY` still absent from env. Lessons ledger re-scanned: zero live
+`UNENFORCED` rows. Strategy registry re-scanned: every `idea`-stage candidate (S10=Q7, S11,
+S14=Q13, S16, S18) is externally blocked by one of the walls above — nothing new to draw from
+either standing queue. **No numbered queue item, lesson, or registry candidate was actionable
+this run.**
+
+Step 0b sweep (against the freshly-fetched tip): of 64 `tape/hourly-*`/`-corrected-`/
+`-followup-`/`-amended-` branches, 4 postdating the last run's fully-clean sweep cutoff
+(`20260707T2356Z`, `20260708T0401Z`, `hourly-corrected-20260707T2059Z`,
+`hourly-followup-20260707T2055Z`, all >30min old) carried lines `main` was missing — did a
+real line-set diff per file (not `git diff --stat`, which is unreliable for out-of-order
+JSONL appends) across all 5 tape families they touch. Union-deduped total: **2,797 lines**
+(10 crypto_hourly, 1,791 orderbook_depth, 75 polymarket_macro_pairs, 92 polymarket_pairs, 829
+sports_pairs), every line JSON-validated before appending, 0 exact duplicates, appended into
+this run's commit. `hourly-amended-20260704T1455Z` (also re-checked) was already fully
+reconciled (0 missing). `git push origin --delete` not reattempted (documented permission
+boundary, failed every time since 2026-07-03; PR #18 already proposes dropping the retry).
+
+Gates: 362 tests green (unchanged — tape-only commit, no code touched), `invariants --full`
+green. No strategy status changed; no code changed. Sixth consecutive maintenance-only run —
+queue/lessons/registry idle pending the same external clocks (tape day-counts, 1-2 days out
+for Q7) and external walls (odds-api key, Congress-market listing, CME bot-wall) as prior
+runs; not a stall, just recovering tape the VPS/cloud collectors' intermittent push-to-main
+failures stranded.
+
+---
+
 ## 2026-07-07 20:15 ET — research loop: fully idle, tape sweep clean for the first time
 
 Claim-check: `git fetch origin main` force-updated the local ref to `b938307` (a VPS hourly
