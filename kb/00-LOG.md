@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-08 20:20 UTC — Egress unblocked (Q0b); Q1 sports-pairs collector built & first pass live
+
+Q0b's cheap re-check (curl + a real API call per host, once each, no retry-past-403 per
+protocol) found all 4 hosts from the 2026-07-02 check now reachable — Kalshi REST returns
+`exchange_active: true`, Coinbase/Kraken return live spot quotes, the-odds-api returns a
+proper `401 MISSING_KEY` (reachable, just no key). `$HTTPS_PROXY` shows zero relay failures
+this run. Nothing in this repo changed the outcome — the org egress allowlist was widened
+between runs. Flipped every `BLOCKED(egress policy)` queue item (Q1, Q2, Q4, Q5, Q6) back to
+`TODO`; refreshed `tape/cloud-env-check.md`. `ODDS_API_KEY` is still absent — a separate,
+narrower gap that only affects Q1's sportsbook-odds leg.
+
+With the queue unblocked, executed Q1 (topmost eligible, and time-sensitive — the 2026
+World Cup ends Jul 19 and is currently at the quarterfinal stage): built
+`collection/sports_pairs.py`, mirroring `capture_orderbooks.py`'s bitemporal +
+sha256-content-hashed + self-signed + honest-completeness discipline, but grouped by sports
+**event** (`<SERIES>-<EVENT>`, 2-way or 3-way-with-tie) instead of (city, contract-day).
+Moneyline markets are identified by market TITLE shape ("<A> vs <B> ... Winner?"), verified
+empirically against live Kalshi tickers — a `*GAME`-suffixed series ticker isn't sufficient
+on its own (e.g. `KXWCTEAMSINGAME` is a prop, not a moneyline, despite ending in `GAME`).
+Discovery ranks `KXWC*` (World Cup) series first, then other Soccer, then everything else,
+so a `--limit` truncation drops the least time-sensitive events first — never World Cup
+ones. Wrote to the git-committed `tape/sports_pairs/` (not the gitignored
+`data/processed/` `capture_orderbooks.py` uses) since a stateless cloud run's only
+persistence is what it commits.
+
+18 new unit tests (ticker parsing, the moneyline-title filter admitting real titles and
+rejecting props, `devig_two_way`/`devig_n_way` pure-function math, the bitemporal/
+completeness/signature discipline via an offline fake client, World-Cup-first discovery
+ordering) — 71/71 suite green, `invariants --full` green. One real capture pass:
+**84 events, 250 outcome markets, 100% complete, including all 4 live World Cup
+quarterfinals** (France–Morocco, Spain–Belgium, Argentina–Switzerland, Norway–England) →
+`tape/sports_pairs/dt=2026-07-08.jsonl`. Every line tags its BBO `real_ask` and records
+`odds_status: "no_key"` honestly — the actual the-odds-api fetch + team-name matching +
+de-vig-and-tag-`synthetic` integration is deliberately NOT built yet (there is no key to
+validate it against; building untested machinery here would be exactly the speculative-code
+failure mode the stop rules exist to prevent).
+
+**Next:** Q2 (crypto-hourly collector) is now the topmost fully-unblocked TODO item; once it
+exists, Q3 wires both into one hourly entry point. If `ODDS_API_KEY` ever appears, build the
+odds-fetch/matching/de-vig path then, not speculatively now.
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi

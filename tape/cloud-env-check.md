@@ -1,6 +1,28 @@
 # Cloud environment check (Q0)
 
-`run` · 2026-07-02 · cloud sandbox (kalshi-research-loop)
+`run` · 2026-07-02, re-verified 2026-07-08 (Q0b) · cloud sandbox (kalshi-research-loop)
+
+## 2026-07-08 re-verify — UNBLOCKED
+
+All four hosts are now reachable (org egress allowlist was widened between the
+2026-07-02 and 2026-07-08 runs; nothing changed in this repo). Verified with both a
+bare `curl` and a real API call per host:
+
+| host | real endpoint | result |
+|---|---|---|
+| `api.elections.kalshi.com` | `GET /trade-api/v2/exchange/status` | **200**, `exchange_active: true` |
+| `api.exchange.coinbase.com` | `GET /products/BTC-USD/ticker` | **200**, live BTC-USD quote |
+| `api.kraken.com` | `GET /0/public/Ticker?pair=XBTUSD` | **200**, live XBT/USD quote |
+| `api.the-odds-api.com` | `GET /v4/sports/` | **401** `MISSING_KEY` (reachable; no key configured) |
+| `ODDS_API_KEY` env var | — | still **absent** |
+
+`$HTTPS_PROXY/__agentproxy/status` → `recentRelayFailures: []` (no policy denials this
+run). Q0b flips every `BLOCKED(egress policy)` queue item back to `TODO` — see
+`LOOP-QUEUE.md`. The odds-API key remains a separate, narrower gap: only Q1's
+sportsbook-odds leg needs it, and it degrades honestly to `odds_status: "no_key"`
+rather than blocking the Kalshi-leg capture.
+
+## 2026-07-02 original check (superseded above, kept for history)
 
 Purpose: verify which external hosts this cloud sandbox can actually reach, since every
 downstream collector (Q1–Q7) depends on live network access. Method: direct `curl` (and the
