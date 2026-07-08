@@ -6,6 +6,62 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-08 15:16 UTC — Q1 built: sports moneyline collector, first live pass (429 groups, 976 legs)
+
+`collection/sports_pairs.py` — the forward tape S7 (Kalshi moneyline vs de-vigged sharp line,
+CLV harvest) and S11 (sharp-anchored maker quoting) need. Same discipline as
+`capture_orderbooks.py`: bitemporal `fetch_ts` frozen once per pass, per-leg raw-bytes sha256,
+honest expected-vs-captured completeness (a dropped leg lowers `completeness_ok`, never fakes
+success). Grouping is empirical: Kalshi's ~40 active `*GAME`-suffix Sports series all share the
+grammar `<SERIES>-<EVENT_CODE>-<LEG>`; a moneyline group is discovered by grouping on
+`(series, event_code)` and keeping only 2-leg (no-draw sports) or 3-leg (soccer, draw possible)
+groups — single-leg groups under a `*GAME` series turned out to be props (`KXWCTEAMSINGAME`,
+"will X play Y") and are correctly dropped by this filter, not miscaptured as pairs. De-vig math
+(`devig_probs`, multiplicative normalize-to-1) is implemented and unit-tested but **not yet
+exercised against live odds** — `ODDS_API_KEY` is absent, so every captured line carries
+`odds_status="no_key"`; the Kalshi leg is captured regardless (never blocked on the optional
+leg), matching the queue's explicit fallback. 16 new tests: ticker grammar (2-way/3-way/malformed),
+the moneyline-vs-prop group filter, de-vig math (symmetric/asymmetric/3-way/malformed-odds
+rejection), and a full offline capture pass via a FakeClient exercising both the complete and
+honest-partial-completeness paths (mirrors `test_capture_bitemporal.py`'s pattern).
+
+**First live pass** (now that Q0b unblocked egress): 429 moneyline groups / 976 legs captured,
+**0 incomplete**, across 37 active series including all 4 live World Cup games today
+(Argentina–Switzerland, Spain–Belgium, France–Morocco, +1) → `tape/sports_pairs/dt=2026-07-08/`.
+Descriptive only (raw tape, not a backtest, no CI, no verdict): bracket-sum overround median
+**+5¢** across all 425 priced groups, but **+3¢** median restricted to major leagues (World
+Cup/NFL/MLB/NCAAF/WNBA/CFL) vs a fat right tail from thin esports/minor-league books (max
+bracket_sum 2.73 — near-zero liquidity, not a real quote) — directionally consistent with S7's
+premise that the highest-volume moneylines carry the lowest overround, the cleanest starting
+point for CLV harvest. All prices tagged `real_ask`. Gates: 69 tests green (53 substrate + 16
+new), `invariants --full` green.
+
+**Next:** Q3 (hourly entry point) to make this run unattended and accumulate history; Q2
+(crypto-hourly collector, same egress unblock applies) is next in queue order. `ODDS_API_KEY`
+would let the odds leg (S7's actual de-vig comparison) start — action for Ryan, not a cloud run.
+
+---
+
+## 2026-07-08 15:09 UTC — Q0b egress re-verify: all 4 hosts now reachable, queue unblocked
+
+Cheap re-check the queue calls for before touching anything else while Q1–Q6 sit
+`BLOCKED(egress policy)`: re-tested the same four Q0 hosts. **All four are now reachable** —
+Kalshi public REST end-to-end via `capture_orderbooks --limit 3` (142 orderbook levels, real
+capture on disk), Coinbase and Kraken public spot both `200` with live quotes, `api.the-odds-api.com`
+`401` (reachable, just needs a key). The proxy's `recentRelayFailures` came back empty this run,
+vs. uniform `connect_rejected`/403 on 2026-07-02 — the organization's egress allowlist was
+widened sometime in between; nothing in the collector code changed or needed to. Full evidence
+in `tape/cloud-env-check.md` (updated in place).
+
+**Consequence:** per Q0b's self-healing protocol, flipped every `BLOCKED(egress policy)` status
+back to `TODO` in `LOOP-QUEUE.md` (Q1, Q2, Q4, Q5, Q6); Q3 stays blocked but now only on Q1+Q2
+being *built*, not on network access. `ODDS_API_KEY` is still absent (checked presence only) —
+Q1's odds leg stays `BLOCKED(key)` even though its Kalshi leg is fully unblocked. Proceeded
+straight to Q1 (see entry above) in the same run, per protocol ("proceed to the topmost TODO
+item as normal").
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi
