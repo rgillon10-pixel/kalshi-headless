@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-08 05:30 ET — research loop: comprehensive stranded-tape sweep (6,272 lines recovered), queue still idle
+
+Claim-check: `git fetch origin main` force-updated the local ref to `ce310a2` (5 VPS hourly
+passes landed since the last research run). Open PRs unchanged — #4 still claims Q1 (odds-api
+leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d18h old, still just under PR #18's proposed
+5-day escalation mark, but close enough to flag to Ryan directly this run) and #18
+(weekly-retro protocol amendments, left for Ryan, never self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Tape day-counts
+recounted directly off disk: Q7 needs ≥7 distinct days of `tape/crypto_hourly/` — only 6
+(`dt=2026-07-03`…`07-08`), still BLOCKED, eligible ~07-09/10; Q13 needs ≥10 distinct days of
+`tape/sports_pairs/` — only 7 (`dt=2026-07-02`…`07-08`), still BLOCKED, eligible ~07-12/13.
+Q14/Q15 re-probed live: `KXHOUSE`/`KXSENATE` still return **zero** markets in any status on
+Kalshi's live API — Q15 stays BLOCKED; `ODDS_API_KEY` still absent from env. Lessons ledger
+re-scanned: zero live `UNENFORCED` rows (L22 stays resolved by L24). Strategy registry
+re-scanned: every `idea`-stage candidate is externally blocked by the same walls as prior
+runs. **No numbered queue item, lesson, or registry candidate was actionable this run.**
+
+Step 0b sweep — went wider than recent runs' "branches postdating the last cutoff" heuristic:
+fetched all **69** `tape/hourly-*`/`-corrected-`/`-followup-`/`-amended-` branches and ran a
+real per-file line-set diff against `origin/main` for every one of them (not just the newest
+few), since prior runs' cutoff heuristic can't see whether an "already reconciled" branch
+picked up new commits later. Result: the 2026-07-03…07-06 branches were indeed already fully
+reconciled (0 missing lines — confirms prior sweeps' bookkeeping was sound), but 07-07 and
+07-08 carried a large unreconciled backlog: **6,272 lines** across `crypto_hourly` (+16),
+`orderbook_depth` (+4,470), `polymarket_macro_pairs` (+120), `polymarket_pairs` (+140),
+`sports_pairs` (+1,498), `anomalies` (+1), `econ_prints` (+5), `polymarket_cpi_pairs` (+22).
+Every appended line JSON-validated (0 malformed), union-deduped by exact line match against
+main's current content, appended into this run's commit — the largest single-run recovery
+since collection began. `git push origin --delete` not reattempted (documented permission
+boundary, failed every time since 2026-07-03; PR #18 already proposes dropping the retry).
+
+Gates: pytest green (unchanged test count — tape-only commit, no code touched), `invariants
+--full` green. No strategy status changed; no code changed. Seventh consecutive
+maintenance-only run — queue/lessons/registry idle pending the same external clocks (tape
+day-counts, 1-2 days out for Q7) and external walls (odds-api key, Congress-market listing) as
+prior runs; not a stall. The size of this recovery (6,272 vs. the ~1,700-2,800/run of the last
+few sweeps) suggests push-to-main failures are becoming more frequent, not less — worth
+Ryan's attention if the pattern continues.
+
+---
+
 ## 2026-07-08 01:08 ET — research loop: stranded-tape sweep (841+ lines recovered), queue still idle
 
 Claim-check: `git fetch origin main` force-updated the local ref to `12f794c` (VPS + cloud
