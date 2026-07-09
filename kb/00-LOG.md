@@ -6,6 +6,56 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-09 20:18 UTC — Egress unblocked (Q0b); Q1 sports paired-odds collector built + first live pass
+
+Q0b's self-healing re-check (protocol: cheap re-test while any item sits `BLOCKED(egress...)`)
+found all four Q0 hosts now reachable — `curl --max-time 15` got Kalshi REST 200, Coinbase 200,
+Kraken 200, and the-odds-api 401 (reachable, just no key). Confirmed end-to-end with
+`python -m collection.capture_orderbooks --limit 3` (3 markets, 159 levels, real tape written).
+The org egress allowlist was evidently widened sometime between 2026-07-02 and today — not
+observable from inside the sandbox, just confirmed fixed. Flipped Q1–Q6 back to `TODO` in
+`LOOP-QUEUE.md`; refreshed `tape/cloud-env-check.md`.
+
+With egress open, moved to the new topmost eligible item: **Q1**, the sports paired-odds
+collector — time-sensitive, since the 2026 World Cup final round runs through Jul 19. Built:
+
+- `core/sports_schema.py` — `GamePairManifest`, the Q1 sibling of `core/manifest_schema.py`'s
+  weather `CaptureManifest`: same bitemporal/content-hash/self-signed discipline, keyed by
+  `event_ticker` instead of `(city, contract-day)` since a sports event isn't a city ladder.
+- `core/odds.py` — American-odds → de-vigged fair probability. Reuses
+  `core.pricing.bracket_sum`/`normalized_ask` for the overround-removal division (same "divide
+  by the group sum" operation as Kalshi's own Hard Rule #3 math, just applied to sportsbook
+  implied probabilities), so that arithmetic still lives in one place.
+- `collection/sports_pairs.py` — discovers every Sports-category series whose ticker ends in
+  `GAME` (empirically the per-event moneyline/winner suffix — `KXWCGAME`, `KXNBAGAME`,
+  `KXMLBGAME`, ... 186 series found live), World-Cup/soccer sorted first; groups each series'
+  open markets by the API's own `event_ticker` (cross-checked against a ticker-parse, mismatches
+  recorded not hidden); captures real yes/no BBO for every outcome in a >=2-way bracket
+  (`price_source_tag=real_ask`); attempts a matched-Pinnacle de-vig leg if `ODDS_API_KEY` is set
+  (`synthetic`), else honestly records `odds_leg_status="blocked_no_key"` per Q1's documented
+  fallback — the Kalshi leg is captured regardless.
+- 18 new unit tests (`tests/test_odds_devig.py`, `tests/test_sports_pairs.py`): American-odds
+  math, multiplicative de-vig on 2-way and 3-way brackets, ticker parse/reconcile, World-Cup
+  priority ordering, degenerate/series-error handling, odds-leg name matching (caught a real bug:
+  Kalshi labels a soccer draw "Tie", the-odds-api calls it "Draw" — added a synonym normalizer),
+  and the provenance/forged-hash check mirroring `capture_orderbooks`'s.
+
+**Live pass** (no `ODDS_API_KEY` in this environment): **469 events / 1079 outcome markets**
+captured at `real_ask` in ~47s. 4 `KXWCGAME` (World Cup) events captured — `bracket_sum` 1.01–1.02
+(1–2¢ overround), noticeably tighter than the ~10¢ weather-bracket overround that killed
+pt1/S1/S5. Across all 469 events, mean `bracket_sum` 1.34 (min 0.98, max 2.73) — wide dispersion
+expected from thin/off-season leagues with stale asks; not interpreted here, that's Q4's job.
+Tape → `tape/sports_pairs/`. `S7` (Kalshi moneyline vs Pinnacle CLV) moved `idea → data-collecting`
+in `kb/strategies/00-index.md`. Gates: 71 tests green (53 existing + 18 new), `invariants --full`
+green (two docstring false-positives on the `yes_ask`/`no_ask` regex — literal `yes_ask/no_ask`
+prose tripped Hard Rule #3's arithmetic detector; reworded, not a real violation).
+
+**Next:** Q2 (crypto-hourly collector) is now the topmost `TODO` item. Separately: S7's actual CLV
+backtest (Q4) is still gated on `ODDS_API_KEY` — the odds leg is built and unit-tested but has
+never made a live request; re-run Q1 once a key exists to confirm the live matching/de-vig path.
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi

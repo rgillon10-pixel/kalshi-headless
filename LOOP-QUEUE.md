@@ -60,7 +60,9 @@ and/or Kraken equivalent);
 Any blocked host → mark the dependent queue items `BLOCKED(<host>)`.
 
 ### Q0b — Egress re-verify (self-healing; stays TODO until it succeeds)
-Status: TODO
+Status: DONE (2026-07-09) — all 4 hosts reachable (Kalshi 200, Coinbase 200, Kraken 200,
+the-odds-api 401=reachable-no-key); confirmed end-to-end via `capture_orderbooks --limit 3`;
+see `tape/cloud-env-check.md`. Every `BLOCKED(egress ...)` status below flipped back to TODO.
 Cheap check, run FIRST while any item is `BLOCKED(egress...)`: re-test the four Q0 hosts
 (`curl --max-time 15` each; do not retry a 403 beyond once per host). If ALL still blocked:
 leave every status untouched, append one log line, and END THE RUN immediately with digest
@@ -70,7 +72,16 @@ on anything else. If hosts are NOW reachable: set this item DONE, flip every
 unblock, then proceed to the topmost TODO item as normal.
 
 ### Q1 — Build sports paired-odds collector (serves S7/S11) — TIME-SENSITIVE: World Cup ends Jul 19
-Status: BLOCKED(egress policy — api.elections.kalshi.com, api.the-odds-api.com; see Q0)
+Status: DONE (2026-07-09) — `collection/sports_pairs.py` + `core/sports_schema.py` (bitemporal
+GamePairManifest, sibling of the weather CaptureManifest) + `core/odds.py` (American-odds de-vig,
+reuses `core.pricing.bracket_sum`/`normalized_ask`). 18 new unit tests (ticker parse/reconcile,
+priority ordering, de-vig math, odds-leg matching incl. Kalshi "Tie"/odds-api "Draw" synonym,
+provenance/forgery). Live pass: 469 events / 1079 outcome markets, `real_ask` BBO, across 186
+discovered Sports-category series (World Cup sorted first); 4 KXWCGAME events captured,
+bracket_sum 1.01–1.02. Odds leg (matched Pinnacle de-vig, tag `synthetic`) is built + unit-tested
+but **not exercised live** — `ODDS_API_KEY` still absent, so `odds_leg_status="blocked_no_key"` on
+every event this run, per Q1's own documented fallback. Re-run once a key exists to light up the
+odds leg; S7's CLV backtest (Q4) needs it. Tape → `tape/sports_pairs/`.
 `collection/sports_pairs.py`, mirroring `collection/capture_orderbooks.py` discipline
 (bitemporal `fetch_ts`, raw-bytes sha256, honest expected-vs-captured completeness). One pass =
 for every open Kalshi sports moneyline market (soccer/World Cup first, then anything listed):
@@ -81,7 +92,7 @@ Kalshi leg anyway and note the odds leg as BLOCKED(key). Unit tests for ticker p
 de-vig math.
 
 ### Q2 — Build crypto-hourly settlement collector (serves S8/S10)
-Status: BLOCKED(egress policy — api.elections.kalshi.com, api.exchange.coinbase.com/api.kraken.com; see Q0)
+Status: TODO (egress unblocked 2026-07-09; see Q0b)
 `collection/crypto_hourly.py`: one pass = snapshot the CURRENT hour's BTC/ETH hourly bracket
 books (tag `real_ask`) + spot from ≥1 public exchange endpoint (tag `synthetic`), AND fetch
 settlement results for the PREVIOUS hour's markets → paired JSONL under `tape/crypto_hourly/`.
@@ -89,7 +100,7 @@ Store both spot and settle so the S8 ρ-guard (spot-vs-settle correlation) is co
 tape alone.
 
 ### Q3 — Hourly entry point for the collector routine
-Status: BLOCKED(needs Q1 + Q2, both egress-blocked; see Q0)
+Status: BLOCKED(needs Q1 + Q2 built — egress itself unblocked 2026-07-09, see Q0b)
 `collection/hourly_pass.py`: the single command the hourly Haiku routine runs — one
 sports-pairs pass + one crypto-hourly pass; during the 09 UTC hour also run
 `scripts/anomaly_sweep.py` if it exists. Prints the one-line summary the collector digest
@@ -97,7 +108,7 @@ needs (`<n> markets, <m> lines, completeness <ok/FAIL>`). Must be safe to run un
 every hour; a partial failure lowers completeness, it never fakes success.
 
 ### Q4 — S7 historical backtest (sports CLV vs de-vigged sharp line) — the try-first edge
-Status: BLOCKED(egress policy — S7a needs Kalshi candlesticks + a historical odds source; see Q0)
+Status: TODO (egress unblocked 2026-07-09; see Q0b)
 One stage per run:
 **S7a** — source last-season NFL/NBA (+ any completed 2026 World Cup) Kalshi market history
 via public candlesticks + a free historical closing-odds source; document provenance in the
@@ -106,14 +117,14 @@ time, fee model consistent with `scripts/fee_breakeven.py`. **S7c** — block-bo
 → 95% CI, verdict, `findings/<date>-sports-clv-s7.md`, update registry + this file.
 
 ### Q5 — S8 first cut from free candlesticks (crypto settlement basis)
-Status: BLOCKED(egress policy — needs Kalshi candlesticks + public spot history; see Q0)
+Status: TODO (egress unblocked 2026-07-09; see Q0b)
 Same trick as S2's first cut: public candlesticks on crypto-hourly markets vs public spot
 history. FIRST the ρ-guard — if spot-vs-settle ρ≈1 the feed-mismatch thesis dies cheap →
 mark S8 DEAD in the registry and here. Only if the guard passes: final-minutes basis vs
 overround at real asks, block-bootstrap by hour.
 
 ### Q6 — Daily anomaly sweep (serves S3 + free-money detection)
-Status: BLOCKED(egress policy — needs live Kalshi market snapshots; see Q0)
+Status: TODO (egress unblocked 2026-07-09; see Q0b)
 `scripts/anomaly_sweep.py`: one pass over all active markets — bracket sums vs $1 + fees
 (true arb), cross-strike monotonicity violations (S3). Flag ONLY violations clearing the fee
 floor. Append `tape/anomalies/`. Wire into Q3's 09 UTC slot when both exist.
@@ -128,3 +139,5 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
 
 - 2026-07-02T22:43Z · Q0 · all 4 required hosts (Kalshi REST, Coinbase, Kraken, the-odds-api) BLOCKED by org egress policy (proxy CONNECT→403); Q1–Q6 marked BLOCKED(egress policy) pending Ryan widening the sandbox allowlist.
+- 2026-07-09T20:09Z · Q0b · egress unblocked — all 4 hosts now reachable (Kalshi 200, Coinbase 200, Kraken 200, the-odds-api 401=reachable-no-key); Q1–Q6 flipped BLOCKED(egress)→TODO.
+- 2026-07-09T20:18Z · Q1 · built `collection/sports_pairs.py` + `core/sports_schema.py` + `core/odds.py` (18 new tests, all green); live pass captured 469 events/1079 outcome markets real_ask (4 World-Cup KXWCGAME events, bracket_sum 1.01–1.02); odds leg blocked_no_key (ODDS_API_KEY absent) → S7 data-collecting.

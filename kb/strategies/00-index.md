@@ -16,7 +16,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
 | **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
-| **S7** | Kalshi NFL/NBA moneyline vs Pinnacle no-vig line (CLV harvest) | FP→PR · cross-venue segmentation | **idea — try 1st** | med | season backtest: Kalshi ask vs devig Pinnacle fair − overround − fee; block-bootstrap by game; CI>0 |
+| **S7** | Kalshi NFL/NBA moneyline vs Pinnacle no-vig line (CLV harvest) | FP→PR · cross-venue segmentation | **data-collecting** | med | season backtest: Kalshi ask vs devig Pinnacle fair − overround − fee; block-bootstrap by game; CI>0 |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | idea | med | final-minutes BRRNY-vs-spot gap > overround; bootstrap by hour; CI>0 + feeds differ (ρ guard vs NWS/WU) |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | idea | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
@@ -81,10 +81,17 @@ peer-review (rejected all 15 raw candidates — appropriate skepticism for unpro
 synthesis distilled the 5 most-defensible, each with its kill condition. **All inputs are FREE today;
 no idea is in the dead ledger.** Full dossiers: `../../reports/new-ideas-2026-06-18.html`.
 
-- **S7 (try first, med).** Kalshi NFL/NBA moneyline vs Pinnacle de-vigged fair — CLV harvest on the
-  lowest-overround family (2-outcome ~2–4¢). Sharps under-participate (books limit winners) → squares
-  set Kalshi's price; Pinnacle's balanced book is the truth anchor. Single-leg directional, zero-capital
-  season backtest on free Kalshi candlesticks + free odds. *Best risk-adjusted bet.*
+- **S7 (try first, med) → data-collecting (2026-07-09).** Kalshi NFL/NBA moneyline vs Pinnacle
+  de-vigged fair — CLV harvest on the lowest-overround family (2-outcome ~2–4¢). Sharps
+  under-participate (books limit winners) → squares set Kalshi's price; Pinnacle's balanced book is
+  the truth anchor. Single-leg directional, zero-capital season backtest on free Kalshi candlesticks +
+  free odds. *Best risk-adjusted bet.* **Q1 built** `collection/sports_pairs.py` (bitemporal, real_ask
+  BBO capture, `core/sports_schema.py`) and ran a live pass: **469 events / 1079 outcome markets**
+  across 186 discovered Sports-category series, World Cup prioritized (Jul 19 deadline) — 4 WC events
+  captured at real asks, bracket_sum 1.01–1.02 (1–2¢ overround, tighter than weather's ~10¢). The
+  matched-Pinnacle odds leg (`core/odds.py` de-vig) is built and unit-tested but `ODDS_API_KEY` is
+  absent this run, so every event's `odds_leg_status="blocked_no_key"` — S7's actual CLV test (Kalshi
+  ask vs de-vigged Pinnacle fair) is still gated on that key. Tape → `tape/sports_pairs/`.
 - **S8 (med).** Crypto-hourly settlement basis — Kalshi settles on CF Benchmarks BRRNY (60s index avg),
   retail prices off visible spot → genuine feed mismatch (NOT the dead NWS/WU ρ=0.99999 case; first
   check is the ρ guard). 24/7 cadence → bootstrappable n in days.
