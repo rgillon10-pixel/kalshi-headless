@@ -50,3 +50,33 @@ fix.
 `api.elections.kalshi.com`, the crypto spot host(s), and `api.the-odds-api.com` to this
 environment's egress allowlist, or (b) run the collectors from an environment/pool that already
 has broader egress. No cloud loop run can change its own network policy.
+
+---
+
+## Re-verify · 2026-07-09 · cloud sandbox (kalshi-research-loop, Q0b)
+
+Per Q0b's protocol (cheap re-check while any item is `BLOCKED(egress ...)`), re-ran the same 4
+`curl --max-time 15` probes plus a live GET against each host's actual public endpoint (not just
+the bare root, to rule out a false-positive from a proxy default page).
+
+| host | probe | result |
+|---|---|---|
+| `api.elections.kalshi.com` | `GET /trade-api/v2/markets?limit=2` | **200**, real market JSON |
+| `api.exchange.coinbase.com` | `GET /products/BTC-USD/ticker` | **200**, real BTC-USD ticker |
+| `api.kraken.com` | `GET /0/public/Ticker?pair=XBTUSD` | **200**, real BTC ticker |
+| `api.the-odds-api.com` | `GET /v4/sports` (no key) | **200**, structured `MISSING_KEY` error (a real app-level response, not a proxy block) |
+| `ODDS_API_KEY` env var | presence check | still **absent** |
+
+`$HTTPS_PROXY/__agentproxy/status` → `recentRelayFailures: []` (empty — no denials this run,
+vs. the four identical 403s on 2026-07-02). This is a genuine unblock, not a fluke: every host
+returned real application-layer data, not a proxy error page.
+
+**Consequence:** Q0b marked DONE; Q2/Q4/Q5/Q6 flipped from `BLOCKED(egress policy)` back to
+`TODO` in `LOOP-QUEUE.md`; Q3 now reads `BLOCKED(needs Q2)` (Q1 no longer blocks it — see below).
+Q1 (sports pairs collector) was built and run live this same session: `collection/sports_pairs.py`
+captured 489 open moneyline games (4 World Cup) in one pass, 489/489 complete, every leg tagged
+`real_ask`. `ODDS_API_KEY` is still unset, so the odds/de-vig leg is `BLOCKED(key)` per Q1's own
+spec (the Kalshi leg is captured regardless — never let the free half wait on the paid half).
+
+No action needed from Ryan on egress. `ODDS_API_KEY` remains a nice-to-have for S7/S11's sharp-line
+leg, not a blocker for any queue item.

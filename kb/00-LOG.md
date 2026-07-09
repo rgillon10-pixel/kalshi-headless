@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-09 15:17 UTC — Egress unblocked; Q1 sports-pairs collector built + first live tape
+
+Cloud-loop run. Q0b's self-healing re-check (protocol: re-test the 4 hosts while any item sits
+`BLOCKED(egress ...)`) found all four **now reachable** — real app-layer data back (Kalshi market
+JSON, Coinbase/Kraken tickers, the-odds-api's structured "key missing" error), zero relay failures
+on the proxy status endpoint, vs. the identical 403s from 2026-07-02. This is Ryan having widened
+the sandbox's egress allowlist, not a fluke. `ODDS_API_KEY` is still unset.
+
+Per Q0b's own instructions, flipped `BLOCKED(egress policy)` back to `TODO` for Q2/Q4/Q5/Q6, set
+Q3 to `BLOCKED(needs Q2)`, and refreshed `tape/cloud-env-check.md` with the re-verify evidence —
+then proceeded straight into Q1, the topmost now-eligible TODO (time-sensitive: World Cup ends
+Jul 19).
+
+**Built `collection/sports_pairs.py`** — forward, read-only capture of Kalshi sports moneyline
+BBO, mirroring `capture_orderbooks.py`'s bitemporal/completeness discipline but with its own line
+schema (edge unit = one `event_ticker`/game, not city×day). Key design finding: Kalshi's
+`/markets` listing already returns top-of-book `yes_ask_dollars`/`no_ask_dollars` per market, so
+unlike weather capture **no per-market orderbook GET is needed** — one paginated call per series
+covers discovery + BBO together. Moneyline series are identified empirically by ticker suffix
+(`...GAME`; spread/total/prop variants use a different suffix, verified against a random sample
+of 15 series). Odds/de-vig leg (`devig_multiplicative`, `match_odds_event`) is implemented and
+unit-tested offline but gated entirely on `ODDS_API_KEY` presence — absent this run, so it never
+makes a network call; the Kalshi leg is captured regardless (never let the free half wait on the
+paid half). 15 new tests (`tests/test_sports_pairs.py`): ticker parsing, de-vig math (2-way/3-way,
+bad-input rejection), odds-event name matching, and an offline `FakeClient` capture pass covering
+completeness, series-enumeration-failure, non-GAME-series exclusion, and degenerate single-leg
+groups.
+
+**First live pass**: 489 open moneyline games captured in one pass (~56s), 489/489 complete, every
+leg `real_ask`, 4 of them World Cup (`KXWCGAME`, e.g. France vs Morocco bracket_sum 1.02 → ~2%
+overround — in the same low-single-digit-cent range S7's thesis needs). Tape:
+`tape/sports_pairs/dt=2026-07-09/pass-20260709T151712Z.jsonl` (committed — tape/ is git-tracked by
+design). This is forward tape only, not yet an edge: Q4 (S7 historical backtest) is the item that
+turns accumulating tape + candlesticks into a CI. 68 tests green (53 prior + 15 new),
+`invariants --full` green.
+
+**Next:** Q2 (crypto-hourly collector) and Q4 (S7 historical backtest) are both now eligible;
+Q2 keeps accumulating the free half of S8/S10, Q4 is the nearer path to a first real CI on the
+try-first candidate.
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi
