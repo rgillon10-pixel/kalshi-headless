@@ -6,6 +6,60 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-09 00:23 UTC — Q0b egress UNBLOCKED; Q1 sports moneyline collector built + live-verified
+
+Cloud run picked up `Q0b` (the self-healing egress re-check added last run but never actually
+run) as the topmost eligible item. Re-tested the same 4 hosts that were uniformly proxy-403'd
+on 2026-07-02: **all 4 are now reachable** — Kalshi public REST (`/trade-api/v2/markets`,
+`/series`), Coinbase + Kraken public spot, and `api.the-odds-api.com` (401 `MISSING_KEY`, i.e.
+network path open, only the credential is missing). Nothing in this environment changed the
+result; the sandbox's org egress allowlist was evidently widened between the two checks. Full
+before/after evidence in `tape/cloud-env-check.md`.
+
+Per Q0b's protocol, flipped every `BLOCKED(egress policy)` queue status back to `TODO`
+(`LOOP-QUEUE.md` Q2, Q4, Q5, Q6; Q3 now `BLOCKED(needs Q2)` only) and proceeded to the new
+topmost TODO item, **Q1** — the time-sensitive sports paired-odds collector (World Cup ends Jul
+19).
+
+**Built `collection/sports_pairs.py`** (mirrors `collection/capture_orderbooks.py`'s bitemporal
+discipline): discovers Kalshi moneyline ("Game"-scope) series in two cheap stages — a bulk
+`/series?category=Sports` listing filtered to `ticker.endswith("GAME")`, then one
+`/series/{ticker}` detail call per candidate to confirm `product_metadata.scope == "Game"` (the
+field Kalshi itself uses to mark a game-winner market — empirically confirmed against known
+moneyline series like `KXNFLGAME`/`KXMLBGAME` vs. known prop series like `KXWCTEAMSINGAME` that
+share the same "GAME" ticker suffix but aren't moneylines). Groups open markets by
+`event_ticker`, snapshots real yes/no BBO (`price_source_tag: "real_ask"`, straight off the
+market listing — no extra per-market orderbook fetch needed), computes `bracket_sum` /
+`overround_absorbed` through `core.pricing` (the Hard-Rule-#3-sanctioned site), writes one
+JSONL line per event to `tape/sports_pairs/dt=<day>/pass-<id>.jsonl`.
+
+**Live pass (2026-07-09T00:15:42Z):** 168 confirmed moneyline series, 442 events, 100% complete
+brackets. World Cup (`KXWCGAME`) sorted first as the queue item requires — e.g. France vs
+Morocco: FRA yes_ask $0.62 / MAR $0.15 / TIE $0.25, `bracket_sum` 1.02 (2¢ overround, matching
+the "cleanest non-weather family" read from the S7 dossier). Overround ranged **-0.02 to +1.73**
+across all 442 events — the wide upper end is illiquid far-future markets (a 49¢-wide NFL
+preseason book, real but expensive to trade), and two events came in with `bracket_sum` **below
+$1.00** (`KXLMBGAME-26JUL082100ALGDOR` 0.99, `KXUECLGAME-26JUL09EURSHK` 0.98) — a genuine
+candidate anomaly, flagged for Q6 (anomaly sweep) rather than chased this run (out of scope for
+a collector-build milestone; needs a fee-floor check before it means anything).
+
+**`ODDS_API_KEY` is still absent** (re-checked, not printed). The odds/de-vig leg is honestly
+recorded as `odds_leg: "BLOCKED(key)"` per pass rather than skipped silently or faked. Built
+`core/oddsmath.py` (American↔decimal conversion, multiplicative de-vig, `overround` — all pure,
+tagged `synthetic` per trust defaults) with full unit coverage, but deliberately did NOT build
+the the-odds-api fetch/matching implementation — there's no key in this environment to verify
+its actual response shape against, and CLAUDE.md's rule is to derive from live shapes, not
+assume them. That's next once a key exists.
+
+19 new tests (`tests/test_sports_pairs.py` ticker parsing + offline fake-client capture-pass
+tests mirroring `test_capture_bitemporal.py`'s completeness discipline; `tests/test_oddsmath.py`
+de-vig math), full suite green, `invariants --full` green.
+
+**Next:** Q2 (crypto-hourly collector, now unblocked) is the next topmost TODO item. Q1 itself
+still has the odds-leg matching implementation open once `ODDS_API_KEY` exists — track under S7.
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi
