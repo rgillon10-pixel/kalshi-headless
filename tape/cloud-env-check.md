@@ -1,52 +1,55 @@
-# Cloud environment check (Q0)
+# Cloud environment check (Q0 / Q0b)
 
-`run` · 2026-07-02 · cloud sandbox (kalshi-research-loop)
+`run` · 2026-07-02 (Q0, initial) · 2026-07-09 (Q0b, re-verify — UNBLOCKED)
+cloud sandbox (kalshi-research-loop)
 
 Purpose: verify which external hosts this cloud sandbox can actually reach, since every
-downstream collector (Q1–Q7) depends on live network access. Method: direct `curl` (and the
-existing `collection/capture_orderbooks.py` entry point) against each required host, `--max-time
-15`. All traffic in this sandbox is forced through a policy-enforcing egress proxy
-(`$HTTPS_PROXY`); its own status endpoint (`$HTTPS_PROXY/__agentproxy/status`) records
-per-host relay failures.
+downstream collector (Q1–Q7) depends on live network access. Method: direct `curl` (and
+the existing `collection/capture_orderbooks.py` / `collection/sports_pairs.py` entry
+points) against each required host, `--max-time 15`.
 
-## Results
+## Results — 2026-07-09 re-verify (Q0b)
 
 | host | purpose | result | source_tag |
 |---|---|---|---|
-| `api.elections.kalshi.com` | Kalshi public REST (`capture_orderbooks.py --limit 3`) | **BLOCKED** — proxy CONNECT → 403 | n/a |
-| `api.exchange.coinbase.com` | public BTC-USD spot | **BLOCKED** — proxy CONNECT → 403 | n/a |
-| `api.kraken.com` | public BTC spot (Kraken) | **BLOCKED** — proxy CONNECT → 403 | n/a |
-| `api.the-odds-api.com` | the-odds-api reachability | **BLOCKED** — proxy CONNECT → 403 | n/a |
+| `api.elections.kalshi.com` | Kalshi public REST | **REACHABLE** — `GET /exchange/status` → 200, `exchange_active: true` | n/a |
+| `api.exchange.coinbase.com` | public BTC-USD spot | **REACHABLE** — `GET /products/BTC-USD/ticker` → 200 | n/a |
+| `api.kraken.com` | public BTC spot (Kraken) | **REACHABLE** — `GET /0/public/Ticker?pair=XBTUSD` → 200 | n/a |
+| `api.the-odds-api.com` | the-odds-api reachability | **REACHABLE** — `GET /v4/sports` → 401 `MISSING_KEY` (host + API reachable; no key configured, see below) | n/a |
 | `ODDS_API_KEY` env var | odds API credential | **absent** (checked presence only, not printed) | n/a |
 
-Raw evidence (`$HTTPS_PROXY/__agentproxy/status` → `recentRelayFailures`, all same shape):
-```
-{"kind":"connect_rejected","detail":"gateway answered 403 to CONNECT (policy denial or upstream failure)","host":"<host>:443"}
-```
-`api.elections.kalshi.com` failure reproduced end-to-end via
-`python -m collection.capture_orderbooks --limit 3` (same proxy 403, full traceback in run log).
+End-to-end confirmation: `python -m collection.sports_pairs --limit-series 3` and a full
+unbounded pass both completed live against `api.elections.kalshi.com` — 211 moneyline
+events captured across 186/186 discovered series, `completeness_ok: true`. See
+`tape/sports_pairs/`.
 
 ## Interpretation
 
-This is an **organization egress allowlist**, not a transient outage: the proxy's `noProxy`
-allowlist covers only package registries (`pypi.org`, `registry.npmjs.org`, …) and
-`anthropic.com` — no data-provider host is reachable from this particular cloud sandbox. Per
-the proxy runbook (`/root/.ccr/README.md`), a 403 from the gateway is a policy denial and must
-**not** be retried or routed around.
+The org egress allowlist that blocked all four hosts on 2026-07-02 (proxy CONNECT → 403,
+policy denial per `/root/.ccr/README.md`) has been **widened** as of this run — every host
+now completes a real TLS handshake and returns a genuine application response (200/401,
+never a proxy 403). This is a environment/policy change on Ryan's side, not a code change
+here.
 
-This is a sandbox/environment property, not a code bug — nothing here indicates
-`capture_orderbooks.py`, `normalize.py`, or the client libs are broken; they never got past the
-TLS tunnel.
+`api.the-odds-api.com` is reachable but `ODDS_API_KEY` is still absent from the
+environment — a **credential**, not a network gap. Per CLAUDE.md/Stop rules, a cloud run
+never touches credentials, so this cannot be resolved from here; the sports collector
+(`collection/sports_pairs.py`) captures the Kalshi leg unconditionally and honestly marks
+the odds leg `{"status": "BLOCKED(key)"}` per event rather than fabricating a devigged
+price without one.
 
 ## Consequence for the queue
 
-Every downstream collector needs one of these hosts, so per protocol they are marked
-`BLOCKED(egress policy)` in `LOOP-QUEUE.md` (see Status lines): Q1, Q2, Q3, Q4 (S7a candlesticks +
-historical odds source), Q5 (S8 candlesticks), Q6 (anomaly sweep needs live market snapshots).
-Q7 was already `BLOCKED(needs ≥7 days of Q2 tape)` and now additionally depends on Q2's egress
-fix.
+Q0b (LOOP-QUEUE.md) is DONE; every `BLOCKED(egress policy ...)` status is flipped back to
+TODO (Q2, Q4, Q5, Q6) or resolved this run (Q1 — see its Status line). Q3 still needs Q2;
+Q7 still needs ≥7 days of Q2 tape. No further action needed from Ryan on egress. The
+odds-leg gap (Q1/Q4) needs `ODDS_API_KEY` supplied out-of-band whenever Ryan chooses to.
 
-**Action needed from Ryan (not resolvable by a cloud run):** either (a) add
-`api.elections.kalshi.com`, the crypto spot host(s), and `api.the-odds-api.com` to this
-environment's egress allowlist, or (b) run the collectors from an environment/pool that already
-has broader egress. No cloud loop run can change its own network policy.
+---
+
+## 2026-07-02 original check (superseded above; kept for the record)
+
+All 4 hosts were **BLOCKED** — proxy CONNECT → 403 (`{"kind":"connect_rejected", "detail":
+"gateway answered 403 to CONNECT (policy denial or upstream failure)"}` for each). Q1–Q6
+were marked `BLOCKED(egress policy)` pending Ryan widening the sandbox allowlist. That
+widening has now happened (see 2026-07-09 section above).

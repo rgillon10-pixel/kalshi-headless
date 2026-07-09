@@ -6,6 +6,50 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-09 10:13 UTC — Q0b egress unblocked; Q1 sports collector built + live pass (211 events)
+
+Q0b's cheap re-check (curl the same 4 hosts Q0 found blocked on 2026-07-02) came back **all
+reachable**: Kalshi REST (`GET /exchange/status` → 200), Coinbase (200), Kraken (200),
+`api.the-odds-api.com` (401 `MISSING_KEY` — host+API reachable, key just isn't set). The org
+egress allowlist was widened since the last run. `ODDS_API_KEY` is still absent from the
+environment — a credential gap, not a network one; per Stop rules a cloud run never touches
+credentials, so that piece waits on Ryan. Full evidence in `tape/cloud-env-check.md`.
+
+Per Q0b's protocol, flipped every `BLOCKED(egress ...)` queue item back to TODO (Q2, Q4, Q5,
+Q6) and proceeded to the new topmost item, Q1 (time-sensitive: World Cup ends Jul 19). Built
+`collection/sports_pairs.py`, mirroring `capture_orderbooks.py`'s discipline: bitemporal
+`fetch_ts`, per-event raw-bytes sha256, honest completeness (a series whose event-fetch fails
+lowers `completeness_ok` rather than being silently dropped). Discovery: any Sports-category
+series whose ticker ends `GAME` (superset), gated per-event by Kalshi's own `"... Winner?"`
+title convention on binary markets — confirmed empirically on both a 3-way soccer event (win/
+lose/draw) and a 2-way MLB event (no draw). Every leg's `yes_ask`/`no_ask`/etc. is the live
+top-of-book, tagged `real_ask`; `bracket_sum`/`overround` are computed via `core.pricing` only
+(the sanctioned site, Hard Rule #3) — never by hand-summing asks. Also added pure, unit-tested
+de-vig math (`american_to_prob`, `devig_multiplicative`) ready for when a sharp-odds feed
+exists, but **not called live** — no `ODDS_API_KEY` means no odds fetch; every captured event
+instead carries an honest `{"odds":{"status":"BLOCKED(key)"}}` rather than a fabricated devig.
+18 new unit tests (ticker parsing incl. the WC 3-way and MLB 2-way shapes, de-vig math, an
+offline `FakeClient` run() covering the happy path / degenerate single-leg event / a failed-
+series completeness drop / World-Cup-first ordering).
+
+Ran it for real: a 3-series smoke test, then a full unbounded pass — **211 moneyline events
+across 186/186 discovered "GAME" series**, `completeness_ok: true`, World Cup prioritized
+first. Sample: `KXWCGAME-26JUL11ARGSUI` (Argentina vs Switzerland) — bracket_sum 1.02, a 2¢
+overround, real_ask on all 3 legs (win/lose/draw). Data under `tape/sports_pairs/` (204 KB for
+both passes — well inside the "commit tape to git" budget). Gates: full suite green (91 tests
+incl. the 18 new ones), `invariants --full` green.
+
+**Consequence:** Q1 → DONE. Q2/Q4/Q5/Q6 → TODO (egress no longer blocks them; each has its own
+remaining non-egress work, noted in their Status lines). Q3 still needs Q2. Q7 still needs ≥7
+days of Q2 tape. S7/S11 (registry) bumped `idea` → `data-collecting` since real tape is now
+flowing for them — no edge claim yet, this is data collection only, per Stop rules.
+
+**Next:** Q2 (crypto-hourly settlement collector) is the new topmost eligible item. Once Ryan
+supplies `ODDS_API_KEY` out-of-band, wire the live sharp-odds fetch + devig into
+`sports_pairs.py` (the function scaffolding already exists and is tested).
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi

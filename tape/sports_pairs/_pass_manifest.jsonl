@@ -1,0 +1,2 @@
+{"capture_id":"20260709T101341Z","completeness_ok":true,"day":"2026-07-09","fetch_ts":"2026-07-09T10:13:41.321593+00:00","n_events_captured":4,"n_series_attempted":3,"n_series_failed":0,"odds_key_present":false,"odds_status":"BLOCKED(key)","series_failed":[]}
+{"capture_id":"20260709T101358Z","completeness_ok":true,"day":"2026-07-09","fetch_ts":"2026-07-09T10:13:58.645169+00:00","n_events_captured":211,"n_series_attempted":186,"n_series_failed":0,"odds_key_present":false,"odds_status":"BLOCKED(key)","series_failed":[]}
