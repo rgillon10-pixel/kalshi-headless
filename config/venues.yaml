@@ -18,3 +18,29 @@ open_meteo:
   # Historical FORECAST archive (forecasts as-issued) — NOT the reanalysis API.
   # Using reanalysis here would leak the answer into a "forecast"; V2 enforces this.
   historical_forecast_base: https://historical-forecast-api.open-meteo.com/v1/forecast
+
+the_odds_api:
+  # Matched sportsbook odds (Pinnacle preferred) for S7/S11 de-vig comparison. Read via
+  # ODDS_API_KEY env var (never persisted). Absent key -> collection/sports_pairs.py
+  # captures the Kalshi leg only and marks the odds leg BLOCKED(key).
+  api_base: https://api.the-odds-api.com/v4
+  preferred_bookmaker: pinnacle
+
+kalshi_sports:
+  # Category used to enumerate moneyline (head-to-head) series (Q1). Kalshi's own
+  # series titles don't reliably say "moneyline" — every real head-to-head game series
+  # observed so far has a ticker ending in GAME/GAMES; the denylist below are confirmed
+  # non-moneyline outliers that also happen to end that way (props/aggregates, not a
+  # single game's winner). This is a static list to review as new sports get added,
+  # not an attempt at a perfect classifier — collection/sports_pairs.py additionally
+  # skips (and counts) any discovered event whose market shape doesn't look like a
+  # mutually-exclusive game-winner bracket, so a denylist miss degrades to a skip,
+  # never a silently-wrong record.
+  category: "Sports"
+  series_ticker_suffixes: ["GAME", "GAMES"]
+  series_ticker_denylist:
+    - KXNBA3PTALLGAMES
+    - KXNBAPTSALLGAMES
+    - KXNBASERIESGAMES
+    - KXNHLSERIESGAMES
+    - KXMLBSERIESGAMETOTAL

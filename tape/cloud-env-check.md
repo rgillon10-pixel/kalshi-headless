@@ -1,6 +1,28 @@
-# Cloud environment check (Q0)
+# Cloud environment check (Q0 / Q0b)
 
-`run` · 2026-07-02 · cloud sandbox (kalshi-research-loop)
+`run` · 2026-07-02, re-verified 2026-07-09 · cloud sandbox (kalshi-research-loop)
+
+## 2026-07-09 re-verify (Q0b) — UNBLOCKED
+
+Per LOOP-QUEUE.md Q0b, re-tested the same four hosts with plain `curl --max-time 15` before
+touching anything else this run. All four are now reachable — this cloud sandbox's egress
+allowlist was widened since 2026-07-02 (no code changed on our end; nothing below indicates
+`capture_orderbooks.py`/`sports_pairs.py` were ever broken, only that the tunnel now opens).
+
+| host | result |
+|---|---|
+| `api.elections.kalshi.com` | **200** — `/exchange/status` returned real JSON (`exchange_active: true`) |
+| `api.exchange.coinbase.com` | **200** — `/products/BTC-USD/ticker` returned a real quote |
+| `api.kraken.com` | **200** — `/0/public/Ticker` returned a real quote |
+| `api.the-odds-api.com` | **401** `MISSING_KEY` — host reachable, request reached the odds-api server itself (not a proxy block); `ODDS_API_KEY` still absent from env |
+
+Action taken this run: flipped every `BLOCKED(egress policy)` queue item back to TODO (see
+LOOP-QUEUE.md), then proceeded to Q1 (now unblocked) and shipped `collection/sports_pairs.py`
+with a first live capture pass (500 events, 42 series, all `real_ask`, all complete).
+
+---
+
+## 2026-07-02 original check (superseded above — kept for history)
 
 Purpose: verify which external hosts this cloud sandbox can actually reach, since every
 downstream collector (Q1–Q7) depends on live network access. Method: direct `curl` (and the

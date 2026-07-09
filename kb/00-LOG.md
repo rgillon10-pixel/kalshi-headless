@@ -6,6 +6,53 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-09 05:16 UTC — Q0b egress UNBLOCKED; Q1 sports-pairs collector built + first live pass
+
+Q0b (the self-healing egress re-check) re-tested the same 4 hosts Q0 found blocked on
+2026-07-02: **all 4 are now reachable** — Kalshi REST (`/exchange/status` → 200, real JSON),
+Coinbase (`/products/BTC-USD/ticker` → 200, real quote), Kraken (`/0/public/Ticker` → 200, real
+quote), and `api.the-odds-api.com` (→ 401 `MISSING_KEY`, i.e. the request reached the odds-api
+server itself rather than being proxy-blocked). `ODDS_API_KEY` is still absent from env. This is
+an environment/allowlist change, not a code fix — nothing about `capture_orderbooks.py` or the
+new collector below was broken before; the tunnel simply didn't open. Refreshed evidence in
+`tape/cloud-env-check.md`; flipped every `BLOCKED(egress policy)` queue item back to TODO.
+
+With egress open, proceeded to Q1 (topmost newly-unblocked item, time-sensitive: 2026 World Cup
+ends 2026-07-19). Built `collection/sports_pairs.py`: discovers Kalshi's head-to-head "moneyline"
+markets via the empirically-derived pattern that every real game-winner series' ticker ends in
+GAME/GAMES (Kalshi's category taxonomy doesn't expose "moneyline" directly), minus a small
+denylist of confirmed non-moneyline outliers (prop/aggregate series that share the suffix); a
+denylist miss degrades to a per-event skip (via Kalshi's own `mutually_exclusive` flag + a
+>=2-leg check), never a silently-wrong record. Uses `GET /events?...&with_nested_markets=true`,
+which returns each event's markets pre-populated with real fillable BBO (`yes_ask_dollars` /
+`no_ask_dollars`) — no separate per-market orderbook fetch needed (unlike the bids-only weather
+ladders). Every persisted leg is tagged `real_ask`; `bracket_sum` is computed through
+`core.pricing.bracket_sum` (Hard Rule #3 — never by hand); a dropped leg lowers
+`completeness_ok` rather than shrinking silently (same discipline as `capture_orderbooks.py`).
+Added a pure `devig_multiplicative` helper (decimal odds → de-vigged fair probs, tag
+`synthetic` when eventually wired to a live odds feed) with its own unit tests, per Q1's spec,
+even though the live odds leg is currently `BLOCKED(key)` (no `ODDS_API_KEY`).
+
+19 new unit tests (ticker parsing across 4 real ticker shapes incl. MLB's embedded start-time,
+de-vig math incl. 2-way and 3-way and bad-input rejection, discovery allowlist/denylist/priority
+ordering, completeness under a dropped leg, non-mutually-exclusive and single-leg skip paths,
+series-fetch-failure recording, store write-isolation). Caught one real bug pre-commit: the
+capture-dir helper referenced the module-level `STORE` constant instead of the injected `store`
+param, so a test using `tmp_path` was actually writing raw-provenance files into the real repo
+tree (`tape/sports_pairs/...`) — fixed and the stray files were removed before committing.
+
+First live pass (uncapped): **500 events across 42 open moneyline series** (World Cup processed
+first per the time-sensitivity note), **all `real_ask`, all `completeness_ok`**. Sample bracket
+overround ~2¢ on a 3-way World Cup match (Argentina/Switzerland/Tie) — in the same ballpark as
+weather's overround, a first-cut structural note only (S7's actual edge test is Kalshi ask vs.
+de-vigged sharp line, still gated on a historical odds source — Q4/S7a). `pytest` (72 tests) and
+`scripts/invariants.py --full` both green.
+
+**Next:** Q2 (crypto-hourly collector, now also unblocked) is the next topmost TODO item;
+Q4/S7a (historical closing-odds source) and Q3 (hourly entry point, needs Q2) follow.
+
+---
+
 ## 2026-07-02 22:43 UTC — Q0 cloud environment check: all external hosts BLOCKED by egress policy
 
 Ran the cloud-sandbox reachability check the queue calls for before any of Q1–Q7 can move: Kalshi
