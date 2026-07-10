@@ -118,7 +118,16 @@ Store both spot and settle so the S8 ρ-guard (spot-vs-settle correlation) is co
 tape alone.
 
 ### Q3 — Hourly entry point for the collector routine
-Status: BLOCKED(needs Q1 + Q2 built — egress itself unblocked 2026-07-09, see Q0b)
+Status: DONE (2026-07-10) — `collection/hourly_pass.py` built: one `sports_pairs.run()` + one
+`crypto_hourly.run()`, plus `scripts/anomaly_sweep.py` as a subprocess during the 09 UTC hour
+if that file exists (Q6 not yet built — its absence is a no-op, not a failure, until it lands).
+A sub-pass exception degrades to an honest per-pass `ok:False` rather than crashing the whole
+run or poisoning the other collector's result; `completeness_ok` is False on any sub-pass
+exception, any series-enumeration error inside a sub-pass, or a failing 09-UTC anomaly sweep —
+never faked True. Prints the exact digest line specified below. 10 new unit tests, all
+sub-passes stubbed offline (no network). Live pass: **1311 markets, 455 lines, completeness
+ok** (sports 453 events/1048 outcomes, odds leg still blocked_no_key same as Q1; crypto 2/2
+symbols, spot/settle both ok). Collector-side plumbing (Q1/Q2/Q3) is now complete.
 `collection/hourly_pass.py`: the single command the hourly Haiku routine runs — one
 sports-pairs pass + one crypto-hourly pass; during the 09 UTC hour also run
 `scripts/anomaly_sweep.py` if it exists. Prints the one-line summary the collector digest
@@ -160,3 +169,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-09T20:09Z · Q0b · egress unblocked — all 4 hosts now reachable (Kalshi 200, Coinbase 200, Kraken 200, the-odds-api 401=reachable-no-key); Q1–Q6 flipped BLOCKED(egress)→TODO.
 - 2026-07-09T20:18Z · Q1 · built `collection/sports_pairs.py` + `core/sports_schema.py` + `core/odds.py` (18 new tests, all green); live pass captured 469 events/1079 outcome markets real_ask (4 World-Cup KXWCGAME events, bracket_sum 1.01–1.02); odds leg blocked_no_key (ODDS_API_KEY absent) → S7 data-collecting.
 - 2026-07-10T00:22Z · Q2 · built `collection/crypto_hourly.py` + `core/crypto_schema.py` (14 new tests, all green, 85 total); live pass captured BTC (188 outcomes) + ETH (75 outcomes) hourly ladders paired with spot (Coinbase, synthetic) + prior-hour settlement (Kalshi expiration_value, broker_truth), spot/settle both `ok`; found naive full-ladder bracket_sum is inflated by far-OTM $0.01-floor brackets (BTC overround +2.99, ETH +1.22) — not comparable to weather's ~10¢ without a near-the-money filter, flagged for Q5 → S8 data-collecting.
+- 2026-07-10T05:11Z · Q3 · Q1+Q2 dependency resolved so Q3 flipped BLOCKED→TODO and ran topmost; built `collection/hourly_pass.py` (10 new tests, all green, 105 total) orchestrating sports_pairs + crypto_hourly + conditional 09-UTC anomaly sweep, honest completeness_ok never faked True; live pass 1311 markets/455 lines completeness ok. Collector plumbing (Q1/Q2/Q3) complete; queue center of gravity moves to Q4/Q5 edge-testing.

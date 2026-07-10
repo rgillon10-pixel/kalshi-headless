@@ -6,6 +6,46 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 05:11 UTC — Q3 hourly collector entry point built + first live pass
+
+Topmost eligible queue item: **Q3** was `BLOCKED(needs Q1 + Q2 built)`, and both landed this
+session's prior two runs — dependency resolved, flipped to `TODO`, and it's topmost, so this
+run built it: `collection/hourly_pass.py`, the single command the hourly Haiku collector
+routine runs.
+
+One pass = one `collection.sports_pairs.run()` + one `collection.crypto_hourly.run()`; during
+the 09 UTC hour it also runs `scripts/anomaly_sweep.py` as a subprocess if that file exists
+(Q6 isn't built yet, so today every hour is a no-op there — checked fresh every run, so Q6
+needs zero additional wiring once it lands). Discipline carried over from both collectors: a
+hard exception in either sub-pass degrades to an honest `{"ok": False, "error": ...}` entry
+rather than crashing the whole hourly pass or silently dropping the other collector's result;
+`completeness_ok` is `False` if either sub-pass raised, either sub-pass logged a
+series-enumeration error, or (09 UTC only) the anomaly sweep exists and failed — never faked
+`True`. Prints the exact digest line Q3 specified: `<n> markets, <m> lines, completeness
+<ok/FAIL>`.
+
+10 new unit tests (`tests/test_hourly_pass.py`), sub-passes stubbed via injected callables
+(no network): count aggregation, independent-failure isolation (a sports exception doesn't
+zero out crypto's real counts and vice versa), series-errors-without-an-exception still
+failing completeness, the 09-UTC-only anomaly-sweep gate (both the call-happens/doesn't-happen
+cases and a failing sweep failing completeness), the default runner treating "script doesn't
+exist yet" as `True` (not a failure), the digest line's exact format, and `main()`'s exit code
+tracking `completeness_ok`.
+
+**Live pass** (real network, no injected fixtures): **1311 markets, 455 lines, completeness
+ok** — sports leg 453 events / 1048 outcome markets (odds leg still `blocked_no_key`, unchanged
+from Q1), crypto leg 2/2 symbols captured with `spot={ok:2}` and `settle={ok:2}`. Tape appended
+to the existing `tape/sports_pairs/` and `tape/crypto_hourly/` stores (same manifests those
+collectors already write — `hourly_pass` adds no new tape shape, just orchestration). Gates:
+**105 tests green** (95 existing + 10 new), `invariants --full` green.
+
+**Next:** Q4 (S7 historical CLV backtest) and Q5 (S8 first cut) remain the two `TODO`-eligible
+research milestones; Q6 (anomaly sweep) is now load-bearing for Q3's completeness signal
+whenever it lands, not just a standalone probe. Collector-side plumbing (Q1/Q2/Q3) is done;
+the queue's center of gravity moves to actually testing S7/S8 for edge.
+
+---
+
 ## 2026-07-10 00:22 UTC — Q2 crypto-hourly settlement collector built + first live pass
 
 Topmost eligible queue item after Q1: **Q2**, the crypto-hourly settlement-basis collector
