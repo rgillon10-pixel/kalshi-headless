@@ -35,6 +35,7 @@ import argparse
 import json
 import re
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
@@ -61,6 +62,7 @@ EXCLUDE_FILES = {
 SANCTIONED = {
     "pstdev": "core/stats.py",
     "yes_ask_arith": "core/pricing.py",
+    "fee_rate": "core/pricing.py",
 }
 
 
@@ -176,6 +178,36 @@ def inv_no_static_rho_point_four(path: Path, text: str) -> Optional[str]:
                 "{benign:0.05,mixed:0.25,frontal:0.60}") if hits else None
 
 
+def inv_no_handrolled_fee_rate(path: Path, text: str) -> Optional[str]:
+    """L5 No hand-rolled Kalshi fee-rate literal outside core/pricing.py. The fee schedule
+    rates (taker 0.07, maker 0.0175, S&P/NDX 0.035) live ONLY in core.pricing; a first S13
+    draft charged maker fills the taker rate (a 4x overcharge that alone ate a 1c edge). We
+    catch two shapes: (A) a constant/kwarg whose identifier contains fee/rate/coeff as an
+    underscore-delimited token bound to a banned literal, and (B) a banned literal passed
+    positionally into a fee_per_contract() call. Comment lines are skipped (like the rho
+    rule); 0.0035 (longshot's maker-fee modeling haircut) is NOT a schedule rate and
+    deliberately does not match."""
+    if _file_excluded(path) or _rel(path) == SANCTIONED["fee_rate"]:
+        return None
+    # (A) name-bound: <fee|rate|coeff identifier> [: type] = 0.07 / 0.0175 / 0.035
+    # fee/rate/coeff must be a whole underscore-delimited token segment (or the entire
+    # identifier), NOT a raw substring: segments allow digits so SP500_NDX_FEE_RATE still
+    # fires, but benign words that merely contain the substring (accurate, coffee, separate,
+    # generate, moderate, corporate) do not (verifier catch: substring FP on those names).
+    pat_a = re.compile(
+        r'(?i)\b(?:[a-z0-9]+_)*(?:fee|rate|coeff)(?:_[a-z0-9]+)*\s*(?::\s*[a-z_.\[\]]+\s*)?=\s*'
+        r'0?\.(?:07|0175|035)\b'
+    )
+    # (B) positional banned literal into a fee call: fee_per_contract(x, 0.07)
+    pat_b = re.compile(r'fee_per_contract\s*\([^)]*[,(]\s*0?\.(?:07|0175|035)\b')
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#") and (pat_a.search(ln) or pat_b.search(ln))]
+    return _fmt(path, hits,
+                "hand-rolled Kalshi fee rate — lesson L5 (a 4x maker/taker overcharge sank an "
+                "S13 draft): import core.pricing.TAKER_FEE_RATE / MAKER_FEE_RATE / "
+                "SP500_NDX_FEE_RATE, never a literal") if hits else None
+
+
 def inv_no_http_server(path: Path, text: str) -> Optional[str]:
     """#6 No FastAPI / HTTP server framework."""
     if _file_excluded(path):
@@ -194,6 +226,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_pstdev_import", inv_no_pstdev_import),
     ("no_yes_ask_arithmetic", inv_no_yes_ask_arithmetic),
     ("no_static_rho_point_four", inv_no_static_rho_point_four),
+    ("no_handrolled_fee_rate", inv_no_handrolled_fee_rate),
     ("no_http_server", inv_no_http_server),
 ]
 
@@ -309,6 +342,42 @@ def scan_db(db_path: Path) -> List[str]:
         con.close()
 
 
+# ─── Stranded-tape warning (L17: non-gating, offline-safe advisory) ──────────────
+
+def _git_tape_refs() -> List[str]:
+    """Local-clone knowledge of `tape/hourly-*` fallback branches (both origin-tracking and
+    local heads). The hourly collector's push to main fails intermittently and strands tape on
+    these refs (lesson L17). This is a best-effort, fully offline-safe probe: ANY failure
+    (missing git, nonzero exit, timeout, exception) yields [] so it can never poison the gate."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "for-each-ref",
+             "refs/remotes/origin/tape/hourly-*", "refs/heads/tape/hourly-*",
+             "--format=%(refname:short)"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return []
+    if out.returncode != 0:
+        return []
+    return [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+
+
+def stranded_tape_warning(refs: List[str]) -> Optional[str]:
+    """A non-gating advisory message when local tape/hourly-* refs exist, else None. Pure."""
+    if not refs:
+        return None
+    n = len(refs)
+    examples = ", ".join(refs[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} local tape/hourly-* ref(s) known to this clone "
+        f"(e.g. {examples}). These are LOCAL refs as of the last fetch — they may carry tape "
+        f"lines `main` is missing. This is advisory only and does NOT affect the exit code; "
+        f"run LOOP-QUEUE step 0b (git fetch origin, then the union-append line-set sweep) to "
+        f"reconcile them before trusting the canonical tape."
+    )
+
+
 # ─── PreToolUse hook ────────────────────────────────────────────────────────
 
 def _post_edit_content(file_path: Path, old: str, new: str) -> Optional[str]:
@@ -370,7 +439,16 @@ def main() -> int:
     if args.pre_edit_hook:
         return handle_pre_edit_hook()
 
-    failures = scan_db(args.db) if args.db is not None else scan_tree()
+    if args.db is not None:
+        failures = scan_db(args.db)
+    else:
+        failures = scan_tree()
+        # L17 advisory: surface locally-known stranded tape/hourly-* refs on the whole-tree
+        # scan only. Non-gating — printed to stderr, never flips the exit code.
+        warning = stranded_tape_warning(_git_tape_refs())
+        if warning:
+            sys.stderr.write(warning + "\n")
+
     if failures:
         sys.stderr.write(f"invariants: {len(failures)} violation(s)\n")
         for f in failures:

@@ -49,6 +49,9 @@ def _crypto_summary(tmp_path, capture_id="cap2", n_symbols=2, n_complete=2, per_
 # aren't exercising the polymarket sub-pass itself
 _EMPTY_POLYMARKET = {"n_matched": 0, "n_kalshi_markets": 0, "completeness_ok": True}
 
+# same role as _EMPTY_POLYMARKET, for the Q12 Fed-decision macro-pairs sub-pass
+_EMPTY_POLYMARKET_MACRO = {"n_matched": 0, "n_kalshi_markets": 0, "completeness_ok": True}
+
 
 def _polymarket_summary(n_matched=3, n_kalshi_markets=3, completeness_ok=True):
     return {
@@ -64,6 +67,9 @@ ANOMALY_HOUR = hp.ANOMALY_SWEEP_UTC_HOUR
 # fires at ANOMALY_HOUR but isn't exercising econ_prints itself
 _NOT_BUILT_ECON = {"status": "not_built"}
 
+# same role as _NOT_BUILT_ECON, for the Q12-follow-up CPI-pairs 09-UTC-only slot
+_EMPTY_POLYMARKET_CPI = {"n_matched": 0, "n_buckets_total": 0, "n_buckets_priced": 0, "completeness_ok": True}
+
 
 def _ts(hour):
     return datetime(2026, 7, 3, hour, 0, 0, tzinfo=timezone.utc)
@@ -78,7 +84,8 @@ def test_run_all_complete_outside_anomaly_hour(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["n_lines"] == 2 + 2
@@ -91,7 +98,8 @@ def test_run_prints_expected_digest_line(tmp_path, capsys):
     crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
 
     hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-           polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+           polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     out = capsys.readouterr().out
     assert "[hourly_pass] 12 markets, 2 lines, completeness ok" in out
@@ -106,7 +114,8 @@ def test_run_sports_incomplete_marks_overall_incomplete(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -117,7 +126,8 @@ def test_run_crypto_incomplete_marks_overall_incomplete(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -129,7 +139,8 @@ def test_run_polymarket_incomplete_marks_overall_incomplete(tmp_path):
 
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-        polymarket_fn=lambda: polymarket, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_fn=lambda: polymarket,
+        polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["n_lines"] == 2 + 2 + 2
@@ -146,7 +157,8 @@ def test_run_sports_raises_crypto_still_runs(tmp_path):
         raise RuntimeError("simulated sports_pairs failure")
 
     summary = hp.run(sports_fn=_boom, crypto_fn=lambda: crypto,
-                      polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["sports_pairs"]["status"] == "error"
@@ -163,7 +175,8 @@ def test_run_crypto_raises_sports_still_runs(tmp_path):
         raise RuntimeError("simulated crypto_hourly failure")
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=_boom,
-                      polymarket_fn=lambda: _EMPTY_POLYMARKET, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["crypto_hourly"]["status"] == "error"
@@ -180,7 +193,8 @@ def test_run_polymarket_raises_others_still_run(tmp_path):
         raise RuntimeError("simulated polymarket_pairs failure")
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
-                      polymarket_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_fn=_boom,
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["polymarket_pairs"]["status"] == "error"
@@ -205,6 +219,7 @@ def test_anomaly_sweep_not_invoked_outside_09_utc(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=_sweep, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
@@ -217,8 +232,9 @@ def test_anomaly_sweep_not_built_does_not_fail_completeness(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["anomaly_sweep"]["result"]["status"] == "not_built"
@@ -230,8 +246,9 @@ def test_anomaly_sweep_error_marks_incomplete(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "error", "returncode": 1},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -245,8 +262,9 @@ def test_anomaly_sweep_raising_marks_incomplete_not_crash(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=_boom, econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["anomaly_sweep"]["status"] == "error"
@@ -271,6 +289,7 @@ def test_econ_prints_not_invoked_outside_09_utc(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=_econ, now=_ts(NOT_ANOMALY_HOUR))
 
@@ -284,9 +303,10 @@ def test_econ_prints_all_complete_does_not_fail_completeness(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 5},
-                     now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["econ_prints"]["result"] == {"n_series": 5, "n_complete": 5}
@@ -298,9 +318,10 @@ def test_econ_prints_partial_marks_incomplete(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 3},
-                     now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -314,11 +335,185 @@ def test_econ_prints_raising_marks_incomplete_not_crash(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=_boom, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=_boom, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["econ_prints"]["status"] == "error"
+
+
+# --------------------------------------------------------------------------- #
+# polymarket_cpi_pairs (Q12 follow-up): only during the 09 UTC hour, never fakes success
+# --------------------------------------------------------------------------- #
+def test_polymarket_cpi_not_invoked_outside_09_utc(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    calls = []
+
+    def _cpi():
+        calls.append(1)
+        return dict(_EMPTY_POLYMARKET_CPI)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=_cpi, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert calls == []
+    assert summary["polymarket_cpi_pairs"] is None
+
+
+def test_polymarket_cpi_complete_does_not_fail_completeness(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=lambda: {"n_matched": 4, "completeness_ok": True},
+                     now=_ts(ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is True
+    assert summary["polymarket_cpi_pairs"]["result"]["n_matched"] == 4
+    assert summary["n_lines"] == sports["n_games"] + crypto["n_symbols"] + 4
+
+
+def test_polymarket_cpi_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=lambda: {"n_matched": 2, "completeness_ok": False},
+                     now=_ts(ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_polymarket_cpi_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    def _boom():
+        raise RuntimeError("simulated polymarket_cpi crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     anomaly_sweep_fn=lambda: {"status": "not_built"},
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON,
+                     polymarket_cpi_fn=_boom, now=_ts(ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["polymarket_cpi_pairs"]["status"] == "error"
+
+
+# --------------------------------------------------------------------------- #
+# orderbook_depth (S6): full-depth sub-pass — count folding, completeness, fault isolation,
+# and same-pass ticker gathering read straight back from the sports/crypto tape
+# --------------------------------------------------------------------------- #
+# a zero-contribution depth stub for tests not exercising the depth sub-pass itself
+_EMPTY_DEPTH = {"n_captured": 0, "n_expected": 0, "n_lines": 0, "completeness_ok": True}
+
+
+def test_depth_counts_fold_into_totals(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _depth(tickers):
+        return {"n_captured": 4, "n_expected": 4, "completeness_ok": True}
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     depth_fn=_depth, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is True
+    # 1 game line + 1 symbol line + 4 depth lines; markets = 1*2 + 1*10 + 4 depth markets
+    assert summary["n_lines"] == 1 + 1 + 4
+    assert summary["n_markets"] == 1 * 2 + 1 * 10 + 4
+    assert summary["orderbook_depth"]["result"]["n_captured"] == 4
+
+
+def test_depth_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    def _depth(tickers):
+        return {"n_captured": 2, "n_expected": 3, "completeness_ok": False}
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     depth_fn=_depth, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_depth_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom(tickers):
+        raise RuntimeError("simulated orderbook_depth crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     depth_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["orderbook_depth"]["status"] == "error"
+    # the other sub-passes and their counts survive the depth crash (fault isolation)
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+    assert summary["n_lines"] == 1 + 1
+    assert summary["n_markets"] == 2 + 10
+
+
+def test_depth_receives_this_passes_discovered_tickers(tmp_path):
+    # sports tape line carries outcomes[].ticker; crypto tape carries current.outcomes[].ticker.
+    # _gather_depth_tickers must read exactly those, filtered by capture_id.
+    sports_path = _write_tape(tmp_path, "sports_od.jsonl", [
+        {"capture_id": "capA", "outcomes": [{"ticker": "KX-A"}, {"ticker": "KX-B"}]},
+        {"capture_id": "other", "outcomes": [{"ticker": "STALE"}]},
+    ])
+    crypto_path = _write_tape(tmp_path, "crypto_od.jsonl", [
+        {"capture_id": "capB", "current": {"outcomes": [{"ticker": "KXBTC-1"}]}},
+    ])
+    sports = {"capture_id": "capA", "n_games": 1, "n_complete": 1, "path": sports_path}
+    crypto = {"capture_id": "capB", "n_symbols": 1, "n_complete": 1, "path": crypto_path}
+
+    seen = {}
+
+    def _depth(tickers):
+        seen["tickers"] = list(tickers)
+        return {"n_captured": len(tickers), "n_expected": len(tickers), "completeness_ok": True}
+
+    hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+           polymarket_fn=lambda: _EMPTY_POLYMARKET,
+           polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+           depth_fn=_depth, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert seen["tickers"] == ["KX-A", "KX-B", "KXBTC-1"]
+
+
+def test_gather_depth_tickers_empty_when_subpass_errored(tmp_path):
+    # a raised sports sub-pass yields no path -> no tickers from it (never a stale sweep)
+    crypto_path = _write_tape(tmp_path, "crypto_g.jsonl", [
+        {"capture_id": "capB", "current": {"outcomes": [{"ticker": "KXBTC-1"}]}},
+    ])
+    sports = {"status": "error", "error": "boom"}
+    crypto = {"status": "ok", "result": {"capture_id": "capB", "path": crypto_path}}
+    assert hp._gather_depth_tickers(sports, crypto) == ["KXBTC-1"]
 
 
 # --------------------------------------------------------------------------- #
@@ -355,9 +550,17 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     def fake_polymarket_run(**kwargs):
         return dict(_EMPTY_POLYMARKET)
 
+    def fake_polymarket_macro_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_MACRO)
+
+    def fake_polymarket_cpi_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_CPI)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
 
     rc = hp.main(["--sports-limit", "3", "--crypto-symbols", "BTC"])
 
@@ -376,8 +579,16 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     def fake_polymarket_run(**kwargs):
         return dict(_EMPTY_POLYMARKET)
 
+    def fake_polymarket_macro_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_MACRO)
+
+    def fake_polymarket_cpi_run(**kwargs):
+        return dict(_EMPTY_POLYMARKET_CPI)
+
     monkeypatch.setattr(hp.sports_pairs, "run", fake_sports_run)
     monkeypatch.setattr(hp.crypto_hourly, "run", fake_crypto_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run", fake_polymarket_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
+    monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
 
     assert hp.main([]) == 1

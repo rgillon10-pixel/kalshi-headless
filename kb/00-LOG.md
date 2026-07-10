@@ -6,6 +6,968 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 — RECONCILIATION: main-branch reset discovered and repaired (local session with Ryan)
+
+On 2026-07-08T10:56Z a push moved `origin/main` back to `6cde523` (the 2026-07-02 Q0
+checkpoint), orphaning 197 commits: all of 2026-07-03→07-08 (PRs #4–#33 — the Q1–Q18
+build-out, S7/S9 DEAD verdicts, S16/S18 BLOCKED verdicts, lessons ledger, phone-note
+protocol). The cloud loops then unknowingly rebuilt Q1/Q2/Q3 (2026-07-09/10) and began
+re-probing S7 — a strategy already declared DEAD by block-bootstrap on 2026-07-04.
+Recovered the pre-reset tip (`f23a491`) via GitHub's event log and merged the post-reset
+work into it. Code conflicts resolved in favor of the pre-reset lineage (5 more days of
+hardening; `hourly_pass` orchestrates collectors that exist only there); post-reset tape,
+`core/odds.py`+schemas, and the S7a re-probe artifacts kept. Entries below from
+2026-07-09/10 describe the post-reset lineage's (duplicate) work — kept for honesty.
+
+## 2026-07-10 15:16 UTC — Q4/S7b: built the CLV trade set; raw signal already negative, pre-bootstrap
+
+Topmost eligible queue item: **Q4** (S7 historical CLV backtest), `IN-PROGRESS` after S7a. This
+run did **S7b only** — turn S7a's 97-game World Cup tape into a candidate trade set (decision-
+time real ask vs de-vigged sharp fair, fee-aware P&L per trade). No bootstrap, no verdict —
+that's S7c, next stage.
+
+Built `scripts/sports_clv_s7.py` (16 new unit tests, all offline/no-network, 137 total green).
+Key design calls, each documented in the script's own header:
+
+- **Decision time.** football-data's closing odds are priced at kickoff, which Kalshi's
+  `open_time`/`close_time` don't directly expose. Defined `decision_ts = close_time - 4h` as a
+  conservative pre-kickoff proxy (spot-checked against a captured game: `close_time` lands
+  within minutes of the final whistle, regulation+stoppage is reliably under 2h) — stated as an
+  approximation, not a precise kickoff read, since no free kickoff-timestamp feed exists.
+- **Price.** Last candle at-or-before `decision_ts`, causal/no-look-ahead (same discipline as
+  S1's T-24h rule); a missing leg drops the whole 3-outcome bracket rather than partial-
+  normalizing.
+- **Trade rule.** Single-leg BUY YES when de-vigged fair prob > Kalshi's bracket-normalized ask
+  (Hard Rule #3 — `core.pricing.normalized_ask`, never a raw ask read as probability); the fill
+  price and P&L use the raw ask. Fee model reused verbatim from `scripts/fee_breakeven.py`.
+
+**Live pass:** 96/97 games usable (1 dropped: odds unmatched, same freshness gap S7a flagged).
+**167 candidate trades, mean net P&L −3.51¢/trade** (real_ask, after 0.07-rate taker fee) —
+already negative before any bootstrap. A quick min-edge sweep (0.00 → 0.02 → 0.05) makes it
+**monotonically worse** (−3.51¢ → −9.30¢ → −27.00¢, n=167/23/1 trades): if the nominal
+fair-vs-ask gap were real signal, tightening the bar should concentrate on better trades, not
+degrade them — the same "sweep makes it worse" red flag that helped kill S5. Candidate
+explanations, none confirmed: football-data's multi-book average is a noisier sharp-consensus
+proxy than a single sharp book (S7a already flagged it isn't Pinnacle-specific); the 4h-early
+snapshot mixes in market drift the true closing line doesn't share; or plain small-sample noise
+(one tournament, 96 games, likely round/team-correlated). Writeup →
+`../findings/2026-07-10-sports-clv-s7b.md`; tape → `tape/sports_clv_s7/`.
+
+Gates: **137 tests green** (121 existing + 16 new), `invariants --full` green.
+
+**Next:** Q4/S7c — moving-block bootstrap by game (reuse the S1/S5 `block_bootstrap` pattern) →
+95% CI → verdict. The point estimate gives no reason for optimism, but the queue's binding bar
+is the bootstrapped CI, not this number — S7c runs it and records whatever it finds, including
+DEAD, honestly.
+
+---
+
+## 2026-07-10 10:35 UTC — Q4/S7a: sourced the World Cup CLV backtest dataset; NFL/NBA history mostly unavailable
+
+Topmost eligible queue item: **Q4** (S7 historical CLV backtest), `TODO` since Q0b's egress
+unblock. Q4 runs in three stages (S7a source → S7b probe → S7c bootstrap CI); this run did
+**S7a only** — sourcing + provenance, no backtest math yet.
+
+Built `scripts/sports_history_s7a.py` (16 new unit tests, all offline/no-network, 121 total
+green). Two legs per game:
+
+- **Kalshi (`real_ask`)** — every settled `KXWCGAME` event via `GET /events` with nested
+  markets (settlement `result`/`settlement_value_dollars` arrive inline), plus the full hourly
+  candlestick series per outcome market (Kalshi's own published `yes_ask` OHLC). Markets are
+  listed as early as ~140 days before their game, so the candlestick fetch is capped to the
+  last 7 days before close (`CANDLE_LOOKBACK_HOURS`, logged per-outcome as
+  `candle_window_truncated`) — the pre-game noise a decision-time backtest will never use is
+  dropped explicitly, not silently; keeps the tape at 20 MB instead of ~106 MB uncapped.
+- **Odds (`synthetic`)** — football-data.co.uk's free public `WorldCup2026.xlsx`
+  (`H-Avg`/`D-Avg`/`A-Avg`, a multi-book closing-odds average — not Pinnacle-specifically, an
+  honestly-weaker sharp-consensus proxy), de-vigged via `core/odds.py`'s existing
+  decimal-odds → implied-prob → multiplicative-de-vig math. Team names joined order-agnostic
+  with an explicit alias table for every observed naming mismatch (`IR Iran`/`Iran`, `Korea
+  Republic`/`South Korea`, `Turkiye`/`Turkey`, etc.).
+
+**Live pass:** 97 completed World Cup 2026 games (2026-06-11..07-09), 291 outcome markets, 0
+candlestick fetch failures, 96/97 odds-matched (the one miss is the most recent game — the
+free odds file lags live results by a few days, an honest freshness gap). Tape →
+`tape/sports_history_s7/worldcup2026.jsonl` (20 MB) + the exact xlsx bytes fetched, both
+sha256-provenanced per record.
+
+**Honest finding on NFL/NBA:** `probe_last_season_availability()` confirmed Kalshi's public
+`/markets` listing purges settled markets after roughly one season, not indefinitely. NFL 2025
+season (finished Feb 2026) returns **zero** rows under `status=settled`/`closed` — fully gone.
+NBA returns 72 outcome markets / 36 games, but only the playoff tail (2026-05-05..06-14,
+conf finals through the Finals) — the regular season is gone the same way. No free historical
+NBA odds source was sourced this run (out of scope for this stage) — flagged as a follow-up,
+not a blocker. **S7b/S7c run on the World Cup dataset next**, the immediately-usable 97-game
+set this stage produced. Writeup → `../findings/2026-07-10-sports-history-s7a.md`.
+
+Gates: **121 tests green** (105 existing + 16 new), `invariants --full` green. Added
+`openpyxl>=3.1` to the `analysis` extra (reads the free .xlsx; base substrate + invariants
+still run without it).
+
+**Next:** Q4/S7b — probe Kalshi ask vs de-vigged fair at a defined decision time on the 97-game
+World Cup dataset, fee model consistent with `scripts/fee_breakeven.py`.
+
+---
+
+## 2026-07-10 05:11 UTC — Q3 hourly collector entry point built + first live pass
+
+Topmost eligible queue item: **Q3** was `BLOCKED(needs Q1 + Q2 built)`, and both landed this
+session's prior two runs — dependency resolved, flipped to `TODO`, and it's topmost, so this
+run built it: `collection/hourly_pass.py`, the single command the hourly Haiku collector
+routine runs.
+
+One pass = one `collection.sports_pairs.run()` + one `collection.crypto_hourly.run()`; during
+the 09 UTC hour it also runs `scripts/anomaly_sweep.py` as a subprocess if that file exists
+(Q6 isn't built yet, so today every hour is a no-op there — checked fresh every run, so Q6
+needs zero additional wiring once it lands). Discipline carried over from both collectors: a
+hard exception in either sub-pass degrades to an honest `{"ok": False, "error": ...}` entry
+rather than crashing the whole hourly pass or silently dropping the other collector's result;
+`completeness_ok` is `False` if either sub-pass raised, either sub-pass logged a
+series-enumeration error, or (09 UTC only) the anomaly sweep exists and failed — never faked
+`True`. Prints the exact digest line Q3 specified: `<n> markets, <m> lines, completeness
+<ok/FAIL>`.
+
+10 new unit tests (`tests/test_hourly_pass.py`), sub-passes stubbed via injected callables
+(no network): count aggregation, independent-failure isolation (a sports exception doesn't
+zero out crypto's real counts and vice versa), series-errors-without-an-exception still
+failing completeness, the 09-UTC-only anomaly-sweep gate (both the call-happens/doesn't-happen
+cases and a failing sweep failing completeness), the default runner treating "script doesn't
+exist yet" as `True` (not a failure), the digest line's exact format, and `main()`'s exit code
+tracking `completeness_ok`.
+
+**Live pass** (real network, no injected fixtures): **1311 markets, 455 lines, completeness
+ok** — sports leg 453 events / 1048 outcome markets (odds leg still `blocked_no_key`, unchanged
+from Q1), crypto leg 2/2 symbols captured with `spot={ok:2}` and `settle={ok:2}`. Tape appended
+to the existing `tape/sports_pairs/` and `tape/crypto_hourly/` stores (same manifests those
+collectors already write — `hourly_pass` adds no new tape shape, just orchestration). Gates:
+**105 tests green** (95 existing + 10 new), `invariants --full` green.
+
+**Next:** Q4 (S7 historical CLV backtest) and Q5 (S8 first cut) remain the two `TODO`-eligible
+research milestones; Q6 (anomaly sweep) is now load-bearing for Q3's completeness signal
+whenever it lands, not just a standalone probe. Collector-side plumbing (Q1/Q2/Q3) is done;
+the queue's center of gravity moves to actually testing S7/S8 for edge.
+
+---
+
+## 2026-07-10 00:22 UTC — Q2 crypto-hourly settlement collector built + first live pass
+
+Topmost eligible queue item after Q1: **Q2**, the crypto-hourly settlement-basis collector
+(serves S8/S10). Built:
+
+- `core/crypto_schema.py` — `CryptoHourlyManifest`, the Q2 sibling of `core/sports_schema.py`'s
+  `GamePairManifest`: one line pairs THREE legs for one symbol's current hourly bracket —
+  the Kalshi ladder (`real_ask`), a live public spot reference (`synthetic`), and the previous
+  hour's Kalshi-reported settlement value (`broker_truth`) — so S8's ρ-guard (spot-vs-settle
+  correlation) is computable from tape alone, with no second pass ever needed.
+- `collection/crypto_hourly.py` — per symbol (BTC via `KXBTC`, ETH via `KXETH`): discovers the
+  CURRENT hourly range-ladder by picking the open event whose `(close_time - open_time)` is
+  closest to exactly 3600s (Kalshi keeps a much-longer ~7-day "range" event alive under the
+  SAME series_ticker simultaneously — duration, not the ticker string, is what actually
+  distinguishes them; verified live on both KXBTC and KXETH); snapshots every outcome market's
+  real yes_ask BBO; fetches live spot (Coinbase primary, Kraken fallback on failure); locates
+  the settled event whose `close_time` equals the current event's `open_time` and reads off
+  Kalshi's own `expiration_value`. Any leg failure degrades to an honest status code
+  (`spot_status`/`settle_status`) rather than poisoning the Kalshi leg, which is captured
+  unconditionally — same discipline as `sports_pairs.py`'s odds leg.
+- Added `Kalshi.markets(series_ticker, status, limit)` to `validation/v3_market.py` (generalizes
+  the existing `open_markets`, which now delegates to it) so the settlement leg can query
+  `status="settled"` through the same throttled/paginated client, no new HTTP code path.
+- 14 new unit tests (`tests/test_crypto_hourly.py`): duration-based hourly-vs-standing-range
+  event selection (including the "nothing currently straddles now" fallback), degenerate/
+  single-outcome/series-error handling, spot-fetch-failure and settle-not-found/fetch-error
+  degradation (each independently, confirming the Kalshi leg is never poisoned), the
+  provenance/forged-hash check mirroring `sports_pairs`'s, and two adversarial schema checks
+  for the new "`ok` status implies the trusted tag" consistency rules.
+
+**Live pass** (no injected fixtures): **BTC 188 outcomes / ETH 75 outcomes** captured in one
+pass, `spot_status={ok:2}`, `settle_status={ok:2}` — both legs resolved live on the first try
+(Coinbase spot, Kalshi `expiration_value` for the hour that had just closed). Tape →
+`tape/crypto_hourly/`.
+
+**Honest finding, not interpreted here (Q5's job):** the naive `bracket_sum` summed across the
+FULL discovered ladder is **not** comparable to weather's ~10¢ overround — live BTC bracket_sum
+was **3.99** (188 outcomes, overround +2.99), ETH **2.22** (75 outcomes, overround +1.22).
+Inspecting the outcomes: most of the 188/75-market ladder is far out-of-the-money brackets
+sitting at the exchange's $0.01 floor tick (illiquid, effectively unfillable at size), and their
+one-cent asks summed across dozens of dead brackets dominate the total — a thin-tail-liquidity
+artifact, not a real structural cost comparable to the weather bracket's near-the-money
+overround. Nothing is discarded (the full ladder is captured honestly), but Q5's S8 first cut
+will need to restrict to brackets near the money (e.g. within a few strikes of live spot) to get
+a bracket_sum that means the same thing weather's did. Gates: **85 tests green** (71 existing +
+14 new), `invariants --full` green.
+
+**Next:** Q4 (S7 historical CLV backtest) and Q5 (S8 first cut from free candlesticks — now
+armed with 2 days-in-progress of paired crypto tape once cron accumulates it) are both
+`TODO`-eligible; Q5 should apply the near-the-money bracket filter found here before trusting
+any overround number. S8 moved `idea → data-collecting` in `kb/strategies/00-index.md`.
+
+---
+
+## 2026-07-09 20:18 UTC — Egress unblocked (Q0b); Q1 sports paired-odds collector built + first live pass
+
+Q0b's self-healing re-check (protocol: cheap re-test while any item sits `BLOCKED(egress...)`)
+found all four Q0 hosts now reachable — `curl --max-time 15` got Kalshi REST 200, Coinbase 200,
+Kraken 200, and the-odds-api 401 (reachable, just no key). Confirmed end-to-end with
+`python -m collection.capture_orderbooks --limit 3` (3 markets, 159 levels, real tape written).
+The org egress allowlist was evidently widened sometime between 2026-07-02 and today — not
+observable from inside the sandbox, just confirmed fixed. Flipped Q1–Q6 back to `TODO` in
+`LOOP-QUEUE.md`; refreshed `tape/cloud-env-check.md`.
+
+With egress open, moved to the new topmost eligible item: **Q1**, the sports paired-odds
+collector — time-sensitive, since the 2026 World Cup final round runs through Jul 19. Built:
+
+- `core/sports_schema.py` — `GamePairManifest`, the Q1 sibling of `core/manifest_schema.py`'s
+  weather `CaptureManifest`: same bitemporal/content-hash/self-signed discipline, keyed by
+  `event_ticker` instead of `(city, contract-day)` since a sports event isn't a city ladder.
+- `core/odds.py` — American-odds → de-vigged fair probability. Reuses
+  `core.pricing.bracket_sum`/`normalized_ask` for the overround-removal division (same "divide
+  by the group sum" operation as Kalshi's own Hard Rule #3 math, just applied to sportsbook
+  implied probabilities), so that arithmetic still lives in one place.
+- `collection/sports_pairs.py` — discovers every Sports-category series whose ticker ends in
+  `GAME` (empirically the per-event moneyline/winner suffix — `KXWCGAME`, `KXNBAGAME`,
+  `KXMLBGAME`, ... 186 series found live), World-Cup/soccer sorted first; groups each series'
+  open markets by the API's own `event_ticker` (cross-checked against a ticker-parse, mismatches
+  recorded not hidden); captures real yes/no BBO for every outcome in a >=2-way bracket
+  (`price_source_tag=real_ask`); attempts a matched-Pinnacle de-vig leg if `ODDS_API_KEY` is set
+  (`synthetic`), else honestly records `odds_leg_status="blocked_no_key"` per Q1's documented
+  fallback — the Kalshi leg is captured regardless.
+- 18 new unit tests (`tests/test_odds_devig.py`, `tests/test_sports_pairs.py`): American-odds
+  math, multiplicative de-vig on 2-way and 3-way brackets, ticker parse/reconcile, World-Cup
+  priority ordering, degenerate/series-error handling, odds-leg name matching (caught a real bug:
+  Kalshi labels a soccer draw "Tie", the-odds-api calls it "Draw" — added a synonym normalizer),
+  and the provenance/forged-hash check mirroring `capture_orderbooks`'s.
+
+**Live pass** (no `ODDS_API_KEY` in this environment): **469 events / 1079 outcome markets**
+captured at `real_ask` in ~47s. 4 `KXWCGAME` (World Cup) events captured — `bracket_sum` 1.01–1.02
+(1–2¢ overround), noticeably tighter than the ~10¢ weather-bracket overround that killed
+pt1/S1/S5. Across all 469 events, mean `bracket_sum` 1.34 (min 0.98, max 2.73) — wide dispersion
+expected from thin/off-season leagues with stale asks; not interpreted here, that's Q4's job.
+Tape → `tape/sports_pairs/`. `S7` (Kalshi moneyline vs Pinnacle CLV) moved `idea → data-collecting`
+in `kb/strategies/00-index.md`. Gates: 71 tests green (53 existing + 18 new), `invariants --full`
+green (two docstring false-positives on the `yes_ask`/`no_ask` regex — literal `yes_ask/no_ask`
+prose tripped Hard Rule #3's arithmetic detector; reworded, not a real violation).
+
+**Next:** Q2 (crypto-hourly collector) is now the topmost `TODO` item. Separately: S7's actual CLV
+backtest (Q4) is still gated on `ODDS_API_KEY` — the odds leg is built and unit-tested but has
+never made a live request; re-run Q1 once a key exists to confirm the live matching/de-vig path.
+
+## 2026-07-08 05:30 ET — research loop: comprehensive stranded-tape sweep (6,272 lines recovered), queue still idle
+
+Claim-check: `git fetch origin main` force-updated the local ref to `ce310a2` (5 VPS hourly
+passes landed since the last research run). Open PRs unchanged — #4 still claims Q1 (odds-api
+leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d18h old, still just under PR #18's proposed
+5-day escalation mark, but close enough to flag to Ryan directly this run) and #18
+(weekly-retro protocol amendments, left for Ryan, never self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Tape day-counts
+recounted directly off disk: Q7 needs ≥7 distinct days of `tape/crypto_hourly/` — only 6
+(`dt=2026-07-03`…`07-08`), still BLOCKED, eligible ~07-09/10; Q13 needs ≥10 distinct days of
+`tape/sports_pairs/` — only 7 (`dt=2026-07-02`…`07-08`), still BLOCKED, eligible ~07-12/13.
+Q14/Q15 re-probed live: `KXHOUSE`/`KXSENATE` still return **zero** markets in any status on
+Kalshi's live API — Q15 stays BLOCKED; `ODDS_API_KEY` still absent from env. Lessons ledger
+re-scanned: zero live `UNENFORCED` rows (L22 stays resolved by L24). Strategy registry
+re-scanned: every `idea`-stage candidate is externally blocked by the same walls as prior
+runs. **No numbered queue item, lesson, or registry candidate was actionable this run.**
+
+Step 0b sweep — went wider than recent runs' "branches postdating the last cutoff" heuristic:
+fetched all **69** `tape/hourly-*`/`-corrected-`/`-followup-`/`-amended-` branches and ran a
+real per-file line-set diff against `origin/main` for every one of them (not just the newest
+few), since prior runs' cutoff heuristic can't see whether an "already reconciled" branch
+picked up new commits later. Result: the 2026-07-03…07-06 branches were indeed already fully
+reconciled (0 missing lines — confirms prior sweeps' bookkeeping was sound), but 07-07 and
+07-08 carried a large unreconciled backlog: **6,272 lines** across `crypto_hourly` (+16),
+`orderbook_depth` (+4,470), `polymarket_macro_pairs` (+120), `polymarket_pairs` (+140),
+`sports_pairs` (+1,498), `anomalies` (+1), `econ_prints` (+5), `polymarket_cpi_pairs` (+22).
+Every appended line JSON-validated (0 malformed), union-deduped by exact line match against
+main's current content, appended into this run's commit — the largest single-run recovery
+since collection began. `git push origin --delete` not reattempted (documented permission
+boundary, failed every time since 2026-07-03; PR #18 already proposes dropping the retry).
+
+Gates: pytest green (unchanged test count — tape-only commit, no code touched), `invariants
+--full` green. No strategy status changed; no code changed. Seventh consecutive
+maintenance-only run — queue/lessons/registry idle pending the same external clocks (tape
+day-counts, 1-2 days out for Q7) and external walls (odds-api key, Congress-market listing) as
+prior runs; not a stall. The size of this recovery (6,272 vs. the ~1,700-2,800/run of the last
+few sweeps) suggests push-to-main failures are becoming more frequent, not less — worth
+Ryan's attention if the pattern continues.
+
+---
+
+## 2026-07-08 01:08 ET — research loop: stranded-tape sweep (841+ lines recovered), queue still idle
+
+Claim-check: `git fetch origin main` force-updated the local ref to `12f794c` (VPS + cloud
+hourly passes landed since the last run). Open PRs unchanged — #4 still claims Q1 (odds-api
+leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d14h old, still short of PR #18's proposed
+5-day escalation mark — worth a direct nudge if it's still open next run) and #18 (weekly-retro
+protocol amendments, left for Ryan, never self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Tape day-counts
+recounted directly off disk: Q7 needs ≥7 distinct days of `tape/crypto_hourly/` — only 6
+(`dt=2026-07-03`…`07-08`), still BLOCKED, eligible ~07-09/10; Q13 needs ≥10 distinct days of
+`tape/sports_pairs/` — only 7 (`dt=2026-07-02`…`07-08`), still BLOCKED, eligible ~07-12/13.
+Q14/Q15 re-probed live (not assumed): CME's FedWatch page still returns HTTP 403 (Akamai-class
+bot wall, same as every prior check) — Q14 stays BLOCKED; `KXHOUSE`/`KXSENATE`/`HOUSE`/`SENATE`
+still list **zero** markets in open/unopened/closed status on Kalshi's live API — Q15 stays
+BLOCKED. `ODDS_API_KEY` still absent from env. Lessons ledger re-scanned: zero live
+`UNENFORCED` rows. Strategy registry re-scanned: every `idea`-stage candidate (S10=Q7, S11,
+S14=Q13, S16, S18) is externally blocked by one of the walls above — nothing new to draw from
+either standing queue. **No numbered queue item, lesson, or registry candidate was actionable
+this run.**
+
+Step 0b sweep (against the freshly-fetched tip): of 64 `tape/hourly-*`/`-corrected-`/
+`-followup-`/`-amended-` branches, 4 postdating the last run's fully-clean sweep cutoff
+(`20260707T2356Z`, `20260708T0401Z`, `hourly-corrected-20260707T2059Z`,
+`hourly-followup-20260707T2055Z`, all >30min old) carried lines `main` was missing — did a
+real line-set diff per file (not `git diff --stat`, which is unreliable for out-of-order
+JSONL appends) across all 5 tape families they touch. Union-deduped total: **2,797 lines**
+(10 crypto_hourly, 1,791 orderbook_depth, 75 polymarket_macro_pairs, 92 polymarket_pairs, 829
+sports_pairs), every line JSON-validated before appending, 0 exact duplicates, appended into
+this run's commit. `hourly-amended-20260704T1455Z` (also re-checked) was already fully
+reconciled (0 missing). `git push origin --delete` not reattempted (documented permission
+boundary, failed every time since 2026-07-03; PR #18 already proposes dropping the retry).
+
+Gates: 362 tests green (unchanged — tape-only commit, no code touched), `invariants --full`
+green. No strategy status changed; no code changed. Sixth consecutive maintenance-only run —
+queue/lessons/registry idle pending the same external clocks (tape day-counts, 1-2 days out
+for Q7) and external walls (odds-api key, Congress-market listing, CME bot-wall) as prior
+runs; not a stall, just recovering tape the VPS/cloud collectors' intermittent push-to-main
+failures stranded.
+
+---
+
+## 2026-07-07 20:15 ET — research loop: fully idle, tape sweep clean for the first time
+
+Claim-check: `git fetch origin main` force-updated the local ref to `b938307` (a VPS hourly
+pass landed since the last research run). Open PRs unchanged — #4 still claims Q1 (odds-api
+leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d9h old, still short of PR #18's proposed
+5-day escalation mark) and #18 (weekly-retro protocol amendments, left for Ryan, never
+self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Tape day-counts
+recounted directly off disk: Q7 needs ≥7 distinct days of `tape/crypto_hourly/` — still only 5
+(`dt=2026-07-03`…`07-07`), BLOCKED, eligible ~07-09/10; Q13 needs ≥10 distinct days of
+`tape/sports_pairs/` — still only 6 (`dt=2026-07-02`…`07-07`), BLOCKED, eligible ~07-12/13.
+Q14/Q15 re-probed live this run (not just assumed): `ODDS_API_KEY` still absent from env;
+Kalshi's `KXHOUSE`/`KXSENATE` series still list **zero** markets in any status — both stay
+data-adequacy BLOCKED, same as every prior check. No numbered queue item was eligible.
+Lessons ledger re-scanned: zero live `UNENFORCED` rows (all resolved by L18–L20/L24).
+Strategy registry re-scanned: every `idea`-stage candidate (S10=Q7, S11, S14=Q13, S16, S18)
+is externally blocked by one of the walls above — nothing new to draw from either standing
+queue.
+
+Step 0b sweep (against the freshly-fetched tip, per L14): 9 `tape/hourly-*`/`-corrected-`/
+`-followup-` branches postdating the last run's sweep cutoff (`20260707T1958Z` through
+`2256Z`, ages 64min–244min, all past the 30-min freshness rule) were diffed line-by-line
+against `main` across all 5 tape families they touch (`crypto_hourly`, `orderbook_depth`,
+`polymarket_macro_pairs`, `polymarket_pairs`, `sports_pairs`) — **zero lines missing from
+main in every branch and every family.** This is new: every previous sweep this week found
+at least some stranded content; this time the VPS collector's direct pushes to `main` (it
+has been landing hourly `tape:` commits straight onto `main` all day, e.g. the `b938307` tip
+itself) had already fully reconciled everything before this run started. The one branch newer
+than 30 minutes (`20260707T2356Z`, ~12min old) was skipped per the freshness rule, left for
+the next run. `git push origin --delete` not reattempted (documented permission boundary,
+failed every time since 2026-07-03; PR #18 already proposes dropping the retry).
+
+Gates re-verified from a clean env this run (`pip install -e ".[dev,analysis]"` then
+`python3 -m pytest -q` and `python scripts/invariants.py --full`): 362 tests green (unchanged
+from the last run — no code touched), invariants clean (the non-gating stranded-tape warning
+still fires as designed per L20, listing local refs the live sweep above already proved
+harmless).
+
+No strategy status changed; no code changed; no tape lines appended (nothing was stranded).
+Fifth consecutive maintenance-only run, and the first one with truly nothing to commit —
+queue, lessons, registry, and tape are all simultaneously reconciled and idle pending the same
+external clocks (tape day-counts, 2-3 days out) and external walls (odds-api key,
+Congress-market listing, CME bot-wall) as the last several runs. Nothing here indicates a
+stall. PR #4 is now ~4d9h old; worth a direct nudge to Ryan if it crosses 5 days before the
+next run picks it up.
+
+---
+
+## 2026-07-07 16:09 ET — research loop: stranded-tape sweep only (queue/lessons/registry all still idle)
+
+Claim-check: `git fetch origin main` force-updated the local ref to `a14afb6` (five VPS hourly
+passes had landed since the last research run). Open PRs unchanged — #4 still claims Q1
+(odds-api leg, unrelated, awaiting `ODDS_API_KEY`; now ~4d5h old, still short of PR #18's
+flagged 5-day escalation mark) and #18 (weekly-retro protocol amendments, left for Ryan, never
+self-merged).
+
+Queue re-check against the fresh tip: Q2–Q6/Q8–Q12/Q16 all DONE; Q1 claimed. Counted tape days
+directly off disk (not the last log line's estimate): Q7 needs ≥7 distinct days of
+`tape/crypto_hourly/` — still only 5 (`dt=2026-07-03`…`07-07`), BLOCKED, eligible ~07-09/10;
+Q13 needs ≥10 distinct days of `tape/sports_pairs/` — still only 6 (`dt=2026-07-02`…`07-07`),
+BLOCKED, eligible ~07-12/13. Q14/Q15 stay data-adequacy BLOCKED (no re-probe run this cycle —
+both were already re-checked live twice this week with no change). No numbered queue item was
+eligible. Lessons ledger and strategy registry both re-scanned: zero `UNENFORCED` lesson rows,
+every `idea`-stage registry candidate already externally blocked (same set as the last two
+runs) — nothing new to draw from either standing queue.
+
+Step 0b sweep (against the freshly-fetched tip, per L14): of 54 `tape/hourly-*` branches, 2
+(`20260707T1658Z`/`1759Z`, ages 191min/130min) carried lines `main` lacked across 5 tape
+files — 4 crypto_hourly + 1,332 orderbook_depth + 30 polymarket_macro_pairs + 48
+polymarket_pairs + 330 sports_pairs = **1,744 lines total**, union-deduped across both branches
+per file (every line JSON-validated, 0 exact duplicates), appended into this run's commit. The
+newest branch (`20260707T1958Z`, ~3min old) skipped per the 30-min freshness rule, left for the
+next run. 3 branches (`20260706T1856Z`/`20260707T1359Z`/`20260707T1856Z`) confirmed stale names
+pointing at the same pre-project commit with zero tape content (harmless, consistent with prior
+runs' finding). `git push origin --delete` not reattempted this run (documented permission
+boundary, failed every time it's been tried since 2026-07-03; PR #18 already proposes dropping
+the retry). 362 tests unchanged, `invariants --full` green (non-gating stranded-tape warning
+still fires as designed, per L20).
+
+No strategy status changed; no code changed. Fourth consecutive maintenance-only run — the
+queue, lessons ledger, and idea registry remain simultaneously idle pending external clocks
+(tape day-counts, 2-3 days out) and external walls (odds-api key, Congress-market listing,
+CME bot-wall). Nothing here indicates a stall; it's the expected shape while waiting on those
+clocks. PR #4's age is worth flagging to Ryan directly since it's now approaching the 5-day
+mark PR #18 itself proposed as the escalation trigger.
+
+---
+
+## 2026-07-07 11:08 ET — research loop: stranded-tape sweep only (queue/lessons/registry all genuinely idle)
+
+Claim-check: `git fetch origin main` at `97ad331`, local branch already at the real tip. Open
+PRs unchanged — #4 still claims Q1 (odds-api leg, unrelated, awaiting `ODDS_API_KEY`; open
+since 2026-07-03, now just under 4 days — still short of PR #18's flagged 5-day escalation
+mark) and #18 (weekly-retro protocol amendments, left for Ryan, never self-merged).
+
+Queue check: Q2–Q6/Q8–Q12/Q16 all DONE. Q7 needs ≥7 distinct days of `tape/crypto_hourly/`
+tape — counted the actual files on disk: 5 days (`dt=2026-07-03`…`dt=2026-07-07`), still
+BLOCKED, eligible ~2026-07-09/10. Q13 needs ≥10 distinct days of `tape/sports_pairs/` tape —
+counted: 6 days (`dt=2026-07-02`…`dt=2026-07-07`), still BLOCKED, eligible ~2026-07-12/13.
+No numbered queue item was eligible.
+
+Lessons ledger check (`kb/lessons/00-lessons.md`): every row is now either an `invariant`,
+a `test`, a terminal `protocol`/`ledger-only` state, or (L22) already resolved by L24 last
+run. Zero `UNENFORCED` rows remain — the standing lessons queue is drained too.
+
+Registry check (`kb/strategies/00-index.md`): every `idea`-stage candidate is externally
+blocked — S4 (unrelated-repo FEx archiver), S10=Q7 and S14=Q13 (tape day-count, above), S11
+(needs the same Pinnacle/odds-api anchor Q1 is already blocked on), S16=Q14 and S18=Q15
+(data-adequacy BLOCKED, re-checked live this run: `HOUSE`/`SENATE`/`KXHOUSE`/`KXSENATE` still
+list 0 markets in any status — 2026 midterm contracts still not listed, `ODDS_API_KEY` still
+absent from env). No new milestone was actionable — genuinely nothing to append past what the
+last several runs already exhausted.
+
+Step 0b sweep (the one real piece of work this run did): of 50 `tape/hourly-*` branches, 5
+fresh ones since the last run's cutoff (`20260707T0456Z`/`055501Z`/`202607070749Z`/`0756Z`/
+`0956Z`, all >30min old) carried lines `main` lacked — 10 crypto_hourly + 3,458
+orderbook_depth + 75 polymarket_macro_pairs + 120 polymarket_pairs + 889 sports_pairs + 5
+econ_prints + 1 anomalies = **4,558 lines total**, union-deduped across all 5 branches (every
+line validated as parseable JSON, 0 exact duplicates), appended into this run's commit.
+`tape/hourly-20260707T1359Z` confirmed a stale branch name pointing at a pre-project commit
+(`6cde523`, zero real tape content, harmless — same pattern as prior runs). `git push origin
+--delete` not reattempted this run (documented permission boundary, failed every time it's
+been tried since 2026-07-03; PR #18 already proposes dropping the retry). 362 tests green
+(unchanged — no source/test code touched), `invariants --full` green.
+
+No strategy status changed; no code changed. This is an honest maintenance-only run — the
+loop's own queue, lessons ledger, and idea registry are all simultaneously drained pending
+external clocks (tape day-counts) and external walls (odds-api key, Congress-market listing,
+CME bot-wall). Nothing here should be read as stalled; it's the expected shape of a run that
+lands inside a 2-3 day accumulation gap.
+
+## 2026-07-07 UTC — research loop: stranded-tape sweep + L22 resolution (real_bid taxonomy decision)
+
+Claim-check: `git fetch origin main` at `e20f026`; open PRs unchanged — #4 still claims Q1
+(odds-api leg, unrelated, awaiting `ODDS_API_KEY`; open since 2026-07-03, still short of the
+5-day mark PR #18's retro proposal flagged for priority escalation) and #18 (weekly-retro
+protocol amendments, left for Ryan, never self-merged). Q2–Q6/Q8–Q12/Q16 all DONE; Q7 BLOCKED
+(only 5 of the needed ≥7 days of Q2 tape); Q13 BLOCKED (only 5 of the needed ≥10 days of Q3
+tape) — no numbered queue item was eligible.
+
+Step 0b sweep: of 44 `tape/hourly-*` branches, 3 (`202607070056Z`/`20260707T015503Z`/
+`202607070356Z`, all >30min old) carried lines `main` lacked — 6 crypto_hourly + 700
+orderbook_depth + 544 sports_pairs + 45 polymarket_macro_pairs + 80 polymarket_pairs lines,
+union-deduped across all three branches (every line validated as parseable JSON, 0 exact
+duplicates), appended into this run's commit. The newest branch (`20260707T0456Z`, ~12min old)
+skipped per the freshness rule; 3 branches (`20260706T0556Z`/`0955Z`/`1856Z`) confirmed to be
+stale names pointing at a pre-project commit with zero tape content (harmless). `git push
+origin --delete` still fails from a cloud session on every already-reconciled branch (same
+documented permission boundary).
+
+With the queue drained to time-blocked items and Q1 claimed, checked the registry for the next
+un-started, non-externally-blocked candidate first (same process as the last 3 runs): S4/S10
+(=Q7)/S14(=Q13)/S16(=Q14)/S18(=Q15) all already explicitly blocked; S11 needs the same
+Pinnacle/odds-api anchor as Q1's blocked leg, so appending it would only restate Q1's own
+blocker. No genuinely new collector/probe milestone was actionable this run — instead drew from
+`kb/lessons/00-lessons.md`'s standing UNENFORCED queue (roster note: "converting a lesson into
+an invariant/test is always an eligible milestone, no queue item needed"): **L22** asked
+whether `real_bid` (orderbook_depth.py's tag for a genuine resting bid, from Q16) should join
+`VALID_SOURCE_TAGS` or stay a separate tape-only namespace. Decided to keep it separate — that
+enum mirrors CLAUDE.md's own literal four-tag trust-taxonomy contract, and widening a
+project-contract enum is outside a single research-loop milestone's authority, the same class
+of call as S9's automation decision and the PreToolUse-hook registration (both left for Ryan).
+Closed the "harmless today" half of L22 with proof rather than inspection: a new regression
+test (`tests/test_invariants.py::test_db_real_bid_tag_is_caught_as_invalid_enum`) confirms the
+existing DB-side enum check already rejects `real_bid` the moment one reaches a
+`price_source_tag` column — no live gap exists to fix. `core/source_tag.py`'s docstring now
+cross-references the decision. Recorded as **L24** (supersedes L22) in the lessons ledger. 362
+tests green (361 prior + 1 new), `invariants --full` green.
+
+No strategy status changed (no probe run this cycle — this was a substrate/documentation
+milestone plus the standing tape reconciliation).
+
+## 2026-07-07 UTC — research loop: stranded-tape sweep, S6 orderbook-depth collector built (Q16, new)
+
+Claim-check: `git fetch origin main` at `c238b17`; local `main` ref re-pointed via
+`git branch -f main origin/main` (session branch was already at the real tip, per L14). Open
+PRs unchanged — #4 still claims Q1 (odds-api leg, unrelated, awaiting `ODDS_API_KEY`; open
+since 2026-07-03, approaching but not yet past the 5-day mark PR #18's retro proposal flagged
+for a priority escalation) and #18 (weekly-retro protocol amendments, left for Ryan, never
+self-merged). Q2–Q6/Q8–Q12 all DONE; Q7 BLOCKED (only ~4 days of Q2 tape, needs ≥7); Q13
+BLOCKED (only ~4 days of Q3 tape, needs ≥10) — **no numbered queue item was eligible.**
+
+Step 0b sweep: of 42 `tape/hourly-*` branches, 2 fresh ones (`20260706T2059Z`/`2255Z`, both
+>30min old) carried lines `main` lacked — 8 crypto_hourly + 60 polymarket_macro_pairs + 124
+polymarket_pairs + 710 sports_pairs, union-deduped across both branches (every line validated
+as parseable JSON, 0 exact duplicates), appended into this run's commit. `git push origin
+--delete` still fails from a cloud session on every already-reconciled branch (same documented
+permission boundary).
+
+With the queue drained to time-blocked items and Q1 claimed, checked the registry for the next
+un-started, non-externally-blocked candidate: S4 depends on an unrelated repo's FEx tape
+archiver, S10=Q7 and S11 both already blocked the same way as Q7/Q1 — **S6** (inventory-aware
+market-making) was the only remaining `idea`-stage candidate with no external block, so
+appended **Q16** and built it via the `collector-engineer` subagent. Built
+`collection/orderbook_depth.py`: full L2 book depth capture (`yes_bids`/`no_bids` price+size
+ladders, not just BBO) reusing `collection/normalize.py:normalize_snapshot` verbatim, fed by
+the exact tickers `sports_pairs`/`crypto_hourly` already discover each pass — read straight
+back from their own freshly-written tape by `capture_id`, no platform re-sweep (L10). Every
+book read tagged `real_ask`/`real_bid`; honest per-ticker completeness (a failed fetch is a
+DROP, never absorbed). Wired into `hourly_pass.py` as a fifth fault-isolated sub-pass. 13 new
+unit tests (361 total), `invariants --full` green.
+
+Live pass against real Kalshi data: fed 6 tickers from the current-hour `KXBTC-26JUL0621`
+group into the collector — 6/6 captured, `completeness_ok=True`, sample reading
+`KXBTC-26JUL0621-T71799.99` depth=71, `best_no_bid=0.99 → best_yes_ask=0.01` (correct `1−bid`
+complement). Caught and fixed a would-be false-drop bug before commit: far-strike wing markets
+legitimately have an empty ladder on one side, and the collector must record that as valid
+data (`depth=0`, still captured), not a DROP — confirmed against this same live pass.
+
+**Honest limitation, recorded in the module's own docstring:** this loop's recurring collector
+cadence is hard-capped at hourly (the same floor S9's lead-lag work hit) — hourly depth
+snapshots give S6 a repeated-sample series, not a continuous order-flow tape. Any
+arrival-intensity estimate built on this data must be labeled snapshot-sampled, not treated as
+a message-level fill-sim input. `kb/strategies/00-index.md` S6 flipped idea → data-collecting.
+
+Three lesson candidates recorded in `kb/lessons/00-lessons.md`: **L21** (read tickers back from
+an upstream sub-pass's freshly-written tape by `capture_id` instead of re-discovering or
+threading a new return field through every sibling collector), **L22** (`real_bid` has no slot
+in the canonical `VALID_SOURCE_TAGS` enum — flagged UNENFORCED for the kb-distiller, harmless
+today since JSONL tape isn't invariant-scanned, but would trip the DB-side check the moment a
+`real_bid` value lands in a table), **L23** (an empty one-sided ladder is valid data, not a
+drop — pinned in a test, confirmed live).
+
+---
+
+## 2026-07-06 (later) UTC — research loop: PR #26 merged, stranded-tape sweep, Q14/Q15 feasibility (S16/S18 both BLOCKED)
+
+Claim-check: `git fetch origin main` at `efb9245`; found open PR #26 (kb-distiller's L5/L7/L17
+escalation) green locally (348 tests, `invariants --full` clean) and research/docs-only (fee-rate
+constants, a new static invariant, a non-gating stranded-tape advisory, ledger rows) — merged it
+(squash, now `098edbe`). PR #4 (Q1 odds leg) and #18 (weekly-retro protocol proposal) both stay
+open per their own standing notes. Step 0b sweep: of 39 `tape/hourly-*` branches, 3
+(`20260706T0556Z`/`0955Z`/`1856Z`) turned out to be stale branch names pointing at a 2026-07-02
+commit with no tape content at all (harmless, not real stranded data); 3 genuinely fresh branches
+(`20260706T1455Z`/`165524Z`/`1755Z`, all >30min old) carried 703 lines `main` lacked across 4
+tape families (6 crypto_hourly, 45 polymarket_macro_pairs, 96 polymarket_pairs, 556
+sports_pairs) — union-deduped, 0 exact duplicates, all valid JSON, appended into this commit.
+
+Queue was drained to time-blocked items only (Q7 ~07-09/10, Q13 ~07-13) plus Q1 (claimed by
+PR #4) — followed the registry's own stated priority past S15/S17 to the next two un-started
+candidates and appended `Q14`/`Q15`. Both hit real external walls before any collector was
+worth writing: **S16** (FedWatch fade) — `cmegroup.com` 403s/resets every request behind
+Akamai-class bot protection (root, the tool page, three guessed API paths), while Kalshi and
+the Atlanta Fed's GDPNow page (same free-JS-data shape) both worked fine this run, confirming
+it's venue-side not sandbox egress. **S18** (Congress-control fade) — Kalshi's
+`HOUSE`/`SENATE`/`KXHOUSE`/`KXSENATE` series exist but list zero markets in any status (the
+2026 midterm contracts aren't listed yet); separately, 538's free generic-ballot CSV now
+redirects to a dead ABC News stub (site retired, not moved) and RealClearPolling 403s the same
+way as CME — Wikipedia's 2026 House-elections article is a live fallback source for once Kalshi
+actually lists the markets. Both recorded `BLOCKED` per the Stop rules ("a DEAD verdict is a
+success") — no source/test code changed, no strategy status flipped from `idea`. Full
+evidence: `findings/2026-07-06-s16-s18-feasibility-blocked.md`; `kb/strategies/00-index.md`
+S16/S18 notes updated; `LOOP-QUEUE.md` Q14/Q15 appended. 348 tests unchanged, `invariants
+--full` green.
+
+---
+
+## 2026-07-06 UTC — kb-distiller: escalated lessons L5/L7/L17 (fee-rate invariant, stranded-tape warning)
+
+Distiller milestone (research-lead directed). Moved three UNENFORCED lessons along the
+invariants-over-memory gradient; ledger rows L18–L20 appended (append-only, superseding by
+reference).
+
+**L5 → invariant (`no_handrolled_fee_rate`).** The Kalshi fee-schedule rates now live solely
+in `core/pricing.py` as module constants `TAKER_FEE_RATE` (0.07) / `MAKER_FEE_RATE` (0.0175)
+/ `SP500_NDX_FEE_RATE` (0.035); `fee_per_contract` and `monotonicity_crossing_edge` default
+to `TAKER_FEE_RATE` (same value, conservative default). A new static rule in
+`scripts/invariants.py` flags, outside `core/pricing.py`, (A) a fee/rate/coeff-named constant
+or kwarg bound to a banned literal and (B) a banned literal passed positionally into
+`fee_per_contract()`; comment lines are skipped and 0.0035 (longshot's modeling haircut, not a
+schedule rate) deliberately does not fire. Refactored every existing hit value-identical:
+`collection/sports_history.py`, `scripts/s13_maker_fillsim.py`, `scripts/weather_rehab_s5.py`,
+`scripts/fomc_zq_basis_s2.py`, `scripts/fee_breakeven.py` (now imports the three constants; KB
+proof still runs with identical output), and `tests/test_s13_maker_fillsim.py:237` (rewritten
+to use the imported `TAKER_FEE_RATE` so the maker≠taker assertion intent survives). A few
+docstring/print-string prose lines were reworded rather than sentinel-littered. Honest scope:
+constants and literal call-args are enforced; a from-scratch reimplementation using an
+imported rate is not statically catchable and remains protocol. Post-review tightening: after
+the verifier flagged that pattern A's identifier class matched fee/rate/coeff as raw substrings
+(benign names like `accurate`/`coffee`/`separate` would have poisoned the gate), the rule now
+requires fee/rate/coeff to be a whole underscore-delimited token segment — `SP500_NDX_FEE_RATE`
+/`FEE_COEFF` still fire, the benign substrings no longer do (tests pin both directions).
+
+**L7 → protocol (terminal, no invariant).** A numeric width literal is indistinguishable from
+any other constant at regex level, and the one live site (`s8_basis_probe.py`'s documented
+`BAND_WIDTH_DOLLARS_BY_SYMBOL` schedule map) would force a false-positive or a vacuous
+sanction. Recorded as an honest terminal state, plus a residual hazard this review surfaced:
+`s8_basis_probe.py`'s `.get(symbol, 100.0)` silent $100 fallback would repeat the ETH-class
+bug for any new symbol — S8 is dead and the script historical (NOT edited), but future crypto
+probes (Q7/S10) must derive spacing from the ladder or fail loudly.
+
+**L17 → protocol + non-gating invariants warning.** `invariants.py --full` (and default tree
+scan only — never `--pre-edit-hook` or `--db`) now prints a stderr advisory listing
+locally-known stranded `tape/hourly-*` refs. `_git_tape_refs()` is fully offline-safe (any git
+failure → no refs); `stranded_tape_warning()` is pure. It never touches the exit code — 35
+stranded refs print on today's tree and the gate still exits 0. LOOP-QUEUE step 0b remains the
+binding sweep.
+
+Gate unchanged: warnings never gate. `pytest -q` 340 passed; `invariants.py --full` exit 0
+(the stranded-branch warning on stderr is expected). No strategy status changed
+(`kb/strategies/00-index.md` untouched — these are lessons, not verdicts). Findings linked:
+`findings/2026-07-04-sports-maker-s13-verdict.md` (L5), `findings/2026-07-04-crypto-basis-s8-verdict.md`
+(L7), `findings/2026-07-06-tape-audit.md` (L17).
+
+---
+
+## 2026-07-06 (later) UTC — Q12 closed: S17 CPI/inflation leg (derived-transform pairing)
+
+Research loop. `git fetch origin main` at `4b76056`; local `main` ref was found badly
+stale (2026-07-02, ~50 commits and 4 days behind the real `origin/main` tip) — fixed with
+`git branch -f main origin/main` before trusting any diff, exactly the bug PR #18's
+weekly-retro proposal flagged (a stale local `main` inflates the stranded-branch sweep).
+Open PRs unchanged: #4 still claims Q1 (unrelated, awaiting `ODDS_API_KEY`), #18 is the
+retro's protocol-amendment proposal (never self-merged, left for Ryan). Queue scan against
+the real tip: Q1 claimed, Q2–Q6/Q8–Q11 all DONE, Q7/Q13 BLOCKED — **Q12** (FED-DECISION LEG
+DONE, real remaining work: the deferred CPI/inflation leg) was topmost eligible.
+
+Step 0b stranded-tape sweep (against the corrected `main`): 5 of 35 `tape/hourly-*`
+branches (`202607051954Z`, `20260705T0957Z`, `20260705T1455Z`, `20260706T0855Z`,
+`20260706T1255Z`, all >30min old) carried lines `main` was missing across 9 tape files —
+union-deduped per file (each branch is an independent snapshot, not a superset of the
+others, so the union had to be taken across all of them, not just the newest), 1,158 lines
+total (554 + 374 sports_pairs, 120 + 64 polymarket_pairs, 30 polymarket_macro_pairs, plus
+crypto_hourly/econ_prints/anomalies remainders), every line validated as parseable JSON
+with 0 exact duplicates, appended into this commit.
+
+Built the CPI/inflation leg Q12's own prior cut deferred: `collection/polymarket_pairs.run_cpi()`
+pairs Kalshi's `KXCPI`/`KXCPIYOY`/`KXCPICORE` cumulative "exceed threshold T" ladders against
+Polymarket's exact 0.1-point bucket partition for the same 3 US print series. Confirmed live
+that both venues quote all 3 series in identical 0.1-point steps, then built
+`price_cpi_bucket_from_kalshi` — the differencing transform (floor = 1 − ask(T); exact =
+ask(T−step) − ask(T); ceiling = ask(T−step) directly) that turns two adjacent Kalshi `real_ask`
+fills into one Polymarket-shaped bucket probability, tagged `synthetic` per Hard Rule #3's
+spirit (a computed transform, not a fill, even though its inputs are). Never fabricates: a
+bucket whose required Kalshi strike(s) are missing returns `None` (recorded via
+`n_buckets_priced < n_buckets_total`, which correctly fails completeness) rather than being
+guessed at or silently dropped; a negative derived probability (`monotonicity_violation: true`)
+is recorded as-is, never clipped. 23 new unit tests (320 total), wired into `hourly_pass.py`'s
+existing 09 UTC daily slot (CPI releases monthly, same cadence reasoning as Q10's
+`econ_prints` — 4 new wiring tests, 6 existing 09-UTC-hour tests updated with a zero-contribution
+stub). `invariants --full` green.
+
+Live pass: 17 open Kalshi CPI events across the 3 series, 3 matched to currently-listed
+Polymarket events (current core-MoM/YoY/headline-MoM prints), 0 unmatched/ambiguous
+Polymarket events, 22/28 buckets priced. The 6 unpriced buckets need Kalshi strikes further
+out-of-the-money than its ladder currently lists (Polymarket's core-CPI-MoM/headline-CPI-MoM
+events both extend one bucket past Kalshi's quoted range) — an honest, expected coverage gap,
+correctly counted against `completeness_ok` rather than hidden. One bucket (`cpi_core_mom`
+2026-07, exact 0.5%) came back with `monotonicity_violation: true` — Kalshi's raw ladder for
+that far-forward month has a thin strike (`T0.5` priced ABOVE `T0.4`, which cannot be true in
+a coherent market), the exact kind of thin/stale-quote artifact this project's discipline says
+to record honestly rather than paper over. `kb/strategies/00-index.md` S17 note updated;
+`LOOP-QUEUE.md` Q12 flipped FED-DECISION-LEG-DONE → full DONE. See tape at
+`tape/polymarket_cpi_pairs/dt=2026-07-06.jsonl`.
+
+**Next:** S17's own gate (≥5 matched live-book pairs/month) was already cleared by the Fed
+leg; both Fed and CPI legs now run automatically at their appropriate cadence, so the only
+remaining work is accumulation, then the eventual lead-lag cross-correlation (same shape as
+S9, which was closed dead ✗ on data-adequacy grounds this run window — S17 doesn't share
+that constraint since it needs no sub-hourly resolution).
+
+## 2026-07-06 15:06 UTC — Agent team stood up + lessons ledger (compounding layer) + full tape audit
+
+Ops run, Ryan-requested (interactive session, not a loop firing). Three things landed:
+
+**1. Agent team (`.claude/agents/`).** A **Fable lead on high reasoning** (`research-lead`,
+`model: fable`, `effort: high`) that plans, decomposes, and reviews but never edits files
+itself, guiding five **Opus workers**: `collector-engineer` (collection modules + offline
+tests, bitemporal/source-tag/honest-completeness discipline), `edge-prober` (one falsifiable
+probe milestone per invocation, block-bootstrap by the independent unit, real-ask bar),
+`verifier` (adversarial skeptic — re-runs the producing script and attacks provenance,
+statistics, fees, and data windows before any number enters kb/ or findings/),
+`kb-distiller` (owns the lessons ledger below, escalates UNENFORCED lessons into
+invariants/tests), `tape-auditor` (read-only coverage/completeness/stranded-branch
+reports). Every charter embeds the Stop rules and cites the precedent scripts, so a worker
+starts from house discipline instead of rediscovering it. `LOOP-QUEUE.md` gained a
+"Subagent roster" section wiring this into the run protocol.
+
+**2. The compounding layer: `kb/lessons/00-lessons.md`.** The gap between "learned it the
+hard way" and "it's a CI assertion" is where knowledge evaporated between stateless runs —
+the ledger makes it visible. 17 lessons mined from the run history (L1 synthetic-never-a-
+fill through L17 stranded-tape sweep), each with provenance and an **enforcement status**
+(`invariant` / `test` / `protocol` / `UNENFORCED` / `ledger-only`); UNENFORCED rows are the
+kb-distiller's standing work queue, and converting one into an assert is always an eligible
+idle-run milestone. Append-only, supersede-by-reference, same trust rules as the rest of kb.
+
+**3. Tape audit (`findings/2026-07-06-tape-audit.md`).** 29,363 lines / 10 families /
+2026-07-02→07-06, all valid JSON, ~2 passes/hour landing (both collectors alive). All 12
+incomplete crypto passes are ONE venue-side hole: Kalshi lists no hourly BTC/ETH group
+during the 20 UTC hour, daily (new lesson L15). Step-0b sweep executed: 1,158 stranded
+lines union-appended from 6 fallback branches. Eligibility from real tape days: Q7 ~Jul
+09/10, Q13 ~Jul 12/13 (WC ends Jul 19 — S14's sports window is narrow). Tape is 36MB raw
+and crosses the README's ~50MB decision point ~mid-July — Ryan's call, flagged not acted.
+
+Gates: 297 tests green, `invariants --full` green. Explicitly NOT done: registering the
+PreToolUse invariants hook in `.claude/settings.json` — attempted, permission-gated in this
+harness, and PROVENANCE.md already reserves that wiring for Ryan's explicit approval; it
+remains the one unwired piece of Tier-2 enforcement.
+
+## 2026-07-06 UTC — Q8 closed: S9 lead-lag resolution decision (dead ✗, data-adequacy)
+
+Research loop. Claim-check: `git fetch origin main` at `24b155f`, local branch already at
+the real tip (hourly `tape:` passes only since the last run); open PRs unchanged — #4 still
+claims Q1 (unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly retro's protocol-amendment
+proposal (never self-merged, left for Ryan). Queue scan against the real tip: Q1 claimed,
+Q2/Q4/Q5/Q6/Q9/Q10/Q11 DONE, Q7/Q13 BLOCKED — **Q8 (IN-PROGRESS)** was topmost eligible.
+Step 0b stranded-tape sweep: all currently-listed `tape/hourly-*` branches already fully
+reconciled with `main` (0 missing lines across every family) — nothing to append this run.
+
+Q8's own remaining-work note (from the 2026-07-06 05:17Z shock event-study, below) asked for
+a resolution decision: either build a sub-hourly capture burst around the World Cup's
+remaining matches, or accept the lead-lag question as untestable and mark it dead. Checked
+the loop's actual scheduling primitives (`create_trigger`, `send_later`) before deciding:
+recurring cron triggers are hard-capped at hourly minimum interval (the tool's own schema
+states it) — no recurring sub-hourly poll is possible. One-shot triggers aren't
+cadence-limited, but bracketing a match's real end-time with them needs a kickoff timestamp
+the accumulated tape doesn't carry for KXWCROUND markets, and wiring up N one-shot captures
+per remaining match (semis, final) is a new class of unattended multi-day automation — the
+same category as the VPS collector and `ntfy-watch`, both stood up as Ryan-requested ops
+changes, not something a research-loop run should decide alone. Building that unilaterally
+is outside this milestone's scope.
+
+**Verdict:** split S9 into its two sub-questions. **Lead-lag** (does one venue reprice first
+around a shock?) → **dead ✗, data-adequacy** — not falsified by a CI (there's no bootstrap to
+run on n=8 ticker-steps), just structurally untestable with hourly-minimum automation and no
+kickoff-time signal to burst around. **Cross-venue parity** (do the two venues quote the same
+price on average, right now?) → stays alive, already answered well by the 2026-07-04 first
+cut (48/48 matched, +0.20¢ mean gap) and continues under S17's Fed-decision generalization,
+which needs no sub-hourly resolution. Per the Stop rules, a DEAD verdict recorded honestly is
+a success. No new code — a decision on already-collected evidence, not a new probe. 297
+tests unchanged (pre-existing baseline), `invariants --full` green. `kb/strategies/00-index.md`
+S9 flipped to dead ✗; `LOOP-QUEUE.md` Q8 flipped IN-PROGRESS → DONE. See
+`findings/2026-07-06-polymarket-leadlag-s9-resolution.md`.
+
+## 2026-07-06 05:17 UTC — Q8: first real shock event-study (S9 stays data-collecting)
+
+Research loop. Claim-check: `git fetch origin main` at `a6567cf`, local branch already at
+the real tip (only hourly `tape:` passes since the last run); open PRs unchanged — #4 still
+claims Q1 (draft, unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly retro's protocol-
+amendment proposal (never self-merged, left for Ryan). Queue scan: Q1 claimed, Q2/Q4/Q5/Q6/
+Q9/Q10/Q11 DONE, Q7/Q13 BLOCKED — Q8 (IN-PROGRESS) was topmost eligible, and this run's own
+check of `tape/polymarket_pairs/` found something the last two runs didn't have: real round
+transitions. `market_membership_changes()` showed two teams eliminated since the last cut —
+Brazil and Mexico, both quarterfinal losses — so Q8's own remaining-work note ("once an
+actual round transition lands, re-run and inspect that market's captures around the
+transition specifically") was finally actionable instead of a repeat no-op.
+
+Step 0b stranded-tape sweep first: of the `tape/hourly-*` branches, one
+(`20260706T0256Z`, >30min old) carried lines `main` was missing — 2 `crypto_hourly` + 15
+`polymarket_macro_pairs` + 36 `polymarket_pairs` + 182 `sports_pairs` (checked by exact
+line-set diff per file against `origin/main`, union-deduped, every line validated as
+parseable JSON) — union-appended into this run's commit. `git push origin --delete` still
+fails from a cloud session (same permission boundary documented since 2026-07-03).
+
+**Q8/S9 milestone.** Built `scripts/s9_shock_eventstudy.py`: isolates real transitions from
+`market_membership_changes()` (excluding the one documented startup artifact — the diff
+between the pre-wiring smoke-test capture and the first capture of continuous hourly
+collection) and, for each ticker a transition removed from the open-markets set, reports the
+last two captured rows on both venues (the actual repricing step — the capture at which a
+ticker vanishes is not itself a price observation). Result across the 2 real events / 8
+affected tickers: Kalshi and Polymarket moved together every single time — mean
+`|Δkalshi − Δpolymarket|` 2.2¢, max 8¢, no consistent one-venue-leads pattern, both venues
+already reflecting the outcome by the very next capture (30–60min later). Mexico's data
+additionally showed the reprice trailing off over 2+ hourly captures rather than one clean
+jump, still with both venues moving in lockstep at each step.
+
+**The actual finding is methodological, not a null result on the thesis:** a match resolves
+within minutes of the final whistle, but the collection cadence here is 30–60 minutes — too
+coarse to ever resolve which venue moves first inside that window. S9's lead-lag thesis
+cannot be tested at this resolution as built. 10 new unit tests (297 total, offline synthetic
+fixtures), `invariants --full` green. `kb/strategies/00-index.md` S9 note updated, stays
+`data-collecting`. Full writeup:
+`findings/2026-07-06-polymarket-leadlag-s9-shock-eventstudy.md`.
+
+**Next:** a resolution decision on S9 before the WC ends Jul 19 — either add a sub-hourly
+capture burst around scheduled game-end times for the remaining matches (semifinals, final)
+to actually test lead-lag, or accept this infrastructure only answers a cross-venue parity
+question and mark the lead-lag angle a data-adequacy DEAD. Q7 unblocks ~2026-07-10, Q13
+~2026-07-13; Q12's CPI/inflation leg and its own lead-lag accumulation are still open.
+
+---
+
+## 2026-07-06 00:22 UTC — Q12: Fed-decision leg built (S17 now data-collecting)
+
+Research loop. Claim-check: `git fetch origin main` at `1337175`, local branch already at
+the real tip; open PRs unchanged — #4 still claims Q1 (draft, unrelated, awaiting
+`ODDS_API_KEY`), #18 is the weekly retro's protocol-amendment proposal (never self-merged,
+left for Ryan). Queue scan: Q1 claimed, Q4/Q5/Q6/Q9/Q10/Q11 DONE, Q7/Q13 BLOCKED
+(need ≥7/≥10 days of tape, not yet elapsed), Q8 (IN-PROGRESS) had only ~4h of new
+accumulation since its 2026-07-05T20:09Z lead-lag cut (44 vs 37 captures, no round
+transition) — rerunning it would have reproduced the same "still just noise" result with
+barely more data. **Q12 (S17, TODO with unstarted real work)** was the topmost item where
+this run's effort would actually move something forward, matching the precedent the prior
+run itself named ("Q12 remains the topmost TODO item with unstarted real work if Q8 gets
+skipped again before a shock arrives").
+
+Step 0b stranded-tape sweep first: of 29 `tape/hourly-*` branches, 2
+(`20260705T2155Z`/`2255Z`, both >30min old) carried lines `main` was missing — 4
+`crypto_hourly` + 76 `polymarket_pairs` + 304 `sports_pairs` (checked by exact line-set diff
+per file, union-deduped, every line validated as parseable JSON) — union-appended into this
+run's commit. `git push origin --delete` still fails from a cloud session (same permission
+boundary documented since 2026-07-03).
+
+**Q12/S17 milestone.** Built `collection/polymarket_pairs.run_fed_decision()`: a second
+Kalshi↔Polymarket discovery family (Fed rate-decision meetings) using the same match
+discipline the WC-round leg already proved out, so cross-venue collection outlives the
+World Cup. Kalshi's `KXFEDDECISION` 5-bucket meeting ladder (cut>25/cut25/no-change/
+hike25/hike>25) matched to Polymarket's "Fed Decision in `<Month>`?" events by (meeting
+month+year, bucket) — confirmed via each side's own title/question text, not the Kalshi
+ticker's bps suffix alone (it uses `"26"` as a stand-in for ">25", confirmed live). One real
+design call: completeness is graded against Polymarket's side, not Kalshi's — Kalshi lists
+meetings ~18 months out (to January 2028) while Polymarket only creates an event closer to
+it, so grading against Kalshi's full calendar would make this leg report FAIL forever, a
+structural non-issue rather than a real one; a Polymarket market this pass fails to pair
+(`unmatched_polymarket`) does still gate. Wired into `hourly_pass.py` as a fourth cross-venue
+sub-pass, own tape family `tape/polymarket_macro_pairs/` (kept separate from the WC-round
+tape — different record shape). 22 new unit tests, 287 total green, `invariants --full`
+green. Live pass: **15/15 currently-listed Polymarket Fed-decision markets matched**
+(Jul/Sep/Oct 2026 — the only meetings Polymarket has created so far), 0 ambiguous, 0 book
+errors, `completeness_ok`; gaps ranged −3¢ to +15¢ across the 15 pairs (one snapshot,
+descriptive only). CPI/inflation matching explicitly deferred — Kalshi's cumulative
+"≥threshold" ladder and Polymarket's exact-bucket partition are different shapes; pairing
+them would need a derived/synthetic transform, not a same-question `real_ask` pair, so it
+isn't faked here. `kb/strategies/00-index.md` S17 flipped idea → data-collecting; its own
+gate (≥5 matched live-book pairs/month) is already cleared by this one pass. Full writeup:
+`findings/2026-07-06-fed-decision-macro-pairs-q12-first-cut.md`.
+
+**Next:** accumulate hourly Fed-decision snapshots (already wired), then run a lead-lag
+cross-correlation once enough history exists, same shape as `s9_leadlag_probe.py` — the
+next FOMC meeting is a natural information shock to watch for. Q7 unblocks ~2026-07-10,
+Q13 ~2026-07-13; Q8 (S9) still worth revisiting once a real round transition lands.
+
+---
+
+## 2026-07-05 20:09 UTC — Q8: first S9 lead-lag cross-correlation cut (zero in-window shocks found)
+
+Research loop. Claim-check: `git fetch origin main` force-updated the local ref to `d1ae913`
+(hourly `tape:` passes only since the last run); open PRs unchanged — #4 still claims Q1
+(draft, unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly retro's protocol-amendment
+proposal (never self-merged by a loop run, left for Ryan). Queue scan: Q2–Q6/Q9/Q10/Q11 DONE,
+Q7/Q13 BLOCKED — **Q8 (IN-PROGRESS)** was topmost eligible by the letter of the protocol; the
+last several runs treated its "let snapshots accumulate" remainder as no-code-yet and skipped
+to the next TODO, but by this run's time (~19h of continuous hourly-ish collection since the
+2026-07-05T00:11Z wiring, 37 distinct captures) there was finally enough tape to actually
+attempt the lead-lag cross-correlation Q8's own spec calls for — so this run did that instead
+of skipping again.
+
+Step 0b stranded-tape sweep first: of 27 `tape/hourly-*` branches, 2 (`20260705T155348Z`,
+`20260705T1655Z`, both >30min old) carried lines `main` was missing — 4 `crypto_hourly` + 80
+`polymarket_pairs` + 360 `sports_pairs` (checked by exact line-set diff per file, union-deduped
+across both branches, every line validated as parseable JSON) — union-appended into this run's
+commit. `git push origin --delete` still fails from a cloud session (same permission boundary
+documented since 2026-07-03).
+
+**Q8/S9 milestone.** Built `scripts/s9_leadlag_probe.py` (read-only over
+`tape/polymarket_pairs/`): pools every consecutive-capture (Δkalshi_yes_ask,
+Δpolymarket_best_ask) pair across the 40 markets with ≥10 captures into a lag-0/lag±1
+cross-correlation — contemporaneous ρ **+0.293** (n=1,440), kalshi-leads-polymarket ρ +0.044,
+polymarket-leads-kalshi ρ −0.007 (both n=1,400, both noise-level). More important than the
+correlation numbers: `market_membership_changes()` — the honest proxy for "did a round
+actually transition inside the window" — found **zero** in-window round-transition events; the
+one membership change on record predates continuous hourly collection entirely (a
+pre-wiring smoke-test artifact from 2026-07-04T15:15Z, not something that happened while the
+collector was running). S9's actual thesis — does one venue visibly lag the other around a
+real information shock (a team advancing or being eliminated) — is therefore **still
+untested**; every tick observed so far is ordinary book noise on markets whose underlying
+question hasn't resolved yet. No CI, no verdict claimed; explicitly reported as a
+noise-floor characterization, not a lead-lag finding. 20 new unit tests (offline, synthetic
+capture series incl. one hand-built market where polymarket is kalshi shifted by exactly one
+step, confirming the pooled stat recovers the correct lag direction). 265 tests green (245
+prior + 20 new), `invariants --full` green. `kb/strategies/00-index.md` S9 note updated
+(stays `data-collecting`). See
+`findings/2026-07-05-polymarket-leadlag-s9-first-cut.md`.
+
+**Next:** keep accumulating hourly snapshots; re-run `s9_leadlag_probe.py` once an actual
+round transition lands in the tape and inspect that specific market's captures around the
+transition. Q12 (S17, retarget the matcher to recurring macro pairs) remains the topmost TODO
+item with unstarted real work if Q8 gets skipped again before a shock arrives; Q7 unblocks
+around 2026-07-10, Q13 around 2026-07-13.
+
+---
+
+## 2026-07-05 15:13 UTC — Q10: GDPNow nowcast leg built (S12 econ-print collector now fully DONE)
+
+Research loop. Claim-check: `git fetch origin main` forced-updated the local ref (session
+sandbox was stale) to `a5f1291`; open PRs unchanged from prior runs — #4 still claims Q1
+(draft, unrelated, awaiting `ODDS_API_KEY`), #18 is the weekly-retro's own protocol-amendment
+proposal (never self-merged by a loop run, left for Ryan). Queue scan: Q2–Q6/Q9/Q11 DONE,
+Q7/Q13 BLOCKED, Q8's only remaining gap is letting hourly snapshots accumulate (no code) —
+**Q10 (KALSHI LEG DONE, nowcast leg BLOCKED)** was the topmost eligible item with real work,
+per the same precedent the last two runs used to skip Q8.
+
+Step 0b stranded-tape sweep first: of 24 `tape/hourly-*`/amended branches, 22 were already
+fully reconciled with `main` (checked by exact line-set diff per file, not just `git diff
+--stat` — a pure stat diff would have wrongly flagged several already-merged branches as
+"missing" content that was really just reordered/rewritten upstream); 2 (`20260705T1155Z`,
+`20260705T1253Z`) had real gaps `main` lacked — 4 `crypto_hourly` + 80 `polymarket_pairs` + 389
+`sports_pairs` lines (union-deduped across both branches, order preserved, every line
+validated as parseable JSON before commit) — union-appended into this run's commit. The
+newest branch (`20260705T1455Z`, ~13min old) was skipped per the freshness rule. `git push
+origin --delete` still fails from a cloud session (same permission boundary documented since
+2026-07-03).
+
+**Q10 milestone.** Built the GDPNow leg of `collection/econ_prints.py`'s nowcast field
+(`fetch_nowcast_gdp`/`parse_gdpnow_nowcast`), closing the one gap the Kalshi-leg-only version
+left open. Confirmed live (2026-07-05) that the Atlanta Fed's GDPNow page embeds its entire
+forecast history as three parallel JS arrays (`forecastDates`/`forecastQuarters`/
+`gdpForecast`, ~1,900 entries back to 2014) grouped into quarter-blocks ordered
+newest-quarter-first, each block internally date-ascending — so "the current nowcast" is
+just the last entry whose quarter tag matches the array's first tag. Parser never fabricates:
+a missing array, a length mismatch, an empty block, or a null latest value all surface as an
+honest `parse_error`, not a stale or guessed number; a real network failure is `fetch_error`.
+Tagged `synthetic` (a model estimate, not a Kalshi fill) per CLAUDE.md's trust defaults. Live
+end-to-end check: current GDPNow read is **+1.19% annualized for the quarter ending
+2026-06-30, as of its 2026-07-01 update** (27 updates so far that quarter) — descriptive only,
+not yet joined against Kalshi's `KXGDP` ladder (that join is S12's eventual gate work, not this
+milestone's job). The Cleveland Fed CPI-nowcast leg stays `not_built` as before — its page has
+no scrapable static data, a genuinely different blocker than GDPNow's (which just needed the
+array-slicing logic this run built), so it isn't reattempted.
+
+7 new unit tests (offline, synthetic HTML fixtures — parser edge cases, fetch-error handling,
+and the `gdp` vs everything-else routing in `fetch_nowcast`) plus one existing test
+(`test_run_two_series_independent`) updated to inject a stub GDP fetcher so it stays network-free.
+245 tests green (238 prior + 7 new), `invariants --full` green. `kb/strategies/00-index.md` S12
+row unchanged (still `data-collecting` — the nowcast leg unblocks future analysis, it isn't
+itself a verdict). Q10 flipped from "KALSHI LEG DONE" to full **DONE**.
+
+**Next:** Q12 (S17, retarget the Kalshi↔Polymarket matcher to recurring macro pairs) is the
+topmost remaining TODO with real work; Q7 unblocks around 2026-07-10, Q13 around 2026-07-13.
+
+---
+
 ## 2026-07-05 06:08 ET — Q11: cross-event logical-implication scanner built (S15 idea → data-collecting)
 
 Research loop. Claim-check: sandbox branch was already at `origin/main`'s real tip (hourly

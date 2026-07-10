@@ -156,7 +156,7 @@ import numpy as np
 
 # Make the substrate importable however this script is invoked.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core.pricing import bracket_sum, normalized_ask, overround  # noqa: E402
+from core.pricing import bracket_sum, normalized_ask, overround, TAKER_FEE_RATE  # noqa: E402
 from core.source_tag import tag_or_synthetic  # noqa: E402
 
 TAPE_DB = ("/Users/ryan.gillon/Active/01-projects/arb-bot-v2/data/tape_replica/"
@@ -177,7 +177,7 @@ SIGMA_FLOOR = 0.5        # hard floor on any predictive sigma (CRPS needs sigma>
 
 # ── trade / cost-model constants (see docstring; stated assumptions) ────────────
 EDGE_BAR = 0.05          # |model_prob - market_implied| must exceed this to trade (fee+overround)
-FEE_COEFF = 0.07         # Kalshi taker fee coefficient (kb/kalshi-api/03-fees-and-breakeven.md)
+FEE_COEFF = TAKER_FEE_RATE  # Kalshi taker fee coefficient (core.pricing single source; L5)
 
 SQRT_PI = math.sqrt(math.pi)
 

@@ -16,7 +16,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
-analysis = ["numpy>=1.24"]  # bootstrap CI / longshot-fade probe (Phase 1)
+analysis = [
+  "numpy>=1.24",     # bootstrap CI / longshot-fade probe (Phase 1)
+  "openpyxl>=3.1",   # read football-data.co.uk's free historical-odds .xlsx (S7a)
+]
 
 [tool.setuptools]
 packages = ["core", "collection", "validation"]

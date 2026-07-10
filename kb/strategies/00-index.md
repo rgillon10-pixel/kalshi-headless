@@ -15,10 +15,10 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S3** | K3 cross-strike monotonicity staleness | kalshi.ibkr · QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q6, 2026-07-04) sweeps daily @09 UTC for real fee-floor-clearing crossings; 0 so far in 3 capped live passes (expected, rare); verdict needs accumulated tape |
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
-| **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | idea | — | A-S quotes; spread income > adverse-selection cost |
+| **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | **data-collecting** | — | A-S quotes; spread income > adverse-selection cost; `collection/orderbook_depth.py` (Q16, 2026-07-07) now captures full L2 depth hourly for sports/crypto tickers |
 | **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | **dead ✗** | med | TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5's NWS/WU |
-| **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **data-collecting** | low | forward poll matched binaries; cross-correlate lead-lag; paper laggard fill; CI>0 |
+| **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **dead ✗** | low | RESOLVED 2026-07-06: n=8 ticker-steps across 2 real round transitions, both venues repriced together every time (mean \|Δk−Δp\| 2.2¢) — collection cadence (hourly-min, platform trigger constraint) is coarser than the event itself; data-adequacy DEAD, not a CI falsification. Parity sub-question survives under S17. |
 | **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
 | **S12** | Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred) | 2026-07-04 gen pass · QF Themes 1+5 × econ category | **data-collecting** | med | ≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where \|nowcast−implied\| > overround share+fee; block-bootstrap by release; CI>0 |
@@ -26,7 +26,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S14** | Ladder overround underwriting (short the complete bracket set) | 2026-07-04 gen pass · overround inversion × QF Theme 3 | idea | low | L2-tape fill-sim: E[overround × P(complete fill)] − E[loss on partial sets @ real asks] > 0, CI over ≥30 event-days |
 | **S15** | Cross-event logical-implication scanner (A⇒B ⇒ P(A)≤P(B)) | 2026-07-04 gen pass · S3 extension × QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q11, 2026-07-05) 3rd check + `config/implication_pairs.yaml` (hand-audited `kxwcround_progression` family); runs in existing daily 09 UTC slot; live-validated against real KXWCROUND markets (38 pairs/40 open markets, 0 hits — expected); kill if 0 fee-clearing hits in 60 days |
 | **S16** | FedWatch-anchored shock fade on KXFED | 2026-07-04 gen pass · QF Theme 7 × S2 adjacency | idea | low | enter only \|Kalshi−FedWatch\| > spread+fee around releases; paper exit on convergence/T+24h; bootstrap by shock; CI>0; kill if Kalshi leads ZQ |
-| **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | idea | low | retarget matcher to Fed/CPI questions; ≥5 live-book pairs/month both venues; lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
+| **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | **data-collecting** | low | Fed + CPI matchers both built (2026-07-06); ≥5 live-book pairs/month cleared; remaining: accumulate + lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
 | **S18** | Single-poll overreaction fade (Congress-control markets) | 2026-07-04 gen pass · QF Theme 7 × elections category | idea | low | paper fade @ real ask when single-poll jump >3¢ while polling average moved <1¢-eq; exit reversion/T+72h; bootstrap by poll event; CI>0 before 2026-11 |
 
 ## Notes on each
@@ -90,6 +90,23 @@ fee is 4× cheaper (`../kalshi-api/03-fees-and-breakeven.md`). The structural lo
 forecast edge never materializes — but adverse selection in thin books is the killer. Idea-stage;
 needs the forward tape (S0) to even estimate order-arrival intensity.
 
+**S6 → DATA-COLLECTING (2026-07-07, Q16).** With the queue drained to time-blocked items
+(Q7/Q13) and Q1 claimed by an open PR, S6 was the only remaining `idea`-stage candidate not
+blocked by external data (S4/S10/S11/S14 all already blocked). `collection/orderbook_depth.py`
+now captures full L2 book depth (`yes_bids`/`no_bids` price+size ladders, not just BBO) for the
+tickers `sports_pairs`/`crypto_hourly` already discover each pass — reusing
+`normalize.py:normalize_snapshot` and the tickers read straight back from those collectors'
+own freshly-written tape (no platform re-sweep). Every book read is tagged `real_ask`/`real_bid`
+(a live order book is a genuine fillable quote). Wired into `hourly_pass.py` as a fifth
+sub-pass; live-validated against 6 real current-hour KXBTC tickers, all captured,
+`completeness_ok=True`. **Honest limitation:** this loop's recurring collector cadence is
+hard-capped at hourly (the same floor S9's lead-lag work hit) — hourly depth snapshots give a
+repeated-sample series, not a continuous order-flow tape, so any arrival-intensity estimate
+built on this data is snapshot-sampled and must be labeled as such, not treated as a true
+message-level fill-sim input. Remaining for S6: accumulate depth snapshots, then attempt a
+first-cut arrival-intensity/adverse-selection estimate honestly scoped to what an hourly
+sample can support.
+
 ## New candidates S7–S11 (2026-06-18 · /first-principles → /peer-review, 21 agents)
 
 The post-weather pivot's first non-weather idea set. 5 first-principles generators → adversarial
@@ -144,6 +161,54 @@ small and roughly symmetric on this single snapshot, descriptive only, not a ver
 World Cup ends Jul 19 — the round ladder (quarterfinals→semifinals→final) only has a few
 weeks of life; next step is accumulating repeated passes (wire into the hourly collector)
 to get enough snapshots for an actual lead-lag cross-correlation.
+
+**S9 → first cross-correlation cut (2026-07-05, Q8 continued) — stays data-collecting.**
+`scripts/s9_leadlag_probe.py` (read-only over accumulated `tape/polymarket_pairs/`, 37
+captures/48 markets/40 with ≥10 captures) pooled every consecutive-capture price-change pair
+into a lag-0/lag±1 cross-correlation: contemporaneous ρ +0.293 (n=1,440), kalshi-leads-poly
+ρ +0.044, poly-leads-kalshi ρ −0.007 (both n=1,400, both noise-level). More importantly:
+`market_membership_changes()` — the honest proxy for "did a round actually transition inside
+the window" — found **zero** in-window round-transition events (the one change on record
+predates continuous hourly collection, a startup artifact). S9's actual thesis (does one
+venue visibly lag the other around a real information shock) is therefore still untested —
+every observed tick so far is book noise, not a shock. No CI, no verdict; stays
+`data-collecting` until an actual elimination/advance lands in the tape (several should occur
+before the WC ends Jul 19). See `findings/2026-07-05-polymarket-leadlag-s9-first-cut.md`.
+
+**S9 → first real shock event-study (2026-07-06, Q8 continued) — stays data-collecting.**
+Two real round transitions have now landed: Brazil and Mexico both eliminated (quarterfinal
+losses). New `scripts/s9_shock_eventstudy.py` isolates real transitions from
+`market_membership_changes()` and reports each affected ticker's last two captured rows (the
+actual repricing step) on both venues. Result across n=8 ticker-steps: Kalshi and Polymarket
+moved together every time — mean `|Δkalshi − Δpolymarket|` = 2.2¢, max 8¢, no consistent
+one-venue-leads pattern, both venues already reflecting the outcome by the very next capture
+(30–60min later). **The actual finding is methodological, not a null result on the thesis
+itself:** collection cadence (hourly-ish) is coarser than the event (a match resolves within
+minutes) — S9's lead-lag thesis cannot be tested at this resolution without either sub-hourly
+captures around scheduled game-end times or accepting this infra only answers a cross-venue
+parity question, not lead-lag. Stays `data-collecting`; flagged for a resolution decision
+before the WC ends Jul 19 (only a handful of transitions remain). See
+`findings/2026-07-06-polymarket-leadlag-s9-shock-eventstudy.md`.
+
+**S9 → resolution decision (2026-07-06, Q8 closed): lead-lag flips dead ✗ (data-adequacy),
+parity sub-question survives under S17.** Checked this loop's actual scheduling primitives
+before deciding: recurring cron triggers are hard-capped at hourly minimum interval (the
+tool's own schema states it), ruling out a sub-hourly recurring poll. One-shot triggers
+aren't cadence-limited, but placing them around a match's real end-time needs a kickoff
+timestamp the accumulated `tape/polymarket_pairs/` doesn't carry (round/team/price only) and
+neither collector currently resolves for KXWCROUND markets — and wiring up N one-shot
+captures per remaining match is a new class of unattended multi-day automation, the same
+category as the VPS collector and `ntfy-watch`, both of which were Ryan-requested ops
+changes rather than something a research-loop run decided alone. Building that
+infrastructure unilaterally is outside a single milestone's scope. Per the Stop rules, a
+DEAD verdict recorded honestly is a success: the **lead-lag** sub-thesis (does one venue
+reprice first around a shock?) is dead by data-adequacy — not falsified by a CI, just
+untestable with hourly-minimum automation and no kickoff-time signal to burst around. The
+**cross-venue parity** sub-thesis (do the two venues quote the same price on average right
+now?) is a different, already-useful question the existing infra answers fine (48/48 matched,
++0.20¢ mean gap, 2026-07-04 first cut) and continues under S17's Fed-decision generalization,
+which doesn't need sub-hourly resolution. No new code this run — a decision on already-
+collected evidence. See `findings/2026-07-06-polymarket-leadlag-s9-resolution.md`.
 
 **S8 → Q5 first cut (2026-07-03): overround flag resolved, ρ-guard inconclusive (stays
 data-collecting).** `scripts/s8_basis_probe.py` (read-only over accumulated
@@ -266,6 +331,14 @@ CPI / GDPNow) is BLOCKED(nowcast-scrape): Cleveland Fed's page has no static/API
 number, GDPNow's does but needs nontrivial quarter-window slicing — both left for a follow-up
 pass. S12's ≥20-releases gate can't be scored until that leg lands.
 
+**Update (2026-07-05, same-day follow-up Q10 run).** The GDPNow half of the nowcast leg is
+now built and live: the Atlanta Fed embeds its full forecast history as three parallel JS
+arrays, sliceable to the current quarter's latest update (current read: **+1.19% annualized**
+for the quarter ending 2026-06-30, `synthetic`). The Cleveland Fed CPI-nowcast leg stays
+`not_built` — a genuinely separate blocker (no scrapable static data at all), not reattempted
+this run. S12's gate still needs ≥20 accumulated releases (months of real time) before any
+bootstrap is attemptable; still `data-collecting`.
+
 ## The one rule that orders all of this
 
 **Update 2026-06-18:** S0 is **built**; **S1 and S5 are dead** at real asks; **weather is decided —
@@ -292,3 +365,53 @@ test** — a genuine null (CI straddles zero), not a falsification on the wrong 
 Kalshi's own maker fee eats almost the whole assumed 1¢ edge before any real market effect
 gets a chance to matter. S1/S5/S7/S8/S13 now all decided at real asks — none of them live. S9
 remains the only `data-collecting` candidate; S6/S10-S12/S14-S18 still at `idea`.
+
+**Update 2026-07-06 (Q12):** **S17 flipped idea → data-collecting.** `collection/polymarket_pairs.py`
+gained a second discovery family, `run_fed_decision()`, retargeting the S9 matcher discipline at
+Fed rate-decision meetings (Kalshi's `KXFEDDECISION` 5-bucket ladder vs Polymarket's "Fed Decision
+in `<Month>`?" events — same partition on both venues, matched by meeting month/year + bucket, never
+the Kalshi ticker's bps suffix alone). Wired into `hourly_pass.py` as a fourth cross-venue sub-pass
+so collection outlives the World Cup. Live pass: **15/15 currently-listed Polymarket Fed-decision
+markets matched** (Jul/Sep/Oct 2026 meetings — the only ones Polymarket has created so far;
+Kalshi's own forward calendar runs to Jan 2028, all correctly recorded as `unmatched_kalshi` and
+explicitly NOT gating completeness, since that gap is normal forward-calendar noise, not a data
+problem), 0 ambiguous, 0 book errors, `completeness_ok`. One-snapshot gaps ranged −3¢ to +15¢
+(descriptive only, not a verdict). CPI/inflation matching is explicitly deferred: Kalshi prices a
+cumulative "≥ threshold" ladder while Polymarket prices an exact bucket — pairing those needs a
+derived/synthetic transform, not a same-question real_ask pair, so it isn't faked here. S17's own
+gate (≥5 matched live-book pairs/month) is already cleared by this one pass; remaining work is
+accumulation + the eventual lead-lag cross-correlation, same shape as S9.
+
+**Update 2026-07-06 (Q12 CPI follow-up):** built the deferred CPI/inflation leg,
+`run_cpi()` — a third discovery family pairing Kalshi's `KXCPI`/`KXCPIYOY`/`KXCPICORE`
+cumulative "exceed T" ladders against Polymarket's exact 0.1-point bucket partition for
+the same 3 US print series. Not a same-question `real_ask` pair like the WC-round/Fed
+families: `price_cpi_bucket_from_kalshi` derives each Polymarket bucket's probability by
+differencing two adjacent Kalshi asks, tagged `synthetic` per Hard Rule #3's spirit even
+though both inputs are genuine `real_ask` fills — this is exactly the transform the prior
+cut deferred rather than fake. 23 new unit tests, wired into `hourly_pass.py`'s existing
+09 UTC daily slot (CPI releases monthly — no need for hourly cadence). Live pass: 17 open
+Kalshi CPI events, 3 matched Polymarket events (current core-MoM/YoY/headline-MoM prints),
+22/28 buckets priced — the other 6 need Kalshi strikes beyond what its ladder currently
+lists (a real, honestly-recorded coverage gap, not a bug) — 0 unmatched/ambiguous
+Polymarket events, one bucket's derived probability came back negative
+(`monotonicity_violation: true`, a thin/stale Kalshi strike, recorded not clipped). S17's
+own gate was already cleared by the Fed leg; this closes the item's only documented
+remaining-work gap besides accumulation.
+
+**Update 2026-07-06 (Q14/Q15, S16 + S18 feasibility): both stay `idea`, both hit real
+data-adequacy walls.** With the queue drained to time-blocked items, followed the registry's
+own stated priority past S15/S17 to the next two un-started candidates. **S16** (FedWatch
+fade): `cmegroup.com` is behind Akamai-class bot protection — every path tried (root, the
+FedWatch tool page, three guessed widget/API endpoints) 403'd or reset the connection with a
+real browser UA over HTTP/1.1, while Kalshi and the Atlanta Fed's GDPNow page (a structurally
+similar free-JS-data target) both worked fine this same run, so the block is venue-side, not
+sandbox egress. **S18** (Congress-control fade): Kalshi's `HOUSE`/`SENATE`/`KXHOUSE`/`KXSENATE`
+series exist but list **zero markets in any status** — the 2026 midterm control contracts
+aren't listed yet, so there's no Kalshi print to build against; separately, the classic free
+generic-ballot polling feeds are gone (538's CSV redirects to a dead ABC News stub, not just
+moved; RealClearPolling 403s the same way as CME) — Wikipedia's 2026 House-elections article
+is a live fallback source for whenever Kalshi actually lists the markets. Neither is a CI
+falsification — both are honest `BLOCKED` verdicts per the Stop rules, recorded so a future
+run doesn't re-spend a milestone on the same dead ends. See
+`findings/2026-07-06-s16-s18-feasibility-blocked.md`.
