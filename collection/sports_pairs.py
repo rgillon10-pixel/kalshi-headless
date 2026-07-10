@@ -1,41 +1,39 @@
-"""Sports paired-odds capture (READ-ONLY) — Q1, serves S7 (sports CLV) / S11 (maker quoting).
+"""Sports moneyline paired-odds collector (READ-ONLY) — Kalshi BBO + de-vigged sharp odds.
 
-Mirrors collection/capture_orderbooks.py's discipline for a different shape of market:
-a Kalshi *event* (e.g. one soccer game) is a mutually-exclusive set of binary outcome
-markets (home / away / tie), not a temperature bracket ladder — but the same bitemporal +
-completeness + content-hash contract applies (core/sports_schema.py is the sibling of
-core/manifest_schema.py for this shape).
+LOOP-QUEUE.md Q1: serves S7 (sports CLV harvest) and S11 (sharp-anchored maker quoting).
+Mirrors `collection/capture_orderbooks.py` discipline: bitemporal `captured_at`, raw-bytes
+sha256 provenance, honest expected-vs-captured completeness (a fetch failure lowers
+`completeness_ok`, it never silently drops a game).
 
-One pass:
-  1. Discover candidate series: every Sports-category series whose ticker ends in "GAME"
-     (the empirically-observed suffix for per-event moneyline/winner markets — see the
-     KXWCGAME/KXMLBGAME/KXNBAGAME family). World Cup / soccer series sort first (Q1:
-     TIME-SENSITIVE, World Cup ends Jul 19) — this is a documented heuristic, not a
-     Kalshi-provided classification, so it can miss a genuinely non-"GAME"-suffixed
-     moneyline series; a gap here is a coverage limitation, not a silent corruption (every
-     series actually scanned is scanned completely or recorded as a series_error).
-  2. Group each series' OPEN markets by the API's own `event_ticker` (authoritative — not
-     guessed); cross-check against a ticker-parse for defense-in-depth (a mismatch is
-     recorded, never silently dropped).
-  3. An event with >=2 outcome markets = a capturable bracket: snapshot each outcome's live
-     yes/no BBO (tag `real_ask` — Hard Rule #3: `bracket_sum`/`overround` computed via
-     core.pricing, the sole sanctioned site for yes_ask and no_ask arithmetic).
-  4. If ODDS_API_KEY is present, attempt a matched sportsbook de-vig leg (tag `synthetic` —
-     a de-vig is a model, not a fill) via core.odds. No key -> odds_leg_status=
-     "blocked_no_key", Kalshi leg captured anyway (Q1's documented fallback).
+Discovery: Kalshi has no "moneyline" category flag, so candidate series are found by a
+title heuristic (`*Game(s)*`, minus known prop-bet keywords), then EVERY candidate group is
+confirmed structurally (2-3 outcomes, every market titled "<A> vs <B> ... Winner?") before
+capture — the heuristic only narrows the API-call budget, it never decides what gets
+persisted. Soccer/World Cup is the first live target (Kalshi's `KXWCGAME` series) but the
+same discovery + capture path picks up any other sport listed the same way (Hard Rule
+discipline: no venue-specific special-casing beyond the shared ticker grammar).
+
+Each open game is one outcome-group: Kalshi already prices it as a coherent bracket (the
+per-outcome `yes_ask_dollars` sum to a bracket_sum > 1.0, the same overround structure as
+the weather ladders — core/pricing.py is the one sanctioned site for that arithmetic, so
+Hard Rule #3 applies here unchanged).
+
+The odds-api leg (matched sportsbook moneylines, de-vigged to a fair probability) requires
+`ODDS_API_KEY`; absent that, the Kalshi leg is still captured and the game's `odds_leg` is
+recorded as `{"status": "blocked_key"}` (Q1 spec) rather than silently omitted. The Kalshi
+game -> odds-api event MATCHING (team-name normalization across the two conventions) is not
+implemented yet — real next step once a key exists to test the match against.
 
 Run one pass:
-    python -m collection.sports_pairs                 # all discovered GAME series
-    python -m collection.sports_pairs --limit 200      # cap markets scanned (testing)
+    python -m collection.sports_pairs
+    python -m collection.sports_pairs --limit 3    # cap candidate series (offline/dev use)
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -44,362 +42,259 @@ import requests
 
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
-from core.odds import american_odds_to_fair_probs
 from core.pricing import bracket_sum, overround
-from core.sports_schema import GamePairManifest, validate
 from validation.v3_market import Kalshi, _load_venue_cfg
 
-STORE = REPO_ROOT / "tape" / "sports_pairs"
+TAPE = REPO_ROOT / "tape" / "sports_pairs"
 SPORTS_CATEGORY = "Sports"
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
-# Kalshi sport-series -> the-odds-api sport key. Deliberately small and explicit: an
-# unmapped series' odds leg reports "no_match" rather than guessing a sport_key.
-ODDS_API_SPORT_KEYS = {
-    "KXWCGAME": "soccer_fifa_world_cup",
-}
+# SERIES-EVENTCODE-OUTCOME, e.g. KXWCGAME-26JUL06USABEL-USA. EVENTCODE is a YYMonDD date
+# token immediately followed by concatenated team codes (empirically observed on
+# KXWCGAME/KXNFLGAME/KXMLBGAME/... — the same grammar family as validation/v3_market.py's
+# weather TICKER_RE, just without the T/B strike suffix).
+TICKER_RE = re.compile(
+    r"^(?P<series>[A-Z0-9]+)-(?P<event>(?P<yy>\d{2})(?P<mon>[A-Z]{3})(?P<dd>\d{2})"
+    r"(?P<teams>[A-Z0-9]+))-(?P<outcome>[A-Z0-9]+)$"
+)
 
-# A market ticker is "<event_ticker>-<OUTCOME>"; event_ticker itself may contain hyphens
-# (SERIES-DATETEAMS), so parsing must peel exactly one trailing "-<OUTCOME>" segment.
-_MARKET_TICKER_RE = re.compile(r"^(?P<event>[A-Z0-9]+-[A-Z0-9.]+)-(?P<outcome>[A-Z0-9]+)$")
+# A confirmed moneyline market title: "<A> vs[.] <B> ... Winner?" (Kalshi's own title
+# grammar for every game-winner market observed).
+_MONEYLINE_TITLE_RE = re.compile(r"\bvs\.?\b.+\bwinner\??\s*$", re.I)
+
+# Series-title heuristic: candidates end up here only to narrow the API-call budget over
+# ~2300 Sports series; every candidate is re-confirmed per-game by is_moneyline_group().
+_SERIES_TITLE_RE = re.compile(r"\bgames?\b", re.I)
+_EXCLUDE_SERIES_RE = re.compile(
+    r"goal|score|corner|shot|total|spread|method|first|hat.?trick|save|assist|award|"
+    r"penalt|record|delay|location|start|matchup|leader|streak|combo|celebrity|"
+    r"pro.?bowl|all.?star|3.?pointer|played|round|series|parlay|comeback|mvp", re.I)
 
 
-def _slug(text: str) -> str:
-    return "".join(c for c in text.lower() if c.isalnum())
-
-
-def _match_token(text: str) -> str:
-    """Slug for cross-source outcome matching, normalizing common synonyms Kalshi and
-    the-odds-api disagree on (Kalshi labels a 3-way soccer draw "Tie"; the-odds-api's
-    outcome name is "Draw")."""
-    return _slug(text).replace("tie", "draw")
-
-
-# --------------------------------------------------------------------------- #
-# ticker parsing (defense-in-depth cross-check against the API's own event_ticker)
-# --------------------------------------------------------------------------- #
-def parse_market_ticker(ticker: str) -> Tuple[str, str]:
-    """Split an outcome-market ticker into (event_ticker, outcome_code).
-
-    Raises ValueError if the ticker doesn't match the observed grammar (e.g. a
-    "GAME"-suffixed series whose markets aren't simple win/lose/tie outcomes) —
-    callers must catch this and fall back to the API's own event_ticker rather
-    than crash the whole pass on one unfamiliar market shape.
-    """
-    m = _MARKET_TICKER_RE.match(ticker.upper())
+def parse_sports_ticker(ticker: str) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
+    """Parse SERIES-EVENTCODE-OUTCOME. Returns (fields, error); error is None on success."""
+    m = TICKER_RE.match(ticker.upper())
     if not m:
-        raise ValueError(f"cannot parse market ticker: {ticker!r}")
-    return m.group("event"), m.group("outcome")
-
-
-def reconcile_event_ticker(ticker: str, api_event_ticker: str) -> Optional[str]:
-    """Cross-check a ticker-derived event against the API's own `event_ticker`.
-
-    Returns a mismatch description if they disagree, else None (either they agree,
-    or the ticker shape isn't one we parse — an unparsed ticker is NOT treated as a
-    mismatch, since parse_market_ticker's grammar is intentionally narrow).
-    """
+        return None, "no_regex_match"
     try:
-        derived, _outcome = parse_market_ticker(ticker)
+        game_date = datetime.strptime(f"{m['yy']}{m['mon']}{m['dd']}", "%y%b%d").date()
     except ValueError:
-        return None
-    if derived != api_event_ticker:
-        return f"{ticker}: derived event {derived!r} != api event_ticker {api_event_ticker!r}"
-    return None
+        return None, f"bad_date_token:{m['yy']}{m['mon']}{m['dd']}"
+    return {
+        "series": m["series"], "event": m["event"], "game_date": game_date.isoformat(),
+        "teams_code": m["teams"], "outcome": m["outcome"],
+    }, None
 
 
 # --------------------------------------------------------------------------- #
-# discovery — candidate series, then events grouped from their OPEN markets
+# discovery
 # --------------------------------------------------------------------------- #
-def discover_candidate_series(client) -> List[str]:
-    """Every Sports-category series ticker ending in 'GAME', World Cup / soccer first."""
-    series = client.series_by_category(SPORTS_CATEGORY)
-    tickers = sorted({(s.get("ticker") or "") for s in series if (s.get("ticker") or "").endswith("GAME")})
+def discover_moneyline_series(client: Kalshi) -> List[str]:
+    """Sports-category series whose title marks them a candidate game-level moneyline."""
+    out = []
+    for s in client.series_by_category(SPORTS_CATEGORY):
+        title = s.get("title") or ""
+        if _SERIES_TITLE_RE.search(title) and not _EXCLUDE_SERIES_RE.search(title):
+            ticker = s.get("ticker", "")
+            if ticker:
+                out.append(ticker)
+    return sorted(out)
 
-    def _priority(t: str) -> Tuple[int, str]:
-        return (0 if "WC" in t else 1, t)
 
-    return sorted(tickers, key=_priority)
+def is_moneyline_group(markets: List[Dict]) -> bool:
+    """A real moneyline game group: 2-3 mutually exclusive outcomes, every market titled
+    '<A> vs <B> ... Winner?'. The structural confirmation the series-title heuristic needs."""
+    if not (2 <= len(markets) <= 3):
+        return False
+    return all(_MONEYLINE_TITLE_RE.search(m.get("title") or "") for m in markets)
 
 
-def discover_events(client, series_tickers: List[str], limit: Optional[int] = None
-                    ) -> Tuple[Dict[str, Dict], List[Dict[str, str]], List[str]]:
-    """Enumerate open markets for each candidate series, grouped by event_ticker.
+def _fetch_open_markets_raw(client: Kalshi, series_ticker: str) -> Tuple[List[Dict], List[str]]:
+    """Manually paginate /markets for one series, keeping the verbatim raw page bytes
+    alongside the parsed list (raw-bytes provenance, same discipline as capture_orderbooks)."""
+    markets: List[Dict] = []
+    raw_pages: List[str] = []
+    cursor: Optional[str] = None
+    while True:
+        params: Dict[str, Any] = {"series_ticker": series_ticker, "status": "open", "limit": 1000}
+        if cursor:
+            params["cursor"] = cursor
+        text = client.get_text("/markets", **params)
+        raw_pages.append(text)
+        j = json.loads(text)
+        items = j.get("markets") or []
+        markets.extend(items)
+        cursor = j.get("cursor")
+        if not cursor or not items:
+            break
+    return markets, raw_pages
 
-    Returns (events, series_errors, ticker_mismatches). events[event_ticker] =
-    {"series": ..., "markets": [raw market dicts]}. A whole-series enumeration
-    failure is recorded (series_errors), never silently hidden — same discipline
-    as collection/capture_orderbooks.discover_groups."""
-    events: Dict[str, Dict] = {}
+
+def discover_groups(client: Kalshi, series_list: List[str]
+                    ) -> Tuple[Dict[str, Dict], Dict[str, List[str]], List[Dict[str, str]]]:
+    """Fetch open markets for each candidate series, group by event_ticker, keep only
+    confirmed moneyline groups. Returns (groups, raw_pages_by_series, series_errors)."""
+    groups: Dict[str, Dict] = {}
+    raw_pages_by_series: Dict[str, List[str]] = {}
     series_errors: List[Dict[str, str]] = []
-    ticker_mismatches: List[str] = []
-    seen = 0
-    for sticker in series_tickers:
+    for sticker in series_list:
         try:
-            markets = client.open_markets(sticker)
+            markets, raw_pages = _fetch_open_markets_raw(client, sticker)
         except Exception as exc:
             series_errors.append({"series": sticker, "error": str(exc)})
             continue
+        raw_pages_by_series[sticker] = raw_pages
+        by_event: Dict[str, List[Dict]] = {}
         for m in markets:
-            ticker = m.get("ticker", "")
-            event_ticker = m.get("event_ticker") or ""
-            if not event_ticker:
-                continue
-            mismatch = reconcile_event_ticker(ticker, event_ticker)
-            if mismatch:
-                ticker_mismatches.append(mismatch)
-            ev = events.setdefault(event_ticker, {"series": sticker, "markets": []})
-            ev["markets"].append(m)
-            seen += 1
-            if limit and seen >= limit:
-                return events, series_errors, ticker_mismatches
-    return events, series_errors, ticker_mismatches
+            by_event.setdefault(m.get("event_ticker", ""), []).append(m)
+        for event_ticker, group_markets in by_event.items():
+            if event_ticker and is_moneyline_group(group_markets):
+                groups[event_ticker] = {"series": sticker, "markets": group_markets}
+    return groups, raw_pages_by_series, series_errors
 
 
 # --------------------------------------------------------------------------- #
-# odds leg — matched sportsbook de-vig (synthetic; Kalshi leg is captured regardless)
+# de-vig (Q1: sharp-odds fair prob when ODDS_API_KEY is present — SYNTHETIC, never a fill)
 # --------------------------------------------------------------------------- #
-class OddsApiClient:
-    """Thin throttled client for the-odds-api v4 (public sportsbook odds aggregator)."""
+def devig_multiplicative(decimal_odds: List[float]) -> List[float]:
+    """Proportional de-vig: 1/odds implied probabilities, normalized to sum to 1.0.
 
-    def __init__(self, api_key: str, base: str = ODDS_API_BASE, min_interval: float = 0.25):
-        self.api_key = api_key
-        self.base = base.rstrip("/")
-        self.s = requests.Session()
-        self._min_interval = min_interval
-        self._last = 0.0
-
-    def sport_odds(self, sport_key: str, regions: str = "us,eu", markets: str = "h2h",
-                   odds_format: str = "american") -> List[dict]:
-        gap = time.time() - self._last
-        if gap < self._min_interval:
-            time.sleep(self._min_interval - gap)
-        r = self.s.get(f"{self.base}/sports/{sport_key}/odds",
-                       params={"apiKey": self.api_key, "regions": regions,
-                               "markets": markets, "oddsFormat": odds_format},
-                       timeout=30)
-        self._last = time.time()
-        r.raise_for_status()
-        return r.json()
+    The output is `synthetic` (CLAUDE.md: "a de-vig is a model, not a fill") — it estimates
+    the sharp book's fair probability net of vig, it is never itself a tradeable price.
+    """
+    if not decimal_odds or any(o <= 1.0 for o in decimal_odds):
+        raise ValueError(f"decimal odds must each be > 1.0, got {decimal_odds!r}")
+    implied = [1.0 / o for o in decimal_odds]
+    total = sum(implied)
+    return [x / total for x in implied]
 
 
-def _team_names_from_title(title: str) -> Optional[Tuple[str, str]]:
-    m = re.match(r"^(.+?)\s+vs\.?\s+(.+?)(?:\s+Winner\??)?$", title.strip(), re.I)
-    if not m:
-        return None
-    return m.group(1).strip(), m.group(2).strip()
-
-
-def match_event_odds(odds_events: List[dict], team_a: str, team_b: str) -> Optional[dict]:
-    """Find the odds-api event matching two team names (case-insensitive substring
-    match on home_team/away_team). Returns the matched event dict, or None."""
-    a, b = _slug(team_a), _slug(team_b)
-    for ev in odds_events:
-        home, away = _slug(ev.get("home_team", "")), _slug(ev.get("away_team", ""))
-        names = {home, away}
-        if (a in names or any(a in n or n in a for n in names)) and \
-           (b in names or any(b in n or n in b for n in names)):
-            return ev
-    return None
-
-
-def _preferred_bookmaker(matched: dict) -> Optional[dict]:
-    books = matched.get("bookmakers") or []
-    for b in books:              # Pinnacle preferred (Q1) — sharpest book, thinnest vig
-        if (b.get("key") or "").lower() == "pinnacle":
-            return b
-    return books[0] if books else None
-
-
-def fetch_odds_leg(odds_client: Optional[OddsApiClient], sport_series: str,
-                   event_title: str, outcome_labels: Dict[str, str]
-                   ) -> Tuple[Dict[str, float], str]:
-    """Attempt the matched sportsbook de-vig leg for one event.
-
-    Returns ({outcome_market_ticker: fair_probability}, status). Never raises: any
-    failure degrades to an honest status code rather than poisoning the Kalshi leg,
-    which is captured unconditionally by the caller."""
-    if odds_client is None:
-        return {}, "blocked_no_key"
-    sport_key = ODDS_API_SPORT_KEYS.get(sport_series)
-    if not sport_key:
-        return {}, "no_match"
-    teams = _team_names_from_title(event_title)
-    if not teams:
-        return {}, "no_match"
-    try:
-        odds_events = odds_client.sport_odds(sport_key)
-    except Exception:
-        return {}, "fetch_error"
-    matched = match_event_odds(odds_events, *teams)
-    if matched is None:
-        return {}, "no_match"
-    book = _preferred_bookmaker(matched)
-    if not book:
-        return {}, "no_match"
-    h2h = next((m for m in (book.get("markets") or []) if m.get("key") == "h2h"), None)
-    if not h2h or not h2h.get("outcomes"):
-        return {}, "no_match"
-    names = [o["name"] for o in h2h["outcomes"]]
-    prices = [o["price"] for o in h2h["outcomes"]]
-    try:
-        fair = american_odds_to_fair_probs(prices)
-    except (ValueError, KeyError):
-        return {}, "fetch_error"
-    by_name = dict(zip(names, fair))
-    out: Dict[str, float] = {}
-    for market_ticker, label in outcome_labels.items():
-        label_tok = _match_token(label)
-        for name, prob in by_name.items():
-            name_tok = _match_token(name)
-            if name_tok == label_tok or name_tok in label_tok or label_tok in name_tok:
-                out[market_ticker] = prob
-                break
-    return (out, "ok") if out else ({}, "no_match")
+def fetch_the_odds_api_soccer(api_key: str, sport_key: str = "soccer_fifa_world_cup"
+                              ) -> List[Dict]:
+    """One page of matched sportsbook h2h odds for a sport. NOT called unless ODDS_API_KEY
+    is present. Matching a returned event to a Kalshi event_ticker (team-name
+    normalization across the two venues' conventions) is not implemented yet — real next
+    step once a key exists to test the match against (see module docstring)."""
+    r = requests.get(f"{ODDS_API_BASE}/sports/{sport_key}/odds",
+                     params={"apiKey": api_key, "regions": "eu,us", "markets": "h2h",
+                             "oddsFormat": "decimal"}, timeout=30)
+    r.raise_for_status()
+    return r.json()
 
 
 # --------------------------------------------------------------------------- #
-# capture — one signed manifest line per event
+# capture — one JSONL line per confirmed moneyline game
 # --------------------------------------------------------------------------- #
-def _group_stem(event_ticker: str) -> str:
-    return _slug(event_ticker)
-
-
 def run(limit: Optional[int] = None, min_interval: float = 0.2,
-        client=None, store: Optional[Path] = None,
-        odds_api_key: Optional[str] = None, odds_client=None) -> Dict:
-    """One read-only capture pass. `client`/`store`/`odds_client` are injectable for
-    offline testing; production defaults to the live Kalshi client, the real tape
-    store, and ODDS_API_KEY from the environment (never printed)."""
-    store = Path(store) if store is not None else STORE
+        client: Optional[Kalshi] = None, tape_dir: Optional[Path] = None,
+        odds_api_key: Optional[str] = None) -> Dict:
+    """One read-only capture pass. `client`/`tape_dir` injectable for offline testing."""
+    tape_dir = Path(tape_dir) if tape_dir is not None else TAPE
     if client is None:
         cfg = _load_venue_cfg()
         client = Kalshi(cfg["api_base"], min_interval=min_interval)
-    source_endpoint = getattr(client, "base", "") + "/markets?series_ticker={series}&status=open"
-
-    odds_api_key = odds_api_key if odds_api_key is not None else os.environ.get("ODDS_API_KEY")
-    if odds_client is None and odds_api_key:
-        odds_client = OddsApiClient(odds_api_key)
 
     cap_ts = datetime.now(timezone.utc)
     captured_at = cap_ts.isoformat()
     capture_id = cap_ts.strftime("%Y%m%dT%H%M%SZ")
     day = cap_ts.strftime("%Y-%m-%d")
 
-    series_list = discover_candidate_series(client)
-    events, series_errors, ticker_mismatches = discover_events(client, series_list, limit=limit)
-    capture_dir = store / f"dt={day}" / f"capture-{capture_id}"
+    series_list = discover_moneyline_series(client)
+    if limit:
+        series_list = series_list[:limit]
+    groups, raw_pages_by_series, series_errors = discover_groups(client, series_list)
 
-    manifests: List[Dict] = []
-    degenerate: List[Dict] = []
-    invalid: List[Dict] = []
-    odds_status_counts: Dict[str, int] = {}
+    lines: List[str] = []
+    for event_ticker in sorted(groups):
+        g = groups[event_ticker]
+        markets = sorted(g["markets"], key=lambda m: m.get("ticker", ""))
+        expected = len(markets)
 
-    for event_ticker, ev in sorted(events.items()):
-        markets = sorted(ev["markets"], key=lambda m: m.get("ticker", ""))
-        if len(markets) < 2:
-            degenerate.append({"event_ticker": event_ticker, "n_outcomes": len(markets)})
-            continue
-
-        asks: List[float] = []
-        outcome_tickers: List[str] = []
-        outcome_labels: Dict[str, str] = {}
-        raw_by_ticker: Dict[str, Any] = {}
+        outcomes: List[Dict] = []
+        yes_asks: List[float] = []
         for m in markets:
-            t = m.get("ticker", "")
-            outcome_tickers.append(t)
-            raw_by_ticker[t] = m
-            label = m.get("yes_sub_title") or m.get("title", "")
-            outcome_labels[t] = label
-            ask_raw = m.get("yes_ask_dollars")
-            if ask_raw is not None:
-                asks.append(float(ask_raw))
+            ticker = m.get("ticker", "")
+            fields, err = parse_sports_ticker(ticker)
+            yes_ask_dollars = m.get("yes_ask_dollars")
+            if yes_ask_dollars is None:
+                continue   # no live ask -> dropped from this outcome, lowers completeness below
+            ya = float(yes_ask_dollars)
+            yes_asks.append(ya)
+            outcomes.append({
+                "ticker": ticker,
+                "outcome_code": (fields or {}).get("outcome", ""),
+                "ticker_parse_error": err,
+                "title": m.get("title", ""),
+                "yes_ask": ya,
+                "yes_bid": float(m["yes_bid_dollars"]) if m.get("yes_bid_dollars") is not None else None,
+                "no_ask": float(m["no_ask_dollars"]) if m.get("no_ask_dollars") is not None else None,
+                "no_bid": float(m["no_bid_dollars"]) if m.get("no_bid_dollars") is not None else None,
+                "price_source_tag": "real_ask",
+            })
 
-        b_sum = bracket_sum(asks) if asks else 0.0
-        b_overround = overround(asks) if asks else 0.0
-        title = markets[0].get("title", "") or event_ticker
-        event_time = markets[0].get("close_time") or captured_at
+        captured = len(outcomes)
+        member_count = captured
+        bsum = bracket_sum(yes_asks) if yes_asks else None
+        record = {
+            "schema_version": "sports_pairs.v1",
+            "capture_id": capture_id,
+            "captured_at": captured_at,
+            "venue": "kalshi",
+            "series": g["series"],
+            "event_ticker": event_ticker,
+            "game_date": (parse_sports_ticker(markets[0]["ticker"])[0] or {}).get("game_date"),
+            "game_title": markets[0].get("title", ""),
+            "outcomes": outcomes,
+            "expected_outcomes": expected,
+            "captured_outcomes": captured,
+            "member_count": member_count,
+            "completeness_ok": captured == expected,
+            "bracket_sum": bsum,
+            "overround_absorbed": overround(yes_asks) if yes_asks else None,
+            "price_source_tag": "real_ask",
+            "odds_leg": {"status": "blocked_key"} if not odds_api_key else {"status": "unmatched"},
+        }
+        lines.append(canonical_json(record))
 
-        odds_fair, odds_status = fetch_odds_leg(odds_client, ev["series"], title, outcome_labels)
-        odds_status_counts[odds_status] = odds_status_counts.get(odds_status, 0) + 1
-
-        raw_str = canonical_json(raw_by_ticker)
-        manifest = GamePairManifest(
-            capture_id=capture_id, venue="kalshi", sport_series=ev["series"],
-            event_ticker=event_ticker, event_title=title,
-            event_time=event_time, as_of=captured_at, captured_at=captured_at,
-            source_endpoint=source_endpoint,
-            raw_sha256=sha256_hex(raw_str),
-            n_outcomes=len(outcome_tickers), expected_outcomes=len(outcome_tickers),
-            bracket_sum=round(b_sum, 6), overround=round(b_overround, 6),
-            price_source_tag="real_ask",
-            odds_leg_status=odds_status,
-            outcomes=outcome_tickers,
-            completeness_ok=True,
-        ).signed()
-
-        errs = validate(manifest)
-        if errs:
-            print(f"[sports_pairs] WARN {event_ticker}: manifest invalid, not written: "
-                  f"{errs}", file=sys.stderr)
-            invalid.append({"event_ticker": event_ticker, "errors": errs})
-            continue
-
-        capture_dir.mkdir(parents=True, exist_ok=True)
-        stem = _group_stem(event_ticker)
-        (capture_dir / f"{stem}.raw.json").write_text(raw_str, encoding="utf-8")
-        if odds_fair:
-            (capture_dir / f"{stem}.odds_devig.json").write_text(
-                canonical_json({"event_ticker": event_ticker, "price_source_tag": "synthetic",
-                                "fair_probability": odds_fair}), encoding="utf-8")
-        store.mkdir(parents=True, exist_ok=True)
-        with open(store / "_manifest.jsonl", "a") as mf:
-            mf.write(canonical_json(manifest) + "\n")
-        manifests.append(manifest)
-
+    n_complete = sum(1 for ln in lines if json.loads(ln)["completeness_ok"])
+    raw_index = sorted(
+        [sticker, sha256_hex("".join(pages).encode("utf-8"))]
+        for sticker, pages in raw_pages_by_series.items()
+    )
     summary = {
         "capture_id": capture_id, "day": day, "captured_at": captured_at,
-        "n_series_scanned": len(series_list), "n_events": len(manifests),
-        "n_degenerate": len(degenerate), "n_invalid": len(invalid),
-        "n_series_errors": len(series_errors), "n_ticker_mismatches": len(ticker_mismatches),
-        "odds_leg_status_counts": odds_status_counts,
-        "total_outcomes": sum(m["n_outcomes"] for m in manifests),
-        "mean_bracket_sum": (round(sum(m["bracket_sum"] for m in manifests) / len(manifests), 6)
-                             if manifests else None),
+        "n_candidate_series": len(series_list),
+        "n_games": len(lines), "n_complete": n_complete,
+        "n_series_errors": len(series_errors),
+        "raw_sha256": sha256_hex(canonical_json(raw_index)),
+        "odds_api_key_present": bool(odds_api_key),
     }
-    print(f"[sports_pairs] {capture_id}: {summary['n_events']} events, "
-          f"{summary['total_outcomes']} outcome markets, odds_leg={odds_status_counts} "
-          f"-> {capture_dir}")
+
+    if lines:
+        tape_dir.mkdir(parents=True, exist_ok=True)
+        out_path = tape_dir / f"dt={day}.jsonl"
+        with open(out_path, "a", encoding="utf-8") as f:
+            for ln in lines:
+                f.write(ln + "\n")
+        summary["path"] = str(out_path)
+
+    print(f"[sports_pairs] {capture_id}: {summary['n_candidate_series']} candidate series, "
+          f"{summary['n_games']} moneyline games, {n_complete} complete, "
+          f"odds_api_key={'present' if odds_api_key else 'ABSENT (blocked_key)'}")
     if series_errors:
         print(f"[sports_pairs] WARN {len(series_errors)} series failed enumeration",
-              file=sys.stderr)
-    if ticker_mismatches:
-        print(f"[sports_pairs] WARN {len(ticker_mismatches)} ticker/event_ticker mismatches",
               file=sys.stderr)
     return summary
 
 
-def verify_against_dir(manifest: Dict, capture_dir: Path) -> List[str]:
-    """Recompute the manifest's raw_sha256 from the ON-DISK provenance file and confirm
-    it matches — binds the manifest to the actual written bytes (provenance, not just
-    structural validity), same discipline as capture_orderbooks.verify_against_dir."""
-    capture_dir = Path(capture_dir)
-    errs: List[str] = []
-    stem = _group_stem(manifest["event_ticker"])
-    raw_file = capture_dir / f"{stem}.raw.json"
-    if not raw_file.exists():
-        errs.append(f"raw provenance missing: {stem}.raw.json")
-    elif sha256_hex(raw_file.read_bytes()) != manifest.get("raw_sha256"):
-        errs.append("raw_sha256 does not match on-disk raw bytes")
-    return errs
-
-
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="Sports paired-odds capture (read-only)")
-    ap.add_argument("--limit", type=int, default=None, help="cap markets scanned per pass")
+    import os
+    ap = argparse.ArgumentParser(description="Sports moneyline paired-odds capture (read-only)")
+    ap.add_argument("--limit", type=int, default=None, help="cap candidate series per pass")
     ap.add_argument("--min-interval", type=float, default=0.2)
     args = ap.parse_args(argv)
-    run(limit=args.limit, min_interval=args.min_interval)
+    run(limit=args.limit, min_interval=args.min_interval,
+        odds_api_key=os.environ.get("ODDS_API_KEY"))
     return 0
 
 

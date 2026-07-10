@@ -1,0 +1,52 @@
+# implication_pairs.yaml — hand-curated cross-event logical-implication graph (LOOP-QUEUE
+# Q11 / kb/strategies S15). Read by scripts/anomaly_sweep.py's third check.
+#
+# Each family below is added ONLY after reading both markets' settlement rules text, per
+# Q11's own instruction — this guards against the classic Theme-6 trap (two markets that
+# *look* nested but actually resolve on different criteria: a different clock, a different
+# official source, a different rounding rule). The `audit` field on each family is that
+# read, written down, not just performed silently.
+#
+# A family generates concrete (A, B) pairs from whatever markets the current sweep pass
+# actually discovers (no hardcoded ticker IDs — those would go stale the moment a
+# tournament round closes). A ⇒ B: A is the narrower/harder condition, B the wider/easier
+# one, so P(A) <= P(B) must always hold. A hit is a REAL fillable arb:
+# YES(B)_ask + NO(A)_ask <= $1 - both taker fees (core.pricing.monotonicity_crossing_edge,
+# the same fee-floor math Q6's same-event monotonicity check already uses).
+#
+# kind: round_progression
+#   For a single per-entity series where every market's ticker matches `ticker_regex`
+#   (named groups `series`, `round_raw`, `entity`) and asks "does <entity> reach round
+#   <round_raw>?" on one EXPLICIT total ordering of rounds (`round_order_raw_suffix_to_rank`,
+#   low rank = easier/earlier round, high rank = harder/later round): reaching a higher-rank
+#   round is a strict superset of reaching every lower-rank round, for the SAME entity. The
+#   family generates one A=>B pair per entity per (higher-rank, lower-rank) round pair
+#   present in the pass (A = higher rank/harder, B = lower rank/easier).
+
+families:
+  - id: kxwcround_progression
+    kind: round_progression
+    series: KXWCROUND
+    # Same grammar collection/polymarket_pairs.py already discovers+confirms structurally
+    # (SERIES-ROUNDRAW-ENTITY, e.g. KXWCROUND-26QUAR-USA / -26SEMI-SUI / -26FINAL-FRA).
+    ticker_regex: '^(?P<series>[A-Z0-9]+)-(?P<round_raw>\d{2}[A-Z]+)-(?P<entity>[A-Z]+)$'
+    round_order_raw_suffix_to_rank:
+      QUAR: 1
+      SEMI: 2
+      FINAL: 3
+    audit: >
+      Read live 2026-07-05 (title text via collection/polymarket_pairs.py's already-audited
+      "Will <team> qualify for FIFA World Cup <round>?" regex): every KXWCROUND market
+      resolves YES iff the named team's run through FIFA's single-elimination World Cup
+      2026 bracket reaches or passes the named round -- one settlement source, one "reach"
+      definition, shared by every round in the series. For a fixed team, reaching FINAL
+      is a strict superset of reaching SEMIFINALS is a strict superset of reaching
+      QUARTERFINALS (a single-elimination bracket cannot skip a round) -- no
+      settlement-term mismatch is possible within one entity/series. Time-boxed: World Cup
+      2026 ends 2026-07-19, after which this family stops generating live pairs (its own
+      markets settle/purge).
+
+  # Deliberately left empty for now: Q11's own illustrative second example ("wins
+  # presidency" ⇒ "wins nomination") needs its own per-pair rules-text audit before
+  # it can be added -- no matching Kalshi series confirmed live yet. Add as a `kind:
+  # explicit_pair` entry (literal audited ticker pair, no pattern generation) once one is.

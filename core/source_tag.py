@@ -13,6 +13,15 @@ trust:
 
 The default is the hard part: an UNTAGGED number is `synthetic`, never something more
 trusted. Optimism is not the default; suspicion is.
+
+Note on `real_bid` (kb/lessons/00-lessons.md L22/L24): `collection/orderbook_depth.py` tags a
+live resting bid `real_bid` — a genuine fillable price on the maker side, distinct from
+`real_ask`. That tag is deliberately NOT added to `VALID_SOURCE_TAGS` here: the four-tag
+enum is CLAUDE.md's own literal trust-taxonomy contract, and widening it is a project-contract
+change outside a single research-loop milestone's authority, not a code gap. `real_bid` stays
+a tape-only (JSONL) convention; the DB-side enum check in `scripts/invariants.py` would already
+reject it (or any other non-canonical tag) the moment it reached a `price_source_tag` column —
+see `tests/test_invariants.py::test_db_real_bid_tag_is_caught_as_invalid_enum`.
 """
 from __future__ import annotations
 

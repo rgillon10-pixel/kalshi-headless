@@ -14,6 +14,7 @@ Pure functions: deterministic, no clock, no network.
 """
 from __future__ import annotations
 
+import math
 from typing import Iterable
 
 
@@ -50,3 +51,46 @@ def overround(asks: Iterable[float]) -> float:
     """The bracket overround: bracket_sum - 1.0. The structural taker cost (~3-5c on
     KXHIGH) that ate pt1. Persist it per trade as `overround_absorbed`."""
     return bracket_sum(asks) - 1.0
+
+
+# ─── Kalshi fee-schedule rates — THE single source of truth (Hard Rule / lesson L5) ──
+# From the published Kalshi fee schedule (https://kalshi.com/docs/kalshi-fee-schedule.pdf,
+# docs.kalshi.com/getting_started/fee_rounding; distilled in kb/kalshi-api/03-fees-and-
+# breakeven.md). A first S13 draft charged maker fills the taker rate — a 4x overcharge that
+# alone ate a 1c edge (finding 2026-07-04-sports-maker-s13-verdict). These constants exist so
+# no module hand-rolls a fee coefficient; scripts/invariants.py::no_handrolled_fee_rate
+# statically forbids the banned literals anywhere but this file.
+TAKER_FEE_RATE = 0.07       # standard taker fills — the conservative default fee rate
+MAKER_FEE_RATE = 0.0175     # maker fills (resting order that gets lifted): a quarter of taker
+SP500_NDX_FEE_RATE = 0.035  # S&P 500 / Nasdaq-100 products
+
+
+def fee_per_contract(price: float, rate: float = TAKER_FEE_RATE) -> float:
+    """Kalshi taker fee per contract, dollars, round-up-to-cent on the whole order
+    (docs.kalshi.com/getting_started/fee_rounding): fee = roundup_cent(rate * P * (1-P)).
+    The default is the conservative TAKER rate; pass MAKER_FEE_RATE for resting-order fills.
+    Mirrors scripts/fee_breakeven.py's formula; lives here too because Q6's anomaly sweep
+    (LOOP-QUEUE.md) needs it alongside bracket_sum to gate a mispricing on REAL fillable
+    edge, not just a raw ask/bid gap."""
+    return math.ceil(rate * float(price) * (1.0 - float(price)) * 100.0) / 100.0
+
+
+def true_arb_edge(bracket_sum_value: float, total_fees: float) -> float:
+    """Dollar edge of buying every YES in a COMPLETE, mutually-exclusive bracket ladder:
+    guaranteed $1 payout costs `bracket_sum_value + total_fees`. Positive means a true arb
+    (Q6's "bracket sums vs $1 + fees") — the ladder is underpriced net of fees, not just
+    the raw bracket_sum dipping below 1.0."""
+    return 1.0 - (bracket_sum_value + total_fees)
+
+
+def monotonicity_crossing_edge(outer_ask: float, inner_no_ask: float,
+                               rate: float = TAKER_FEE_RATE) -> float:
+    """Dollar edge of the cross-strike hedge for two NESTED threshold markets (Q6 /
+    S3): `inner`'s YES-region is a subset of `outer`'s (e.g. temp>=80 subset of
+    temp>=70). Buying YES(outer) + NO(inner) — both REAL taker asks, never a
+    bid-derived synthetic price — pays a guaranteed >=$1 regardless of outcome, so it is
+    a genuine arb whenever its total cost clears below $1 net of both legs' fees. A
+    monotonicity violation alone (inner priced above outer) is necessary but not
+    sufficient; this is the fillable-arb bar CLAUDE.md's prime directive demands."""
+    fees = fee_per_contract(outer_ask, rate) + fee_per_contract(inner_no_ask, rate)
+    return 1.0 - (outer_ask + inner_no_ask) - fees

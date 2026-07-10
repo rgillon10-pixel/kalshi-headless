@@ -75,7 +75,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.canonical import canonical_json
 from core.io import REPO_ROOT
-from core.pricing import bracket_sum, normalized_ask, overround
+from core.pricing import TAKER_FEE_RATE, bracket_sum, normalized_ask, overround
 from core.timeutil import _parse_iso
 from scripts.fee_breakeven import fee_per_contract
 from scripts.sports_history_s7a import TEAM_NAME_ALIASES  # reuse the one alias table
@@ -84,7 +84,6 @@ IN_PATH = REPO_ROOT / "tape" / "sports_history_s7" / "worldcup2026.jsonl"
 STORE = REPO_ROOT / "tape" / "sports_clv_s7"
 SCHEMA_VERSION = "sports_clv_s7.v0"
 DECISION_OFFSET_HOURS = 4.0
-TAKER_FEE_RATE = 0.07
 SIDES = ("home", "away", "tie")
 
 

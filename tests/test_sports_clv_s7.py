@@ -10,6 +10,7 @@ import pytest
 
 from core.timeutil import _parse_iso
 from scripts import sports_clv_s7 as clv
+from core.pricing import TAKER_FEE_RATE
 from scripts.fee_breakeven import fee_per_contract
 
 CLOSE_TIME = "2026-01-10T22:00:00Z"
@@ -120,7 +121,7 @@ def test_build_game_trades_only_positive_edge_side_trades():
     assert t["bracket_sum"] == pytest.approx(bsum)
     assert t["normalized_ask"] == pytest.approx(0.40 / bsum)
     assert t["nominal_edge"] == pytest.approx(0.50 - 0.40 / bsum)
-    expected_fee = fee_per_contract(0.40, 0.07)
+    expected_fee = fee_per_contract(0.40, TAKER_FEE_RATE)
     assert t["fee"] == pytest.approx(expected_fee)
     assert t["gross_pnl"] == pytest.approx(1.0 - 0.40)
     assert t["net_pnl"] == pytest.approx(1.0 - 0.40 - expected_fee)

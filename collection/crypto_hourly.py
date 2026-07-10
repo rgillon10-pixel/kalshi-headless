@@ -1,343 +1,347 @@
-"""Crypto-hourly settlement-basis capture (READ-ONLY) — Q2, serves S8 (crypto-hourly
-settlement basis) / S10 (reachability decay).
+"""Crypto-hourly settlement collector (READ-ONLY) — BTC/ETH bracket books + spot + settle.
 
-Kalshi's KXBTC/KXETH "range" series post a fresh hourly bracket ladder (a mutually
-exclusive/exhaustive set of threshold + band outcome markets over the full price range,
-the same overround-bearing shape as the weather temperature ladder — see
-collection/capture_orderbooks.py) alongside a much-longer-dated "range" event under the
-SAME series_ticker (empirically ~7 days). Duration, not the ticker string, is what
-distinguishes the true hourly ladder from the standing longer one — see
-`find_current_hourly_event`.
+LOOP-QUEUE.md Q2: serves S8 (crypto-hourly settlement basis) and S10 (reachability decay).
+Mirrors `collection/sports_pairs.py` / `collection/capture_orderbooks.py` discipline:
+bitemporal `captured_at`, raw-bytes sha256 provenance, honest expected-vs-captured
+completeness (a fetch failure lowers `completeness_ok`, it never silently drops a market).
 
-One pass, per symbol (BTC via KXBTC, ETH via KXETH):
-  1. Discover the CURRENT hourly event (open markets grouped by event_ticker; pick the
-     one whose (close_time - open_time) is closest to 3600s, preferring one that
-     genuinely straddles `now`).
-  2. Snapshot every outcome market's real yes_ask BBO (tag `real_ask`; `bracket_sum`/
-     `overround` via core.pricing, the sole sanctioned site — Hard Rule #3).
-  3. Fetch the live public spot price for the same symbol (Coinbase primary, Kraken
-     fallback — Q2: ">=1 public exchange endpoint"; tag `synthetic` — never a fill).
-  4. Locate the PREVIOUS hour's settlement: the settled event whose close_time equals
-     the current event's open_time, and read off Kalshi's own `expiration_value` (tag
-     `broker_truth` — the exchange's own reported settlement fact). Stored alongside the
-     spot leg so S8's ρ-guard (spot-vs-settle correlation) is computable from tape alone,
-     with no second pass needed.
+Kalshi's KXBTC/KXETH ("Bitcoin/Ethereum range") series price a fresh hourly bracket ladder
+every hour — ticker grammar `SERIES-YYMONDDHH-[T|B]<strike>`, `HH` in ET so `close_time` =
+`HH+4:00Z` during EDT (empirically confirmed 2026-07-03 against the live API, not assumed).
+One pass, per symbol:
 
-A failure at any leg (spot fetch, settlement lookup) degrades to an honest status code
-(`spot_status`/`settle_status`) rather than poisoning the Kalshi ladder leg, which is
-captured unconditionally — same discipline as collection/sports_pairs.py's odds leg.
+  1. **current** — discover the CURRENT hourly bracket group: the open group whose
+     `close_time - open_time` marks it as the hourly ladder, not a stray long-lived group
+     under the same series (observed live: a ~1-week-open `KXBTC-...17` group that is a
+     different market shape reusing the hourly ticker grammar — excluded by duration, not
+     assumed away). Per-outcome BBO tagged `real_ask`; `bracket_sum`/`overround_absorbed`
+     via `core.pricing` (Hard Rule #3).
+  2. **previous_settlement** — the PREVIOUS hour's event_ticker is derived by pure ticker
+     arithmetic (subtract 1 hour from the current group's token — no clock read) and queried
+     directly via `?event_ticker=`. Kalshi's own `result` + `expiration_value` (the CF
+     Benchmarks index average actually used to settle) are `broker_truth` — this is exactly
+     the paired (settle, spot) data S8's ρ-guard needs.
+  3. **spot** — Coinbase `products/{PAIR}/ticker`, Kraken fallback if Coinbase fails;
+     `synthetic` (CLAUDE.md: an external reference price, not itself a Kalshi fill).
 
 Run one pass:
     python -m collection.crypto_hourly
-    python -m collection.crypto_hourly --limit 400   # cap markets scanned per series (testing)
+    python -m collection.crypto_hourly --symbols BTC   # cap symbols (offline/dev use)
 """
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sys
-import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
 from core.canonical import canonical_json, sha256_hex
-from core.crypto_schema import CryptoHourlyManifest, validate
 from core.io import REPO_ROOT
 from core.pricing import bracket_sum, overround
-from core.timeutil import _parse_iso
 from validation.v3_market import Kalshi, _load_venue_cfg
 
-STORE = REPO_ROOT / "tape" / "crypto_hourly"
+TAPE = REPO_ROOT / "tape" / "crypto_hourly"
+
+SYMBOLS = {"BTC": "KXBTC", "ETH": "KXETH"}
 COINBASE_BASE = "https://api.exchange.coinbase.com"
+COINBASE_PRODUCT = {"BTC": "BTC-USD", "ETH": "ETH-USD"}
 KRAKEN_BASE = "https://api.kraken.com/0/public"
+KRAKEN_PAIR = {"BTC": "XBTUSD", "ETH": "ETHUSD"}
+_UA = {"User-Agent": "kalshi-headless/0.0 (research)"}
 
-# Kalshi series -> {display symbol, per-exchange product/pair codes for the spot leg}.
-SYMBOLS: Dict[str, Dict[str, str]] = {
-    "KXBTC": {"symbol": "BTC", "coinbase_product": "BTC-USD", "kraken_pair": "XBTUSD"},
-    "KXETH": {"symbol": "ETH", "coinbase_product": "ETH-USD", "kraken_pair": "ETHUSD"},
-}
+# A genuine hourly bracket ladder has close_time - open_time ~= 1h. A stray same-series
+# group observed to stay open ~1 week (KXBTC-26JUL0317 empirically) is not the hourly
+# ladder and must not be picked up as "current" just because it's open.
+_HOURLY_GROUP_MAX_SECONDS = 65 * 60
 
-
-def _slug(text: str) -> str:
-    return "".join(c for c in text.lower() if c.isalnum())
-
-
-# --------------------------------------------------------------------------- #
-# spot leg — public reference price, Coinbase primary / Kraken fallback (synthetic)
-# --------------------------------------------------------------------------- #
-class SpotClient:
-    """Thin throttled client for public spot tickers. Never raises: a total failure
-    across both exchanges degrades to (None, "") rather than poisoning the pass."""
-
-    def __init__(self, session: Optional[requests.Session] = None, min_interval: float = 0.2):
-        self.s = session or requests.Session()
-        self._min_interval = min_interval
-        self._last = 0.0
-
-    def _throttle(self) -> None:
-        gap = time.time() - self._last
-        if gap < self._min_interval:
-            time.sleep(self._min_interval - gap)
-        self._last = time.time()
-
-    def spot(self, coinbase_product: str, kraken_pair: str) -> Tuple[Optional[float], str]:
-        """Returns (price, exchange_name); (None, "") if both exchanges fail."""
-        self._throttle()
-        try:
-            r = self.s.get(f"{COINBASE_BASE}/products/{coinbase_product}/ticker", timeout=15)
-            r.raise_for_status()
-            return float(r.json()["price"]), "coinbase"
-        except Exception:
-            pass
-        self._throttle()
-        try:
-            r = self.s.get(f"{KRAKEN_BASE}/Ticker", params={"pair": kraken_pair}, timeout=15)
-            r.raise_for_status()
-            result = (r.json() or {}).get("result") or {}
-            row = next(iter(result.values()), None)
-            if row is None:
-                return None, ""
-            return float(row["c"][0]), "kraken"
-        except Exception:
-            return None, ""
+_EVENT_TOKEN_RE = re.compile(r"^(?P<yy>\d{2})(?P<mon>[A-Z]{3})(?P<dd>\d{2})(?P<hh>\d{2})$")
 
 
 # --------------------------------------------------------------------------- #
-# discovery — group open markets by event_ticker, pick the true hourly ladder
+# hour-token arithmetic (pure — no clock, no network)
 # --------------------------------------------------------------------------- #
-def group_by_event(markets: List[dict]) -> Dict[str, List[dict]]:
-    out: Dict[str, List[dict]] = {}
-    for m in markets:
-        et = m.get("event_ticker") or ""
-        if not et:
-            continue
-        out.setdefault(et, []).append(m)
-    return out
-
-
-def find_current_hourly_event(events: Dict[str, List[dict]], now: datetime) -> Optional[str]:
-    """Pick the event whose (close_time - open_time) is closest to exactly one hour.
-
-    Kalshi keeps a much-longer-dated standing 'range' event alongside the true hourly
-    ladder under the SAME series_ticker (observed ~7 days); duration is what actually
-    distinguishes them, not the ticker string. Prefers a candidate that genuinely
-    straddles `now` (open_time <= now < close_time); falls back to closest-by-duration
-    if none currently straddle (e.g. a brief gap between hours)."""
-    candidates: List[Tuple[str, datetime, datetime, float]] = []
-    for event_ticker, mk in events.items():
-        m = mk[0]
-        try:
-            open_dt = _parse_iso(m["open_time"])
-            close_dt = _parse_iso(m["close_time"])
-        except (KeyError, ValueError, TypeError):
-            continue
-        duration = (close_dt - open_dt).total_seconds()
-        candidates.append((event_ticker, open_dt, close_dt, duration))
-    if not candidates:
+def parse_hour_token(token: str) -> Optional[datetime]:
+    """Parse an event-ticker date+hour token (e.g. '26JUL0302') to a naive datetime."""
+    if not _EVENT_TOKEN_RE.match(token.upper()):
         return None
-    active = [c for c in candidates if c[1] <= now < c[2]]
-    pool = active if active else candidates
-    return min(pool, key=lambda c: abs(c[3] - 3600.0))[0]
+    try:
+        return datetime.strptime(token.upper(), "%y%b%d%H")
+    except ValueError:
+        return None
+
+
+def previous_hour_event_ticker(event_ticker: str) -> Optional[str]:
+    """Derive the previous hour's event_ticker by pure arithmetic on the current one's
+    date+hour token (e.g. 'KXBTC-26JUL0300' -> 'KXBTC-26JUL0223', handling day/month/year
+    rollover). Returns None if the ticker doesn't match the expected grammar."""
+    series_part, sep, token = event_ticker.partition("-")
+    if not sep:
+        return None
+    dt = parse_hour_token(token)
+    if dt is None:
+        return None
+    prev = dt - timedelta(hours=1)
+    return f"{series_part}-{prev.strftime('%y%b%d%H').upper()}"
 
 
 # --------------------------------------------------------------------------- #
-# settlement leg — the previous hour's Kalshi-reported settle value (broker_truth)
+# discovery — the CURRENT hourly bracket group
 # --------------------------------------------------------------------------- #
-def find_previous_settlement(client, series_ticker: str, current_open_time: str,
-                             limit: int = 500) -> Tuple[str, str, Dict[str, Any]]:
-    """Locate the settled event whose close_time == the current hourly event's
-    open_time (the hour immediately prior) and read off its `expiration_value` (shared
-    across every outcome market in that event — same underlying settle price).
+def _fetch_markets_raw(client: Kalshi, **params: Any) -> Tuple[List[Dict], List[str]]:
+    """Manually paginate /markets, keeping verbatim raw page bytes (provenance), the same
+    discipline as sports_pairs._fetch_open_markets_raw."""
+    markets: List[Dict] = []
+    raw_pages: List[str] = []
+    cursor: Optional[str] = None
+    while True:
+        p = dict(params)
+        if cursor:
+            p["cursor"] = cursor
+        text = client.get_text("/markets", **p)
+        raw_pages.append(text)
+        j = json.loads(text)
+        items = j.get("markets") or []
+        markets.extend(items)
+        cursor = j.get("cursor")
+        if not cursor or not items:
+            break
+    return markets, raw_pages
 
-    Returns (prev_event_ticker, status, info) where status is one of
-    core.crypto_schema.VALID_SETTLE_STATUS and info holds {"prev_close_time",
-    "settle_value"} on "ok". Never raises: a fetch failure degrades to "fetch_error"."""
+
+def discover_current_hour_group(client: Kalshi, series_ticker: str
+                                ) -> Tuple[Optional[str], List[Dict], List[str], Optional[str]]:
+    """Return (event_ticker, markets, raw_pages, error) for the CURRENT hourly bracket
+    group: among open groups whose duration marks them as the hourly ladder, the one
+    closing soonest. error is None on success (a non-error empty result is
+    'no_hourly_group_found', not a fetch failure)."""
     try:
-        settled = client.markets(series_ticker, status="settled", limit=limit)
-    except Exception:
-        return "", "fetch_error", {}
-    try:
-        target = _parse_iso(current_open_time)
-    except (ValueError, TypeError):
-        return "", "not_found", {}
-    for m in settled:
-        close_time = m.get("close_time")
-        if not close_time:
+        markets, raw_pages = _fetch_markets_raw(
+            client, series_ticker=series_ticker, status="open", limit=1000)
+    except Exception as exc:
+        return None, [], [], str(exc)
+
+    by_event: Dict[str, List[Dict]] = {}
+    for m in markets:
+        by_event.setdefault(m.get("event_ticker", ""), []).append(m)
+
+    candidates: List[Tuple[datetime, str, List[Dict]]] = []
+    for et, ms in by_event.items():
+        close, open_ = ms[0].get("close_time"), ms[0].get("open_time")
+        if not et or not close or not open_:
             continue
         try:
-            if _parse_iso(close_time) != target:
-                continue
-        except (ValueError, TypeError):
+            c = datetime.fromisoformat(close.replace("Z", "+00:00"))
+            o = datetime.fromisoformat(open_.replace("Z", "+00:00"))
+        except ValueError:
             continue
-        exp = m.get("expiration_value")
-        if exp is None:
+        if (c - o).total_seconds() <= _HOURLY_GROUP_MAX_SECONDS:
+            candidates.append((c, et, ms))
+
+    if not candidates:
+        return None, [], raw_pages, "no_hourly_group_found"
+    candidates.sort(key=lambda t: t[0])
+    _, et, ms = candidates[0]
+    return et, ms, raw_pages, None
+
+
+def _capture_outcomes(markets: List[Dict]) -> Tuple[List[Dict], List[float]]:
+    """Per-outcome real_ask BBO, dropping any market with no live ask (never fabricated) —
+    the drop shows up as captured < expected, lowering completeness_ok."""
+    outcomes: List[Dict] = []
+    yes_asks: List[float] = []
+    for m in sorted(markets, key=lambda m: m.get("ticker", "")):
+        yes_ask_dollars = m.get("yes_ask_dollars")
+        if yes_ask_dollars is None:
             continue
+        ya = float(yes_ask_dollars)
+        yes_asks.append(ya)
+        outcomes.append({
+            "ticker": m.get("ticker", ""),
+            "title": m.get("title", ""),
+            "floor_strike": m.get("floor_strike"),
+            "cap_strike": m.get("cap_strike"),
+            "strike_type": m.get("strike_type"),
+            "yes_ask": ya,
+            "yes_bid": float(m["yes_bid_dollars"]) if m.get("yes_bid_dollars") is not None else None,
+            "no_ask": float(m["no_ask_dollars"]) if m.get("no_ask_dollars") is not None else None,
+            "no_bid": float(m["no_bid_dollars"]) if m.get("no_bid_dollars") is not None else None,
+            "price_source_tag": "real_ask",
+        })
+    return outcomes, yes_asks
+
+
+# --------------------------------------------------------------------------- #
+# previous-hour settlement — Kalshi's own result + settle index value
+# --------------------------------------------------------------------------- #
+def fetch_settlement(client: Kalshi, event_ticker: str) -> Dict[str, Any]:
+    """The previous hour's settlement, queried directly by event_ticker (no status filter
+    needed — a closed event returns its markets regardless of finalized/settled status).
+    `broker_truth`: Kalshi's own reported result and settle index value, not a model."""
+    try:
+        text = client.get_text("/markets", event_ticker=event_ticker)
+    except Exception as exc:
+        return {"status": "fetch_error", "error": str(exc), "event_ticker": event_ticker}
+    raw_sha256 = sha256_hex(text.encode("utf-8"))
+    markets = (json.loads(text).get("markets")) or []
+    if not markets:
+        return {"status": "not_found", "event_ticker": event_ticker, "raw_sha256": raw_sha256}
+
+    settled = [m for m in markets if m.get("result")]
+    if len(settled) < len(markets):
+        return {"status": "pending", "event_ticker": event_ticker, "raw_sha256": raw_sha256,
+                "n_markets": len(markets), "n_settled": len(settled)}
+
+    values = sorted({m.get("expiration_value") for m in markets if m.get("expiration_value")})
+    return {
+        "status": "settled",
+        "event_ticker": event_ticker,
+        "raw_sha256": raw_sha256,
+        "n_markets": len(markets),
+        "expiration_value": values[0] if len(values) == 1 else None,
+        "expiration_values_disagree": values if len(values) > 1 else None,
+        "results": {m["ticker"]: m.get("result") for m in markets},
+        "price_source_tag": "broker_truth",
+    }
+
+
+# --------------------------------------------------------------------------- #
+# spot — external reference price, never a Kalshi fill (synthetic)
+# --------------------------------------------------------------------------- #
+def fetch_spot_coinbase(symbol: str) -> Dict[str, Any]:
+    product = COINBASE_PRODUCT[symbol]
+    r = requests.get(f"{COINBASE_BASE}/products/{product}/ticker", timeout=15, headers=_UA)
+    r.raise_for_status()
+    j = r.json()
+    return {"source": "coinbase", "product": product, "price": float(j["price"]),
+            "bid": float(j["bid"]), "ask": float(j["ask"]), "exchange_time": j.get("time"),
+            "price_source_tag": "synthetic"}
+
+
+def fetch_spot_kraken(symbol: str) -> Dict[str, Any]:
+    pair = KRAKEN_PAIR[symbol]
+    r = requests.get(f"{KRAKEN_BASE}/Ticker", params={"pair": pair}, timeout=15, headers=_UA)
+    r.raise_for_status()
+    j = r.json()
+    if j.get("error"):
+        raise RuntimeError(f"kraken error: {j['error']}")
+    result = j.get("result") or {}
+    if not result:
+        raise RuntimeError("kraken: empty result")
+    _, v = next(iter(result.items()))
+    return {"source": "kraken", "pair": pair, "price": float(v["c"][0]),
+            "bid": float(v["b"][0]), "ask": float(v["a"][0]), "exchange_time": None,
+            "price_source_tag": "synthetic"}
+
+
+def fetch_spot(symbol: str) -> Dict[str, Any]:
+    """Coinbase primary, Kraken fallback. A total failure is recorded honestly (never a
+    stale/fabricated substitute) so it lowers pass_complete instead of masquerading as data."""
+    last_err = None
+    for fetcher in (fetch_spot_coinbase, fetch_spot_kraken):
         try:
-            settle_value = float(exp)
-        except (TypeError, ValueError):
-            continue
-        return (m.get("event_ticker") or ""), "ok", {
-            "prev_close_time": close_time, "settle_value": settle_value,
-        }
-    return "", "not_found", {}
+            return fetcher(symbol)
+        except Exception as exc:
+            last_err = str(exc)
+    return {"status": "fetch_error", "error": last_err, "price_source_tag": "synthetic"}
 
 
 # --------------------------------------------------------------------------- #
-# capture — one signed manifest line per symbol
+# capture — one JSONL line per symbol per pass
 # --------------------------------------------------------------------------- #
-def run(limit: Optional[int] = None, min_interval: float = 0.2,
-        client=None, store: Optional[Path] = None,
-        spot_client=None, settled_limit: int = 500,
-        now: Optional[datetime] = None) -> Dict:
-    """One read-only capture pass. `client`/`store`/`spot_client`/`now` are injectable
-    for offline testing; production defaults to the live Kalshi client, the real tape
-    store, a live Coinbase/Kraken SpotClient, and the real wall-clock."""
-    store = Path(store) if store is not None else STORE
+def run(min_interval: float = 0.2, client: Optional[Kalshi] = None,
+        tape_dir: Optional[Path] = None, symbols: Optional[Dict[str, str]] = None,
+        spot_fetcher: Callable[[str], Dict[str, Any]] = fetch_spot) -> Dict:
+    """One read-only capture pass. `client`/`tape_dir`/`spot_fetcher` injectable for
+    offline testing."""
+    tape_dir = Path(tape_dir) if tape_dir is not None else TAPE
     if client is None:
         cfg = _load_venue_cfg()
         client = Kalshi(cfg["api_base"], min_interval=min_interval)
-    if spot_client is None:
-        spot_client = SpotClient()
-    source_endpoint = getattr(client, "base", "") + "/markets?series_ticker={series}&status={status}"
+    symbols = symbols if symbols is not None else SYMBOLS
 
-    cap_ts = now if now is not None else datetime.now(timezone.utc)
+    cap_ts = datetime.now(timezone.utc)
     captured_at = cap_ts.isoformat()
     capture_id = cap_ts.strftime("%Y%m%dT%H%M%SZ")
     day = cap_ts.strftime("%Y-%m-%d")
-    capture_dir = store / f"dt={day}" / f"capture-{capture_id}"
 
-    manifests: List[Dict] = []
-    degenerate: List[Dict] = []
-    invalid: List[Dict] = []
-    series_errors: List[Dict] = []
-    spot_status_counts: Dict[str, int] = {}
-    settle_status_counts: Dict[str, int] = {}
+    lines: List[str] = []
+    n_complete = 0
+    for symbol, series_ticker in sorted(symbols.items()):
+        record: Dict[str, Any] = {
+            "schema_version": "crypto_hourly.v1",
+            "capture_id": capture_id, "captured_at": captured_at,
+            "venue": "kalshi", "symbol": symbol, "series": series_ticker,
+        }
 
-    for series_ticker, sym_cfg in SYMBOLS.items():
-        symbol = sym_cfg["symbol"]
-        try:
-            open_mk = client.open_markets(series_ticker)
-        except Exception as exc:
-            series_errors.append({"series": series_ticker, "error": str(exc)})
-            continue
-        if limit:
-            open_mk = open_mk[:limit]
+        event_ticker, markets, raw_pages, disc_err = discover_current_hour_group(
+            client, series_ticker)
+        if disc_err:
+            record["current"] = {"status": disc_err}
+            record["previous_settlement"] = {"status": "no_current_group"}
+        else:
+            outcomes, yes_asks = _capture_outcomes(markets)
+            expected, captured = len(markets), len(outcomes)
+            bsum = bracket_sum(yes_asks) if yes_asks else None
+            record["current"] = {
+                "status": "ok",
+                "event_ticker": event_ticker,
+                "close_time": markets[0].get("close_time"),
+                "open_time": markets[0].get("open_time"),
+                "outcomes": outcomes,
+                "expected_outcomes": expected,
+                "captured_outcomes": captured,
+                "member_count": captured,
+                "completeness_ok": captured == expected,
+                "bracket_sum": bsum,
+                "overround_absorbed": overround(yes_asks) if yes_asks else None,
+                "raw_sha256": sha256_hex("".join(raw_pages).encode("utf-8")) if raw_pages else None,
+                "price_source_tag": "real_ask",
+            }
+            prev_et = previous_hour_event_ticker(event_ticker)
+            record["previous_settlement"] = (
+                fetch_settlement(client, prev_et) if prev_et
+                else {"status": "no_previous_ticker"})
 
-        events = group_by_event(open_mk)
-        event_ticker = find_current_hourly_event(events, cap_ts)
-        if event_ticker is None:
-            degenerate.append({"series": series_ticker, "reason": "no_hourly_event_found"})
-            continue
+        record["spot"] = spot_fetcher(symbol)
 
-        markets = sorted(events[event_ticker], key=lambda m: m.get("ticker", ""))
-        if len(markets) < 2:
-            degenerate.append({"series": series_ticker, "event_ticker": event_ticker,
-                               "n_outcomes": len(markets)})
-            continue
-
-        asks: List[float] = []
-        outcome_tickers: List[str] = []
-        raw_by_ticker: Dict[str, Any] = {}
-        for m in markets:
-            t = m.get("ticker", "")
-            outcome_tickers.append(t)
-            raw_by_ticker[t] = m
-            ask_raw = m.get("yes_ask_dollars")
-            if ask_raw is not None:
-                asks.append(float(ask_raw))
-
-        b_sum = bracket_sum(asks) if asks else 0.0
-        b_overround = overround(asks) if asks else 0.0
-        event_time = markets[0].get("open_time") or captured_at
-        close_time = markets[0].get("close_time") or captured_at
-
-        spot_price, spot_exchange = spot_client.spot(sym_cfg["coinbase_product"],
-                                                      sym_cfg["kraken_pair"])
-        spot_status = "ok" if spot_price is not None else "fetch_error"
-        spot_status_counts[spot_status] = spot_status_counts.get(spot_status, 0) + 1
-
-        prev_event_ticker, settle_status, settle_info = find_previous_settlement(
-            client, series_ticker, event_time, limit=settled_limit)
-        settle_status_counts[settle_status] = settle_status_counts.get(settle_status, 0) + 1
-
-        raw_str = canonical_json(raw_by_ticker)
-        manifest = CryptoHourlyManifest(
-            capture_id=capture_id, venue="kalshi", symbol=symbol, series_ticker=series_ticker,
-            event_ticker=event_ticker, event_time=event_time, close_time=close_time,
-            as_of=captured_at, captured_at=captured_at,
-            source_endpoint=source_endpoint,
-            raw_sha256=sha256_hex(raw_str),
-            n_outcomes=len(outcome_tickers), expected_outcomes=len(outcome_tickers),
-            bracket_sum=round(b_sum, 6), overround=round(b_overround, 6),
-            price_source_tag="real_ask",
-            spot_price=round(spot_price, 6) if spot_price is not None else 0.0,
-            spot_exchange=spot_exchange, spot_status=spot_status,
-            prev_event_ticker=prev_event_ticker,
-            prev_close_time=settle_info.get("prev_close_time", ""),
-            settle_value=round(settle_info.get("settle_value", 0.0), 6),
-            settle_status=settle_status,
-            outcomes=outcome_tickers,
-            completeness_ok=True,
-        ).signed()
-
-        errs = validate(manifest)
-        if errs:
-            print(f"[crypto_hourly] WARN {series_ticker} {event_ticker}: manifest invalid, "
-                  f"not written: {errs}", file=sys.stderr)
-            invalid.append({"series": series_ticker, "event_ticker": event_ticker, "errors": errs})
-            continue
-
-        capture_dir.mkdir(parents=True, exist_ok=True)
-        stem = _slug(f"{series_ticker}_{event_ticker}")
-        (capture_dir / f"{stem}.raw.json").write_text(raw_str, encoding="utf-8")
-        store.mkdir(parents=True, exist_ok=True)
-        with open(store / "_manifest.jsonl", "a") as mf:
-            mf.write(canonical_json(manifest) + "\n")
-        manifests.append(manifest)
+        record["pass_complete"] = (
+            record["current"].get("completeness_ok") is True
+            and record["previous_settlement"].get("status") == "settled"
+            and "price" in record["spot"]
+        )
+        n_complete += int(record["pass_complete"])
+        lines.append(canonical_json(record))
 
     summary = {
         "capture_id": capture_id, "day": day, "captured_at": captured_at,
-        "n_symbols": len(SYMBOLS), "n_captured": len(manifests),
-        "n_degenerate": len(degenerate), "n_invalid": len(invalid),
-        "n_series_errors": len(series_errors),
-        "spot_status_counts": spot_status_counts,
-        "settle_status_counts": settle_status_counts,
-        "total_outcomes": sum(m["n_outcomes"] for m in manifests),
+        "n_symbols": len(symbols), "n_complete": n_complete,
     }
-    print(f"[crypto_hourly] {capture_id}: {summary['n_captured']}/{summary['n_symbols']} "
-          f"symbols captured, spot={spot_status_counts}, settle={settle_status_counts} "
-          f"-> {capture_dir}")
-    if degenerate:
-        print(f"[crypto_hourly] WARN {len(degenerate)} symbol(s) with no capturable "
-              f"hourly bracket this pass", file=sys.stderr)
-    if series_errors:
-        print(f"[crypto_hourly] WARN {len(series_errors)} series failed enumeration",
-              file=sys.stderr)
+    if lines:
+        tape_dir.mkdir(parents=True, exist_ok=True)
+        out_path = tape_dir / f"dt={day}.jsonl"
+        with open(out_path, "a", encoding="utf-8") as f:
+            for ln in lines:
+                f.write(ln + "\n")
+        summary["path"] = str(out_path)
+
+    print(f"[crypto_hourly] {capture_id}: {summary['n_symbols']} symbols, "
+          f"{n_complete} pass-complete")
     return summary
 
 
-def verify_against_dir(manifest: Dict, capture_dir: Path) -> List[str]:
-    """Recompute the manifest's raw_sha256 from the ON-DISK provenance file and confirm
-    it matches — same provenance discipline as sports_pairs/capture_orderbooks."""
-    capture_dir = Path(capture_dir)
-    errs: List[str] = []
-    stem = _slug(f"{manifest['series_ticker']}_{manifest['event_ticker']}")
-    raw_file = capture_dir / f"{stem}.raw.json"
-    if not raw_file.exists():
-        errs.append(f"raw provenance missing: {stem}.raw.json")
-    elif sha256_hex(raw_file.read_bytes()) != manifest.get("raw_sha256"):
-        errs.append("raw_sha256 does not match on-disk raw bytes")
-    return errs
-
-
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="Crypto-hourly settlement-basis capture (read-only)")
-    ap.add_argument("--limit", type=int, default=None, help="cap markets scanned per series")
+    ap = argparse.ArgumentParser(description="Crypto-hourly settlement capture (read-only)")
+    ap.add_argument("--symbols", nargs="*", default=None,
+                    help="cap symbols per pass, e.g. --symbols BTC (offline/dev use)")
     ap.add_argument("--min-interval", type=float, default=0.2)
     args = ap.parse_args(argv)
-    run(limit=args.limit, min_interval=args.min_interval)
+    symbols = {s: SYMBOLS[s] for s in args.symbols} if args.symbols else None
+    run(min_interval=args.min_interval, symbols=symbols)
     return 0
 
 

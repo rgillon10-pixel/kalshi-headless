@@ -1,292 +1,284 @@
-"""Crypto-hourly settlement-basis capture (Q2) — bitemporal, honest-completeness,
-content-hashed, spot/settle legs paired for S8's ρ-guard.
-
-Mirrors tests/test_sports_pairs.py's discipline: run() is exercised fully offline via
-injected fake Kalshi + spot clients (no network), writing to a tmp store.
-"""
+"""collection.crypto_hourly — hour-token arithmetic, current-group discovery (excluding a
+stray long-lived group under the same series), settlement fetch, spot fallback, and a fully
+offline capture pass (FakeClient, no network) with honest completeness."""
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
 import pytest
 
 from collection import crypto_hourly as ch
-from core.crypto_schema import CRYPTO_SCHEMA_VERSION, sign, validate, verify_signature
 
-NOW = datetime(2026, 7, 10, 0, 16, 0, tzinfo=timezone.utc)
+# --------------------------------------------------------------------------- #
+# hour-token arithmetic
+# --------------------------------------------------------------------------- #
+def test_parse_hour_token_known_shape():
+    dt = ch.parse_hour_token("26JUL0302")
+    assert dt is not None
+    assert (dt.year, dt.month, dt.day, dt.hour) == (2026, 7, 3, 2)
+
+
+def test_parse_hour_token_bad_shape():
+    assert ch.parse_hour_token("NOT-A-TOKEN") is None
+
+
+def test_previous_hour_event_ticker_simple():
+    assert ch.previous_hour_event_ticker("KXBTC-26JUL0302") == "KXBTC-26JUL0301"
+
+
+def test_previous_hour_event_ticker_day_rollover():
+    assert ch.previous_hour_event_ticker("KXBTC-26JUL0300") == "KXBTC-26JUL0223"
+
+
+def test_previous_hour_event_ticker_month_rollover():
+    assert ch.previous_hour_event_ticker("KXBTC-26AUG0100") == "KXBTC-26JUL3123"
+
+
+def test_previous_hour_event_ticker_bad_ticker():
+    assert ch.previous_hour_event_ticker("garbage") is None
+
+
+# --------------------------------------------------------------------------- #
+# current-hour group discovery
+# --------------------------------------------------------------------------- #
+def _mk_market(ticker, event_ticker, close_time, open_time, yes_ask=0.10,
+               yes_bid=None, no_ask=None, no_bid=None, floor_strike=None, cap_strike=None):
+    return {
+        "ticker": ticker, "event_ticker": event_ticker,
+        "title": "Bitcoin price range", "close_time": close_time, "open_time": open_time,
+        "floor_strike": floor_strike, "cap_strike": cap_strike, "strike_type": "greater",
+        "yes_ask_dollars": f"{yes_ask:.4f}" if yes_ask is not None else None,
+        "yes_bid_dollars": f"{yes_bid:.4f}" if yes_bid is not None else None,
+        "no_ask_dollars": f"{no_ask:.4f}" if no_ask is not None else None,
+        "no_bid_dollars": f"{no_bid:.4f}" if no_bid is not None else None,
+    }
 
 
 class FakeClient:
-    """Minimal stand-in for validation.v3_market.Kalshi — open_markets + markets(status),
-    served from in-memory fixtures."""
+    """Minimal stand-in for validation.v3_market.Kalshi — only the read-only methods
+    crypto_hourly uses, served from in-memory fixtures. No network, no clock."""
 
     base = "https://fake.test"
 
-    def __init__(self, open_by_series, settled_by_series=None, fail_series=()):
-        self.open_by_series = open_by_series
-        self.settled_by_series = settled_by_series or {}
+    def __init__(self, markets_by_series=None, markets_by_event=None,
+                fail_series=(), fail_events=()):
+        self.markets_by_series = markets_by_series or {}
+        self.markets_by_event = markets_by_event or {}
         self.fail_series = set(fail_series)
+        self.fail_events = set(fail_events)
 
-    def open_markets(self, series_ticker):
-        if series_ticker in self.fail_series:
-            raise RuntimeError(f"simulated series failure: {series_ticker}")
-        return self.open_by_series.get(series_ticker, [])
-
-    def markets(self, series_ticker, status, limit=1000):
-        if status == "settled":
-            return self.settled_by_series.get(series_ticker, [])
-        return self.open_by_series.get(series_ticker, [])
-
-
-class FakeSpotClient:
-    def __init__(self, price=None, exchange=""):
-        self.price = price
-        self.exchange = exchange
-
-    def spot(self, coinbase_product, kraken_pair):
-        return self.price, self.exchange
+    def get_text(self, path, **params):
+        assert path == "/markets"
+        if "series_ticker" in params:
+            sticker = params["series_ticker"]
+            if sticker in self.fail_series:
+                raise RuntimeError(f"simulated enumeration failure: {sticker}")
+            return json.dumps({"markets": self.markets_by_series.get(sticker, [])})
+        et = params["event_ticker"]
+        if et in self.fail_events:
+            raise RuntimeError(f"simulated settlement fetch failure: {et}")
+        return json.dumps({"markets": self.markets_by_event.get(et, [])})
 
 
-def _market(ticker, event_ticker, open_time, close_time, yes_ask, expiration_value=None):
-    m = {"ticker": ticker, "event_ticker": event_ticker,
-         "open_time": open_time, "close_time": close_time, "yes_ask_dollars": yes_ask}
-    if expiration_value is not None:
-        m["expiration_value"] = expiration_value
-    return m
+def test_discover_current_hour_group_excludes_stray_long_lived_group():
+    # genuine hourly group: 1h duration, closes soonest
+    hourly = [_mk_market("KXBTC-26JUL0302-T69300", "KXBTC-26JUL0302",
+                         "2026-07-03T06:00:00Z", "2026-07-03T05:00:00Z", yes_ask=0.20)]
+    # stray group under the same series: same ticker grammar, but open ~1 week
+    stray = [_mk_market("KXBTC-26JUL0317-T69300", "KXBTC-26JUL0317",
+                        "2026-07-03T21:00:00Z", "2026-06-26T20:00:00Z", yes_ask=0.30)]
+    client = FakeClient(markets_by_series={"KXBTC": hourly + stray})
+    et, markets, raw_pages, err = ch.discover_current_hour_group(client, "KXBTC")
+    assert err is None
+    assert et == "KXBTC-26JUL0302"
+    assert len(markets) == 1
+    assert raw_pages
 
 
-# Current hourly ladder: 3 outcome markets, straddles NOW, duration exactly 1h.
-_HOURLY = [
-    _market("KXBTC-26JUL0921-T70799.99", "KXBTC-26JUL0921",
-           "2026-07-10T00:00:00Z", "2026-07-10T01:00:00Z", "0.05"),
-    _market("KXBTC-26JUL0921-B70750", "KXBTC-26JUL0921",
-           "2026-07-10T00:00:00Z", "2026-07-10T01:00:00Z", "0.60"),
-    _market("KXBTC-26JUL0921-T52200", "KXBTC-26JUL0921",
-           "2026-07-10T00:00:00Z", "2026-07-10T01:00:00Z", "0.38"),
-]
-# Standing ~7-day "range" event under the SAME series_ticker (the real Kalshi shape).
-_WEEKLY = [
-    _market("KXBTC-26JUL1017-T70000", "KXBTC-26JUL1017",
-           "2026-07-03T20:00:00Z", "2026-07-10T21:00:00Z", "0.40"),
-]
-# The PREVIOUS hour's settled event: close_time == the hourly ladder's open_time.
-_PREV_SETTLED = [
-    _market("KXBTC-26JUL0920-T70799.99", "KXBTC-26JUL0920",
-           "2026-07-09T23:00:00Z", "2026-07-10T00:00:00Z", "0.00",
-           expiration_value="63193.52"),
-    _market("KXBTC-26JUL0920-B70750", "KXBTC-26JUL0920",
-           "2026-07-09T23:00:00Z", "2026-07-10T00:00:00Z", "1.00",
-           expiration_value="63193.52"),
-]
+def test_discover_current_hour_group_no_hourly_group_found():
+    stray = [_mk_market("KXBTC-26JUL0317-T69300", "KXBTC-26JUL0317",
+                        "2026-07-03T21:00:00Z", "2026-06-26T20:00:00Z")]
+    client = FakeClient(markets_by_series={"KXBTC": stray})
+    et, markets, raw_pages, err = ch.discover_current_hour_group(client, "KXBTC")
+    assert et is None and markets == [] and err == "no_hourly_group_found"
 
 
-def _manifest_lines(store):
-    path = store / "_manifest.jsonl"
-    if not path.exists():
-        return []
-    return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
-
-
-def _capture_dir(store, summary):
-    return store / f"dt={summary['day']}" / f"capture-{summary['capture_id']}"
+def test_discover_current_hour_group_series_error():
+    client = FakeClient(markets_by_series={}, fail_series=["KXBTC"])
+    et, markets, raw_pages, err = ch.discover_current_hour_group(client, "KXBTC")
+    assert et is None and err and "simulated" in err
 
 
 # --------------------------------------------------------------------------- #
-# find_current_hourly_event — duration-based selection, not ticker parsing
+# outcome capture — honest completeness
 # --------------------------------------------------------------------------- #
-def test_prefers_the_straddling_hourly_event_over_the_weekly_one():
-    events = ch.group_by_event(_HOURLY + _WEEKLY)
-    picked = ch.find_current_hourly_event(events, NOW)
-    assert picked == "KXBTC-26JUL0921"
-
-
-def test_falls_back_to_closest_duration_when_nothing_straddles_now():
-    # NOW is well outside every candidate's [open, close) window.
-    far_now = datetime(2027, 1, 1, tzinfo=timezone.utc)
-    events = ch.group_by_event(_HOURLY + _WEEKLY)
-    picked = ch.find_current_hourly_event(events, far_now)
-    assert picked == "KXBTC-26JUL0921"   # duration 3600s beats the weekly one's ~7d
-
-
-def test_no_events_returns_none():
-    assert ch.find_current_hourly_event({}, NOW) is None
+def test_capture_outcomes_drops_missing_ask():
+    markets = [
+        _mk_market("KXBTC-26JUL0302-T69300", "KXBTC-26JUL0302",
+                  "2026-07-03T06:00:00Z", "2026-07-03T05:00:00Z", yes_ask=0.20),
+        _mk_market("KXBTC-26JUL0302-B69200", "KXBTC-26JUL0302",
+                  "2026-07-03T06:00:00Z", "2026-07-03T05:00:00Z", yes_ask=None),
+    ]
+    outcomes, yes_asks = ch._capture_outcomes(markets)
+    assert len(outcomes) == 1 and yes_asks == [0.20]
+    assert all(o["price_source_tag"] == "real_ask" for o in outcomes)
 
 
 # --------------------------------------------------------------------------- #
-# happy path — one symbol, complete hourly ladder + spot + prior settlement
+# previous-hour settlement
 # --------------------------------------------------------------------------- #
-def test_complete_pass_emits_valid_paired_manifest(tmp_path):
+def test_fetch_settlement_settled():
+    markets = [
+        {"ticker": "KXBTC-26JUL0301-B59450", "result": "no", "expiration_value": "61387.31"},
+        {"ticker": "KXBTC-26JUL0301-B65450", "result": "no", "expiration_value": "61387.31"},
+    ]
+    client = FakeClient(markets_by_event={"KXBTC-26JUL0301": markets})
+    rec = ch.fetch_settlement(client, "KXBTC-26JUL0301")
+    assert rec["status"] == "settled"
+    assert rec["expiration_value"] == "61387.31"
+    assert rec["price_source_tag"] == "broker_truth"
+    assert rec["results"] == {"KXBTC-26JUL0301-B59450": "no", "KXBTC-26JUL0301-B65450": "no"}
+
+
+def test_fetch_settlement_pending():
+    markets = [
+        {"ticker": "A", "result": "no", "expiration_value": "1"},
+        {"ticker": "B", "result": "", "expiration_value": None},
+    ]
+    client = FakeClient(markets_by_event={"EVT": markets})
+    rec = ch.fetch_settlement(client, "EVT")
+    assert rec["status"] == "pending"
+
+
+def test_fetch_settlement_not_found():
+    client = FakeClient(markets_by_event={})
+    rec = ch.fetch_settlement(client, "MISSING")
+    assert rec["status"] == "not_found"
+
+
+def test_fetch_settlement_fetch_error():
+    client = FakeClient(fail_events=["EVT"])
+    rec = ch.fetch_settlement(client, "EVT")
+    assert rec["status"] == "fetch_error"
+
+
+def test_fetch_settlement_disagreeing_expiration_values_surfaced_not_hidden():
+    markets = [
+        {"ticker": "A", "result": "no", "expiration_value": "1"},
+        {"ticker": "B", "result": "yes", "expiration_value": "2"},
+    ]
+    client = FakeClient(markets_by_event={"EVT": markets})
+    rec = ch.fetch_settlement(client, "EVT")
+    assert rec["expiration_value"] is None
+    assert rec["expiration_values_disagree"] == ["1", "2"]
+
+
+# --------------------------------------------------------------------------- #
+# spot fallback (Coinbase primary, Kraken fallback) — monkeypatched HTTP
+# --------------------------------------------------------------------------- #
+class _FakeResp:
+    def __init__(self, payload, status=200):
+        self._payload = payload
+        self.status_code = status
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+    def json(self):
+        return self._payload
+
+
+def test_fetch_spot_coinbase_success(monkeypatch):
+    monkeypatch.setattr(ch.requests, "get", lambda url, **kw: _FakeResp(
+        {"price": "61451.02", "bid": "61451.01", "ask": "61451.03", "time": "t"}))
+    rec = ch.fetch_spot_coinbase("BTC")
+    assert rec["source"] == "coinbase" and rec["price"] == pytest.approx(61451.02)
+    assert rec["price_source_tag"] == "synthetic"
+
+
+def test_fetch_spot_falls_back_to_kraken_on_coinbase_failure(monkeypatch):
+    def fake_get(url, **kw):
+        if "coinbase" in url:
+            raise RuntimeError("coinbase down")
+        return _FakeResp({"error": [], "result": {"XXBTZUSD": {
+            "c": ["61453.20000", "0.001"], "b": ["61453.10000", "1", "1"],
+            "a": ["61453.20000", "1", "1"]}}})
+    monkeypatch.setattr(ch.requests, "get", fake_get)
+    rec = ch.fetch_spot("BTC")
+    assert rec["source"] == "kraken" and rec["price"] == pytest.approx(61453.20)
+
+
+def test_fetch_spot_both_fail_records_error_not_stale_price(monkeypatch):
+    monkeypatch.setattr(ch.requests, "get", lambda url, **kw: (_ for _ in ()).throw(
+        RuntimeError("network down")))
+    rec = ch.fetch_spot("BTC")
+    assert rec.get("status") == "fetch_error"
+    assert "price" not in rec
+
+
+# --------------------------------------------------------------------------- #
+# fully offline capture pass
+# --------------------------------------------------------------------------- #
+def _fake_spot_ok(symbol):
+    return {"source": "fake", "price": 61000.0, "bid": 60999.0, "ask": 61001.0,
+            "exchange_time": "t", "price_source_tag": "synthetic"}
+
+
+def test_run_captures_current_and_settlement_end_to_end(tmp_path):
+    current = [
+        _mk_market("KXBTC-26JUL0302-T69300", "KXBTC-26JUL0302",
+                  "2026-07-03T06:00:00Z", "2026-07-03T05:00:00Z", yes_ask=0.20, yes_bid=0.19),
+        _mk_market("KXBTC-26JUL0302-B69200", "KXBTC-26JUL0302",
+                  "2026-07-03T06:00:00Z", "2026-07-03T05:00:00Z", yes_ask=0.35, yes_bid=0.34),
+    ]
+    settlement = [
+        {"ticker": "KXBTC-26JUL0301-A", "result": "no", "expiration_value": "61387.31"},
+    ]
     client = FakeClient(
-        open_by_series={"KXBTC": _HOURLY + _WEEKLY, "KXETH": []},
-        settled_by_series={"KXBTC": _PREV_SETTLED},
+        markets_by_series={"KXBTC": current},
+        markets_by_event={"KXBTC-26JUL0301": settlement},
     )
-    spot_client = FakeSpotClient(price=63190.12, exchange="coinbase")
-    summary = ch.run(client=client, store=tmp_path, spot_client=spot_client, now=NOW)
+    summary = ch.run(client=client, tape_dir=tmp_path, symbols={"BTC": "KXBTC"},
+                     spot_fetcher=_fake_spot_ok)
+    assert summary["n_symbols"] == 1 and summary["n_complete"] == 1
 
-    assert summary["n_captured"] == 1   # KXETH has no open markets -> degenerate
-    assert summary["n_degenerate"] == 1
-
-    lines = _manifest_lines(tmp_path)
-    assert len(lines) == 1
-    m = lines[0]
-    assert validate(m) == [], validate(m)
-    assert m["schema_version"] == CRYPTO_SCHEMA_VERSION
-    assert m["symbol"] == "BTC"
-    assert m["series_ticker"] == "KXBTC"
-    assert m["event_ticker"] == "KXBTC-26JUL0921"
-    assert m["n_outcomes"] == m["expected_outcomes"] == 3
-    assert m["completeness_ok"] is True
-    assert m["price_source_tag"] == "real_ask"
-    # Hard Rule #3: bracket_sum/overround via core.pricing, 0.05+0.60+0.38 = 1.03
-    assert m["bracket_sum"] == pytest.approx(1.03, abs=1e-9)
-    assert m["overround"] == pytest.approx(0.03, abs=1e-9)
-    # spot leg
-    assert m["spot_status"] == "ok"
-    assert m["spot_price"] == pytest.approx(63190.12)
-    assert m["spot_exchange"] == "coinbase"
-    assert m["spot_source_tag"] == "synthetic"
-    # settle leg — the previous hour's Kalshi-reported settlement value
-    assert m["settle_status"] == "ok"
-    assert m["prev_event_ticker"] == "KXBTC-26JUL0920"
-    assert m["settle_value"] == pytest.approx(63193.52)
-    assert m["settle_source_tag"] == "broker_truth"
-    assert verify_signature(m)
-    assert ch.verify_against_dir(m, _capture_dir(tmp_path, summary)) == []
+    out_path = tmp_path / f"dt={summary['day']}.jsonl"
+    rec = json.loads(out_path.read_text().splitlines()[0])
+    assert rec["symbol"] == "BTC"
+    assert rec["current"]["completeness_ok"] is True
+    assert rec["current"]["member_count"] == 2
+    assert rec["current"]["bracket_sum"] == pytest.approx(0.20 + 0.35, abs=1e-9)
+    assert rec["current"]["overround_absorbed"] == pytest.approx(rec["current"]["bracket_sum"] - 1.0)
+    assert rec["previous_settlement"]["status"] == "settled"
+    assert rec["previous_settlement"]["expiration_value"] == "61387.31"
+    assert rec["spot"]["price"] == 61000.0
+    assert rec["pass_complete"] is True
 
 
-# --------------------------------------------------------------------------- #
-# degradation: missing hourly event, single-outcome, series failure
-# --------------------------------------------------------------------------- #
-def test_no_open_markets_recorded_degenerate(tmp_path):
-    client = FakeClient(open_by_series={"KXBTC": [], "KXETH": []})
-    summary = ch.run(client=client, store=tmp_path, spot_client=FakeSpotClient(1.0, "coinbase"),
-                     now=NOW)
-    assert summary["n_captured"] == 0
-    assert summary["n_degenerate"] == 2
-    assert _manifest_lines(tmp_path) == []
+def test_run_marks_incomplete_when_no_hourly_group_found(tmp_path):
+    stray = [_mk_market("KXBTC-26JUL0317-T69300", "KXBTC-26JUL0317",
+                        "2026-07-03T21:00:00Z", "2026-06-26T20:00:00Z")]
+    client = FakeClient(markets_by_series={"KXBTC": stray})
+    summary = ch.run(client=client, tape_dir=tmp_path, symbols={"BTC": "KXBTC"},
+                     spot_fetcher=_fake_spot_ok)
+    assert summary["n_complete"] == 0
+    out_path = tmp_path / f"dt={summary['day']}.jsonl"
+    rec = json.loads(out_path.read_text().splitlines()[0])
+    assert rec["current"]["status"] == "no_hourly_group_found"
+    assert rec["previous_settlement"]["status"] == "no_current_group"
+    assert rec["pass_complete"] is False
 
 
-def test_single_outcome_hourly_event_recorded_degenerate(tmp_path):
-    lone = [_market("KXBTC-26JUL0921-ONLY", "KXBTC-26JUL0921",
-                    "2026-07-10T00:00:00Z", "2026-07-10T01:00:00Z", "0.50")]
-    client = FakeClient(open_by_series={"KXBTC": lone, "KXETH": []})
-    summary = ch.run(client=client, store=tmp_path, spot_client=FakeSpotClient(1.0, "coinbase"),
-                     now=NOW)
-    assert summary["n_captured"] == 0
-    assert summary["n_degenerate"] == 2   # KXBTC single-outcome + KXETH empty
-    assert _manifest_lines(tmp_path) == []
-
-
-def test_series_error_recorded_others_still_captured(tmp_path):
-    client = FakeClient(
-        open_by_series={"KXBTC": _HOURLY, "KXETH": []},
-        settled_by_series={"KXBTC": _PREV_SETTLED},
-        fail_series={"KXETH"},
-    )
-    summary = ch.run(client=client, store=tmp_path, spot_client=FakeSpotClient(1.0, "coinbase"),
-                     now=NOW)
-    assert summary["n_series_errors"] == 1
-    assert summary["n_captured"] == 1
-
-
-# --------------------------------------------------------------------------- #
-# spot / settle leg degradation: honest status, never poisons the Kalshi leg
-# --------------------------------------------------------------------------- #
-def test_spot_fetch_failure_recorded_kalshi_leg_still_captured(tmp_path):
-    client = FakeClient(
-        open_by_series={"KXBTC": _HOURLY, "KXETH": []},
-        settled_by_series={"KXBTC": _PREV_SETTLED},
-    )
-    summary = ch.run(client=client, store=tmp_path, spot_client=FakeSpotClient(None, ""), now=NOW)
-    m = _manifest_lines(tmp_path)[0]
-    assert m["spot_status"] == "fetch_error"
-    assert m["spot_price"] == 0.0
-    assert m["price_source_tag"] == "real_ask"   # Kalshi leg unaffected
-    assert validate(m) == []
-
-
-def test_settle_not_found_when_no_matching_previous_hour(tmp_path):
-    client = FakeClient(
-        open_by_series={"KXBTC": _HOURLY, "KXETH": []},
-        settled_by_series={"KXBTC": []},   # no settled markets at all this pass
-    )
-    summary = ch.run(client=client, store=tmp_path, spot_client=FakeSpotClient(1.0, "coinbase"),
-                     now=NOW)
-    m = _manifest_lines(tmp_path)[0]
-    assert m["settle_status"] == "not_found"
-    assert m["prev_event_ticker"] == ""
-    assert m["settle_value"] == 0.0
-    assert validate(m) == []
-
-
-def test_settle_fetch_error_when_settled_query_raises(tmp_path):
-    class RaisingSettledClient(FakeClient):
-        def markets(self, series_ticker, status, limit=1000):
-            if status == "settled":
-                raise RuntimeError("simulated settled-query failure")
-            return super().markets(series_ticker, status, limit)
-
-    client = RaisingSettledClient(open_by_series={"KXBTC": _HOURLY, "KXETH": []})
-    summary = ch.run(client=client, store=tmp_path, spot_client=FakeSpotClient(1.0, "coinbase"),
-                     now=NOW)
-    m = _manifest_lines(tmp_path)[0]
-    assert m["settle_status"] == "fetch_error"
-
-
-# --------------------------------------------------------------------------- #
-# provenance: a forged hash passes schema but fails the byte-binding check
-# --------------------------------------------------------------------------- #
-def test_forged_hash_passes_schema_but_fails_provenance(tmp_path):
-    client = FakeClient(
-        open_by_series={"KXBTC": _HOURLY, "KXETH": []},
-        settled_by_series={"KXBTC": _PREV_SETTLED},
-    )
-    summary = ch.run(client=client, store=tmp_path, spot_client=FakeSpotClient(1.0, "coinbase"),
-                     now=NOW)
-    real = _manifest_lines(tmp_path)[0]
-    cdir = _capture_dir(tmp_path, summary)
-    forged = sign({**real, "raw_sha256": "0" * 64})
-    assert validate(forged) == []
-    assert ch.verify_against_dir(forged, cdir)
-    assert ch.verify_against_dir(real, cdir) == []
-
-
-# --------------------------------------------------------------------------- #
-# schema adversarial checks — the "ok" -> tag consistency rules
-# --------------------------------------------------------------------------- #
-def _valid_record(**overrides):
-    base = {
-        "schema_version": CRYPTO_SCHEMA_VERSION, "capture_id": "20260710T001600Z",
-        "venue": "kalshi", "symbol": "BTC", "series_ticker": "KXBTC",
-        "event_ticker": "KXBTC-26JUL0921", "event_time": "2026-07-10T00:00:00Z",
-        "close_time": "2026-07-10T01:00:00Z", "as_of": "2026-07-10T00:16:00Z",
-        "captured_at": "2026-07-10T00:16:00Z",
-        "source_endpoint": "https://fake.test/markets",
-        "raw_sha256": "a" * 64, "n_outcomes": 3, "expected_outcomes": 3,
-        "bracket_sum": 1.03, "overround": 0.03, "price_source_tag": "real_ask",
-        "spot_price": 63190.12, "spot_exchange": "coinbase", "spot_status": "ok",
-        "spot_source_tag": "synthetic", "prev_event_ticker": "KXBTC-26JUL0920",
-        "prev_close_time": "2026-07-10T00:00:00Z", "settle_value": 63193.52,
-        "settle_status": "ok", "settle_source_tag": "broker_truth",
-        "outcomes": ["a", "b", "c"], "completeness_ok": True, "warmup": True,
-        "signature": "",
-    }
-    base.update(overrides)
-    return sign(base)
-
-
-def test_schema_rejects_synthetic_tag_mislabeled_as_ok_spot():
-    rec = _valid_record(spot_source_tag="real_ask")
-    errs = validate(rec)
-    assert any("spot_source_tag" in e for e in errs)
-
-
-def test_schema_rejects_settle_ok_without_broker_truth_tag():
-    rec = _valid_record(settle_source_tag="synthetic")
-    errs = validate(rec)
-    assert any("settle_source_tag" in e for e in errs)
-
-
-def test_schema_valid_record_passes():
-    assert validate(_valid_record()) == []
+def test_run_two_symbols_independent(tmp_path):
+    current_btc = [_mk_market("KXBTC-26JUL0302-T1", "KXBTC-26JUL0302",
+                              "2026-07-03T06:00:00Z", "2026-07-03T05:00:00Z", yes_ask=0.5)]
+    current_eth = [_mk_market("KXETH-26JUL0302-T1", "KXETH-26JUL0302",
+                              "2026-07-03T06:00:00Z", "2026-07-03T05:00:00Z", yes_ask=0.4)]
+    client = FakeClient(markets_by_series={"KXBTC": current_btc, "KXETH": current_eth})
+    summary = ch.run(client=client, tape_dir=tmp_path,
+                     symbols={"BTC": "KXBTC", "ETH": "KXETH"}, spot_fetcher=_fake_spot_ok)
+    assert summary["n_symbols"] == 2
+    out_path = tmp_path / f"dt={summary['day']}.jsonl"
+    recs = [json.loads(ln) for ln in out_path.read_text().splitlines()]
+    assert {r["symbol"] for r in recs} == {"BTC", "ETH"}

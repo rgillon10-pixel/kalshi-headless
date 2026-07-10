@@ -56,6 +56,10 @@ pointer rather than silently rewriting history.
   it implies for a Kalshi edge.
 - `strategies/` — candidate strategies. Each is a falsifiable hypothesis with a
   binding test, not a vibe.
+- `lessons/` — the compounding ledger (added 2026-07-06): every hard-won lesson
+  as a row with provenance and an enforcement status (`UNENFORCED` → `protocol`
+  → `test` → `invariant`). Owned by the `kb-distiller` agent; UNENFORCED rows
+  are its standing work queue.
 - `_sources/` — raw captured sources (paper abstracts, API doc snapshots) so
   claims stay auditable even if the web changes.
 
