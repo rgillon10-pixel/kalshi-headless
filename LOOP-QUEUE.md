@@ -16,6 +16,18 @@ persisted price, invariants green before commit.
 
 ## Run protocol (research loop)
 
+0a. **History-integrity check (added 2026-07-10, after main was rewound to a 6-day-old
+   checkpoint on 2026-07-08 and the loops unknowingly redid a week of work).** Before ANY
+   other step: `gh pr list --state merged --limit 5 --json number,mergeCommit`, then for
+   each `git merge-base --is-ancestor <mergeCommit.oid> origin/main`. Also verify the
+   newest `kb/00-LOG.md` entry date on `origin/main` is not older than the newest
+   `tape/*/dt=*` file date by more than 2 days. If EITHER check fails, `main` has been
+   rewound or rewritten: do NOT pick queue work, do NOT push anything on top of the rewound
+   base. Instead: post a `Priority: max` ntfy note ("main history rewound — needs Ryan"),
+   open a GitHub issue titled `main rewound — <date>` with the evidence (which merged PR is
+   unreachable, current main SHA), and END THE RUN. Recovery is Ryan-supervised, never
+   automatic — see kb/00-LOG.md 2026-07-10 reconciliation entry for the one prior repair.
+
 0. **Claim check (do this before picking work — prevents duplicate runs).** A cloud session
    cannot push straight to `main` (confirmed empirically 2026-07-03: two consecutive runs
    each rebased cleanly, `git push origin main` still fell back to the session's own branch
@@ -71,6 +83,13 @@ persisted price, invariants green before commit.
    collector notes use `-H 'Priority: low'` (silent feed); anything failed or needing Ryan's
    action uses `-H 'Priority: high'`. Ryan reads this feed on his phone via the ntfy app —
    it is the human window into the loop; write for him, not for the log.
+   **Hardening (2026-07-10, after the feed went silent for 2 days without anyone noticing):**
+   (a) the note is mandatory on EVERY research-loop run, including idle/maintenance runs and
+   runs that end early on a guard (step 0a) or a blocked queue — silence is never a valid
+   outcome; (b) any run that fails its gates, loses its push, or hits step 0a posts at
+   `Priority: high` or above; (c) if the ntfy POST itself fails, say so in the run digest so
+   the retro can see the notification pipe is broken; (d) the weekly retro's review MUST
+   include "did phone notes flow every day this week?" as a checklist item.
 
 ## Stop rules (non-negotiable)
 
