@@ -586,6 +586,40 @@ estimation yet, and it should honestly flag that hourly cadence is coarse for ar
 estimation (recurring cron is hard-capped at hourly per S9/Q8's own finding) — record that
 limitation rather than oversell what hourly L2 snapshots can support.
 
+## Retro amendments — proposed 2026-07-05 (open for Ryan's review, not yet adopted)
+
+Drafted by the weekly retro run from this week's "Log of runs" below. These are **proposals
+only** — nothing in this section is authoritative until Ryan reviews and merges the PR that
+carries it. Nothing here relaxes an invariant or a Stop rule, deletes or reorders a queue
+item, or touches source code.
+
+1. **Step 0b clarification — reset local `main` before diffing stranded branches.** On
+   2026-07-05T05:19Z the research run found its sandbox's local `main` ref was ~2 days stale,
+   which made every `tape/hourly-*` branch look like it carried far more missing lines than it
+   actually did (including in files the collector never touches) — caught before it produced
+   a bad commit, but only because that run happened to check. Proposed addition to step 0b:
+   run `git fetch origin main && git reset --hard origin/main` (or equivalent) immediately
+   before diffing any `tape/hourly-*` branch against `main`, every run, not only when a diff
+   looks suspicious.
+
+2. **Step 0b — stop retrying the branch-delete that always fails.** Every research run since
+   2026-07-03 (at least 5 runs, per the log below) has attempted `git push origin --delete` on
+   fully-reconciled `tape/hourly-*` branches, and every single attempt has failed with the same
+   documented cloud-session permission boundary. Proposed: stop attempting the delete each run
+   — it costs a tool call and a log sentence for a guaranteed no-op — and just note
+   reconciled-but-undeleted branches once per run instead. Separately, flagging for Ryan: if
+   the stale branches should actually get cleaned up, the cloud GitHub App/token would need
+   branch-delete scope added. That's a one-time permissions change only Ryan can make; no loop
+   run can fix it from inside the sandbox.
+
+3. **New — stuck-PR escalation after 5+ days with no owner action.** PR #4 (Q1's odds-api leg)
+   has been open since 2026-07-03 waiting on Ryan to paste `ODDS_API_KEY` into the environment
+   — at least 6 research runs now have silently re-noted "skipped Q1, unrelated" without ever
+   escalating. Proposed: if an open PR has sat more than 5 days blocked purely on a Ryan-side
+   action (a key, a decision, a merge) with no new activity, that run's ntfy phone note should
+   use `Priority: high` (instead of the default) and name the specific blocking action once,
+   so a stuck item doesn't stay silent indefinitely.
+
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
