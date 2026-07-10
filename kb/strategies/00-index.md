@@ -100,6 +100,14 @@ no idea is in the dead ledger.** Full dossiers: `../../reports/new-ideas-2026-06
   May–June 2026, with no odds leg sourced yet). S7b/S7c (the actual CLV backtest + bootstrap CI)
   run on the World Cup dataset next. Tape → `tape/sports_history_s7/`; writeup →
   `../../findings/2026-07-10-sports-history-s7a.md`.
+  **Q4/S7b built** `scripts/sports_clv_s7.py`: the CLV trade set — decision_ts = close_time−4h
+  (documented kickoff proxy), causal last-candle-at-or-before real ask, BUY-YES when de-vigged
+  fair > Kalshi's bracket-normalized ask, fee model from `scripts/fee_breakeven.py`. Live pass:
+  96/96 usable games, 167 candidate trades, **mean net P&L −3.51¢/trade at real_ask** — negative
+  before any bootstrap, and a min-edge sweep makes it monotonically worse (−3.51¢→−9.30¢→−27.00¢
+  at 0.00/0.02/0.05), the same red flag that helped kill S5. **Not yet a verdict** — S7c's
+  block-bootstrap by game is the actual binding test; this point estimate just sets expectations
+  low going in. Tape → `tape/sports_clv_s7/`; writeup → `../../findings/2026-07-10-sports-clv-s7b.md`.
 - **S8 (med) → data-collecting (2026-07-10).** Crypto-hourly settlement basis — Kalshi settles on CF
   Benchmarks BRRNY (60s index avg), retail prices off visible spot → genuine feed mismatch (NOT the
   dead NWS/WU ρ=0.99999 case; first check is the ρ guard). 24/7 cadence → bootstrappable n in days.

@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 15:16 UTC — Q4/S7b: built the CLV trade set; raw signal already negative, pre-bootstrap
+
+Topmost eligible queue item: **Q4** (S7 historical CLV backtest), `IN-PROGRESS` after S7a. This
+run did **S7b only** — turn S7a's 97-game World Cup tape into a candidate trade set (decision-
+time real ask vs de-vigged sharp fair, fee-aware P&L per trade). No bootstrap, no verdict —
+that's S7c, next stage.
+
+Built `scripts/sports_clv_s7.py` (16 new unit tests, all offline/no-network, 137 total green).
+Key design calls, each documented in the script's own header:
+
+- **Decision time.** football-data's closing odds are priced at kickoff, which Kalshi's
+  `open_time`/`close_time` don't directly expose. Defined `decision_ts = close_time - 4h` as a
+  conservative pre-kickoff proxy (spot-checked against a captured game: `close_time` lands
+  within minutes of the final whistle, regulation+stoppage is reliably under 2h) — stated as an
+  approximation, not a precise kickoff read, since no free kickoff-timestamp feed exists.
+- **Price.** Last candle at-or-before `decision_ts`, causal/no-look-ahead (same discipline as
+  S1's T-24h rule); a missing leg drops the whole 3-outcome bracket rather than partial-
+  normalizing.
+- **Trade rule.** Single-leg BUY YES when de-vigged fair prob > Kalshi's bracket-normalized ask
+  (Hard Rule #3 — `core.pricing.normalized_ask`, never a raw ask read as probability); the fill
+  price and P&L use the raw ask. Fee model reused verbatim from `scripts/fee_breakeven.py`.
+
+**Live pass:** 96/97 games usable (1 dropped: odds unmatched, same freshness gap S7a flagged).
+**167 candidate trades, mean net P&L −3.51¢/trade** (real_ask, after 0.07-rate taker fee) —
+already negative before any bootstrap. A quick min-edge sweep (0.00 → 0.02 → 0.05) makes it
+**monotonically worse** (−3.51¢ → −9.30¢ → −27.00¢, n=167/23/1 trades): if the nominal
+fair-vs-ask gap were real signal, tightening the bar should concentrate on better trades, not
+degrade them — the same "sweep makes it worse" red flag that helped kill S5. Candidate
+explanations, none confirmed: football-data's multi-book average is a noisier sharp-consensus
+proxy than a single sharp book (S7a already flagged it isn't Pinnacle-specific); the 4h-early
+snapshot mixes in market drift the true closing line doesn't share; or plain small-sample noise
+(one tournament, 96 games, likely round/team-correlated). Writeup →
+`../findings/2026-07-10-sports-clv-s7b.md`; tape → `tape/sports_clv_s7/`.
+
+Gates: **137 tests green** (121 existing + 16 new), `invariants --full` green.
+
+**Next:** Q4/S7c — moving-block bootstrap by game (reuse the S1/S5 `block_bootstrap` pattern) →
+95% CI → verdict. The point estimate gives no reason for optimism, but the queue's binding bar
+is the bootstrapped CI, not this number — S7c runs it and records whatever it finds, including
+DEAD, honestly.
+
+---
+
 ## 2026-07-10 10:35 UTC — Q4/S7a: sourced the World Cup CLV backtest dataset; NFL/NBA history mostly unavailable
 
 Topmost eligible queue item: **Q4** (S7 historical CLV backtest), `TODO` since Q0b's egress
