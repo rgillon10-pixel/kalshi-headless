@@ -1,0 +1,19 @@
+{
+  "decision_offset_hours": 4.0,
+  "drop_reasons": {
+    "odds_unmatched": 1
+  },
+  "mean_gross_pnl": -0.01898203592814373,
+  "mean_net_pnl": -0.03508982035928147,
+  "mean_nominal_edge": 0.010735670744181353,
+  "mean_overround_absorbed": 0.02269461077844314,
+  "min_edge": 0.0,
+  "n_games_dropped": 1,
+  "n_games_in_tape": 97,
+  "n_games_usable": 96,
+  "n_games_with_a_trade": 96,
+  "n_trades": 167,
+  "note": "point estimate only, NOT bootstrapped \u2014 S7c runs the block-bootstrap by game and the verdict.",
+  "out_path": "/home/user/kalshi-headless/tape/sports_clv_s7/trades.jsonl",
+  "schema_version": "sports_clv_s7.v0"
+}

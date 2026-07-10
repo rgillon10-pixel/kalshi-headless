@@ -2,6 +2,32 @@
 
 `run` · 2026-07-02 · cloud sandbox (kalshi-research-loop)
 `updated 2026-07-03 (Q0b)` — egress now unblocked, see final section.
+`re-verified 2026-07-09 (Q0b)` — post-reset lineage re-ran the check unaware of the 07-03 unblock (main had been rewound to the 07-02 checkpoint); same result, kept below for history.
+
+## UPDATE 2026-07-09 (Q0b): egress unblocked (re-verification by post-reset lineage)
+
+Re-tested the same four hosts with `curl --max-time 15`, per Q0b's protocol:
+
+| host | result |
+|---|---|
+| `api.elections.kalshi.com` (`GET /trade-api/v2/markets?limit=1`) | **200**, valid JSON market page |
+| `api.exchange.coinbase.com` (`GET /products/BTC-USD/ticker`) | **200**, valid JSON ticker (BTC ≈ $63,190) |
+| `api.kraken.com` (`GET /0/public/Ticker?pair=XBTUSD`) | **200** |
+| `api.the-odds-api.com` (`GET /v4/sports`) | **401** (reachable — auth error, not a network block) |
+| `ODDS_API_KEY` env var | still **absent** (checked presence only, not printed) |
+
+End-to-end confirmed via `python -m collection.capture_orderbooks --limit 3`: captured 3 live
+Kalshi markets / 159 orderbook levels to `data/processed/orderbooks/` (`real_ask` tape, not
+synthetic). The org egress allowlist was evidently widened between 2026-07-02 and 2026-07-09 —
+not something observable from inside the sandbox, just confirmed fixed.
+
+**Consequence:** Q1–Q6's `BLOCKED(egress policy ...)` statuses (original findings below) are
+stale and are flipped back to `TODO` in `LOOP-QUEUE.md` this run. The odds-api leg of Q1
+(sportsbook de-vig prices) stays gated on `ODDS_API_KEY` being absent — per Q1's own fallback
+clause ("no key → capture the Kalshi leg anyway and note the odds leg as `BLOCKED(key)`") — that
+sub-piece alone stays blocked; it does not block the rest of the queue.
+
+## Original 2026-07-02 findings (superseded by the above; kept for history)
 
 Purpose: verify which external hosts this cloud sandbox can actually reach, since every
 downstream collector (Q1–Q7) depends on live network access. Method: direct `curl` (and the

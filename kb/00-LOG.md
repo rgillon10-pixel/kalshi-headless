@@ -6,6 +6,251 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 — RECONCILIATION: main-branch reset discovered and repaired (local session with Ryan)
+
+On 2026-07-08T10:56Z a push moved `origin/main` back to `6cde523` (the 2026-07-02 Q0
+checkpoint), orphaning 197 commits: all of 2026-07-03→07-08 (PRs #4–#33 — the Q1–Q18
+build-out, S7/S9 DEAD verdicts, S16/S18 BLOCKED verdicts, lessons ledger, phone-note
+protocol). The cloud loops then unknowingly rebuilt Q1/Q2/Q3 (2026-07-09/10) and began
+re-probing S7 — a strategy already declared DEAD by block-bootstrap on 2026-07-04.
+Recovered the pre-reset tip (`f23a491`) via GitHub's event log and merged the post-reset
+work into it. Code conflicts resolved in favor of the pre-reset lineage (5 more days of
+hardening; `hourly_pass` orchestrates collectors that exist only there); post-reset tape,
+`core/odds.py`+schemas, and the S7a re-probe artifacts kept. Entries below from
+2026-07-09/10 describe the post-reset lineage's (duplicate) work — kept for honesty.
+
+## 2026-07-10 15:16 UTC — Q4/S7b: built the CLV trade set; raw signal already negative, pre-bootstrap
+
+Topmost eligible queue item: **Q4** (S7 historical CLV backtest), `IN-PROGRESS` after S7a. This
+run did **S7b only** — turn S7a's 97-game World Cup tape into a candidate trade set (decision-
+time real ask vs de-vigged sharp fair, fee-aware P&L per trade). No bootstrap, no verdict —
+that's S7c, next stage.
+
+Built `scripts/sports_clv_s7.py` (16 new unit tests, all offline/no-network, 137 total green).
+Key design calls, each documented in the script's own header:
+
+- **Decision time.** football-data's closing odds are priced at kickoff, which Kalshi's
+  `open_time`/`close_time` don't directly expose. Defined `decision_ts = close_time - 4h` as a
+  conservative pre-kickoff proxy (spot-checked against a captured game: `close_time` lands
+  within minutes of the final whistle, regulation+stoppage is reliably under 2h) — stated as an
+  approximation, not a precise kickoff read, since no free kickoff-timestamp feed exists.
+- **Price.** Last candle at-or-before `decision_ts`, causal/no-look-ahead (same discipline as
+  S1's T-24h rule); a missing leg drops the whole 3-outcome bracket rather than partial-
+  normalizing.
+- **Trade rule.** Single-leg BUY YES when de-vigged fair prob > Kalshi's bracket-normalized ask
+  (Hard Rule #3 — `core.pricing.normalized_ask`, never a raw ask read as probability); the fill
+  price and P&L use the raw ask. Fee model reused verbatim from `scripts/fee_breakeven.py`.
+
+**Live pass:** 96/97 games usable (1 dropped: odds unmatched, same freshness gap S7a flagged).
+**167 candidate trades, mean net P&L −3.51¢/trade** (real_ask, after 0.07-rate taker fee) —
+already negative before any bootstrap. A quick min-edge sweep (0.00 → 0.02 → 0.05) makes it
+**monotonically worse** (−3.51¢ → −9.30¢ → −27.00¢, n=167/23/1 trades): if the nominal
+fair-vs-ask gap were real signal, tightening the bar should concentrate on better trades, not
+degrade them — the same "sweep makes it worse" red flag that helped kill S5. Candidate
+explanations, none confirmed: football-data's multi-book average is a noisier sharp-consensus
+proxy than a single sharp book (S7a already flagged it isn't Pinnacle-specific); the 4h-early
+snapshot mixes in market drift the true closing line doesn't share; or plain small-sample noise
+(one tournament, 96 games, likely round/team-correlated). Writeup →
+`../findings/2026-07-10-sports-clv-s7b.md`; tape → `tape/sports_clv_s7/`.
+
+Gates: **137 tests green** (121 existing + 16 new), `invariants --full` green.
+
+**Next:** Q4/S7c — moving-block bootstrap by game (reuse the S1/S5 `block_bootstrap` pattern) →
+95% CI → verdict. The point estimate gives no reason for optimism, but the queue's binding bar
+is the bootstrapped CI, not this number — S7c runs it and records whatever it finds, including
+DEAD, honestly.
+
+---
+
+## 2026-07-10 10:35 UTC — Q4/S7a: sourced the World Cup CLV backtest dataset; NFL/NBA history mostly unavailable
+
+Topmost eligible queue item: **Q4** (S7 historical CLV backtest), `TODO` since Q0b's egress
+unblock. Q4 runs in three stages (S7a source → S7b probe → S7c bootstrap CI); this run did
+**S7a only** — sourcing + provenance, no backtest math yet.
+
+Built `scripts/sports_history_s7a.py` (16 new unit tests, all offline/no-network, 121 total
+green). Two legs per game:
+
+- **Kalshi (`real_ask`)** — every settled `KXWCGAME` event via `GET /events` with nested
+  markets (settlement `result`/`settlement_value_dollars` arrive inline), plus the full hourly
+  candlestick series per outcome market (Kalshi's own published `yes_ask` OHLC). Markets are
+  listed as early as ~140 days before their game, so the candlestick fetch is capped to the
+  last 7 days before close (`CANDLE_LOOKBACK_HOURS`, logged per-outcome as
+  `candle_window_truncated`) — the pre-game noise a decision-time backtest will never use is
+  dropped explicitly, not silently; keeps the tape at 20 MB instead of ~106 MB uncapped.
+- **Odds (`synthetic`)** — football-data.co.uk's free public `WorldCup2026.xlsx`
+  (`H-Avg`/`D-Avg`/`A-Avg`, a multi-book closing-odds average — not Pinnacle-specifically, an
+  honestly-weaker sharp-consensus proxy), de-vigged via `core/odds.py`'s existing
+  decimal-odds → implied-prob → multiplicative-de-vig math. Team names joined order-agnostic
+  with an explicit alias table for every observed naming mismatch (`IR Iran`/`Iran`, `Korea
+  Republic`/`South Korea`, `Turkiye`/`Turkey`, etc.).
+
+**Live pass:** 97 completed World Cup 2026 games (2026-06-11..07-09), 291 outcome markets, 0
+candlestick fetch failures, 96/97 odds-matched (the one miss is the most recent game — the
+free odds file lags live results by a few days, an honest freshness gap). Tape →
+`tape/sports_history_s7/worldcup2026.jsonl` (20 MB) + the exact xlsx bytes fetched, both
+sha256-provenanced per record.
+
+**Honest finding on NFL/NBA:** `probe_last_season_availability()` confirmed Kalshi's public
+`/markets` listing purges settled markets after roughly one season, not indefinitely. NFL 2025
+season (finished Feb 2026) returns **zero** rows under `status=settled`/`closed` — fully gone.
+NBA returns 72 outcome markets / 36 games, but only the playoff tail (2026-05-05..06-14,
+conf finals through the Finals) — the regular season is gone the same way. No free historical
+NBA odds source was sourced this run (out of scope for this stage) — flagged as a follow-up,
+not a blocker. **S7b/S7c run on the World Cup dataset next**, the immediately-usable 97-game
+set this stage produced. Writeup → `../findings/2026-07-10-sports-history-s7a.md`.
+
+Gates: **121 tests green** (105 existing + 16 new), `invariants --full` green. Added
+`openpyxl>=3.1` to the `analysis` extra (reads the free .xlsx; base substrate + invariants
+still run without it).
+
+**Next:** Q4/S7b — probe Kalshi ask vs de-vigged fair at a defined decision time on the 97-game
+World Cup dataset, fee model consistent with `scripts/fee_breakeven.py`.
+
+---
+
+## 2026-07-10 05:11 UTC — Q3 hourly collector entry point built + first live pass
+
+Topmost eligible queue item: **Q3** was `BLOCKED(needs Q1 + Q2 built)`, and both landed this
+session's prior two runs — dependency resolved, flipped to `TODO`, and it's topmost, so this
+run built it: `collection/hourly_pass.py`, the single command the hourly Haiku collector
+routine runs.
+
+One pass = one `collection.sports_pairs.run()` + one `collection.crypto_hourly.run()`; during
+the 09 UTC hour it also runs `scripts/anomaly_sweep.py` as a subprocess if that file exists
+(Q6 isn't built yet, so today every hour is a no-op there — checked fresh every run, so Q6
+needs zero additional wiring once it lands). Discipline carried over from both collectors: a
+hard exception in either sub-pass degrades to an honest `{"ok": False, "error": ...}` entry
+rather than crashing the whole hourly pass or silently dropping the other collector's result;
+`completeness_ok` is `False` if either sub-pass raised, either sub-pass logged a
+series-enumeration error, or (09 UTC only) the anomaly sweep exists and failed — never faked
+`True`. Prints the exact digest line Q3 specified: `<n> markets, <m> lines, completeness
+<ok/FAIL>`.
+
+10 new unit tests (`tests/test_hourly_pass.py`), sub-passes stubbed via injected callables
+(no network): count aggregation, independent-failure isolation (a sports exception doesn't
+zero out crypto's real counts and vice versa), series-errors-without-an-exception still
+failing completeness, the 09-UTC-only anomaly-sweep gate (both the call-happens/doesn't-happen
+cases and a failing sweep failing completeness), the default runner treating "script doesn't
+exist yet" as `True` (not a failure), the digest line's exact format, and `main()`'s exit code
+tracking `completeness_ok`.
+
+**Live pass** (real network, no injected fixtures): **1311 markets, 455 lines, completeness
+ok** — sports leg 453 events / 1048 outcome markets (odds leg still `blocked_no_key`, unchanged
+from Q1), crypto leg 2/2 symbols captured with `spot={ok:2}` and `settle={ok:2}`. Tape appended
+to the existing `tape/sports_pairs/` and `tape/crypto_hourly/` stores (same manifests those
+collectors already write — `hourly_pass` adds no new tape shape, just orchestration). Gates:
+**105 tests green** (95 existing + 10 new), `invariants --full` green.
+
+**Next:** Q4 (S7 historical CLV backtest) and Q5 (S8 first cut) remain the two `TODO`-eligible
+research milestones; Q6 (anomaly sweep) is now load-bearing for Q3's completeness signal
+whenever it lands, not just a standalone probe. Collector-side plumbing (Q1/Q2/Q3) is done;
+the queue's center of gravity moves to actually testing S7/S8 for edge.
+
+---
+
+## 2026-07-10 00:22 UTC — Q2 crypto-hourly settlement collector built + first live pass
+
+Topmost eligible queue item after Q1: **Q2**, the crypto-hourly settlement-basis collector
+(serves S8/S10). Built:
+
+- `core/crypto_schema.py` — `CryptoHourlyManifest`, the Q2 sibling of `core/sports_schema.py`'s
+  `GamePairManifest`: one line pairs THREE legs for one symbol's current hourly bracket —
+  the Kalshi ladder (`real_ask`), a live public spot reference (`synthetic`), and the previous
+  hour's Kalshi-reported settlement value (`broker_truth`) — so S8's ρ-guard (spot-vs-settle
+  correlation) is computable from tape alone, with no second pass ever needed.
+- `collection/crypto_hourly.py` — per symbol (BTC via `KXBTC`, ETH via `KXETH`): discovers the
+  CURRENT hourly range-ladder by picking the open event whose `(close_time - open_time)` is
+  closest to exactly 3600s (Kalshi keeps a much-longer ~7-day "range" event alive under the
+  SAME series_ticker simultaneously — duration, not the ticker string, is what actually
+  distinguishes them; verified live on both KXBTC and KXETH); snapshots every outcome market's
+  real yes_ask BBO; fetches live spot (Coinbase primary, Kraken fallback on failure); locates
+  the settled event whose `close_time` equals the current event's `open_time` and reads off
+  Kalshi's own `expiration_value`. Any leg failure degrades to an honest status code
+  (`spot_status`/`settle_status`) rather than poisoning the Kalshi leg, which is captured
+  unconditionally — same discipline as `sports_pairs.py`'s odds leg.
+- Added `Kalshi.markets(series_ticker, status, limit)` to `validation/v3_market.py` (generalizes
+  the existing `open_markets`, which now delegates to it) so the settlement leg can query
+  `status="settled"` through the same throttled/paginated client, no new HTTP code path.
+- 14 new unit tests (`tests/test_crypto_hourly.py`): duration-based hourly-vs-standing-range
+  event selection (including the "nothing currently straddles now" fallback), degenerate/
+  single-outcome/series-error handling, spot-fetch-failure and settle-not-found/fetch-error
+  degradation (each independently, confirming the Kalshi leg is never poisoned), the
+  provenance/forged-hash check mirroring `sports_pairs`'s, and two adversarial schema checks
+  for the new "`ok` status implies the trusted tag" consistency rules.
+
+**Live pass** (no injected fixtures): **BTC 188 outcomes / ETH 75 outcomes** captured in one
+pass, `spot_status={ok:2}`, `settle_status={ok:2}` — both legs resolved live on the first try
+(Coinbase spot, Kalshi `expiration_value` for the hour that had just closed). Tape →
+`tape/crypto_hourly/`.
+
+**Honest finding, not interpreted here (Q5's job):** the naive `bracket_sum` summed across the
+FULL discovered ladder is **not** comparable to weather's ~10¢ overround — live BTC bracket_sum
+was **3.99** (188 outcomes, overround +2.99), ETH **2.22** (75 outcomes, overround +1.22).
+Inspecting the outcomes: most of the 188/75-market ladder is far out-of-the-money brackets
+sitting at the exchange's $0.01 floor tick (illiquid, effectively unfillable at size), and their
+one-cent asks summed across dozens of dead brackets dominate the total — a thin-tail-liquidity
+artifact, not a real structural cost comparable to the weather bracket's near-the-money
+overround. Nothing is discarded (the full ladder is captured honestly), but Q5's S8 first cut
+will need to restrict to brackets near the money (e.g. within a few strikes of live spot) to get
+a bracket_sum that means the same thing weather's did. Gates: **85 tests green** (71 existing +
+14 new), `invariants --full` green.
+
+**Next:** Q4 (S7 historical CLV backtest) and Q5 (S8 first cut from free candlesticks — now
+armed with 2 days-in-progress of paired crypto tape once cron accumulates it) are both
+`TODO`-eligible; Q5 should apply the near-the-money bracket filter found here before trusting
+any overround number. S8 moved `idea → data-collecting` in `kb/strategies/00-index.md`.
+
+---
+
+## 2026-07-09 20:18 UTC — Egress unblocked (Q0b); Q1 sports paired-odds collector built + first live pass
+
+Q0b's self-healing re-check (protocol: cheap re-test while any item sits `BLOCKED(egress...)`)
+found all four Q0 hosts now reachable — `curl --max-time 15` got Kalshi REST 200, Coinbase 200,
+Kraken 200, and the-odds-api 401 (reachable, just no key). Confirmed end-to-end with
+`python -m collection.capture_orderbooks --limit 3` (3 markets, 159 levels, real tape written).
+The org egress allowlist was evidently widened sometime between 2026-07-02 and today — not
+observable from inside the sandbox, just confirmed fixed. Flipped Q1–Q6 back to `TODO` in
+`LOOP-QUEUE.md`; refreshed `tape/cloud-env-check.md`.
+
+With egress open, moved to the new topmost eligible item: **Q1**, the sports paired-odds
+collector — time-sensitive, since the 2026 World Cup final round runs through Jul 19. Built:
+
+- `core/sports_schema.py` — `GamePairManifest`, the Q1 sibling of `core/manifest_schema.py`'s
+  weather `CaptureManifest`: same bitemporal/content-hash/self-signed discipline, keyed by
+  `event_ticker` instead of `(city, contract-day)` since a sports event isn't a city ladder.
+- `core/odds.py` — American-odds → de-vigged fair probability. Reuses
+  `core.pricing.bracket_sum`/`normalized_ask` for the overround-removal division (same "divide
+  by the group sum" operation as Kalshi's own Hard Rule #3 math, just applied to sportsbook
+  implied probabilities), so that arithmetic still lives in one place.
+- `collection/sports_pairs.py` — discovers every Sports-category series whose ticker ends in
+  `GAME` (empirically the per-event moneyline/winner suffix — `KXWCGAME`, `KXNBAGAME`,
+  `KXMLBGAME`, ... 186 series found live), World-Cup/soccer sorted first; groups each series'
+  open markets by the API's own `event_ticker` (cross-checked against a ticker-parse, mismatches
+  recorded not hidden); captures real yes/no BBO for every outcome in a >=2-way bracket
+  (`price_source_tag=real_ask`); attempts a matched-Pinnacle de-vig leg if `ODDS_API_KEY` is set
+  (`synthetic`), else honestly records `odds_leg_status="blocked_no_key"` per Q1's documented
+  fallback — the Kalshi leg is captured regardless.
+- 18 new unit tests (`tests/test_odds_devig.py`, `tests/test_sports_pairs.py`): American-odds
+  math, multiplicative de-vig on 2-way and 3-way brackets, ticker parse/reconcile, World-Cup
+  priority ordering, degenerate/series-error handling, odds-leg name matching (caught a real bug:
+  Kalshi labels a soccer draw "Tie", the-odds-api calls it "Draw" — added a synonym normalizer),
+  and the provenance/forged-hash check mirroring `capture_orderbooks`'s.
+
+**Live pass** (no `ODDS_API_KEY` in this environment): **469 events / 1079 outcome markets**
+captured at `real_ask` in ~47s. 4 `KXWCGAME` (World Cup) events captured — `bracket_sum` 1.01–1.02
+(1–2¢ overround), noticeably tighter than the ~10¢ weather-bracket overround that killed
+pt1/S1/S5. Across all 469 events, mean `bracket_sum` 1.34 (min 0.98, max 2.73) — wide dispersion
+expected from thin/off-season leagues with stale asks; not interpreted here, that's Q4's job.
+Tape → `tape/sports_pairs/`. `S7` (Kalshi moneyline vs Pinnacle CLV) moved `idea → data-collecting`
+in `kb/strategies/00-index.md`. Gates: 71 tests green (53 existing + 18 new), `invariants --full`
+green (two docstring false-positives on the `yes_ask`/`no_ask` regex — literal `yes_ask/no_ask`
+prose tripped Hard Rule #3's arithmetic detector; reworded, not a real violation).
+
+**Next:** Q2 (crypto-hourly collector) is now the topmost `TODO` item. Separately: S7's actual CLV
+backtest (Q4) is still gated on `ODDS_API_KEY` — the odds leg is built and unit-tested but has
+never made a live request; re-run Q1 once a key exists to confirm the live matching/de-vig path.
+
 ## 2026-07-08 05:30 ET — research loop: comprehensive stranded-tape sweep (6,272 lines recovered), queue still idle
 
 Claim-check: `git fetch origin main` force-updated the local ref to `ce310a2` (5 VPS hourly
