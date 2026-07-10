@@ -92,7 +92,25 @@ Kalshi leg anyway and note the odds leg as BLOCKED(key). Unit tests for ticker p
 de-vig math.
 
 ### Q2 — Build crypto-hourly settlement collector (serves S8/S10)
-Status: TODO (egress unblocked 2026-07-09; see Q0b)
+Status: DONE (2026-07-10) — `collection/crypto_hourly.py` + `core/crypto_schema.py`
+(bitemporal `CryptoHourlyManifest`, sibling of `GamePairManifest`); per symbol (BTC via
+KXBTC, ETH via KXETH) captures the CURRENT hourly range-ladder (`real_ask`), the live
+public spot price (Coinbase primary/Kraken fallback, `synthetic`), and the PREVIOUS
+hour's Kalshi-reported settlement value (`broker_truth`) in one paired manifest line, so
+S8's ρ-guard (spot-vs-settle correlation) is computable from tape alone. 14 new unit
+tests (duration-based hourly-vs-standing-range event selection, degenerate/series-error
+handling, spot/settle leg degradation, provenance/forged-hash check). Live pass: BTC (188
+outcomes) + ETH (75 outcomes) captured, spot=`{ok:2}`, settle=`{ok:2}`. Tape →
+`tape/crypto_hourly/`.
+**Honest finding for Q5:** naive `bracket_sum` over the FULL discovered ladder is not
+comparable to weather's ~10¢ overround — live BTC bracket_sum was 3.99 (188 outcomes,
+overround +2.99), ETH 2.22 (75 outcomes, overround +1.22). Cause: most of the ladder is
+far out-of-the-money brackets sitting at the $0.01 floor tick (illiquid, unfilled),
+whose one-cent asks sum up across dozens of dead brackets and dominate the total — an
+artifact of thin tail liquidity, not a real structural cost. Q5's S8 first cut will need
+to restrict to markets NEAR the money (e.g. within a few brackets of live spot) to get a
+bracket_sum comparable to weather's; the full-ladder number is captured (nothing
+discarded) but should not be read as "the overround" without that filter.
 `collection/crypto_hourly.py`: one pass = snapshot the CURRENT hour's BTC/ETH hourly bracket
 books (tag `real_ask`) + spot from ≥1 public exchange endpoint (tag `synthetic`), AND fetch
 settlement results for the PREVIOUS hour's markets → paired JSONL under `tape/crypto_hourly/`.
@@ -141,3 +159,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-02T22:43Z · Q0 · all 4 required hosts (Kalshi REST, Coinbase, Kraken, the-odds-api) BLOCKED by org egress policy (proxy CONNECT→403); Q1–Q6 marked BLOCKED(egress policy) pending Ryan widening the sandbox allowlist.
 - 2026-07-09T20:09Z · Q0b · egress unblocked — all 4 hosts now reachable (Kalshi 200, Coinbase 200, Kraken 200, the-odds-api 401=reachable-no-key); Q1–Q6 flipped BLOCKED(egress)→TODO.
 - 2026-07-09T20:18Z · Q1 · built `collection/sports_pairs.py` + `core/sports_schema.py` + `core/odds.py` (18 new tests, all green); live pass captured 469 events/1079 outcome markets real_ask (4 World-Cup KXWCGAME events, bracket_sum 1.01–1.02); odds leg blocked_no_key (ODDS_API_KEY absent) → S7 data-collecting.
+- 2026-07-10T00:22Z · Q2 · built `collection/crypto_hourly.py` + `core/crypto_schema.py` (14 new tests, all green, 85 total); live pass captured BTC (188 outcomes) + ETH (75 outcomes) hourly ladders paired with spot (Coinbase, synthetic) + prior-hour settlement (Kalshi expiration_value, broker_truth), spot/settle both `ok`; found naive full-ladder bracket_sum is inflated by far-OTM $0.01-floor brackets (BTC overround +2.99, ETH +1.22) — not comparable to weather's ~10¢ without a near-the-money filter, flagged for Q5 → S8 data-collecting.

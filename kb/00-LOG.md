@@ -6,6 +6,60 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 00:22 UTC — Q2 crypto-hourly settlement collector built + first live pass
+
+Topmost eligible queue item after Q1: **Q2**, the crypto-hourly settlement-basis collector
+(serves S8/S10). Built:
+
+- `core/crypto_schema.py` — `CryptoHourlyManifest`, the Q2 sibling of `core/sports_schema.py`'s
+  `GamePairManifest`: one line pairs THREE legs for one symbol's current hourly bracket —
+  the Kalshi ladder (`real_ask`), a live public spot reference (`synthetic`), and the previous
+  hour's Kalshi-reported settlement value (`broker_truth`) — so S8's ρ-guard (spot-vs-settle
+  correlation) is computable from tape alone, with no second pass ever needed.
+- `collection/crypto_hourly.py` — per symbol (BTC via `KXBTC`, ETH via `KXETH`): discovers the
+  CURRENT hourly range-ladder by picking the open event whose `(close_time - open_time)` is
+  closest to exactly 3600s (Kalshi keeps a much-longer ~7-day "range" event alive under the
+  SAME series_ticker simultaneously — duration, not the ticker string, is what actually
+  distinguishes them; verified live on both KXBTC and KXETH); snapshots every outcome market's
+  real yes_ask BBO; fetches live spot (Coinbase primary, Kraken fallback on failure); locates
+  the settled event whose `close_time` equals the current event's `open_time` and reads off
+  Kalshi's own `expiration_value`. Any leg failure degrades to an honest status code
+  (`spot_status`/`settle_status`) rather than poisoning the Kalshi leg, which is captured
+  unconditionally — same discipline as `sports_pairs.py`'s odds leg.
+- Added `Kalshi.markets(series_ticker, status, limit)` to `validation/v3_market.py` (generalizes
+  the existing `open_markets`, which now delegates to it) so the settlement leg can query
+  `status="settled"` through the same throttled/paginated client, no new HTTP code path.
+- 14 new unit tests (`tests/test_crypto_hourly.py`): duration-based hourly-vs-standing-range
+  event selection (including the "nothing currently straddles now" fallback), degenerate/
+  single-outcome/series-error handling, spot-fetch-failure and settle-not-found/fetch-error
+  degradation (each independently, confirming the Kalshi leg is never poisoned), the
+  provenance/forged-hash check mirroring `sports_pairs`'s, and two adversarial schema checks
+  for the new "`ok` status implies the trusted tag" consistency rules.
+
+**Live pass** (no injected fixtures): **BTC 188 outcomes / ETH 75 outcomes** captured in one
+pass, `spot_status={ok:2}`, `settle_status={ok:2}` — both legs resolved live on the first try
+(Coinbase spot, Kalshi `expiration_value` for the hour that had just closed). Tape →
+`tape/crypto_hourly/`.
+
+**Honest finding, not interpreted here (Q5's job):** the naive `bracket_sum` summed across the
+FULL discovered ladder is **not** comparable to weather's ~10¢ overround — live BTC bracket_sum
+was **3.99** (188 outcomes, overround +2.99), ETH **2.22** (75 outcomes, overround +1.22).
+Inspecting the outcomes: most of the 188/75-market ladder is far out-of-the-money brackets
+sitting at the exchange's $0.01 floor tick (illiquid, effectively unfillable at size), and their
+one-cent asks summed across dozens of dead brackets dominate the total — a thin-tail-liquidity
+artifact, not a real structural cost comparable to the weather bracket's near-the-money
+overround. Nothing is discarded (the full ladder is captured honestly), but Q5's S8 first cut
+will need to restrict to brackets near the money (e.g. within a few strikes of live spot) to get
+a bracket_sum that means the same thing weather's did. Gates: **85 tests green** (71 existing +
+14 new), `invariants --full` green.
+
+**Next:** Q4 (S7 historical CLV backtest) and Q5 (S8 first cut from free candlesticks — now
+armed with 2 days-in-progress of paired crypto tape once cron accumulates it) are both
+`TODO`-eligible; Q5 should apply the near-the-money bracket filter found here before trusting
+any overround number. S8 moved `idea → data-collecting` in `kb/strategies/00-index.md`.
+
+---
+
 ## 2026-07-09 20:18 UTC — Egress unblocked (Q0b); Q1 sports paired-odds collector built + first live pass
 
 Q0b's self-healing re-check (protocol: cheap re-test while any item sits `BLOCKED(egress...)`)

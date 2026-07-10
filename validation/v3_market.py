@@ -153,9 +153,12 @@ class Kalshi:
         j = self.get(f"/series/{ticker}")
         return j.get("series", j)
 
-    def open_markets(self, series_ticker: str) -> List[dict]:
+    def markets(self, series_ticker: str, status: str, limit: int = 1000) -> List[dict]:
         return self.paginate("/markets", "markets", series_ticker=series_ticker,
-                             status="open", limit=1000)
+                             status=status, limit=limit)
+
+    def open_markets(self, series_ticker: str) -> List[dict]:
+        return self.markets(series_ticker, status="open", limit=1000)
 
     def orderbook(self, ticker: str) -> Dict[str, Any]:
         # Full depth: omit the depth param. Modern key is 'orderbook_fp'.
