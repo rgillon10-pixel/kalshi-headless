@@ -6,6 +6,56 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 20:xx UTC — Research loop: stranded-tape sweep (5,125 lines) + tape-format-regression finding
+
+Step 0a history-integrity check: PASS. The 5 most-recently-merged PRs' squash/merge commits
+(#18, #35, #33, #32, #31 — verified by commit-message search after unshallowing the local
+clone, not by branch-head SHA, since squash-merges rewrite the commit object) are all
+reachable from `origin/main`; `kb/00-LOG.md`'s newest dated entry and the newest `tape/*/dt=*`
+file are both 2026-07-10 (0-day gap). `main` is not rewound.
+
+Step 0b stranded-tape sweep: fetched + content-diffed all 80 `tape/hourly-*` branches (line-set
+diff per tape file, not commit ancestry — this repo's PRs are squash-merged so a branch head's
+raw SHA is never an ancestor of `main` even when fully reconciled). ~70 pre-2026-07-08 branches
+were already fully reconciled (0 missing lines — the pre-reset lineage's own sweeps plus
+today's PR #35 recovery already cover them). Found real gaps in 9 branches: 3 from right at/
+after the 07-08T10:56Z reset event (`tape/hourly-20260708T1101Z`/`1102Z`/`1103Z`) and 6 from
+today (`tape/hourly-202607100655Z` through `20260710T1656Z`). Union-appended **5,125 lines**
+`main` was missing across `crypto_hourly`, `orderbook_depth`, `polymarket_macro_pairs`,
+`polymarket_pairs`, and `sports_pairs` — every line JSON-validated, 0 exact duplicates
+introduced (verified via `sort -u` line-count parity per file). `tape/hourly-20260710T1955Z`
+(committed ~14 minutes before this check, under the 30-minute freshness rule) was left for the
+next run.
+
+**Milestone: Q7 eligibility check surfaced a real tape-format regression, not a new day of
+data.** `tape/crypto_hourly/` and `tape/sports_pairs/` each had a `dt=2026-07-10` **directory**
+(raw per-market Kalshi API blobs, 23 hourly passes from 2026-07-10T00:26Z–19:24Z) instead of
+the canonical `dt=2026-07-10.jsonl` **file** every other day uses — caused by the post-reset
+lineage's rebuilt collectors writing a different storage format, which PR #35 reconciled the
+*code* for but not the *already-committed tape*. Same window: `tape/orderbook_depth/`,
+`tape/polymarket_pairs/`, `tape/polymarket_macro_pairs/` have zero 07-10 entries at all (the
+post-reset `hourly_pass.py` only ran 2 of the pre-reset lineage's 5 sub-passes). Confirmed
+self-corrected: the first hourly pass after PR #35's merge (`tape/hourly-20260710T1955Z`,
+commit `cf33e5f`, 20:01:49Z) writes the correct format across all 5 families. Q7 is still
+BLOCKED — 6 valid canonical days (03–08), not the apparent 7th. Full writeup:
+`findings/2026-07-10-tape-format-regression-crypto-sports.md`. New lesson: `kb/lessons/
+00-lessons.md` L25 (UNENFORCED — a day-count check should verify file shape, not just path
+existence). Left the ~19h of raw blobs unprocessed — reconstructing canonical records from
+them needs a previous-settlement/spot pairing this run couldn't verify was captured alongside,
+so reprocessing is flagged as an open decision for Ryan / a future `collector-engineer`
+milestone, not attempted here.
+
+**Also noted, not acted on:** PR #4 (Q1's odds-api leg, `worktree-q1-odds-leg`, draft, claims
+Q1) has been open 7 days awaiting `ODDS_API_KEY` — still absent from the environment. No lesson
+or registry candidate had a live `UNENFORCED`/`idea` row actionable this run beyond L25 above
+(Q13 needs ≥10 sports_pairs days, has 9; Q14/Q15 remain externally BLOCKED, unchecked live this
+run since the finding above was the day's milestone).
+
+Gates: 401 tests green, `python scripts/invariants.py --full` green (only the pre-existing
+non-gating stranded-tape advisory).
+
+---
+
 ## 2026-07-10 — RECONCILIATION: main-branch reset discovered and repaired (local session with Ryan)
 
 On 2026-07-08T10:56Z a push moved `origin/main` back to `6cde523` (the 2026-07-02 Q0
