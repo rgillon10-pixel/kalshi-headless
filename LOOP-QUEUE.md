@@ -135,7 +135,15 @@ needs (`<n> markets, <m> lines, completeness <ok/FAIL>`). Must be safe to run un
 every hour; a partial failure lowers completeness, it never fakes success.
 
 ### Q4 — S7 historical backtest (sports CLV vs de-vigged sharp line) — the try-first edge
-Status: TODO (egress unblocked 2026-07-09; see Q0b)
+Status: IN-PROGRESS (S7a done 2026-07-10; S7b/S7c next) — `scripts/sports_history_s7a.py` (16
+new tests) sourced **97 completed World Cup 2026 games** / 291 outcome markets, real_ask
+candlesticks, matched 96/97 to football-data.co.uk's free closing-odds average (synthetic,
+de-vigged via `core/odds.py`). Last-season NFL/NBA is NOT fully available from Kalshi's public
+`/markets` (settled markets age out after roughly a season): NFL 2025 season is fully gone
+(zero rows under `status=settled`/`closed`); NBA has only the last 36 playoff games
+(2026-05-05..06-14) with no odds leg sourced yet — flagged as a follow-up sourcing target, not
+a blocker. Tape → `tape/sports_history_s7/`; writeup →
+`findings/2026-07-10-sports-history-s7a.md`. **Next stage runs S7b on the World Cup dataset.**
 One stage per run:
 **S7a** — source last-season NFL/NBA (+ any completed 2026 World Cup) Kalshi market history
 via public candlesticks + a free historical closing-odds source; document provenance in the
@@ -170,3 +178,4 @@ T−5/T−2 far-bracket ask vs remaining-time reachability; must clear the artif
 - 2026-07-09T20:18Z · Q1 · built `collection/sports_pairs.py` + `core/sports_schema.py` + `core/odds.py` (18 new tests, all green); live pass captured 469 events/1079 outcome markets real_ask (4 World-Cup KXWCGAME events, bracket_sum 1.01–1.02); odds leg blocked_no_key (ODDS_API_KEY absent) → S7 data-collecting.
 - 2026-07-10T00:22Z · Q2 · built `collection/crypto_hourly.py` + `core/crypto_schema.py` (14 new tests, all green, 85 total); live pass captured BTC (188 outcomes) + ETH (75 outcomes) hourly ladders paired with spot (Coinbase, synthetic) + prior-hour settlement (Kalshi expiration_value, broker_truth), spot/settle both `ok`; found naive full-ladder bracket_sum is inflated by far-OTM $0.01-floor brackets (BTC overround +2.99, ETH +1.22) — not comparable to weather's ~10¢ without a near-the-money filter, flagged for Q5 → S8 data-collecting.
 - 2026-07-10T05:11Z · Q3 · Q1+Q2 dependency resolved so Q3 flipped BLOCKED→TODO and ran topmost; built `collection/hourly_pass.py` (10 new tests, all green, 105 total) orchestrating sports_pairs + crypto_hourly + conditional 09-UTC anomaly sweep, honest completeness_ok never faked True; live pass 1311 markets/455 lines completeness ok. Collector plumbing (Q1/Q2/Q3) complete; queue center of gravity moves to Q4/Q5 edge-testing.
+- 2026-07-10T10:35Z · Q4(S7a) · built `scripts/sports_history_s7a.py` (16 new tests, all green, 121 total); live pass sourced 97 completed World Cup 2026 games / 291 outcome markets at real_ask candlesticks, matched 96/97 to football-data.co.uk's free closing-odds average (synthetic, de-vigged); confirmed last-season NFL fully unavailable from Kalshi's public API (settled markets purged after ~1 season) and NBA only partially available (36 playoff games, no odds leg yet) — documented, not a blocker. Q4 IN-PROGRESS, next stage runs S7b (Kalshi ask vs de-vig fair) on the World Cup dataset.

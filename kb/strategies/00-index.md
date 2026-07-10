@@ -81,7 +81,7 @@ peer-review (rejected all 15 raw candidates — appropriate skepticism for unpro
 synthesis distilled the 5 most-defensible, each with its kill condition. **All inputs are FREE today;
 no idea is in the dead ledger.** Full dossiers: `../../reports/new-ideas-2026-06-18.html`.
 
-- **S7 (try first, med) → data-collecting (2026-07-09).** Kalshi NFL/NBA moneyline vs Pinnacle
+- **S7 (try first, med) → data-collecting (2026-07-10).** Kalshi NFL/NBA moneyline vs Pinnacle
   de-vigged fair — CLV harvest on the lowest-overround family (2-outcome ~2–4¢). Sharps
   under-participate (books limit winners) → squares set Kalshi's price; Pinnacle's balanced book is
   the truth anchor. Single-leg directional, zero-capital season backtest on free Kalshi candlesticks +
@@ -92,6 +92,14 @@ no idea is in the dead ledger.** Full dossiers: `../../reports/new-ideas-2026-06
   matched-Pinnacle odds leg (`core/odds.py` de-vig) is built and unit-tested but `ODDS_API_KEY` is
   absent this run, so every event's `odds_leg_status="blocked_no_key"` — S7's actual CLV test (Kalshi
   ask vs de-vigged Pinnacle fair) is still gated on that key. Tape → `tape/sports_pairs/`.
+  **Q4/S7a built** `scripts/sports_history_s7a.py`: sourced the actual backtest dataset — **97
+  completed World Cup 2026 games** (291 outcome markets, real_ask candlesticks) matched 96/97 to
+  football-data.co.uk's free historical closing-odds average (`synthetic`, de-vigged). Last-season
+  NFL/NBA is NOT fully available from Kalshi's public API (settled markets age out of `/markets`
+  after roughly a season; NFL 2025 season is fully gone, NBA has only the last 36 playoff games,
+  May–June 2026, with no odds leg sourced yet). S7b/S7c (the actual CLV backtest + bootstrap CI)
+  run on the World Cup dataset next. Tape → `tape/sports_history_s7/`; writeup →
+  `../../findings/2026-07-10-sports-history-s7a.md`.
 - **S8 (med) → data-collecting (2026-07-10).** Crypto-hourly settlement basis — Kalshi settles on CF
   Benchmarks BRRNY (60s index avg), retail prices off visible spot → genuine feed mismatch (NOT the
   dead NWS/WU ρ=0.99999 case; first check is the ρ guard). 24/7 cadence → bootstrappable n in days.

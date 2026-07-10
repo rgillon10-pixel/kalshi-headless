@@ -6,6 +6,53 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 10:35 UTC — Q4/S7a: sourced the World Cup CLV backtest dataset; NFL/NBA history mostly unavailable
+
+Topmost eligible queue item: **Q4** (S7 historical CLV backtest), `TODO` since Q0b's egress
+unblock. Q4 runs in three stages (S7a source → S7b probe → S7c bootstrap CI); this run did
+**S7a only** — sourcing + provenance, no backtest math yet.
+
+Built `scripts/sports_history_s7a.py` (16 new unit tests, all offline/no-network, 121 total
+green). Two legs per game:
+
+- **Kalshi (`real_ask`)** — every settled `KXWCGAME` event via `GET /events` with nested
+  markets (settlement `result`/`settlement_value_dollars` arrive inline), plus the full hourly
+  candlestick series per outcome market (Kalshi's own published `yes_ask` OHLC). Markets are
+  listed as early as ~140 days before their game, so the candlestick fetch is capped to the
+  last 7 days before close (`CANDLE_LOOKBACK_HOURS`, logged per-outcome as
+  `candle_window_truncated`) — the pre-game noise a decision-time backtest will never use is
+  dropped explicitly, not silently; keeps the tape at 20 MB instead of ~106 MB uncapped.
+- **Odds (`synthetic`)** — football-data.co.uk's free public `WorldCup2026.xlsx`
+  (`H-Avg`/`D-Avg`/`A-Avg`, a multi-book closing-odds average — not Pinnacle-specifically, an
+  honestly-weaker sharp-consensus proxy), de-vigged via `core/odds.py`'s existing
+  decimal-odds → implied-prob → multiplicative-de-vig math. Team names joined order-agnostic
+  with an explicit alias table for every observed naming mismatch (`IR Iran`/`Iran`, `Korea
+  Republic`/`South Korea`, `Turkiye`/`Turkey`, etc.).
+
+**Live pass:** 97 completed World Cup 2026 games (2026-06-11..07-09), 291 outcome markets, 0
+candlestick fetch failures, 96/97 odds-matched (the one miss is the most recent game — the
+free odds file lags live results by a few days, an honest freshness gap). Tape →
+`tape/sports_history_s7/worldcup2026.jsonl` (20 MB) + the exact xlsx bytes fetched, both
+sha256-provenanced per record.
+
+**Honest finding on NFL/NBA:** `probe_last_season_availability()` confirmed Kalshi's public
+`/markets` listing purges settled markets after roughly one season, not indefinitely. NFL 2025
+season (finished Feb 2026) returns **zero** rows under `status=settled`/`closed` — fully gone.
+NBA returns 72 outcome markets / 36 games, but only the playoff tail (2026-05-05..06-14,
+conf finals through the Finals) — the regular season is gone the same way. No free historical
+NBA odds source was sourced this run (out of scope for this stage) — flagged as a follow-up,
+not a blocker. **S7b/S7c run on the World Cup dataset next**, the immediately-usable 97-game
+set this stage produced. Writeup → `../findings/2026-07-10-sports-history-s7a.md`.
+
+Gates: **121 tests green** (105 existing + 16 new), `invariants --full` green. Added
+`openpyxl>=3.1` to the `analysis` extra (reads the free .xlsx; base substrate + invariants
+still run without it).
+
+**Next:** Q4/S7b — probe Kalshi ask vs de-vigged fair at a defined decision time on the 97-game
+World Cup dataset, fee model consistent with `scripts/fee_breakeven.py`.
+
+---
+
 ## 2026-07-10 05:11 UTC — Q3 hourly collector entry point built + first live pass
 
 Topmost eligible queue item: **Q3** was `BLOCKED(needs Q1 + Q2 built)`, and both landed this
