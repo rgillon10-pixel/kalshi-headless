@@ -6,6 +6,37 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-10 16:50 ET — Burst-capture legs approved + built; ntfy topic moved out of the public repo (ops, Ryan-interactive)
+
+- **Burst captures approved.** The S9 lead-lag resolution (2026-07-06) had flagged
+  sub-hourly event-window captures as a new automation class needing Ryan's sign-off;
+  Ryan gave it today. Built `collection/burst_capture.py` (+15 offline unit tests, 420
+  total green, `invariants --full` green): a thin loop harness over the existing
+  collectors' one-pass functions (`wc`/`fed`/`cpi`/`econ`/`crypto`/`sports` families),
+  `--until`/`--interval`/`--families` CLI, overrun-skips-boundaries timing, per-family
+  fault isolation, honest AND-completeness. No new tape family, no schema change —
+  burst lines are distinguishable by `fetch_ts` density alone. Live smoke pass (2
+  crypto ticks @20:44 UTC) honestly reported `completeness FAIL` — the documented L15
+  venue-side 20-UTC-hour crypto hole, not a collector fault; lines kept as real tape.
+- **Five one-shot cloud triggers created** (Ryan's account, not the repo): June-CPI
+  print Jul 14 12:05→13:45Z; WC semi 1 Jul 14 and semi 2 Jul 15 20:10→22:30Z; WC final
+  Jul 19 20:10→22:45Z (last-ever KXWCROUND capture window); FOMC decision Jul 29
+  17:40→19:45Z. Each carries a hard date guard against annual cron re-fire. Protocol
+  section "Burst-capture legs" appended to `LOOP-QUEUE.md`; step 0b's sweep now also
+  covers `tape/burst-*` fallback branches. Why it matters: this is exactly the data
+  class whose absence made S9's lead-lag thesis untestable — S17's lead-lag question
+  becomes testable on this tape.
+- **ntfy topic migration (step 8(e)).** The repo went public 2026-07-10 and ntfy.sh
+  topics are world-writable — the committed topic name let anyone inject priority-5
+  messages into the `ntfy-watch` responder. New secret topic generated; all 5 cloud
+  routine prompts updated to carry the URL privately; local sessions read
+  `~/.claude/secrets/kalshi-ntfy-topic`; VPS flip to `/root/.secrets/kalshi-headless.env`
+  pending (Ryan action); `config/notify.topic` stays only as the retired fallback until
+  then. The new topic name is committed NOWHERE in this repo, by design.
+- Worker lesson candidates (per-family completeness conventions; overrun-test
+  offset-sequence pinning; fresh L15 corroboration) recorded in the builder's report —
+  left for the next kb-distiller pass.
+
 ## 2026-07-10 20:xx UTC — Research loop: stranded-tape sweep (5,125 lines) + tape-format-regression finding
 
 Step 0a history-integrity check: PASS. The 5 most-recently-merged PRs' squash/merge commits

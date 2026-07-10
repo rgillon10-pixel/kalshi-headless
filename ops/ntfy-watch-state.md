@@ -5,8 +5,11 @@
 This is the dedup memory for the **ntfy-watch** routine (an hourly trigger, fresh session
 per firing, per `LOOP-QUEUE.md`'s "Log of runs" 2026-07-04 ntfy-watch entry). Each firing:
 
-1. Polls `config/notify.topic` (`since=3h`, buffer for a missed hourly fire) for
-   `priority>=4` messages (the ones meant to need Ryan's action per `LOOP-QUEUE.md` step 8).
+1. Polls the ntfy topic (`since=3h`, buffer for a missed hourly fire) for `priority>=4`
+   messages (the ones meant to need Ryan's action per `LOOP-QUEUE.md` step 8). The topic URL
+   lives in the routine's own prompt, NOT in this repo, since the 2026-07-10 migration
+   (LOOP-QUEUE.md step 8(e)) — the repo is public and a committed topic would be
+   world-writable.
 2. Skips any message whose `<unix-time>` already has a line below — already handled.
 3. For each new one: investigates (git log, open PRs, CI, the referenced queue item),
    attempts a fix within CLAUDE.md's Stop rules (research/data-only, no credentials, no

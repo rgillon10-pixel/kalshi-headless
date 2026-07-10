@@ -7,12 +7,19 @@ Read-only check of the shared ntfy topic — this skill never posts, only fetche
 
 ## 1. Get the topic
 
+The topic moved OUT of this (public) repo on 2026-07-10 (LOOP-QUEUE.md step 8(e)) — read it
+from the local secrets file:
+
 ```bash
-TOPIC_URL=$(tr -d '[:space:]' < config/notify.topic)
+TOPIC_URL=$(tr -d '[:space:]' < ~/.claude/secrets/kalshi-ntfy-topic)
 ```
 
-Treat this URL as sensitive-ish (it's an unguessable-suffix "secret by obscurity" topic) —
-don't paste it into external tools, just use it locally in commands.
+If that file doesn't exist (fresh machine), the retired legacy topic in `config/notify.topic`
+still works as a fallback for VPS-leg notes until the VPS migration completes — but say
+plainly in your summary that you're reading the deprecated feed.
+
+Treat this URL as a secret — never paste it into external tools, any repo file, or any
+commit; only use it locally in commands.
 
 ## 2. Fetch recent messages
 

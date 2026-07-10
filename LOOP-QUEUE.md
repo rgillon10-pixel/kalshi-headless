@@ -41,7 +41,8 @@ persisted price, invariants green before commit.
 0b. **Stranded-tape sweep (added 2026-07-04, after 10 collector passes silently stranded).**
    The hourly collector's push to `main` fails intermittently and falls back to a
    `tape/hourly-*` branch; that tape never reaches `main` on its own. As part of every
-   research run: `git ls-remote --heads origin 'refs/heads/tape/hourly-*'`; for each such
+   research run: `git ls-remote --heads origin 'refs/heads/tape/hourly-*' 'refs/heads/tape/burst-*'`
+   (`burst-*` added 2026-07-10 — the burst legs below use the same fallback mechanism); for each such
    branch, union-append any JSONL lines missing from `main`'s per-day tape files into your
    run's own commit (line-level dedupe is safe — tape is append-only JSONL with unique
    capture identity per line; never rewrite or reorder existing lines), then, only after
@@ -76,10 +77,11 @@ persisted price, invariants green before commit.
    - Repo: <short sha> → <branch> (PR #<n>, merged|open)
    ```
 
-8. Phone note (all legs — research loop, cloud collector, VPS collector, weekly retro; added
-   2026-07-03). Best-effort, never blocks a run: POST one plain-English summary a
-   non-programmer understands (no jargon, SHAs, or ticker codes) to the ntfy URL in
-   `config/notify.topic` via `curl -s -m 10 -H 'Title: <leg name>' -d '<text>'`. Hourly
+8. Phone note (all legs — research loop, cloud collector, VPS collector, weekly retro, burst
+   legs; added 2026-07-03). Best-effort, never blocks a run: POST one plain-English summary a
+   non-programmer understands (no jargon, SHAs, or ticker codes) to the leg's ntfy URL
+   (supplied privately per the 2026-07-10 topic migration in (e) below; formerly the URL in
+   `config/notify.topic`) via `curl -s -m 10 -H 'Title: <leg name>' -d '<text>'`. Hourly
    collector notes use `-H 'Priority: low'` (silent feed); anything failed or needing Ryan's
    action uses `-H 'Priority: high'`. Ryan reads this feed on his phone via the ntfy app —
    it is the human window into the loop; write for him, not for the log.
@@ -90,6 +92,16 @@ persisted price, invariants green before commit.
    `Priority: high` or above; (c) if the ntfy POST itself fails, say so in the run digest so
    the retro can see the notification pipe is broken; (d) the weekly retro's review MUST
    include "did phone notes flow every day this week?" as a checklist item.
+   **(e) Topic migration (2026-07-10, Ryan-approved public-repo hardening):** the ntfy topic
+   is no longer stored in this repo. The repo went public on 2026-07-10 and ntfy.sh topics
+   are world-readable AND world-writable — a committed topic name lets anyone inject
+   priority-5 messages that the `ntfy-watch` responder would investigate. Each cloud leg's
+   routine prompt now carries the URL directly (private to Ryan's account); the VPS leg reads
+   `NTFY_TOPIC_URL` from `/root/.secrets/kalshi-headless.env`; Ryan's local sessions read
+   `~/.claude/secrets/kalshi-ntfy-topic`. `config/notify.topic` holds only the OLD, retired
+   topic as a temporary fallback until the VPS is flipped, after which it gets deleted —
+   nothing reads it for action anymore (`ntfy-watch` polls the new topic only). NEVER commit
+   the new topic name to any file in this repo, any PR, or any run's final message.
 
 ## Stop rules (non-negotiable)
 
@@ -123,6 +135,32 @@ ledger append, so knowledge compounds instead of evaporating between stateless r
 lessons ledger lives at `kb/lessons/00-lessons.md`; its UNENFORCED rows are a standing
 work queue any idle run may draw from (converting a lesson into an invariant/test is
 always an eligible milestone, no queue item needed).
+
+## Burst-capture legs (added 2026-07-10 — Ryan-approved, interactive session)
+
+The S9 lead-lag resolution (`findings/2026-07-06-polymarket-leadlag-s9-resolution.md`)
+identified sub-hourly event-window captures as a new automation class that needed Ryan's
+sign-off; that sign-off was given 2026-07-10. Five ONE-SHOT cloud triggers now exist
+(created via the trigger API — they live in Ryan's account, not this file):
+
+| trigger | event | window (UTC) | families / interval |
+|---|---|---|---|
+| `kalshi-burst-cpi-0714` | June CPI print (12:30Z release) | Jul 14 12:05→13:45 | econ,cpi,fed,crypto @60s |
+| `kalshi-burst-wcsemi1-0714` | WC semifinal 1 (19:00Z kickoff) | Jul 14 20:10→22:30 | wc @120s |
+| `kalshi-burst-wcsemi2-0715` | WC semifinal 2 (19:00Z kickoff) | Jul 15 20:10→22:30 | wc @120s |
+| `kalshi-burst-wcfinal-0719` | WC FINAL (19:00Z kickoff) | Jul 19 20:10→22:45 | wc @120s |
+| `kalshi-burst-fomc-0729` | FOMC decision (18:00Z statement) | Jul 29 17:40→19:45 | fed,econ,crypto @90s |
+
+Each runs `python -m collection.burst_capture --until <end> --interval <s> --families <list>`
+— a thin loop over the existing collectors' one-pass functions (no new tape family, no schema
+change; burst lines are distinguishable downstream purely by `fetch_ts` density), commits
+tape ONLY (`tape: burst <slug> <ts>`, fallback branch `tape/burst-*`, swept by step 0b),
+posts a step-8 phone note, and carries a hard date guard so the cron's annual re-fire is a
+no-op. Burst runs obey every Stop rule: they collect, they never analyze, never trade. The
+point: this is exactly the data class whose absence killed S9's lead-lag test — S17's
+lead-lag question (who reprices first around a macro shock, Kalshi or Polymarket?) becomes
+testable on this tape. After each event the trigger should be disabled/deleted (weekly retro
+or Ryan); a fired one-shot left enabled is harmless but untidy.
 
 ## Queue (topmost eligible item wins)
 
