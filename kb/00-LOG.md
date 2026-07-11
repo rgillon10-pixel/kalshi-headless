@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-11 05:xx UTC — research loop: stranded-tape sweep (1,551 lines) + L25→L29 (tape dir-shape invariant built)
+
+Step 0a history-integrity check passed: the 5 most-recently-merged PRs (#37, #36, #18, #35,
+#33) are all reachable from `origin/main` (confirmed via commit-message search post
+squash-merge, since PR head SHAs are never ancestors under this repo's convention);
+`kb/00-LOG.md`'s newest entry and the newest `tape/*/dt=*` file are both 2026-07-11 (0-day
+gap). `main` is not rewound. Open PRs: only #4 (Q1 odds-api leg), still claimed, now ~8 days
+old awaiting `ODDS_API_KEY` — past PR #18's adopted 5-day escalation mark, flagged
+`Priority: high` again in this run's phone note.
+
+**Step 0b stranded-tape sweep.** `git reset --hard origin/main` first (per the adopted
+retro amendment). Of 86 `tape/hourly-*`/`-amended-`/`-corrected-`/`-followup-` branches, the
+3 most recent since the last sweep (`20260711T000050Z`, `20260711T0254Z`, `20260711T0356Z`,
+all >30min old) carried real line-set gaps against `main`; `20260711T0154Z` diffed to zero
+missing lines (already reconciled — its content landed on `main` directly via the same-
+timestamp commit `308d9fc`). Union-appended **1,551 lines** `main` was missing —
+`crypto_hourly` +6 (2+4 across the two affected days), `orderbook_depth` +827,
+`polymarket_macro_pairs` +45, `polymarket_pairs` +30, `sports_pairs` +643 — every line
+JSON-validated, 0 exact duplicates (confirmed via a `sort`+`sort -u` line-count parity check
+per target file post-append). Branch-delete not attempted (documented permission boundary,
+per the adopted amendment).
+
+**Milestone: converted lesson L25 into a live invariant (no numbered queue item was
+eligible — Q13 still BLOCKED at 8/10 valid days of `tape/sports_pairs/`, Q14/Q15 still
+data-adequacy BLOCKED, Q1 still claimed by PR #4).** Built
+`scripts/invariants.py::_tape_dir_shape_issues()` / `tape_dir_shape_warning()`, the exact
+enforcement L25 asked for: a non-gating advisory (same pattern as L20's stranded-tape
+warning) that scans every `tape/<family>/dt=<date>` path and flags any that is a
+**directory** instead of the canonical `.jsonl` file — the shape of bug that let the
+2026-07-08 main-rewind's regression silently miscount a day-count gate. Wired into
+`--full`'s existing warning block. Live-validated against the real committed tree: it
+correctly flags the 4 stray directories that regression left behind and were never cleaned
+up (`crypto_hourly/dt=2026-07-10`, `sports_pairs/dt=2026-07-02`, `sports_pairs/dt=2026-07-09`,
+`sports_pairs/dt=2026-07-10`) — confirming both that the check works on real data and that
+those directories are still sitting there (cleanup/reprocessing is separate follow-up work,
+flagged, not done here). 6 new tests (438 total, 432 prior + 6 new). Recorded as **L29**
+(supersedes L25) in `kb/lessons/00-lessons.md`.
+
+Gates: 438 tests green, `python scripts/invariants.py --full` green (only the two
+non-gating advisories: stranded-tape L20 and the new L25/L29 dir-shape warning, both
+expected and harmless). No source-code milestone changed a queue Status line; Q13 day-count
+re-confirmed off disk (8 valid canonical days: 03,04,05,06,07,08,10,11 — not yet 10).
+
 ## 2026-07-11 00:27 UTC — Q7 milestone: S10 crypto-hourly reachability decay → STRUCTURAL DEAD (verifier-CONFIRMED)
 
 - **Q7 became eligible this run.** The `crypto_hourly` tape crossed **7 valid canonical days**

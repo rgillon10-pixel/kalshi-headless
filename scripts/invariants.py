@@ -378,6 +378,44 @@ def stranded_tape_warning(refs: List[str]) -> Optional[str]:
     )
 
 
+# ─── Tape dir-shape warning (L25: non-gating, offline-safe advisory) ─────────
+
+def _tape_dir_shape_issues(tape_root: Path = ROOT / "tape") -> List[str]:
+    """A `dt=<date>` entry under any `tape/<family>/` dir must be the canonical .jsonl
+    file, never a directory (lesson L25: the 2026-07-08 main-rewind briefly ran collector
+    code that wrote raw per-market blobs into a `dt=<date>/` directory instead of appending
+    the canonical `dt=<date>.jsonl` line format — a naive day-count gate that only checks
+    path existence would miscount such a directory as a valid day). Best-effort/offline:
+    ANY failure (missing tape/, permission error, exception) yields [] so it can never
+    poison the gate. Returns `family/dt=<date>` labels, sorted."""
+    try:
+        if not tape_root.is_dir():
+            return []
+        issues = []
+        for family_dir in sorted(p for p in tape_root.iterdir() if p.is_dir()):
+            for entry in sorted(family_dir.glob("dt=*")):
+                if entry.is_dir():
+                    issues.append(f"{family_dir.name}/{entry.name}")
+        return issues
+    except Exception:
+        return []
+
+
+def tape_dir_shape_warning(issues: List[str]) -> Optional[str]:
+    """A non-gating advisory message when tape/<family>/dt=<date> paths are directories
+    instead of the canonical .jsonl file, else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = ", ".join(issues[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} tape/<family>/dt=<date> path(s) are DIRECTORIES, not "
+        f"the canonical .jsonl file (e.g. {examples}). A day-count gate (e.g. LOOP-QUEUE.md "
+        f"Q7/Q13) that only checks path existence would miscount these as valid days — verify "
+        f"file shape before trusting a day-count. See kb/lessons/00-lessons.md L25."
+    )
+
+
 # ─── PreToolUse hook ────────────────────────────────────────────────────────
 
 def _post_edit_content(file_path: Path, old: str, new: str) -> Optional[str]:
@@ -448,6 +486,11 @@ def main() -> int:
         warning = stranded_tape_warning(_git_tape_refs())
         if warning:
             sys.stderr.write(warning + "\n")
+        # L25 advisory: surface any tape/<family>/dt=<date> path that is a directory
+        # instead of the canonical .jsonl file. Non-gating — printed to stderr only.
+        shape_warning = tape_dir_shape_warning(_tape_dir_shape_issues())
+        if shape_warning:
+            sys.stderr.write(shape_warning + "\n")
 
     if failures:
         sys.stderr.write(f"invariants: {len(failures)} violation(s)\n")
