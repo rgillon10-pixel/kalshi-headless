@@ -15,7 +15,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S3** | K3 cross-strike monotonicity staleness | kalshi.ibkr · QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q6, 2026-07-04) sweeps daily @09 UTC for real fee-floor-clearing crossings; 0 so far in 3 capped live passes (expected, rare); verdict needs accumulated tape |
 | **S4** | FEx wing-strike fat-tail mispricing | arb-bot H1 · QF Theme 5 | blocked-on-data | 0.25 | quoted tail mass < empirical by > overround+fee |
 | **S5** | Weather rehab (EMOS-calibrated × honest fill × real asks) | combo · QF Theme 5 | **dead ✗** | — | TESTED n=641: EMOS CRPS −7.9% but net P&L CI [−$0.063,+$0.008] ⊄ >0 → weather family dead |
-| **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | **data-collecting** | — | A-S quotes; spread income > adverse-selection cost; `collection/orderbook_depth.py` (Q16, 2026-07-07) now captures full L2 depth hourly for sports/crypto tickers |
+| **S6** | Inventory-aware market-making (maker rebate of spread) | QF Theme 3 | **dead ✗** | — | DEAD (first cut, 2026-07-11, verifier-CONFIRMED): by-ticker block-bootstrap net maker P&L strictly < 0 on every realistic two-sided book (≤10¢ frozen-inclusive mean −$0.00195 CI [−$0.00297,−$0.00094]; movement-conditioned −$0.02010 CI [−$0.02271,−$0.01759]). Structural killer: the flat 1¢ maker fee exceeds the modal 1–2¢ spread's capturable half. Naive +$0.069 "edge" was a >30¢ wing artifact. Selective-maker (S11) untested. |
 | **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | **dead ✗** | med | TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5's NWS/WU |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **dead ✗** | low | RESOLVED 2026-07-06: n=8 ticker-steps across 2 real round transitions, both venues repriced together every time (mean \|Δk−Δp\| 2.2¢) — collection cadence (hourly-min, platform trigger constraint) is coarser than the event itself; data-adequacy DEAD, not a CI falsification. Parity sub-question survives under S17. |
@@ -106,6 +106,38 @@ built on this data is snapshot-sampled and must be labeled as such, not treated 
 message-level fill-sim input. Remaining for S6: accumulate depth snapshots, then attempt a
 first-cut arrival-intensity/adverse-selection estimate honestly scoped to what an hourly
 sample can support.
+
+**S6 → DEAD (first cut, 2026-07-11, Q-drained draw — verifier-CONFIRMED).** With the numbered
+queue drained to externally-blocked items, S6 was taken from the registry's own priority order.
+`scripts/s6_maker_firstcut.py` (read-only, 15 offline tests) built a quote-displacement proxy
+over 4 accumulated days of `tape/orderbook_depth/` (58,583 records → 36,738 consecutive two-
+sided pairs ≤90 min apart): for a ticker seen in two hourly captures, book the quoted half-
+spread as maker income if filled and charge the full hour's mid move as adverse selection,
+net of the maker fee from `core.pricing.fee_per_contract` (never hand-rolled, L18). Honest
+scope stated up front — hourly snapshots cannot observe a real fill, queue position, or
+message-level adverse selection, so this proves the gate cannot be met on the realistic
+population, it does not measure a live maker edge. Bootstrap unit = the **ticker** (pairs
+within one game are correlated draws, L6). **L28 precheck first:** 25,618/36,738 = **69.7%**
+of consecutive pairs are frozen (BBO unchanged) — correctly a no-fill booking $0, not phantom
+spread capture. **Verdict: DEAD.** By-ticker block-bootstrap (10,000 resamples) of net P&L is
+**strictly < 0** on every economically-realistic two-sided cut: ≤2¢ mean −$0.01120, ≤5¢
+−$0.00619, ≤10¢ (primary, frozen-inclusive, max-generous) −$0.00195 CI [−$0.00297,−$0.00094],
+and the honest movement-conditioned ≤10¢ cut −$0.02010 CI [−$0.02271,−$0.01759]. The only
+population with CI>0 is the **>30¢ wide-wing artifact** (+$0.339/contract, 99.9% "profitable")
+— a nominal, not maker-capturable, spread on far/one-sided brackets that is wide *because* one
+side is empty; the naive "ALL two-sided" +$0.06928 mean was entirely this wing. Verifier
+independently reproduced every number and swept ≤15/20/25/30¢ trying to resurrect it — the
+only frozen-inclusive CI>0 (≤30¢, +$0.00229, a quarter-cent) fails L27's magnitude-vs-tick gate
+and is itself wing-driven; under the movement-conditioned cut every threshold is strictly
+negative. **Structural killer:** the maker fee is a **flat 1¢/contract** at every interior
+price (L30), which alone consumes the modal Kalshi book's 1–2¢ two-sided spread before adverse
+selection is charged — the same fee-floor mechanism that killed S13. More days of the *same*
+hourly-cadence tape cannot fix a structural cap. **Untested / NOT falsified here:** the
+*selective* maker (S11) — quote only wide-enough, low-toxicity books with an external
+fair-value anchor and a real fill-sim; S6's naive "quote everything at the BBO" is what's dead.
+Lessons L30 (flat 1¢ maker fee), L31 (wide-wing = nominal not capturable spread), L32 (frozen
+pair = no-fill; bracket the verdict with frozen-inclusive + movement-conditioned cuts). Full
+writeup: `../../findings/2026-07-11-mm-spread-s6-firstcut.md`.
 
 ## New candidates S7–S11 (2026-06-18 · /first-principles → /peer-review, 21 agents)
 
@@ -433,6 +465,16 @@ before any decay window opens, and the 1¢ YES tick mirrors to a \$1.00 NO ask, 
 has no fillable positive-EV price at all. S1/S5/S7/S8/S9/S13/S10 now all decided at real asks —
 none live; still **0 proven edges**, the bar has not moved. S10's maker side stays open under
 S6/S11 (a different trade, not falsified here). See its verdict note above.
+
+**Update 2026-07-11 (S6): market-making flipped data-collecting → dead ✗ (first cut).** Drawn
+from the registry's own priority order after the numbered queue drained (no Q-item). Inventory-
+aware maker / earn-the-spread — verifier-CONFIRMED DEAD on the realistic population: the flat 1¢
+maker fee (L30) exceeds the modal Kalshi book's 1–2¢ capturable spread, so a by-ticker block-
+bootstrap of net maker P&L is strictly < 0 on every economically-real two-sided cut (the naive
++$0.069 "edge" was a >30¢ wing artifact). Same fee-floor family as S13. S1/S5/S7/S8/S9/S13/S10/S6
+now all decided at real asks — none live; still **0 proven edges**, the bar has not moved. The
+*selective* maker (S11, sharp-anchored, quotes only wide-enough low-toxicity books) is a distinct
+un-falsified trade. See S6's verdict note above.
 
 **Update 2026-07-06 (Q14/Q15, S16 + S18 feasibility): both stay `idea`, both hit real
 data-adequacy walls.** With the queue drained to time-blocked items, followed the registry's
