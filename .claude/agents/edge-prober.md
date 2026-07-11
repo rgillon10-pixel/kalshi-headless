@@ -25,10 +25,21 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
 - Every price it handles keeps its source tag; a de-vig or nowcast is
   `synthetic`, a Kalshi settlement is `broker_truth`, a book BBO is `real_ask`.
 - Fees from `core.pricing.fee_per_contract` (never hand-rolled).
-- Bootstrap resamples the independent unit (game / event / release / hour),
-  10,000 resamples, report mean + 95% CI + n.
-- Distinguish three outcomes explicitly: CI > 0 (alive), CI ≤ 0 (dead,
-  falsified), data-adequacy dead (untestable as collected — say why).
+- Bootstrap via `core.bootstrap.block_bootstrap` (never hand-roll a new
+  resample loop — L33): pass it an already-grouped-by-unit mapping (game /
+  event / release / hour — the unit itself is still your own per-probe
+  judgment call, per L6; the helper never guesses the grouping key), 10,000
+  resamples, report mean + 95% CI + n.
+- Before trusting a CI > 0 as "alive," run `core.bootstrap.clears_tick_magnitude`
+  on it (L27 — a sign-only positive lower bound can be a floored-price
+  rounding residue three orders below a fillable tick, not a real edge).
+- Before building a decay/reachability-style pipeline that assumes a boundary
+  is crossable, run `core.bootstrap.floor_pinned_fraction` on the earliest
+  observations first (L28 — a cheap precheck for whether there's even a
+  window to measure, before the expensive pipeline).
+- Distinguish three outcomes explicitly: CI > 0 AND clears the tick-magnitude
+  gate (alive), CI ≤ 0 or fails the magnitude gate (dead, falsified),
+  data-adequacy dead (untestable as collected — say why).
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 
