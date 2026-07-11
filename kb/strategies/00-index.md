@@ -19,7 +19,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S7** | Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest) | FP→PR · cross-venue segmentation | **dead ✗** | med | TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ >0 → falsified (taker side) |
 | **S8** | Crypto-hourly settlement basis (CF BRRNY vs public spot) | FP→PR · settlement mismatch | **dead ✗** | med | TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5's NWS/WU |
 | **S9** | Kalshi↔Polymarket same-question lead-lag (laggard leg) | FP→PR · cross-venue info lag | **dead ✗** | low | RESOLVED 2026-07-06: n=8 ticker-steps across 2 real round transitions, both venues repriced together every time (mean \|Δk−Δp\| 2.2¢) — collection cadence (hourly-min, platform trigger constraint) is coarser than the event itself; data-adequacy DEAD, not a CI falsification. Parity sub-question survives under S17. |
-| **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | idea | low | T-5/2 reachability vs ask > overround+fee; clear artifact floor; bootstrap by hour; CI>0 |
+| **S10** | Crypto-hourly reachability decay (stale far-bracket pricing) | FP→PR · time-decay microstructure | **dead ✗** | low | STRUCTURAL DEAD (2026-07-11, verifier-CONFIRMED): far brackets already 1¢-YES-floor-pinned ~40min pre-close (no decay window); the 1¢ tick mirrors to a \$1.00 NO ask (yes_bid=0) so the taker fade has no fillable price (only 4/18,992 far obs had `no_ask<\$1`, 3 from one hour). Block-bootstrap-by-hour n=164 hrs/18,992 obs: mean +\$0.000008, 95% CI [+\$0.000000,+\$0.000024] — 3 orders below the 1¢ tick (rounding residue, `fee(\$1.00)=0`). Maker side untested (S6/S11). |
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | idea | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0 |
 | **S12** | Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred) | 2026-07-04 gen pass · QF Themes 1+5 × econ category | **data-collecting** | med | ≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where \|nowcast−implied\| > overround share+fee; block-bootstrap by release; CI>0 |
 | **S13** | S7-maker — bid side of the proven sports rich-ask | 2026-07-04 gen pass · S7c verdict inversion × maker lens | **dead ✗** | med | TESTED n=80 games/223 filled outcomes (94.1% fill rate): mean edge_after_fee +0.00009, 95% block-bootstrap-by-game CI [−0.00021,+0.00039] — straddles zero → null result. The maker fee alone (~1¢ at mid-range bid prices) consumes essentially the whole assumed 1¢ bid-under-fair margin. |
@@ -124,9 +124,10 @@ no idea is in the dead ledger.** Full dossiers: `../../reports/new-ideas-2026-06
 - **S9 (low).** Kalshi↔Polymarket same-question lead-lag — trade the laggard leg toward the leader after
   a shared shock; segmentation (USDC/USD rail, KYC) keeps arb from enforcing parity. Forward probe (PM
   deep history paywalled).
-- **S10 (low).** Crypto-hourly reachability decay — far range-brackets stay priced above their
+- **S10 (low). → DEAD ✗ (2026-07-11, see verdict note below).** Crypto-hourly reachability decay — far range-brackets stay priced above their
   remaining-time reachability as the hour elapses; retail under-updates the tails. Distinct from S3
   (conditional time-decay, not static monotonicity). Must clear the artifact noise floor + chunky longshot fee.
+  The artifact floor turned out to be unclearable because there is nothing beneath it (verdict note below).
 - **S11 (low).** Sharp-anchored maker quoting on illiquid binaries — earn the wide spread (maker fee 4×
   cheaper), quote only the side Pinnacle calls EV+ to filter adverse selection. Distinct from S6 (no
   external truth anchor). Needs the forward L2 tape for fill-intensity.
@@ -241,6 +242,33 @@ to naive spot-watching in this sample. **Verdict: DEAD**, same cheap-kill mechan
 no bootstrap needed since the guard itself fails to show a meaningful residual. n=18/symbol is
 thin — noted as a first-cut kill, not a large-sample proof — but clears no further bar for
 continued collection. Full writeup: `../../findings/2026-07-04-crypto-basis-s8-verdict.md`.
+
+**S10 → DEAD (2026-07-11, Q7 — structural, verifier-CONFIRMED).** Q7 became eligible this run
+(the `crypto_hourly` tape crossed 7 valid canonical days: 2026-07-03..08, 10 — the 07-10 entry
+being the reprocessed `.jsonl`, the L25 stray-directory day excluded). `scripts/s10_reachability_probe.py`
+(read-only, 16 offline tests) used the two-collector offset (cloud + VPS hitting the same hourly
+group ~40 min vs ~5 min pre-close) as its only within-hour time variation, and the realized
+`broker_truth` settlement as ground truth rather than a fabricated hitting-probability model.
+**The decay the thesis needs is not observable**: far brackets (market's own `yes_ask` ≤ 0.01 at
+the EARLY capture) were already 1¢-floor-pinned ~40 min before close (mean early→late Δ`yes_ask`
++0.00014). **And the taker trade the thesis requires has no fillable price**: a floor-pinned YES
+(`yes_bid=0`) mirrors into a \$1.00 NO ask, so buying NO pays a full dollar to win a dollar back;
+only 4/18,992 far obs (0.02%, 3 from one hour) had any `no_ask<\$1` room, and `fee_per_contract(\$1.00)=0`
+so the ideal floored trade nets exactly \$0. Block-bootstrap-by-hour (n=164 hrs/18,992 obs, 10,000
+resamples): mean **+\$0.000008**, 95% CI **[+\$0.000000, +\$0.000024]** — lower bound a floating-point
+0, magnitude 3 orders of magnitude below the 1¢ tick, i.e. rounding residue, not an edge. No
+threshold (0.01→0.10) clears zero — relaxing "far" only pulls in reachable brackets that sometimes
+hit, flipping the mean negative. **Verdict: STRUCTURAL / data-adequacy DEAD** — the 1¢-tick-mirrors-
+to-\$1.00-NO-ask mechanism caps the trade mechanically, so more data cannot fix it (same cheap-kill
+family as S8's ρ-guard). Verifier's one caveat (doesn't move the verdict): in-sample 0/18,992 far
+brackets actually hit, so the point estimate is slightly survivorship-flavored — but the writeup
+already treats it as rounding residue, and the kill is the mechanism, not the sample.
+**Untested / out of scope** (NOT falsified here): the **maker** side — resting a NO offer or selling
+the rich YES at the elevated ask instead of crossing to the \$1.00 NO ask — which is S6/S11
+territory and needs the L2 depth tape + a fill-sim. Lessons L26 (tick-mirror ⇒ tail-fade is a
+maker trade, generalizes L12), L27 (magnitude gate must accompany the CI-sign check), L28 (verify
+the floor is observable before building a decay/CI pipeline). Full writeup:
+`../../findings/2026-07-11-crypto-reachability-s10-firstcut.md`.
 
 **S7/S11 → data-collecting (2026-07-03).** Cloud egress unblocked mid-run (Q0b); built
 `collection/sports_pairs.py` (Q1) — discovers Kalshi sports moneyline series by title heuristic,
@@ -398,6 +426,13 @@ Polymarket events, one bucket's derived probability came back negative
 (`monotonicity_violation: true`, a thin/stale Kalshi strike, recorded not clipped). S17's
 own gate was already cleared by the Fed leg; this closes the item's only documented
 remaining-work gap besides accumulation.
+
+**Update 2026-07-11 (Q7): S10 flipped idea → dead ✗.** Crypto-hourly reachability decay — a
+verifier-CONFIRMED structural DEAD (not a marginal CI miss): far brackets are 1¢-floor-pinned
+before any decay window opens, and the 1¢ YES tick mirrors to a \$1.00 NO ask, so the taker fade
+has no fillable positive-EV price at all. S1/S5/S7/S8/S9/S13/S10 now all decided at real asks —
+none live; still **0 proven edges**, the bar has not moved. S10's maker side stays open under
+S6/S11 (a different trade, not falsified here). See its verdict note above.
 
 **Update 2026-07-06 (Q14/Q15, S16 + S18 feasibility): both stay `idea`, both hit real
 data-adequacy walls.** With the queue drained to time-blocked items, followed the registry's

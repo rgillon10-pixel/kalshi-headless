@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-11 00:27 UTC — Q7 milestone: S10 crypto-hourly reachability decay → STRUCTURAL DEAD (verifier-CONFIRMED)
+
+- **Q7 became eligible this run.** The `crypto_hourly` tape crossed **7 valid canonical days**
+  (2026-07-03..08 plus a reprocessed 07-10 `.jsonl`) — the L25 stray `dt=2026-07-10/`
+  directory-of-blobs day correctly excluded via a `*.jsonl` glob + `is_file` guard, so the
+  day-count is honest this time.
+- **The probe.** `scripts/s10_reachability_probe.py` (read-only, `+16` offline tests) tested
+  S10's thesis (far range-brackets stay priced above their remaining-time reachability late in
+  the hour → a taker could fade the rich tail). No continuous intra-hour tape exists, so it used
+  the only within-hour time variation available — the two collectors (cloud + VPS) hitting the
+  same hourly group at different offsets (~40 min vs ~5 min pre-close), an EARLY vs LATE capture
+  — and used the realized `broker_truth` settlement as ground truth instead of fabricating a
+  hitting-probability model on thin data. Bootstrap unit = the **hour** (brackets within an hour
+  are correlated draws — L6), entry prices `real_ask`, settlement `broker_truth`.
+- **Verdict: DEAD, structural — not a marginal miss.** Two independent walls, both mechanical:
+  (1) the decay the thesis needs is not observable — far brackets were already 1¢-YES-floor-pinned
+  ~40 min before close (mean early→late Δ`yes_ask` +0.00014); (2) the taker trade has no fillable
+  price — a floor-pinned YES (`yes_bid=0`) mirrors into a **\$1.00 NO ask**, so only 4/18,992 far
+  obs (0.02%, 3 of them from a single hour) had any `no_ask<\$1` room, and `fee_per_contract(\$1.00)=0`
+  makes the ideal floored trade net exactly \$0. Block-bootstrap-by-hour (n=164 hrs/18,992 obs,
+  10,000 resamples): mean **+\$0.000008**, 95% CI **[+\$0.000000, +\$0.000024]** — lower bound a
+  floating-point 0, magnitude 3 orders below the 1¢ tick. No threshold (0.01→0.10) clears zero.
+  Same cheap-kill family as S8's ρ-guard; more data cannot fix a mechanically-capped trade.
+- **Verifier CONFIRMED** (not merely plausible). One caveat that does not move the verdict:
+  in-sample 0/18,992 far brackets actually hit, so the point estimate is slightly
+  survivorship-flavored — but the writeup already treats +\$0.000008 as rounding residue, and the
+  kill is the tick-mirror mechanism, not the sample. **Out of scope / not falsified:** the MAKER
+  side (rest a NO offer or sell the rich YES at the elevated ask rather than crossing to a \$1.00
+  NO ask) — S6/S11 territory, needs the L2 depth tape + a fill-sim.
+- **Compounded:** `kb/strategies/00-index.md` S10 flipped `idea → dead ✗` (row + verdict note +
+  running-tally update). Three lessons appended to `kb/lessons/00-lessons.md`: **L26** (the 1¢
+  YES tick mirrors to a \$1.00 NO ask on floor-pinned brackets ⇒ a tail-fade is structurally a
+  maker trade, not a taker one — generalizes L12; enforcement **ledger-only**, venue arithmetic),
+  **L27** (`fee(\$1.00)=0` is correct, but a CI dominated by ~\$1.00 legs can show a floating-point
+  +0.000000 lower bound — every CI verdict needs a magnitude/economic-significance gate vs the 1¢
+  tick, not just a sign check; **UNENFORCED**), **L28** (verify the artifact floor is even
+  *observable* — check the early-capture floor-pinned fraction — before building a decay/CI
+  pipeline; **UNENFORCED**). L27/L28 stay kb-only this milestone (scope limited to `kb/`); both
+  are per-verdict/per-probe methodology gates, likely terminal as **protocol** in probe precedents
+  rather than static invariants. Finding: `findings/2026-07-11-crypto-reachability-s10-firstcut.md`.
+- Gates: `pytest -q` green, `python scripts/invariants.py --full` green (only the pre-existing
+  non-gating stranded-tape advisory). Docs-only change.
+
 ## 2026-07-10 16:50 ET — Burst-capture legs approved + built; ntfy topic moved out of the public repo (ops, Ryan-interactive)
 
 - **Burst captures approved.** The S9 lead-lag resolution (2026-07-06) had flagged
