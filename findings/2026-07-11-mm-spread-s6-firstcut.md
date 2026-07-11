@@ -1,7 +1,7 @@
 # S6 — Inventory-aware market-making: hourly-snapshot first cut → DEAD (first cut)
 
 `2026-07-11` · S6 (kb/strategies/00-index.md row 18) · probe `scripts/s6_maker_firstcut.py` ·
-tests `tests/test_s6_maker_firstcut.py` (13, offline) · read-only over
+tests `tests/test_s6_maker_firstcut.py` (15, offline) · read-only over
 `tape/orderbook_depth/dt=*.jsonl` (4 accumulated days: 2026-07-07, 07-08, 07-10, 07-11;
 07-09 missing per an already-resolved main incident — untouched)
 
