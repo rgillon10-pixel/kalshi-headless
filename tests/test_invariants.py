@@ -145,6 +145,54 @@ def test_real_tree_is_green():
     assert inv.scan_tree() == [], "the committed tree must satisfy every Hard Rule"
 
 
+# ─── tape dir-shape warning (L25: non-gating advisory) ────────────────────────
+
+def test_tape_dir_shape_warning_none_when_empty():
+    assert inv.tape_dir_shape_warning([]) is None
+
+
+def test_tape_dir_shape_warning_message_content():
+    msg = inv.tape_dir_shape_warning(["crypto_hourly/dt=2026-07-10"])
+    assert msg is not None
+    assert "crypto_hourly/dt=2026-07-10" in msg
+    assert "non-gating" in msg
+    assert "L25" in msg
+
+
+def test_tape_dir_shape_issues_finds_directories(tmp_path):
+    tape_root = tmp_path / "tape"
+    (tape_root / "crypto_hourly").mkdir(parents=True)
+    (tape_root / "crypto_hourly" / "dt=2026-07-03.jsonl").write_text("{}\n")
+    (tape_root / "crypto_hourly" / "dt=2026-07-10").mkdir()
+    (tape_root / "sports_pairs").mkdir()
+    (tape_root / "sports_pairs" / "dt=2026-07-09").mkdir()
+    issues = inv._tape_dir_shape_issues(tape_root)
+    assert issues == ["crypto_hourly/dt=2026-07-10", "sports_pairs/dt=2026-07-09"]
+
+
+def test_tape_dir_shape_issues_clean_tree_is_empty(tmp_path):
+    tape_root = tmp_path / "tape"
+    (tape_root / "crypto_hourly").mkdir(parents=True)
+    (tape_root / "crypto_hourly" / "dt=2026-07-03.jsonl").write_text("{}\n")
+    assert inv._tape_dir_shape_issues(tape_root) == []
+
+
+def test_tape_dir_shape_issues_missing_tape_root_is_empty(tmp_path):
+    assert inv._tape_dir_shape_issues(tmp_path / "does-not-exist") == []
+
+
+def test_tape_dir_shape_warning_never_gates_exit_code(monkeypatch, capsys):
+    # Even with real shape issues present, a clean source tree must still exit 0.
+    monkeypatch.setattr(inv, "_tape_dir_shape_issues", lambda: ["fake_family/dt=2026-01-01"])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "fake_family/dt=2026-01-01" in captured.err
+    assert "invariants: all green" in captured.out
+
+
 # ─── DB invariants ────────────────────────────────────────────────────────────
 
 def _db(tmp_path, name, ddl, rows_sql=()):
