@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-11 (later run) — Stranded-tape sweep (223 lines) + L33: shared block-bootstrap helper
+
+- **Step 0a passed.** The 5 most-recently-merged PRs (#40, #39, #38, #37, #36) are all
+  reachable from `origin/main`; `kb/00-LOG.md`'s newest entry and the newest
+  `tape/*/dt=*` file are both 2026-07-11 (0-day gap). `main` not rewound. (The initial
+  shallow clone's stored `origin/main@{1}` ref looked like a rewind under
+  `merge-base --is-ancestor` — that was the shallow-history boundary, not a real rewind;
+  confirmed via the merged-PR reachability check + the log/tape date parity, not the
+  git-ancestry heuristic alone.)
+- **Step 0b stranded-tape sweep (223 lines).** `git reset --hard origin/main` first.
+  Of the `tape/hourly-*` branches, one (`tape/hourly-20260711T1256Z`) was >30min old
+  and not yet covered by PR #40's sweep; its content-diff against `main` (line-set,
+  not commit ancestry) found real gaps in today's files despite `main` already having
+  *more total lines* per file (a later, different pass) — `crypto_hourly` (+2),
+  `polymarket_macro_pairs` (+15), `polymarket_pairs` (+10), `sports_pairs` (+196);
+  `orderbook_depth` had 0 missing. All lines JSON-validated, 0 exact duplicates.
+  Branch-delete not attempted (documented permission boundary).
+- **Milestone: no numbered queue item was eligible.** Q1 still claimed by open PR #4
+  (odds-api key, now 8 days old); Q7/Q16 DONE; Q13 still BLOCKED (`tape/sports_pairs/`
+  has 8 valid canonical days — 03,04,05,06,07,08,10,11 — needs ≥10, eligible ~07-13);
+  Q14/Q15 still data-adequacy BLOCKED. Drew from the lessons ledger's own standing
+  UNENFORCED queue instead (same pattern as L25→L29): **L27** (magnitude-vs-tick CI
+  gate) and **L28** (floor-pinned-fraction precheck) were both filed as "likely
+  terminal as protocol... once a probe-precedent encodes it," but no probe-precedent
+  actually existed yet — every bootstrap-using script (`s6_maker_firstcut.py`,
+  `s10_reachability_probe.py`, `s7c_sports_clv_bootstrap.py`) still hand-rolls its own
+  block-bootstrap loop from scratch.
+- **Built `core/bootstrap.py`:** `block_bootstrap` (generic by-unit block resample —
+  takes an already-grouped-by-unit mapping, L6-compliant, never guesses the grouping
+  key itself), `clears_tick_magnitude` (L27's sign-*and*-magnitude gate — S10's own
+  near-miss CI `[+0.000000, +0.000024]` correctly fails it against a 1¢ tick),
+  `floor_pinned_fraction` (L28's cheap-before-expensive floor-observability precheck).
+  17 new offline tests in `tests/test_bootstrap.py` (empty-input honesty, determinism
+  given a seed, CI-width sanity, both gate functions against S6/S10's own real numbers).
+  Does NOT retrofit the already-verdicted S6/S10 probes — those verdicts stand; this is
+  infra for the next probe that needs a bootstrap (S11/S14/S16/S18, once their own data
+  blockers clear). New lesson **L33** filed in `kb/lessons/00-lessons.md` recording the
+  compounding. 470 tests green (453 prior + 17 new), `invariants.py --full` green (only
+  the two pre-existing non-gating advisories: L20 stranded-tape, L29 tape-dir-shape).
+- LOOP-QUEUE.md: Log-of-runs line appended. No Q-item status line changed (this
+  milestone isn't tied to a specific numbered item).
+
 ## 2026-07-11 — S6 milestone: inventory-aware market-making (earn-the-spread-as-maker) → DEAD (first cut, verifier-CONFIRMED)
 
 - **Drawn from the registry's own priority order, not a numbered Q-item.** The numbered queue
