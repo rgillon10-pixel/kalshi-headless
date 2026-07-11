@@ -6,6 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-11 — S6 milestone: inventory-aware market-making (earn-the-spread-as-maker) → DEAD (first cut, verifier-CONFIRMED)
+
+- **Drawn from the registry's own priority order, not a numbered Q-item.** The numbered queue
+  had drained to externally-blocked items (Q1 claimed by PR #4 awaiting `ODDS_API_KEY`;
+  Q13/Q14/Q15 data-adequacy BLOCKED), so this milestone came from the standing registry: S6 was
+  the topmost `data-collecting` candidate with enough accumulated tape to test.
+- **The probe.** `scripts/s6_maker_firstcut.py` (read-only, 15 offline tests) built a
+  quote-displacement proxy over 4 accumulated days of `tape/orderbook_depth/` (2026-07-07, 07-08,
+  07-10, 07-11; ~58,583 records → 36,738 consecutive two-sided pairs ≤90 min apart). Per ticker
+  seen in two consecutive hourly captures: book the capture-1 quoted half-spread as maker income
+  if filled, charge the full hour's mid displacement as adverse selection, net of the maker fee
+  from `core.pricing.fee_per_contract` (never hand-rolled — L18). Honest scope stated up front:
+  hourly snapshots cannot observe a real fill, queue position, or message-level adverse selection,
+  so this can only show the gate is unmeetable on the realistic population, not measure a live
+  edge. Bootstrap unit = the **ticker** (pairs within one game/bracket are correlated draws — L6).
+- **L28 precheck first:** 25,618/36,738 = **69.7%** of consecutive pairs are frozen (BBO
+  unchanged) — correctly booked as $0 no-fill income, not phantom spread capture.
+- **Verdict: DEAD (first cut).** By-ticker block-bootstrap (10,000 resamples, seed 42) of net
+  maker P&L is **strictly < 0** on every economically-realistic two-sided cut: ≤2¢ mean
+  −$0.01120, ≤5¢ −$0.00619, ≤10¢ (primary, frozen-inclusive, max-generous) −$0.00195 95% CI
+  [−$0.00297,−$0.00094], and the honest movement-conditioned ≤10¢ cut −$0.02010 CI
+  [−$0.02271,−$0.01759]. The only population with CI>0 is the **>30¢ wide-wing artifact**
+  (+$0.339/contract, 99.9% "profitable") — a nominal, not maker-capturable, spread on far/one-
+  sided brackets (wide *because* one side is empty); the naive "ALL two-sided" +$0.06928 mean was
+  entirely this wing. **Structural killer:** the maker fee is a **flat 1¢/contract** at every
+  interior price (`ceil(0.0175·P·(1−P)·100)/100 = 0.01` for all `0<P<1`), which alone consumes
+  the modal Kalshi book's 1–2¢ two-sided spread before adverse selection is even charged — the
+  same fee-floor mechanism that killed S13. More days of the *same* hourly-cadence tape cannot
+  fix a structural cap.
+- **Verifier CONFIRMED** (not merely plausible). Independently reproduced every number and swept
+  ≤15/20/25/30¢ trying to find an alive population — the only frozen-inclusive CI>0 (≤30¢,
+  +$0.00229, a quarter-cent) fails L27's magnitude-vs-tick gate and is itself wing-driven; under
+  the movement-conditioned cut every threshold is strictly negative. **Out of scope / NOT
+  falsified:** the *selective* maker (S11) — quote only wide-enough, low-toxicity books with an
+  external fair-value anchor and a real fill-sim; S6's naive "quote everything at the BBO" is
+  what's dead.
+- **Compounded:** `kb/strategies/00-index.md` S6 flipped `data-collecting → dead ✗` (row + gate
+  cell + a third dated verdict note + the "0 proven edges" running tally: S1/S5/S7/S8/S9/S13/S10/S6
+  now all decided at real asks, none live). Three lessons appended to `kb/lessons/00-lessons.md`:
+  **L30** (the maker fee is a flat 1¢/contract at every interior price — sharpens L5/L18's "4×
+  cheaper" into a hard floor; enforcement **test**, pinned by the probe's existing value-sweep
+  test — a numeric property of the fee function, not a static-text invariant), **L31** (a >30¢
+  spread on a far/one-sided bracket is a nominal, not maker-capturable, spread — generalizes
+  L12/L26's floor-artifact caution to the spread-capture direction; **ledger-only**, venue
+  microstructure + per-probe methodology), **L32** (a frozen consecutive pair is a no-fill, not
+  free income — report the frozen fraction as an L28 precheck and bracket the verdict with both
+  frozen-inclusive and movement-conditioned cuts; **UNENFORCED**, per-probe methodology, likely
+  terminal as protocol). Finding: `findings/2026-07-11-mm-spread-s6-firstcut.md`.
+- Gates: `pytest -q` green, `python scripts/invariants.py --full` green (only the two pre-existing
+  non-gating advisories: L20 stranded-tape and the L29 tape-dir-shape warning). Docs-only change
+  (kb/ only — the probe, its tests, and the finding were already committed).
+
 ## 2026-07-11 05:xx UTC — research loop: stranded-tape sweep (1,551 lines) + L25→L29 (tape dir-shape invariant built)
 
 Step 0a history-integrity check passed: the 5 most-recently-merged PRs (#37, #36, #18, #35,
