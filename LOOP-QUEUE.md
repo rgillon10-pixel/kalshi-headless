@@ -321,7 +321,28 @@ exists). Gates: 169 tests green, `invariants --full` green.
 **Note (2026-07-10 reconciliation):** unaware of this verdict (main rewound 07-08), the post-reset lineage independently re-ran S7a/S7b on 2026-07-09/10 with a DIFFERENT free odds source (football-data.co.uk closing average, 97 WC games / 167 candidate trades): mean net P&L −3.51¢/trade at real_ask after fees, monotonically worse under a min-edge sweep — an independent replication of the DEAD direction before its own bootstrap ran. Artifacts kept: `tape/sports_history_s7/`, `tape/sports_clv_s7/`, `scripts/sports_history_s7a.py`, `scripts/sports_clv_s7.py`, `findings/2026-07-10-sports-history-s7a.md`, `findings/2026-07-10-sports-clv-s7b.md`. S7 remains DEAD; do NOT run S7c again.
 
 ### Q7 — S10 reachability-decay probe from accumulated crypto tape
-Status: BLOCKED(needs ≥7 days of Q2 tape)
+Status: DONE (2026-07-11) — **verdict DEAD (structural).** `tape/crypto_hourly/` crossed 7
+valid canonical `dt=<date>.jsonl` days (03,04,05,06,07,08,10 — confirmed by file, not path,
+per L25) this run, unblocking the item. Built `scripts/s10_reachability_probe.py` (16 new
+unit tests, 432 total green): joined each hourly group's early/late `real_ask` captures
+(multi-capture groups from overlapping cloud+VPS collector legs) against the next-hour pass's
+`broker_truth` settlement. Found: far out-of-the-money brackets are already pinned at the 1¢
+YES-ask floor at the EARLY capture (~30–48min pre-close) — no decay window exists to measure.
+The mirrored NO-ask sits at $1.00 on those brackets (`yes_bid=0`), and
+`core.pricing.fee_per_contract(1.00)==0` is genuinely correct — so the taker fade this gate
+asked about has no fillable positive-EV price at all (0.02% of 18,992 far observations had
+any room, 3 of those 4 from a single hour). Block-bootstrap by HOUR (10,000 resamples, seed
+42, n=164 hours): mean +$0.000008, 95% CI **[+$0.000000, +$0.000024]** — three orders below
+the 1¢ tick, unfillable rounding residue, not an edge. Adversarially verified (CONFIRMED, not
+just plausible) by the `verifier` agent — re-ran the script independently, checked the
+settlement join, the fee math, the cluster-bootstrap correctness, and the far-bracket
+threshold sweep (no threshold clears zero; relaxing it goes negative). `kb/strategies/
+00-index.md` S10 flipped idea → dead ✗. See `findings/2026-07-11-crypto-reachability-s10-firstcut.md`.
+**Untested, out of scope for this verdict:** the maker side (rest a NO offer / sell the rich
+YES instead of crossing at the $1.00 NO ask) is a different trade, S6/S11 territory, needs L2
+depth + fill-sim.
+Original spec below, unchanged.
+Status (history): BLOCKED(needs ≥7 days of Q2 tape)
 **Note (2026-07-10):** `tape/crypto_hourly/` shows a `dt=2026-07-10` path that looks like a
 7th day but is a **directory** of raw unreadable blobs (a tape-format regression from the
 2026-07-08 main-rewind's rebuilt collectors, self-corrected but not yet backfilled — see
@@ -630,12 +651,14 @@ estimation yet, and it should honestly flag that hourly cadence is coarse for ar
 estimation (recurring cron is hard-capped at hourly per S9/Q8's own finding) — record that
 limitation rather than oversell what hourly L2 snapshots can support.
 
-## Retro amendments — proposed 2026-07-05 (open for Ryan's review, not yet adopted)
+## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
-Drafted by the weekly retro run from this week's "Log of runs" below. These are **proposals
-only** — nothing in this section is authoritative until Ryan reviews and merges the PR that
-carries it. Nothing here relaxes an invariant or a Stop rule, deletes or reorders a queue
-item, or touches source code.
+Drafted by the weekly retro run from that week's "Log of runs". **Adopted** — Ryan merged
+PR #18 on 2026-07-10T19:55:32Z, so all 3 items below are now binding protocol, not proposals.
+This run (2026-07-11) already followed #1 (mandatory `git reset --hard origin/main` before
+the step 0b diff) and #2 (no more `git push origin --delete` retries) and applied #3 (PR #4
+is 8 days old, flagged `Priority: high` in this run's phone note). Nothing here relaxed an
+invariant or a Stop rule, deleted or reordered a queue item, or touched source code.
 
 1. **Step 0b clarification — reset local `main` before diffing stranded branches.** On
    2026-07-05T05:19Z the research run found its sandbox's local `main` ref was ~2 days stale,
@@ -712,3 +735,4 @@ item, or touches source code.
 - 2026-07-10T10:35Z · Q4(S7a) · built `scripts/sports_history_s7a.py` (16 new tests, all green, 121 total); live pass sourced 97 completed World Cup 2026 games / 291 outcome markets at real_ask candlesticks, matched 96/97 to football-data.co.uk's free closing-odds average (synthetic, de-vigged); confirmed last-season NFL fully unavailable from Kalshi's public API (settled markets purged after ~1 season) and NBA only partially available (36 playoff games, no odds leg yet) — documented, not a blocker. Q4 IN-PROGRESS, next stage runs S7b (Kalshi ask vs de-vig fair) on the World Cup dataset.
 - 2026-07-10T15:16Z · Q4(S7b) · built `scripts/sports_clv_s7.py` (16 new tests, all green, 137 total); live pass over S7a's 97-game tape: 96 usable games, 167 candidate trades (decision_ts = close_time−4h, buy-YES when de-vigged fair > Kalshi bracket-normalized ask), mean net P&L −3.51¢/trade at real_ask after fee — negative point estimate, and a min-edge sweep (0.00/0.02/0.05 → −3.51¢/−9.30¢/−27.00¢) makes it monotonically worse, mirroring the S5 red flag. Not yet a verdict (no bootstrap run). Q4 IN-PROGRESS, next stage S7c runs the block-bootstrap by game → 95% CI → verdict.
 - 2026-07-10T (local, Ryan) · RECONCILIATION · discovered main was rewound to 6cde523 on 2026-07-08T10:56Z (197 commits orphaned: 07-03→07-08 incl. PRs #4–#33); recovered pre-reset tip f23a491 via GitHub event log, merged post-reset 07-09/10 work into it (code conflicts → pre-reset lineage; post-reset tape/findings/core.odds kept). The five 07-09/10 lines above describe the post-reset lineage's duplicate rebuild — S7 stays DEAD per the 07-04 bootstrap verdict, independently corroborated by their S7b point estimate.
+- 2026-07-11T00:xxZ (research loop) · step 0a PASS + stranded-tape sweep (1,070 lines) + Q7(S10) DONE, verdict DEAD · Step 0a: 5 most-recently-merged PRs (#36,#18,#35,#33,#32) all reachable from `origin/main` (verified via commit-message search, squash-merge convention); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-10, 0-day gap. `main` not rewound. Open PRs: only #4 (Q1 odds-api leg, still claimed, now 8 days old awaiting `ODDS_API_KEY` — past the now-merged PR #18 retro amendment's 5-day escalation mark, flagged `Priority: high` in this run's phone note). Step 0b sweep: `git reset --hard origin/main` done first (per PR #18's now-merged amendment #1); 3 remaining `tape/hourly-*` branches (`20260710T1955Z`/`2058Z`/`2200Z`, all pointing at the same commit `cf33e5f` — the first hourly pass after PR #35's merge, left unswept by PR #36 because it was <30min old at the time) carried 1,070 lines `main` was missing (crypto_hourly +2, orderbook_depth +822, polymarket_macro_pairs +15, polymarket_pairs +13, sports_pairs +218), union-appended, 0 exact duplicates, all valid JSON; `tape/hourly-20260711T000050Z` skipped (freshness rule); branch-delete not attempted (per PR #18's now-merged amendment #2, documented permission boundary). This sweep pushed `tape/crypto_hourly/` to **7 valid canonical days** (03,04,05,06,07,08,10), unblocking **Q7**. Built `scripts/s10_reachability_probe.py` (16 new tests, 432 total) via the `edge-prober` subagent: joined early/late `real_ask` captures per hourly group against `broker_truth` settlement — far brackets are already pinned at the 1¢ YES floor before the early capture (no decay window), the mirrored $1.00 NO-ask is structurally unfillable-positive-EV (`fee_per_contract(1.00)==0`, only 4/18,992 far obs had any room), block-bootstrap by hour (10,000 resamples, n=164): mean +$0.000008, 95% CI [+$0.000000, +$0.000024] — 3 orders below the 1¢ tick. **Verdict: DEAD (structural)**, adversarially CONFIRMED by the `verifier` subagent (independent re-run, settlement-join/fee-math/cluster-bootstrap/threshold-sweep all checked, no bug found). `kb-distiller` subagent compounded S10 → dead ✗ in the registry plus 3 lesson candidates. See `findings/2026-07-11-crypto-reachability-s10-firstcut.md`. 432 tests green, `invariants --full` green.
