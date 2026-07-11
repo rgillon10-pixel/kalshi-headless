@@ -6,6 +6,47 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-11 (later run) — Stranded-tape sweep (1,936 lines) + L34: bootstrap-helper protocol encoded into edge-prober charter
+
+- **Step 0a passed.** The 3 most-recently-merged PRs visible in local history
+  (#41, #40, #39) are all reachable from `origin/main` (local branch head equals
+  `origin/main` tip, `ade6160`); `kb/00-LOG.md`'s newest entry and the newest
+  `tape/*/dt=*` file are both 2026-07-11 (0-day gap). `main` not rewound. Only
+  open PR is #4 (Q1 odds-api leg, unrelated, unmerged, ~8 days old — still
+  awaiting `ODDS_API_KEY`).
+- **Step 0b stranded-tape sweep (1,936 lines).** Of the 91 `tape/hourly-*`
+  branches, two postdated the last sweep's cutoff (`tape/hourly-20260711T1256Z`)
+  and were >30min old: `20260711T1501Z` and `20260711T1806Z`. Content-diffed
+  (line-set, not commit ancestry) each against `origin/main` per family, then
+  unioned the two branches' missing lines: `crypto_hourly` +4, `orderbook_depth`
+  +1,507, `polymarket_macro_pairs` +30, `polymarket_pairs` +20, `sports_pairs`
+  +375 — 1,936 lines total, all JSON-validated, 0 exact duplicates against
+  `main`. Branch-delete not attempted (documented permission boundary).
+- **Milestone: no numbered queue item was eligible.** Q1 still claimed by open
+  PR #4; Q7/Q16 DONE; Q13 still BLOCKED (`tape/sports_pairs/` has 8 valid
+  canonical days — 03,04,05,06,07,08,10,11 — needs ≥10, eligible ~07-13);
+  Q14/Q15 still data-adequacy BLOCKED. Drew from the lessons ledger's own
+  standing UNENFORCED queue again: L33 (prior run) built `core/bootstrap.py`
+  but explicitly left undone the "probe-precedent encodes it" half of L27/L28's
+  own candidate wording — the helper existed, but nothing yet told a future
+  probe to reach for it instead of hand-rolling a new resample loop.
+- **Closed that gap in `.claude/agents/edge-prober.md`** — the one file every
+  probe milestone is required to read before writing code. Its house-style
+  section now names `core.bootstrap.block_bootstrap` /
+  `clears_tick_magnitude` / `floor_pinned_fraction` explicitly, and the
+  three-outcome verdict rule is sharpened so a CI>0 that fails the
+  tick-magnitude gate is counted as DEAD, not left as a vague "worth
+  flagging." Docs-only — no probe re-run, no verdict re-opened, no source
+  code touched. New lesson **L34** filed in `kb/lessons/00-lessons.md`
+  recording the closure; L27/L28 stay individually UNENFORCED as ledger rows
+  (append-only) since the ledger's own rule is ledger rows never get rewritten,
+  but the candidate they described is now live in the charter — full
+  resolution still waits on an actual probe using it. 470 tests unchanged
+  (docs-only commit), `invariants.py --full` green (only the two pre-existing
+  non-gating advisories: L20 stranded-tape, L29 tape-dir-shape).
+- LOOP-QUEUE.md: Log-of-runs line appended. No Q-item status line changed
+  (this milestone isn't tied to a specific numbered item).
+
 ## 2026-07-11 (later run) — Stranded-tape sweep (223 lines) + L33: shared block-bootstrap helper
 
 - **Step 0a passed.** The 5 most-recently-merged PRs (#40, #39, #38, #37, #36) are all
