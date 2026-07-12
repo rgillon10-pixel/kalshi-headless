@@ -37,6 +37,15 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   is crossable, run `core.bootstrap.floor_pinned_fraction` on the earliest
   observations first (L28 — a cheap precheck for whether there's even a
   window to measure, before the expensive pipeline).
+- For a probe built over repeated same-entity snapshots (BBO, order-book
+  depth, any ladder captured hour over hour) rather than one-shot trade
+  outcomes: a consecutive pair with no observed movement is a no-fill, not
+  free income. Compute your own per-pair frozen flag (your call what
+  "frozen" means for this probe — BBO unchanged, mid unchanged, etc. — the
+  helper never guesses it), then run `core.bootstrap.bracket_by_movement` on
+  it and bootstrap BOTH the frozen-inclusive and movement-conditioned cuts
+  (L32 — S6's DEAD verdict is robust precisely because both cuts came back
+  negative).
 - Distinguish three outcomes explicitly: CI > 0 AND clears the tick-magnitude
   gate (alive), CI ≤ 0 or fails the magnitude gate (dead, falsified),
   data-adequacy dead (untestable as collected — say why).
