@@ -15,7 +15,7 @@ Pure functions: deterministic, no clock, no network.
 from __future__ import annotations
 
 import math
-from typing import Iterable
+from typing import Iterable, Optional
 
 
 def bracket_sum(asks: Iterable[float]) -> float:
@@ -51,6 +51,25 @@ def overround(asks: Iterable[float]) -> float:
     """The bracket overround: bracket_sum - 1.0. The structural taker cost (~3-5c on
     KXHIGH) that ate pt1. Persist it per trade as `overround_absorbed`."""
     return bracket_sum(asks) - 1.0
+
+
+def infer_strike_spacing(strikes: Iterable[float]) -> Optional[float]:
+    """Derive a bracket ladder's own strike spacing from its strikes — never hardcode a
+    per-symbol width (lesson L7: a fixed $100 half-band check silently mis-scored every ETH
+    hour, whose real ladder steps $10/$20, not BTC's $100; the fix that shipped only swapped
+    in a per-symbol dict, still a hardcoded guess rather than a value read off the ladder
+    itself). Dedupes and sorts the given strikes, then returns the MEDIAN consecutive gap —
+    median rather than mean/min so one missing or doubled member (a thin/stale far strike,
+    a duplicate capture) doesn't skew the estimate. Returns None if fewer than 2 distinct
+    strikes are given (spacing is undefined on a singleton or empty ladder)."""
+    uniq = sorted(set(float(s) for s in strikes))
+    if len(uniq) < 2:
+        return None
+    gaps = sorted(b - a for a, b in zip(uniq, uniq[1:]))
+    mid = len(gaps) // 2
+    if len(gaps) % 2 == 1:
+        return gaps[mid]
+    return (gaps[mid - 1] + gaps[mid]) / 2.0
 
 
 # ─── Kalshi fee-schedule rates — THE single source of truth (Hard Rule / lesson L5) ──
