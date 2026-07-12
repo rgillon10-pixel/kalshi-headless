@@ -492,3 +492,21 @@ is a live fallback source for whenever Kalshi actually lists the markets. Neithe
 falsification — both are honest `BLOCKED` verdicts per the Stop rules, recorded so a future
 run doesn't re-spend a milestone on the same dead ends. See
 `findings/2026-07-06-s16-s18-feasibility-blocked.md`.
+
+**Update 2026-07-12 (Q12, S17 lead-lag first cut): stays `data-collecting`, no shock yet.**
+Built `scripts/s17_leadlag_probe.py` (the S17 analog of `s9_leadlag_probe.py`) and ran it
+read-only over ~6 days of `tape/polymarket_macro_pairs/` (2026-07-06→07-12): **2,805 records,
+187 distinct captures, 15 (meeting,bucket) pairs** (Jul/Sep/Oct 2026 × 5 buckets, all with
+186–187 captures; 1 record dropped for `book_fetch_ok=false`). Pooled panel cross-correlation
+of consecutive-capture Δ (both sides `real_ask`, apples-to-apples like S9): **contemporaneous
+ρ=+0.154** (n=2,789), **kalshi-leads ρ=−0.003**, **polymarket-leads ρ=−0.028** (n=2,774 each),
+215 ≥1¢ moves (max 9¢ either venue). **FOMC resolve/roll-off (shock proxy) events in window:
+0** — Kalshi's listed meetings are Jul/Sep/Oct 2026 and none has occurred inside the window,
+so every tick so far is book noise, not an information shock. This is a **noise-floor
+characterization, NOT a lead-lag verdict** (no CI, no DEAD/ALIVE call — dishonest with zero
+shocks, per L28's "verify the signal is observable before building verdict machinery"). The
+CPI leg (`tape/polymarket_cpi_pairs/`, 154 records) is `synthetic` on the Kalshi side and
+deliberately **excluded** from the real-ask correlation (Hard Rule #3), counted for
+provenance only. Same status as S9's first cut: re-run when a real FOMC decision lands inside
+the collected window (July 2026 meeting is nearest). See
+`findings/2026-07-12-polymarket-macro-leadlag-s17-firstcut.md`.
