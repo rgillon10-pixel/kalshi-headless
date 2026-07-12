@@ -6,8 +6,9 @@ from __future__ import annotations
 import pytest
 
 from collection.normalize import normalize_snapshot
-from core.pricing import (bracket_sum, fee_per_contract, monotonicity_crossing_edge,
-                          normalized_ask, overround, true_arb_edge, yes_implied_prob)
+from core.pricing import (bracket_sum, fee_per_contract, infer_strike_spacing,
+                          monotonicity_crossing_edge, normalized_ask, overround,
+                          true_arb_edge, yes_implied_prob)
 from core.source_tag import (DEFAULT_TAG, FILLABLE_TAGS, VALID_SOURCE_TAGS,
                              is_fillable, require_fillable, tag_or_synthetic)
 from core.stats import MIN_MEMBERS, safe_pstdev
@@ -72,6 +73,36 @@ def test_monotonicity_crossing_edge_positive_on_a_real_cross():
 
 def test_monotonicity_crossing_edge_negative_when_ordinarily_priced():
     assert monotonicity_crossing_edge(0.60, 0.71) < 0
+
+
+# ─── infer_strike_spacing (lesson L7): derive width from the ladder, never hardcode ──
+
+def test_infer_strike_spacing_btc_like_ladder():
+    strikes = [100000.0, 100100.0, 100200.0, 100300.0]  # $100-spaced, like BTC
+    assert infer_strike_spacing(strikes) == pytest.approx(100.0)
+
+
+def test_infer_strike_spacing_eth_like_ladder():
+    strikes = [3000.0, 3020.0, 3040.0, 3060.0]  # $20-spaced, like ETH
+    assert infer_strike_spacing(strikes) == pytest.approx(20.0)
+
+
+def test_infer_strike_spacing_uses_median_robust_to_one_missing_member():
+    # a clean $50 ladder with one gap doubled (a missing intermediate strike) — the median
+    # gap still reads $50, not skewed by the single $100 outlier gap
+    strikes = [100.0, 150.0, 200.0, 300.0, 350.0, 400.0]
+    assert infer_strike_spacing(strikes) == pytest.approx(50.0)
+
+
+def test_infer_strike_spacing_ignores_order_and_duplicates():
+    strikes = [300.0, 100.0, 200.0, 200.0, 100.0]
+    assert infer_strike_spacing(strikes) == pytest.approx(100.0)
+
+
+def test_infer_strike_spacing_none_below_two_distinct_strikes():
+    assert infer_strike_spacing([]) is None
+    assert infer_strike_spacing([100.0]) is None
+    assert infer_strike_spacing([100.0, 100.0]) is None
 
 
 # ─── source_tag (trust=FALSE default + Rule #4) ────────────────────────────────

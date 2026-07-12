@@ -46,6 +46,13 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   it and bootstrap BOTH the frozen-inclusive and movement-conditioned cuts
   (L32 — S6's DEAD verdict is robust precisely because both cuts came back
   negative).
+- Never hardcode a bracket/strike width, even per-symbol (L7 — a fixed $100
+  half-band check silently mis-scored every ETH hour, whose ladder actually
+  steps $10/$20; the fix that shipped only swapped in a per-symbol dict,
+  still a guess rather than a value read off the data). Call
+  `core.pricing.infer_strike_spacing(strikes)` on the ladder's own strikes
+  instead — it returns the median consecutive gap, robust to one missing or
+  duplicated member.
 - Distinguish three outcomes explicitly: CI > 0 AND clears the tick-magnitude
   gate (alive), CI ≤ 0 or fails the magnitude gate (dead, falsified),
   data-adequacy dead (untestable as collected — say why).

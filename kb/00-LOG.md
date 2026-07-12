@@ -6,6 +6,68 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-12 — Stranded-tape sweep (872 lines) + L36: strike-spacing-from-ladder helper built
+
+- **Step 0a passed.** The 5 most-recently-merged PRs (#43, #42, #41, #40, #39)
+  are all directly reachable from `origin/main` (#43's squash commit `b3b76c4`
+  visible in the local log). `kb/00-LOG.md`'s newest entry and the newest
+  `tape/*/dt=*` file are both 2026-07-12 (0-day gap). `main` not rewound — an
+  early `git fetch origin main` reporting "forced update" was traced to this
+  session's shallow-clone ref catching up to a stale container-start snapshot,
+  not a real rewrite (HEAD `147cffe` was unchanged before and after the
+  fetch). Only open PR is #4 (Q1 odds-api leg), unrelated, now ~9 days old
+  awaiting `ODDS_API_KEY` — past the 5-day escalation mark, flagged
+  `Priority: high` in this run's phone note.
+- **Step 0b stranded-tape sweep (872 lines).** `git reset --hard origin/main`
+  first. Of 96 `tape/hourly-*` branches, two postdated the last sweep's cutoff
+  and were well past 30min old: `tape/hourly-202607120401Z` and
+  `tape/hourly-20260712T0258Z`. Content-diffed (`git show <ref>:<path>`)
+  against `main`'s current tape: `crypto_hourly` +2, `orderbook_depth` +687,
+  `polymarket_macro_pairs` +15, `polymarket_pairs` +7, `sports_pairs` +161 —
+  872 lines total, all JSON-validated, 0 exact duplicates. A third branch
+  (`tape/hourly-20260712T0458Z`) was skipped — its commit was only ~5min old,
+  below the 30min freshness threshold. Branch-delete not attempted
+  (documented permission boundary).
+- **Milestone: no numbered queue item was eligible.** Q1 still claimed by
+  open PR #4; Q7/Q16 DONE; Q13 still BLOCKED (`tape/sports_pairs/` has 9 valid
+  canonical `.jsonl` days — 03,04,05,06,07,08,10,11,12 — needs ≥10, eligible
+  ~07-13); Q14/Q15 still data-adequacy BLOCKED. Drew from the lessons
+  ledger's own standing UNENFORCED queue again (same pattern as L25→L29,
+  L33→L34, L32→L35): **L7** ("never hardcode a bracket/strike width — derive
+  spacing from the ladder itself," filed 2026-07-04) had stayed UNENFORCED
+  the longest of any remaining live row — its actual fix in
+  `scripts/s8_basis_probe.py` only swapped a single fixed-$100 half-band
+  check for a 2-symbol hardcoded dict (`{"BTC": 100.0, "ETH": 20.0}`), still
+  a guess rather than a value read off the ladder's own strikes, and no
+  importable helper existed for what the lesson's own wording asked for.
+- **`core/pricing.py`**: new `infer_strike_spacing(strikes)` — dedupes and
+  sorts the ladder's own strike values, returns the MEDIAN consecutive gap
+  (robust to one missing or duplicated member, e.g. a thin/stale far strike),
+  `None` below 2 distinct strikes. 5 new tests in
+  `tests/test_substrate_primitives.py` (BTC-like $100 ladder, ETH-like $20
+  ladder, one-gap-doubled robustness check, order/duplicate insensitivity,
+  <2-strike None cases).
+- **`.claude/agents/edge-prober.md`**: house style now names
+  `core.pricing.infer_strike_spacing` alongside the existing L27/L28/L32
+  bootstrap helpers, for any probe/collector that needs a ladder's own
+  spacing instead of a hardcoded per-symbol guess.
+- **`kb/lessons/00-lessons.md`**: appended **L36** (generalizes L7; L7 itself
+  stays UNENFORCED as a ledger row per the append-only rule).
+- Does not retrofit S8's already-verdicted probe (DEAD, Q5, 2026-07-04) —
+  that verdict stands as-is; this is infra for the next probe/collector that
+  needs to read a bracket ladder's spacing off real data.
+
+## Gates
+
+- 481 tests green (476 prior + 5 new).
+- `python scripts/invariants.py --full` green (only the two expected
+  non-gating advisories: L20 stranded-tape, L29 tape-dir-shape).
+
+Research/tape/docs only — no order or execution code, no credential
+handling.
+
+---
+
 ## 2026-07-12 — Stranded-tape sweep (873 lines) + L35: frozen-pair dual-cut bracketing helper built
 
 - **Step 0a passed.** The 5 most-recently-merged PRs visible in local history
