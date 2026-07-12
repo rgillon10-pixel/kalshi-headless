@@ -6,6 +6,57 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-12 (later run) — Stranded-tape sweep (2,632 lines) + L38: sweep-size growth diagnosed (not a real problem)
+
+- **Step 0a passed.** The 5 most-recently-merged PRs (#45, #44, #43, #42, #41) are all
+  reachable from `origin/main` (`git log origin/main` shows their squash commits directly).
+  `kb/00-LOG.md`'s newest entry and the newest `tape/*/dt=*` file are both 2026-07-12 (0-day
+  gap). `main` not rewound — an initial `git fetch origin main` reported "forced update",
+  traced to this session's shallow clone catching up, not a real rewrite (local HEAD already
+  equaled `origin/main`'s tip both before and after). Open PRs: #4 (Q1 odds-api leg, still
+  claimed, still draft, now **10 days old** awaiting `ODDS_API_KEY` — flagged `Priority: high`
+  again) and **#46** (this week's retro, docs-only `LOOP-QUEUE.md` proposal — left untouched
+  per its own "never self-merged" charter; not claiming any numbered queue item, so no
+  conflict with this run's claim-check).
+- **Step 0b stranded-tape sweep (2,632 lines).** `git reset --hard origin/main` first. Of the
+  remote's ~102 `tape/hourly-*` branches, 4 postdated PR #45's sweep cutoff and were >30min
+  old: `tape/hourly-202607121155Z`, `tape/hourly-20260712T1126Z`,
+  `tape/hourly-202607121356Z`, `tape/hourly-20260712T1256Z`. Union-diffed all 4 against
+  `main`'s current per-day tape: `crypto_hourly` +8, `orderbook_depth` +1,958,
+  `polymarket_macro_pairs` +60, `polymarket_pairs` +16, `sports_pairs` +590 — 2,632 lines
+  total, all JSON-validated, 0 exact duplicates. `tape/hourly-20260712T1459Z` skipped (~10min
+  old, below the 30-min freshness rule). Branch-delete not attempted (documented permission
+  boundary).
+- **Milestone: no numbered queue item was eligible** (Q1 claimed by PR #4; Q7/Q9/Q16 DONE;
+  Q13 still BLOCKED — `tape/sports_pairs/` has 9 valid canonical `.jsonl` days, needs ≥10,
+  eligible ~07-13; Q14/Q15 still data-adequacy BLOCKED). The lessons ledger's mechanical
+  helper-conversion chain (L27/L28/L32/L7 → L33/L34/L35/L36) is now fully closed — nothing
+  further to convert without an actual future probe. Instead of re-running S17's lead-lag
+  probe on an unchanged data window (no FOMC/CPI shock has landed since last run, so it would
+  reproduce the same noise-floor result), drew on a real unresolved question the 2026-07-12
+  weekly retro flagged (open, unmerged PR #46): the step-0b sweep's line count has looked like
+  it's climbing (1,936→872→873→1,708, now 2,632) with nobody diagnosing why.
+- **Diagnosis (via the `tape-auditor` subagent, read-only).** Verdict: **not a real
+  problem.** The full chronological sweep-size series — 2,076→223→1,936→873→872→1,708→2,632
+  — is noisy and non-monotone (min 223, max 2,632); the retro's 4-sweep window looked like a
+  climb only because it started at a local trough (2,076 landed a full day before, from #39).
+  Dominant driver: `orderbook_depth` runs a flat ~1,100–1,280 lines/hour (not growing — ticker
+  discovery is bounded) but is 3–4x every other family's combined hourly volume, so whether a
+  sweep window catches 0/1/2 orderbook_depth passes alone swings the total ±1,200–2,400 lines;
+  this run's own `orderbook_depth +1,958` (≈1.6 passes) is 74% of the 2,632. Secondary: sweep-gap
+  irregularity (4.0–6.4h between research-loop firings) adds noise on top. Ruled out: a rising
+  cloud-leg fallback rate (structural ~100% per the 2026-07-03 finding, and daily new-branch
+  counts are flat once the 07-07 orderbook_depth-onboarding spike is excluded). Flagged in
+  passing, not investigated further: zero `tape/hourly-*` branches exist for 2026-07-09 — a
+  full-day gap worth a separate coverage check sometime. See
+  `findings/2026-07-12-stranded-tape-sweep-growth-diagnosis.md`. Recorded **L38** in
+  `kb/lessons/00-lessons.md`: don't read the aggregate lines-swept total as a health metric;
+  track it per-family if it's ever automated, so orderbook_depth's chunkiness doesn't mask a
+  real drift elsewhere. No code changes; 507 tests unchanged, `invariants --full` green (only
+  the two expected non-gating advisories).
+
+---
+
 ## 2026-07-12 — Stranded-tape sweep (1,708 lines) + Q12/S17 lead-lag first cut
 
 - **Step 0a passed.** The 5 most-recently-merged PRs (#44, #43, #42, #41, #40)
