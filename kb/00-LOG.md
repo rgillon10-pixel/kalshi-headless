@@ -6,6 +6,78 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-12 — Stranded-tape sweep (1,708 lines) + Q12/S17 lead-lag first cut
+
+- **Step 0a passed.** The 5 most-recently-merged PRs (#44, #43, #42, #41, #40)
+  are all reachable from `origin/main`. `kb/00-LOG.md`'s newest entry and the
+  newest `tape/*/dt=*` file are both 2026-07-12 (0-day gap). `main` not
+  rewound — an initial `git fetch origin main` reported "forced update";
+  traced to this session's shallow clone (`--depth 50`) truncating the
+  commit graph before the fetch, not a real history rewrite (confirmed via
+  `git fetch --unshallow` + re-checked ancestry, and independently via the
+  merged-PR reachability + log/tape date-parity checks). Only open PR is #4
+  (Q1 odds-api leg), unrelated, now **9 days old** awaiting `ODDS_API_KEY` —
+  past the 5-day escalation mark, flagged `Priority: high` in this run's
+  phone note again.
+- **Step 0b stranded-tape sweep (1,708 lines).** `git reset --hard
+  origin/main` first. Of 97 `tape/hourly-*` branches, two postdated PR #44's
+  sweep cutoff and were well past 30min old: `tape/hourly-20260712T0458Z`
+  and `tape/hourly-202607120557Z`. Content-diffed against `main`'s current
+  tape: `crypto_hourly` +4, `orderbook_depth` +1,349,
+  `polymarket_macro_pairs` +30, `polymarket_pairs` +8, `sports_pairs` +317 —
+  1,708 lines total, all JSON-validated, 0 exact duplicates. Committed and
+  pushed standalone so `main` was current before the milestone landed.
+  Branch-delete not attempted (documented permission boundary).
+- **Milestone: no numbered queue item was eligible.** Q1 still claimed by
+  open PR #4; Q7/Q9/Q16 DONE; Q13 still BLOCKED (`tape/sports_pairs/` has 9
+  valid canonical `.jsonl` days, needs ≥10, eligible ~07-13); Q14/Q15 still
+  data-adequacy BLOCKED. The lessons ledger's own standing UNENFORCED
+  candidates were checked first (L23's "empty ≠ drop" generalization: audited
+  `sports_pairs.py`/`crypto_hourly.py`/`polymarket_pairs.py` — all already
+  use honest None-propagation for a genuinely-missing quote and DROP only on
+  a real fetch/parse failure, so there is no live gap to close there, unlike
+  L22's case; L27/L28/L32's own candidates are already importable in
+  `core/bootstrap.py` and wait on an actual future probe, not further loop
+  work). Instead drew on **Q12/S17's own remaining-work note** — genuine
+  strategy-registry progress instead of another infra-only lesson closure.
+- **S17 lead-lag first cut (via `edge-prober`).** Built
+  `scripts/s17_leadlag_probe.py`, the S17 analog of `scripts/s9_leadlag_
+  probe.py`, over `tape/polymarket_macro_pairs/` (Fed-decision leg — both
+  Kalshi `yes_ask` and Polymarket `best_ask` are genuine `real_ask`, an
+  apples-to-apples pair exactly like S9's WC-round comparison). Ran read-only
+  over ~6 accumulated days (2026-07-06→07-12): **2,805 records, 187 distinct
+  captures, 15 (meeting, bucket) pairs** (Jul/Sep/Oct 2026 meetings × 5
+  buckets). Pooled panel cross-correlation of consecutive-capture deltas:
+  contemporaneous ρ=+0.154 (n=2,789), kalshi-leads ρ=−0.003,
+  polymarket-leads ρ=−0.028 (n=2,774 each); 215 ticks ≥1¢ on either venue.
+  **0 FOMC resolve/roll-off (shock-proxy) events fell inside the window** —
+  none of Kalshi's listed meetings have occurred yet, so every observed tick
+  is book noise, the same data-adequacy gap S9 hit before its real
+  round-transition events landed. Reported honestly as a descriptive
+  noise-floor characterization, **not a verdict** (no CI, no DEAD/ALIVE
+  call — L28's discipline: don't build verdict machinery before the signal
+  is even observable). The CPI leg (`tape/polymarket_cpi_pairs/`, 154
+  records) is `synthetic` on the Kalshi side (a derived cumulative-ladder
+  difference) and was deliberately excluded from the real-ask correlation
+  per Hard Rule #3 — counted for provenance only, not pooled in. `kb/
+  strategies/00-index.md` S17 note updated (dated append, stays
+  `data-collecting`). Full write-up:
+  `findings/2026-07-12-polymarket-macro-leadlag-s17-firstcut.md`.
+- **Gates:** 507 tests green (481 prior + 26 new). `python
+  scripts/invariants.py --full` green — one false-positive
+  `no_yes_ask_arithmetic` hit on a test docstring's prose ("kalshi.yes_ask /
+  polymarket.best_ask", not real arithmetic) fixed by rewording to "and"
+  before commit.
+
+**Next:** re-run `scripts/s17_leadlag_probe.py` once a real FOMC decision
+(nearest: July 2026 meeting) or CPI print lands inside the collected window
+— only then does the lead-lag thesis have a real shock to test, same
+resolution path S9 eventually took. Q13 (S14 ladder-underwriting fill-sim)
+becomes eligible ~2026-07-13 once a 10th valid `tape/sports_pairs/` day
+lands.
+
+---
+
 ## 2026-07-12 — Stranded-tape sweep (872 lines) + L36: strike-spacing-from-ladder helper built
 
 - **Step 0a passed.** The 5 most-recently-merged PRs (#43, #42, #41, #40, #39)
