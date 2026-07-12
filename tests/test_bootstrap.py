@@ -1,7 +1,14 @@
-"""core/bootstrap.py — shared block-bootstrap + verdict-gate helpers (L6/L27/L28)."""
+"""core/bootstrap.py — shared block-bootstrap + verdict-gate helpers (L6/L27/L28/L32)."""
 from __future__ import annotations
 
-from core.bootstrap import block_bootstrap, clears_tick_magnitude, floor_pinned_fraction
+import pytest
+
+from core.bootstrap import (
+    block_bootstrap,
+    bracket_by_movement,
+    clears_tick_magnitude,
+    floor_pinned_fraction,
+)
 
 
 # ─── block_bootstrap ────────────────────────────────────────────────────────
@@ -109,3 +116,48 @@ def test_floor_pinned_fraction_respects_tolerance():
     # Floating-point-close-but-not-exact should still count as pinned.
     assert floor_pinned_fraction([0.010000001], floor=0.01, tol=1e-6) == 1.0
     assert floor_pinned_fraction([0.0101], floor=0.01, tol=1e-6) == 0.0
+
+
+# ─── bracket_by_movement (L32) ──────────────────────────────────────────────
+
+def test_bracket_by_movement_all_frozen():
+    report = bracket_by_movement([True, True, True], [0.05, 0.05, 0.05])
+    assert report["frac_frozen"] == 1.0
+    assert report["frozen_inclusive"] == [0.05, 0.05, 0.05]
+    assert report["movement_conditioned"] == []
+
+
+def test_bracket_by_movement_none_frozen():
+    report = bracket_by_movement([False, False], [0.01, -0.02])
+    assert report["frac_frozen"] == 0.0
+    assert report["movement_conditioned"] == [0.01, -0.02]
+
+
+def test_bracket_by_movement_partial_matches_s6_shape():
+    # S6's own precheck shape: the large majority of consecutive pairs frozen.
+    flags = [True] * 697 + [False] * 303
+    values = [0.01] * 697 + [-0.02] * 303
+    report = bracket_by_movement(flags, values)
+    assert report["frac_frozen"] == pytest.approx(0.697)
+    assert report["frozen_inclusive"] == values
+    assert report["movement_conditioned"] == [-0.02] * 303
+
+
+def test_bracket_by_movement_movement_conditioned_excludes_only_frozen_entries():
+    flags = [True, False, True, False]
+    values = [1.0, 2.0, 3.0, 4.0]
+    report = bracket_by_movement(flags, values)
+    assert report["movement_conditioned"] == [2.0, 4.0]
+
+
+def test_bracket_by_movement_empty_is_honest_not_a_crash():
+    report = bracket_by_movement([], [])
+    assert report["n"] == 0
+    assert report["frac_frozen"] == 0.0
+    assert report["frozen_inclusive"] == []
+    assert report["movement_conditioned"] == []
+
+
+def test_bracket_by_movement_length_mismatch_raises():
+    with pytest.raises(ValueError):
+        bracket_by_movement([True, False], [1.0])

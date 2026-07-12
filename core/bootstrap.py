@@ -1,4 +1,4 @@
-"""Shared block-bootstrap + verdict-gate helpers — compounding L6/L27/L28 into code.
+"""Shared block-bootstrap + verdict-gate helpers — compounding L6/L27/L28/L32 into code.
 
 Every probe so far (`s6_maker_firstcut.py`, `s10_reachability_probe.py`,
 `s7c_sports_clv_bootstrap.py`, ...) has hand-rolled its own block bootstrap. That
@@ -11,7 +11,11 @@ import from here rather than re-deriving the bootstrap loop and the magnitude ga
 
 Does NOT replace per-probe judgment calls (the bootstrap UNIT — hour, ticker, game — is
 always a modeling choice specific to what's correlated in that dataset, per L6; this module
-only takes an already-grouped-by-unit mapping, it never guesses the grouping key).
+only takes an already-grouped-by-unit mapping, it never guesses the grouping key). The same
+discipline applies to `bracket_by_movement` (L32): what counts as "frozen" for a given
+snapshot pair (BBO unchanged? mid unchanged? something else?) is a per-probe judgment call
+— this module only takes the caller's already-computed per-observation frozen flags, it
+never inspects raw book fields itself.
 """
 from __future__ import annotations
 
@@ -97,3 +101,35 @@ def floor_pinned_fraction(values: Sequence[float], floor: float, *, tol: float =
         return 0.0
     pinned = sum(1 for v in values if abs(v - floor) <= tol)
     return pinned / len(values)
+
+
+def bracket_by_movement(frozen_flags: Sequence[bool], values: Sequence[float]) -> dict:
+    """The L32 dual-cut bracket: a frozen consecutive snapshot pair (no observed price
+    movement) is a no-fill, not free income — booking its nominal edge as riskless profit
+    is the exact error that inflated S6's naive maker-spread population into a phantom
+    +$0.069 "alive" read (the real populations, both cuts, came back strictly negative).
+
+    Report BOTH populations so a verdict is honest under either fill assumption:
+      - frozen_inclusive: every value as-is (max-generous — counts unrealized spread on
+        frozen pairs as if it had been captured)
+      - movement_conditioned: only values where the matching flag is False (the only
+        population where a fill plausibly occurred and adverse selection is measurable)
+
+    `frozen_flags[i]` must correspond to `values[i]` (the caller has already decided what
+    "frozen" means for its own probe — this function does not inspect book fields itself).
+    Raises on a length mismatch rather than silently misaligning the two sequences.
+    """
+    if len(frozen_flags) != len(values):
+        raise ValueError(
+            f"frozen_flags and values must be the same length "
+            f"(got {len(frozen_flags)} vs {len(values)})"
+        )
+    n = len(values)
+    frac_frozen = sum(1 for f in frozen_flags if f) / n if n else 0.0
+    movement_conditioned = [v for f, v in zip(frozen_flags, values) if not f]
+    return {
+        "n": n,
+        "frac_frozen": frac_frozen,
+        "frozen_inclusive": list(values),
+        "movement_conditioned": movement_conditioned,
+    }
