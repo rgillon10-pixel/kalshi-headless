@@ -12,10 +12,10 @@ placeholders below say `<NTFY_TOPIC_URL>`.
 
 | routine | trigger id | cadence (UTC) | model | status |
 |---|---|---|---|---|
-| kalshi-research-loop | `trig_012Usj2k1TTGMFuWcg1VD3Bn` | :07 of 00/03/06/09/12/15/18/21 (every 3 h — **was 5 h**) | Sonnet 5 | UPDATE pending |
-| kalshi-edge-hunter | — (to create) | 04:15 daily | **Opus 4.8** | CREATE pending |
+| kalshi-research-loop | `trig_012Usj2k1TTGMFuWcg1VD3Bn` | :07 of 00/03/06/09/12/15/18/21 (every 3 h — **was 5 h**) | Sonnet 5 | **LIVE** (updated 2026-07-12 18:52Z via RemoteTrigger; `Task` tool added so the two-agent verdict rule is executable in-cloud) |
+| kalshi-edge-hunter | `trig_01QLjRWsJPV4tRyzXExxmqV3` | 04:15 daily | **Opus 4.8** | **LIVE** (created 2026-07-12 18:53Z; first fire 2026-07-13 04:15Z) |
 | kalshi-collector | `trig_01UCmvwtTAGDB1VqrYfr1FKp` | hourly :53 | Haiku | unchanged |
-| kalshi-weekly-retro | `trig_0147PgZMXWWXYXpb2ZdZHqfm` | Sun 12:00 | **Opus 4.8** (was Sonnet) | UPDATE pending |
+| kalshi-weekly-retro | `trig_0147PgZMXWWXYXpb2ZdZHqfm` | Sun 12:00 | **Opus 4.8** (was Sonnet) | **LIVE** (updated 2026-07-12 18:53Z; ops-hygiene duties added) |
 | ntfy-watch | (in Ryan's account) | hourly | Haiku/Sonnet | unchanged |
 | kalshi-burst-cpi-0714 / wcsemi1-0714 / wcsemi2-0715 / wcfinal-0719 / fomc-0729 | (one-shots) | per event | — | unchanged; delete after firing |
 | VPS collector (not a routine) | cron `:23` on 87.99.146.250 | hourly | — | unchanged |
@@ -89,3 +89,6 @@ Cadence change: every-5h → every-3h (:07 of 00/03/06/09/12/15/18/21 UTC).
   created (nightly Opus thinking seat); retro → Opus + trigger-cleanup + drift-check
   duties. Rationale: queue starvation + verdict-quality redundancy after Fable's
   retirement; see `findings/` and the 2026-07-12 kb/00-LOG.md entry.
+- 2026-07-12 (later) — all three changes APPLIED live via the RemoteTrigger tool from the
+  supervised local session (research-loop cron+prompt+`Task` 18:52Z; edge-hunter created
+  18:53Z; retro model+duties 18:53Z). The table above reflects live state, not desired-only.
