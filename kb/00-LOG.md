@@ -6,6 +6,28 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-12 17:xx ET — Q18 odds-leg matching activation (S11's anchor) + stranded sweep (3,093 lines)
+
+First research-loop firing under protocol v3. Step 0b swept 3,093 lines from 4 fresh
+`tape/hourly-20260712T{1459,1600,1756,1956}Z` branches (PR #49, merged standalone before
+the milestone). **Q18 diagnosis:** the odds-api leg's 7,476 `"unmatched"` VPS records since
+`ODDS_API_KEY` went live 07-10 were not 7,476 failed match attempts — `sports_pairs.py`'s
+`odds_leg` status was a hardcoded literal, and the-odds-api endpoint was **never actually
+called**. Quota was not being burned (correcting the item's original framing), but the tape
+has been silently useless for S11 the whole time. PR #4 (9 days stale, unmergeable — ~10,000
+files diverged) had already built the real matching layer; ported it onto current `main` by
+hand: `collection/odds_api.py` (kickoff-primary + team-name-fallback matching, Pinnacle-first
+bookmaker selection, honest per-game statuses, built-in quota discipline), `sports_pairs`
+schema → v2 (`game_start`/`outcome_name` persisted even keyless, so keyless captures stay
+replayable). 26 new/changed tests, 630 total green, `invariants --full` green. Live keyless
+smoke (no key in this cloud sandbox by design): 114/114 real Kalshi moneyline games captured
+complete, v2 fields correct. PR #4 closed as superseded. **Not flipped:** S11 stays `idea` —
+success condition (≥1 `odds_leg.status="matched"` in a keyed VPS pass) needs the VPS's own
+cron to confirm; that's this item's remaining work for a future run. See
+`findings/2026-07-12-odds-leg-matching-activation-q18.md`; `LOOP-QUEUE.md` Q18 → IN-PROGRESS.
+
+---
+
 ## 2026-07-12 ~15:00 ET — OPERATING SYSTEM v3: protocol v3 + execution lane (paper tier) + queue restock + Opus handoff (Ryan-supervised, Fable's last day)
 
 Ryan's mandate (interactive session, plan approved): refocus the loops from infra churn to
