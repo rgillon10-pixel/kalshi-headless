@@ -1,18 +1,25 @@
 # LOOP-QUEUE — standing work queue for autonomous cloud runs
 
-`protocol v1` · created 2026-07-02 · owner: Ryan Gillon
+`protocol v3` · created 2026-07-02 (v1) · v3 2026-07-12 (Fable handoff, Ryan-approved
+interactive session) · owner: Ryan Gillon
 
 This file is the coordination bus for the cloud loop system:
 
-- **kalshi-research-loop** (every 5 h, Sonnet 5): executes ONE milestone from the queue below.
+- **kalshi-research-loop** (every 3 h since 2026-07-12; was 5 h, Sonnet 5): executes ONE
+  milestone from the queue below.
+- **kalshi-edge-hunter** (nightly ~04:15 UTC, Opus — added 2026-07-12): the thinking seat.
+  Idea generation (Q21-class), adversarial review of the day's findings, probe-prep for
+  upcoming gates, and the daily plain-English brief (incl. paper P&L once shadows exist).
+  It may add queue items and findings; it NEVER flips a verdict without the two-agent rule.
 - **kalshi-collector** (hourly, Haiku): runs `python -m collection.hourly_pass` if it exists;
   nothing else, ever.
 
 **Standing approval.** For a cloud run, executing the topmost eligible queue item under this
 protocol IS the approved plan — do not wait for interactive approval (CLAUDE.md's plan-first
 rule is satisfied by this file). Everything else in CLAUDE.md binds unchanged, especially:
-research + data collection ONLY, no execution code, the real-ask bar, source tags on every
-persisted price, invariants green before commit.
+research + data collection + the sanctioned **paper tier** of `execution/` ONLY (see the
+2026-07-12 Stop-rules amendment — demo/live tiers are NOT cloud-runnable), the real-ask bar,
+source tags on every persisted price, invariants green before commit.
 
 ## Run protocol (research loop)
 
@@ -54,16 +61,30 @@ persisted price, invariants green before commit.
 3. Pick the TOPMOST unclaimed item whose status is TODO or IN-PROGRESS (skip DONE / BLOCKED /
    DEAD / claimed-by-an-open-PR). Do ONE milestone (~one focused stage). If the item blocks
    mid-run, set its status to `BLOCKED(<reason>)` and move to the next eligible item.
+   **(v3, 2026-07-12) Idle-run policy:** if NO item is eligible, the run is an IDLE RUN and
+   must still produce one unit of real work, chosen in this order: (a) convert an UNENFORCED
+   lesson from `kb/lessons/00-lessons.md` into an invariant/test; (b) write + offline-test
+   the probe script for the NEXT time-gated queue item so it fires the day its gate opens;
+   (c) a data-quality deep-dive on one tape family (gaps, drift, join-ability — one finding);
+   (d) idea-gen prep for Q21 (observations memo from accumulated tape, no registration).
+   The step-0b sweep still runs, but "sweep only" is no longer a valid run outcome.
 4. Gates before ANY commit: `pytest` green AND `python scripts/invariants.py --full` green.
 5. Bookkeeping: update the item's Status line in this file; append one dated entry to
    `kb/00-LOG.md` (match its existing format); findings → `findings/`; strategy status
    changes → `kb/strategies/00-index.md`; append one line to "Log of runs" below.
+   **(v3, 2026-07-12) Two-agent verdict rule (codifies what the S10/S6 verdicts already
+   practiced):** any verdict-class change — a registry status flip, a bootstrap CI destined
+   for `kb/`/`findings/`, a kill decision — requires TWO agents: the producer (edge-prober
+   or main context) AND an independent `verifier` re-run that CONFIRMS before commit. A
+   verdict without verifier confirmation may only be committed as `PROVISIONAL` and must not
+   flip the registry. (Fable's oversight is gone; redundancy replaces it.)
 6. Git: commit (message conventions from history: `build:` / `probe(Sx):` / `tape:` /
    `docs:`) on your own branch, push it, then open a PR against `main` (`gh`/GitHub MCP —
    do NOT attempt `git push origin main`, it will not succeed from a cloud session). If gates
-   (step 4) are green and the diff is research/data-only — no order/execution code, no
-   credential handling (Stop rules already forbid both, so this is a re-check, not a new
-   bar) — **merge the PR immediately** (squash) so `main` is current for the next firing. If
+   (step 4) are green and the diff is research/data/paper-tier-only — no execution code
+   outside `execution/`'s sanctioned paper tier (2026-07-12 Stop-rules amendment), no
+   demo/live order paths, no credential handling (Stop rules forbid these, so this is a
+   re-check, not a new bar) — **merge the PR immediately** (squash) so `main` is current for the next firing. If
    gates are red or the milestone is only partially done, leave the PR open with an
    IN-PROGRESS note in its body and say so in the digest; do not merge broken or incomplete
    work into `main`.
@@ -103,10 +124,33 @@ persisted price, invariants green before commit.
    nothing reads it for action anymore (`ntfy-watch` polls the new topic only). NEVER commit
    the new topic name to any file in this repo, any PR, or any run's final message.
 
+9. **Paper sub-pass (v3, 2026-07-12).** If `execution/strategy_api.SHADOW_REGISTRY` is
+   non-empty: advance `execution/paper_broker.PaperBroker` over tape appended since the
+   ledger's last entry (deterministic replay — same tape, same ledger, same state), append
+   the resulting ledger lines under `paper/` in your commit, and include the broker's
+   one-line `daily_summary()` in the run digest and the phone note. An empty registry makes
+   this step a silent no-op. Paper results are evidence, not verdicts: a shadow's track
+   record feeds the live-gate criteria (Stop rules amendment) but never flips a registry
+   status by itself.
+
 ## Stop rules (non-negotiable)
 
-- NEVER write order/execution code, never touch credentials, never place a trade. Capital
-  requires an in-person sign-off from Ryan that no cloud run can obtain — by design.
+- NEVER touch credentials, never place a trade. Capital requires an in-person sign-off from
+  Ryan that no cloud run can obtain — by design.
+  **Amendment (2026-07-12, Ryan-approved interactive session — the paper-harness decision):**
+  "never write order/execution code" is replaced by a three-tier lane under `execution/`:
+  - **paper** — pure simulation over committed tape; no order ever leaves the process; no
+    network calls. Cloud runs MAY build, extend, and run it. Every paper fill carries
+    `fill_model` + `price_source_tag` (a fill against a `synthetic` price is forbidden);
+    the ledger is append-only JSONL under `paper/`, committed like tape.
+  - **demo** — Kalshi demo-API orders. VPS/local only; NOT cloud-runnable. Not built yet.
+  - **live** — real orders. Requires ALL of: (1) block-bootstrapped real-ask CI > 0,
+    (2) ≥14 days of shadow-paper track record consistent with the backtest, (3) a
+    per-strategy `LIVE-AUTH.md` signed by Ryan in person, (4) a bankroll cap + kill switch
+    from `execution/limits.py` (the single sanctioned caps site), (5) credentials that exist
+    ONLY on the VPS/local — cloud sandboxes never receive them. Authenticated/order
+    endpoints may exist ONLY in `execution/kalshi_client.py` (unbuilt until graduation is
+    near). Live trading therefore stays structurally impossible for autonomous cloud runs.
 - An edge is "proven" ONLY by a block-bootstrapped 95% CI strictly > 0 at `real_ask` prices
   net of fees. A DEAD verdict is a success — record it honestly and move on.
 - Never relax an invariant, never delete or reorder queue items; append, don't rewrite.
@@ -115,8 +159,9 @@ persisted price, invariants green before commit.
 
 ## Subagent roster (added 2026-07-06, ops — Ryan-requested)
 
-`.claude/agents/` now defines a project agent team: a **Fable lead on high reasoning**
-(`research-lead` — plans, decomposes, reviews; never edits files itself) guiding five
+`.claude/agents/` now defines a project agent team: an **Opus lead on high reasoning**
+(`research-lead` — plans, decomposes, reviews; never edits files itself; was Fable-class
+until Fable's retirement 2026-07-12) guiding five
 **Opus workers** — `collector-engineer` (build collectors + tests), `edge-prober` (probes/
 backtests/bootstraps, one falsifiable milestone each), `verifier` (adversarial skeptic:
 re-runs and attacks every number before it enters kb/ or findings/), `kb-distiller`
@@ -700,6 +745,97 @@ estimation yet, and it should honestly flag that hourly cadence is coarse for ar
 estimation (recurring cron is hard-capped at hourly per S9/Q8's own finding) — record that
 limitation rather than oversell what hourly L2 snapshots can support.
 
+### Q17 — (number reserved) stranded-sweep-growth diagnosis, filed by weekly retro PR #46
+Status: RESERVED for PR #46 (open, Ryan-review-only per the retro charter). The question it
+files was independently answered the same day by `findings/2026-07-12-stranded-tape-sweep-
+growth-diagnosis.md` + lesson L38 ("not a real problem" — growth tracks collector volume,
+recovery is lossless). When Ryan merges #46, flip its Q17 to DONE citing that finding; if he
+closes #46 instead, this placeholder stands as the tombstone. Do not start work on it.
+
+### Q18 — Odds-leg matching activation (S11's anchor) — TIME-SENSITIVE: quota burn + WC ends Jul 19
+Status: TODO (added 2026-07-12, Ryan-approved v3 restock)
+The `ODDS_API_KEY` went live on the VPS 2026-07-10, but the odds leg has produced **zero
+matched records** since: 2026-07-11/12 tape shows 7,476 `odds_leg.status="unmatched"` (VPS
+passes, key present) + 5,958 `"blocked_key"` (cloud passes, key absent by design — expected).
+The event-matching built in PR #4 (kickoff-primary matching, `collection/odds_api.py`) never
+reached main; main's matcher matches nothing while burning free-tier quota (500 req/month,
+hourly VPS passes). Milestone: (1) diagnose WHY every VPS attempt is unmatched (read a raw
+odds_leg record + the matcher in `collection/sports_pairs.py`; likely the matching layer is
+a stub or key-presence gates a codepath that never joins); (2) port PR #4's kickoff-primary
+matching (or build equivalent) onto CURRENT main with offline fixture tests; (3) add quota
+discipline: ≤1 odds-api call per pass via the batched sports endpoint, skip when no
+soccer/major-league Kalshi market is live, record `quota_remaining` from response headers
+into the tape line; (4) after landing, comment on + close PR #4 as superseded. Success =
+next VPS pass writes ≥1 `odds_leg.status="matched"` record with de-vigged `synthetic` fair
++ raw odds, or an honest finding explaining why zero matches is structurally correct (e.g.
+the-odds-api soccer coverage vs Kalshi's current sports set). S11 flips to data-collecting
+only when matched pairs flow.
+
+### Q19 — S17 burst-event studies (lead-lag + dislocation scan) — TIME-SENSITIVE: CPI Jul 14, FOMC Jul 29
+Status: TODO (added 2026-07-12, Ryan-approved v3 restock; PREP eligible immediately, per-event
+analysis fires as each burst tape lands)
+The five one-shot burst triggers (see "Burst-capture legs") deliver 60–90s-cadence cross-venue
+tape around June-CPI (Jul 14 12:30Z), WC semis (Jul 14/15), WC final (Jul 19), FOMC (Jul 29).
+This is exactly the data class whose absence killed S9's lead-lag test, and S17's first cut
+(`findings/2026-07-12-polymarket-macro-leadlag-s17-firstcut.md`) was descriptive-only because
+no shock fell inside the hourly window. Milestone(s), one per run: **PREP (eligible now):**
+extend `scripts/s17_leadlag_probe.py` with a burst-mode entry point (`--burst-window <start>
+<end>`) that isolates high-`fetch_ts`-density segments, aligns Kalshi vs Polymarket capture
+pairs at 60–120s resolution, and computes (a) who reprices first (signed lead-lag by venue,
+per ticker), (b) fillable dislocation scan: moments where buying the cheap venue's `real_ask`
+and selling the rich venue's `real_bid` clears BOTH venues' fees (use each venue's real fee
+schedule; Polymarket fee ≈ 0 but document the assumption with a source tag), (c) dislocation
+width × duration distribution. Offline tests on synthetic burst fixtures. **PER-EVENT (fires
+the run after each burst lands):** run it on that event's tape → one finding per event
+(`findings/<date>-s17-burst-<event>.md`), two-agent verdict rule if any tradeable claim is
+made. S17's kill/live decision comes AFTER the FOMC event (the highest-liquidity shock of
+the five).
+
+### Q20 — BTC fine-ladder overround anatomy (feeds S14's crypto leg)
+Status: TODO (added 2026-07-12, Ryan-approved v3 restock)
+The +$9.27 overround on the 188-member KXBTC ladder (flagged 2026-07-03 in Q2, never
+investigated) is either an artifact of ~180 far strikes pinned at the 1¢ min ask (S10's
+verdict makes this likely) or partially real and maker-capturable. Read-only over
+`tape/crypto_hourly/` + `tape/orderbook_depth/`: decompose bracket_sum excess by strike
+distance from spot (how much sits in 1¢-floor wings vs the active ±3-bracket band), join
+L2 depth to see what size actually rests at those asks, and compute the S14-relevant
+number: for the ACTIVE band only, does `sum(yes_asks) - 1 - total_maker_fees` stay positive
+at depth-weighted fillable prices? Output: finding + a parameter block for a future
+S14-crypto shadow (band width, quote prices, expected overround capture). No registry flip
+without the two-agent rule.
+
+### Q21 — Idea-generation round: S19+ candidates (standing replenishment item)
+Status: TODO (added 2026-07-12, Ryan-approved v3 restock — STANDING: re-eligible whenever
+fewer than 2 non-blocked research items remain in this queue)
+The alive set has collapsed to S17 + slow gates (S6 and S10 died 2026-07-11/12; S2 gated on
+CME data, S12 on ~20 releases, S3/S15 on 60-day sweeps). The machine must replenish its own
+hypothesis pipe. One round = propose 3–5 NEW falsifiable candidates (S19+), each with: (a) a
+named mechanism (who is the counterparty and why do they lose), (b) a data source that is
+already-collected tape or free, (c) a falsifiable gate + kill condition, (d) an explicit
+"why this survives what killed its nearest dead cousin" paragraph — anything paying taker
+into overround-heavy books is presumptively dead (S1/S5/S7 precedent); anything needing
+sub-hourly resolution must cite burst-class tape (S9 precedent); anything assuming maker
+fills are free must cite a fill model (S13 precedent). Sources to mine: dead-strategy
+postmortems in `findings/`, the lessons ledger, anomaly-sweep tape, the S10 finding's
+"maker side untested" note, cross-venue gap distributions. The `verifier` agent reviews
+every proposal BEFORE registration (two-agent rule applies to the candidate set); survivors
+get registered in `kb/strategies/00-index.md` + a queue item here. The nightly edge-hunter
+leg owns this item by default; a research run may take it when eligible.
+
+### Q22 — Paper-harness shadow wiring (after the 2026-07-12 spine)
+Status: TODO (added 2026-07-12, Ryan-approved v3 restock; BLOCKED-in-part until Q13/Q19/Q20
+emit parameter blocks)
+The paper tier spine (`execution/` — schema, fill models, paper broker, strategy API, limits;
+built 2026-07-12 in the Ryan-supervised session) ships with an EMPTY shadow registry.
+Milestone: when Q13 (S14 ladder underwriting), Q19 (S17 dislocations), or Q20 (S14-crypto
+band) produces a parameter block, implement that strategy against
+`execution/strategy_api.Strategy`, register it in `SHADOW_REGISTRY`, and wire the paper
+sub-pass (protocol step 9) so every research run advances the broker over new tape and the
+digest carries a paper-P&L line. Shadow track records are the graduation evidence the live
+gate requires (≥14 days consistent with backtest). Paper fills obey every honesty rule:
+`fill_model` + `price_source_tag` on every fill, no synthetic fills, caps from
+`execution/limits.py`.
+
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
 Drafted by the weekly retro run from that week's "Log of runs". **Adopted** — Ryan merged
@@ -793,3 +929,4 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 - 2026-07-12T05:xxZ (research loop) · step 0a PASS + stranded-tape sweep (872 lines) + L36: strike-spacing-from-ladder helper built · Step 0a: 5 most-recently-merged PRs (#43,#42,#41,#40,#39) all reachable from `origin/main` (#43's squash commit `b3b76c4` directly visible in the local log); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-12, 0-day gap. `main` not rewound (an initial `git fetch origin main` reporting "forced update" was the local shallow-clone ref catching up to a stale snapshot from container start, not a real rewrite — confirmed HEAD `147cffe` unchanged before/after). Open PRs: only #4 (Q1 odds-api leg, still claimed, still draft, now ~9 days old awaiting `ODDS_API_KEY` — flagged `Priority: high` again). Step 0b sweep (`git reset --hard origin/main` first): of 96 `tape/hourly-*` branches, 2 postdating the last sweep's cutoff and >30min old (`202607120401Z`, `20260712T0258Z`) carried a union of **872 lines** `main` was missing (crypto_hourly +2, orderbook_depth +687, polymarket_macro_pairs +15, polymarket_pairs +7, sports_pairs +161), 0 exact duplicates, all valid JSON; `20260712T0458Z` skipped (commit 5min old, below the freshness threshold); branch-delete not attempted (documented permission boundary). No numbered queue item eligible (Q1 claimed, Q7/Q16 DONE, Q13 BLOCKED — still 9 of ≥10 valid `tape/sports_pairs/` days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED) — drew from the lessons ledger's standing UNENFORCED queue again: L7 ("derive bracket/strike spacing from the ladder itself") had stayed UNENFORCED since 2026-07-04 — its actual fix in `scripts/s8_basis_probe.py` only swapped a fixed-$100 width for a 2-symbol hardcoded dict, still a guess rather than a ladder-derived value, and no importable helper existed for what the lesson actually asked for. Built `core.pricing.infer_strike_spacing(strikes)`: dedupes/sorts the ladder's own strikes, returns the median consecutive gap (robust to one missing/duplicated member), `None` below 2 distinct strikes; 5 new tests in `tests/test_substrate_primitives.py`. Updated `.claude/agents/edge-prober.md` house style to name it. Does not retrofit S8's already-verdicted DEAD probe (Q5) — that verdict stands as-is. Recorded **L36** in `kb/lessons/00-lessons.md` (generalizes L7; L7 stays UNENFORCED as a ledger row per the append-only rule). 481 tests green (476 prior + 5 new), `invariants --full` green (only the two expected non-gating advisories).
 - 2026-07-12T11:xxZ (research loop) · step 0a PASS + stranded-tape sweep (1,708 lines) + Q12/S17 lead-lag first cut · Step 0a: 5 most-recently-merged PRs (#44,#43,#42,#41,#40) all reachable from `origin/main` (a fresh `git fetch origin main` reported "forced update" — traced to this session's shallow-clone (`--depth 50`) truncating the graph, confirmed a false positive via `git fetch --unshallow` + re-checked ancestry, not a real rewrite); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-12, 0-day gap. `main` not rewound. Open PRs: only #4 (Q1 odds-api leg, still claimed, still draft, now **9 days old** awaiting `ODDS_API_KEY` — past the 5-day escalation mark, flagged `Priority: high` in this run's phone note, same as the last several runs). Step 0b sweep (`git reset --hard origin/main` first): of 97 `tape/hourly-*` branches, 2 postdating PR #44's sweep cutoff and well past 30min old (`20260712T0458Z`, `202607120557Z`) carried a union of **1,708 lines** `main` was missing (crypto_hourly +4, orderbook_depth +1,349, polymarket_macro_pairs +30, polymarket_pairs +8, sports_pairs +317), 0 exact duplicates, all valid JSON; committed standalone (PR, squash-merged) so `main` was current before the milestone landed. No numbered queue item eligible (Q1 claimed, Q7/Q9/Q16 DONE, Q13 BLOCKED — still 9 of ≥10 valid `tape/sports_pairs/` days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED); the lessons ledger's own standing UNENFORCED rows (L23, L27/L28/L32-style) were all already resolved-as-far-as-possible or blocked on a future probe, so this run instead drew on **Q12/S17's own remaining-work note** (accumulate snapshots, then a lead-lag cross-correlation, same shape as S9) via the `edge-prober` subagent — genuine strategy-registry progress rather than another infra-only lesson closure. See the Q12 entry above for the full write-up. 507 tests green (481 prior + 26 new), `invariants --full` green (one false-positive `no_yes_ask_arithmetic` hit on a docstring's "kalshi.yes_ask / polymarket.best_ask" prose — not real arithmetic — fixed by rewording to "and" before commit).
 - 2026-07-12T15:xxZ (research loop, later run) · step 0a PASS + stranded-tape sweep (2,632 lines) + L38 sweep-size diagnosis · Step 0a: 5 most-recently-merged PRs (#45,#44,#43,#42,#41) all reachable from `origin/main`; `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-12, 0-day gap. `main` not rewound (local HEAD already equaled `origin/main` tip before and after a "forced update" fetch message — shallow-clone artifact). Open PRs: #4 (Q1 odds-api leg, still claimed, now **10 days old** awaiting `ODDS_API_KEY`, flagged `Priority: high` again) and #46 (this week's retro — docs-only `LOOP-QUEUE.md` proposal, left untouched per its own never-self-merge charter; claims no numbered queue item). Step 0b sweep (`git reset --hard origin/main` first): of ~102 `tape/hourly-*` branches, 4 postdating PR #45's cutoff and >30min old (`202607121155Z`, `20260712T1126Z`, `202607121356Z`, `20260712T1256Z`) carried a union of **2,632 lines** `main` was missing (crypto_hourly +8, orderbook_depth +1,958, polymarket_macro_pairs +60, polymarket_pairs +16, sports_pairs +590), 0 exact duplicates, all valid JSON; `20260712T1459Z` skipped (~10min old). No numbered queue item eligible (Q1 claimed, Q7/Q9/Q16 DONE, Q13 BLOCKED — still 9 of ≥10 valid `tape/sports_pairs/` days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED); the lessons ledger's mechanical helper-conversion chain (L27/L28/L32/L7→L33/L34/L35/L36) is now fully closed, and re-running S17's lead-lag probe would just reproduce last run's same no-shock-in-window result — so this run instead diagnosed a real question the 2026-07-12 weekly retro (open PR #46) flagged: is the sweep's line count actually climbing (1,936→872→873→1,708→2,632)? Via the `tape-auditor` subagent (read-only): **verdict NOT a real problem** — the fuller chronological series (2,076→223→1,936→873→872→1,708→2,632) is noisy/non-monotone, not climbing; `orderbook_depth`'s flat-but-large ~1,100–1,280 lines/hour footprint (3–4x every other family combined) means whichever sweep window catches 0/1/2 of its passes alone swings the total ±1,200–2,400 lines, no rising cloud-leg fallback rate, no unbounded ticker growth. Flagged in passing (not chased further): zero `tape/hourly-*` branches exist for 2026-07-09, a full-day gap worth a future coverage check. See `findings/2026-07-12-stranded-tape-sweep-growth-diagnosis.md`; **L38** recorded in `kb/lessons/00-lessons.md`. No code changes; 507 tests unchanged, `invariants --full` green (only the two expected non-gating advisories).
+- 2026-07-12T~19:30Z (ops, Ryan-approved interactive — Fable handoff) · OPERATING SYSTEM v3 · protocol v3 (idle-run policy, two-agent verdict rule codified, step-9 paper sub-pass, research cadence 5h→3h, nightly Opus edge-hunter leg specced in ops/ROUTINES.md), execution lane opened (Stop-rules amendment; paper spine execution/{schema,limits,fill_models,paper_broker,strategy_api}.py, 58 new tests), 2 new invariants (order_endpoints_confined, risk_caps_sanctioned), queue restocked Q18–Q22 (Q17 reserved for retro PR #46), agent roster fable→opus. 578 tests + invariants --full green. See kb/00-LOG.md 2026-07-12 OS v3 entry.

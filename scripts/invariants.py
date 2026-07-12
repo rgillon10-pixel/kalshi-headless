@@ -63,6 +63,8 @@ SANCTIONED = {
     "pstdev": "core/stats.py",
     "yes_ask_arith": "core/pricing.py",
     "fee_rate": "core/pricing.py",
+    "order_endpoints": "execution/kalshi_client.py",   # unbuilt until live-graduation nears
+    "risk_caps": "execution/limits.py",
 }
 
 
@@ -220,6 +222,51 @@ def inv_no_http_server(path: Path, text: str) -> Optional[str]:
     return _fmt(path, hits, "HTTP server import — Hard Rule #6 forbids FastAPI/HTTP servers") if hits else None
 
 
+def inv_order_endpoints_confined(path: Path, text: str) -> Optional[str]:
+    """Execution-lane invariant (2026-07-12 Stop-rules amendment). Authenticated/order
+    endpoint markers may exist ONLY in execution/kalshi_client.py (unbuilt until a strategy
+    nears live graduation). Everything else — collectors, probes, the paper tier — is
+    read-only public REST by construction. Catches: order-verb method names, the
+    portfolio/orders REST path, and Kalshi auth-signing header names. Comment lines skipped
+    (matching the fee-rate rule's convention). One documented exemption besides the client:
+    scripts/kalshi_sign.py — the KB's OFFLINE signing-scheme repro (kb/kalshi-api/
+    01-auth-and-signing.md): throwaway key, no network, knowledge not action."""
+    if _file_excluded(path) or _rel(path) in (SANCTIONED["order_endpoints"],
+                                              "scripts/kalshi_sign.py"):
+        return None
+    pat = re.compile(
+        r'(?i)\b(?:place_order|create_order|cancel_order|amend_order|batch_create_orders)\b'
+        r'|portfolio/orders'
+        r'|KALSHI-ACCESS-(?:KEY|SIGNATURE|TIMESTAMP)'
+    )
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#") and pat.search(ln)]
+    return _fmt(path, hits,
+                "order/auth endpoint marker outside execution/kalshi_client.py — the "
+                "2026-07-12 Stop-rules amendment confines authenticated order paths to that "
+                "single sanctioned file; paper tier and collectors are read-only public REST"
+                ) if hits else None
+
+
+def inv_risk_caps_sanctioned(path: Path, text: str) -> Optional[str]:
+    """Execution-lane invariant (2026-07-12). Risk-cap constants (MAX_CONTRACTS_PER_ORDER /
+    MAX_OPEN_NOTIONAL_DOLLARS / MAX_DAILY_ORDERS) are bound ONLY in execution/limits.py —
+    the single site a live tier may import caps from, and the single site Ryan reviews when
+    a cap changes. A second binding elsewhere is how a cap silently drifts."""
+    if _file_excluded(path) or _rel(path) == SANCTIONED["risk_caps"]:
+        return None
+    pat = re.compile(
+        r'\bMAX_(?:CONTRACTS_PER_ORDER|OPEN_NOTIONAL_DOLLARS|DAILY_ORDERS)\s*(?::\s*[A-Za-z_.\[\]]+\s*)?='
+        r'(?!=)'
+    )
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#") and pat.search(ln)]
+    return _fmt(path, hits,
+                "risk-cap constant bound outside execution/limits.py — caps live in the one "
+                "sanctioned site (2026-07-12 execution-lane amendment); import them, never "
+                "rebind them") if hits else None
+
+
 STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_gefs", inv_no_gefs),
     ("no_bare_pstdev", inv_no_bare_pstdev),
@@ -228,6 +275,8 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_static_rho_point_four", inv_no_static_rho_point_four),
     ("no_handrolled_fee_rate", inv_no_handrolled_fee_rate),
     ("no_http_server", inv_no_http_server),
+    ("order_endpoints_confined", inv_order_endpoints_confined),
+    ("risk_caps_sanctioned", inv_risk_caps_sanctioned),
 ]
 
 

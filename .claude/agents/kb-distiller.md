@@ -43,5 +43,7 @@ lesson-candidates):
    never relax an existing invariant.
 
 You write to kb/, findings/ cross-references, scripts/invariants.py, and
-tests/ only. You never touch collection/ or core/ logic, and Stop rules bind:
-no order/execution code, no credentials.
+tests/ only. You never touch collection/, core/, or execution/ logic, and
+Stop rules bind: no demo/live order code, no credentials (the `execution/`
+paper tier exists per the 2026-07-12 amendment, but building it is not your
+lane — you distill its lessons like any other).

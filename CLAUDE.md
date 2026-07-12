@@ -42,6 +42,9 @@ ideas and infra, we do not depend on them.
 - `scripts/` — runnable reproductions and minimal examples (the "what I cannot
   create, I do not understand" half of the KB).
 - `data/` — local tape/DBs (gitignored).
+- `execution/` — the sanctioned execution lane (added 2026-07-12, see section below).
+  Paper tier only until a strategy graduates.
+- `paper/` — append-only paper-trading ledger (JSONL, committed like `tape/`).
 
 ## Hard rules carried over (do not relax)
 
@@ -51,6 +54,26 @@ ideas and infra, we do not depend on them.
 4. No synthetic-priced backtest may quote a P&L number without its `price_source_tag`.
 5. Kelly sizing: regime-conditional ρ `{"benign":0.05,"mixed":0.25,"frontal":0.60}` — no static 0.4.
 6. No FastAPI / HTTP servers.
+
+## Execution lane (added 2026-07-12 — Ryan-approved, supersedes the blanket no-execution rule)
+
+Three tiers, all confined to `execution/`:
+
+1. **paper** — pure simulation over committed tape. No network calls, no order ever
+   leaves the process. Autonomous runs may build, extend, and run it. Every paper fill
+   carries `fill_model` + `price_source_tag`; a fill against a `synthetic` price is
+   forbidden. Ledger = append-only JSONL under `paper/`.
+2. **demo** — Kalshi demo-API orders. VPS/local only, never cloud. Not built yet.
+3. **live** — real orders. ALL of the following, no exceptions: bootstrapped real-ask
+   CI > 0 · ≥14 days of shadow-paper track record consistent with the backtest · a
+   per-strategy `LIVE-AUTH.md` signed by Ryan in person · bankroll cap + kill switch from
+   `execution/limits.py` (the single sanctioned caps site) · credentials that exist only
+   on the VPS/local, never in a cloud sandbox. Authenticated/order endpoints may exist
+   ONLY in `execution/kalshi_client.py`. A cloud run can therefore never place a trade —
+   the gate is structural (missing credentials), not behavioral.
+
+The prime directive is unchanged: paper results are evidence toward graduation, never a
+substitute for the real-ask CI bar.
 
 ## Working agreement
 

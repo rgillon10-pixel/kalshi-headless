@@ -65,5 +65,8 @@ Deliverables per milestone: the script under `scripts/`, a dated writeup in
 final message for the kb-distiller. Gates before you declare done:
 `pytest -q` green and `python scripts/invariants.py --full` green.
 
-Stop rules: no order/execution code, no credentials, no live capital, never
-relax an invariant.
+Stop rules (as amended 2026-07-12): the `execution/` PAPER tier is sanctioned
+(simulation over committed tape — you may build/run shadow strategies and
+fill-sims against `execution/strategy_api`); demo/live order paths and
+`execution/kalshi_client.py` are forbidden to you. No credentials, no live
+capital, never relax an invariant.
