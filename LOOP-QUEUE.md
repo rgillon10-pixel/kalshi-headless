@@ -700,6 +700,26 @@ estimation yet, and it should honestly flag that hourly cadence is coarse for ar
 estimation (recurring cron is hard-capped at hourly per S9/Q8's own finding) — record that
 limitation rather than oversell what hourly L2 snapshots can support.
 
+### Q17 — Diagnose the rising push-to-main failure rate (investigation + written recommendation only, no execution code) — new, 2026-07-12
+Status: TODO (added 2026-07-12, from the weekly retro)
+Friction observed: the step-0b stranded-tape recovery size has trended sharply upward over the
+past week — 1,744 lines (2026-07-07T20:09Z), 2,797 lines (2026-07-08T01:08Z), then 6,272 lines
+(2026-07-08T05:30Z, the single largest recovery since collection began), and every run since
+has still swept 200-2,000+ lines. The 2026-07-08T05:30Z run's own log entry already flagged
+this explicitly ("recovery size is trending up... suggesting push-to-main failures are getting
+more frequent, not less"), and this week's ntfy feed shows both `non-fast-forward` and
+`concurrent run` failure messages on ordinary hourly passes — but no run has since investigated
+the root cause. A side effect: because cloud sessions cannot delete remote branches (adopted
+2026-07-10 amendment #2 below), 99 `tape/hourly-*`/`tape/burst-*` branches now sit on the
+remote, the large majority already fully reconciled into `main` by past sweeps. A future run
+should, read-only: (a) sample recent failed-push log lines/ntfy notes to characterize the
+failure mode (timing collision vs auth vs something else); (b) check whether the two hourly
+collector legs (cloud, VPS `:23`) and/or overlapping research-loop firings are colliding on the
+same push window; (c) write up a recommendation in `findings/` — e.g. a fetch-rebase-retry loop
+before falling back to a branch, or wider cadence stagger. This is diagnosis + a written
+recommendation only; per the Stop rules, no collector/push code changes happen inside this
+item — any fix is a separate future milestone after Ryan reviews the write-up.
+
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
 Drafted by the weekly retro run from that week's "Log of runs". **Adopted** — Ryan merged
@@ -735,6 +755,44 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
    action (a key, a decision, a merge) with no new activity, that run's ntfy phone note should
    use `Priority: high` (instead of the default) and name the specific blocking action once,
    so a stuck item doesn't stay silent indefinitely.
+
+## Retro amendments — proposed 2026-07-12 (this week's retro; NOT yet adopted — Ryan reviews via PR)
+
+Drafted by the weekly retro run from the 2026-07-05→07-12 "Log of runs". Nothing here relaxes
+an invariant or a Stop rule, deletes or reorders a queue item, or touches source code.
+
+1. **Refine adopted amendment #3 — stuck-PR escalation is firing every ~5h, not "once."**
+   Amendment #3 above (adopted 2026-07-10) asked for `Priority: high` and naming the blocker
+   "once, so a stuck item doesn't stay silent indefinitely" — but in practice every research
+   run since has re-sent an essentially identical `Priority: high` PR #4 note, roughly every 5
+   hours for 9+ straight days (30+ repeats by this retro, per the Log of runs below), with zero
+   new information each time (still `ODDS_API_KEY` absent, still draft, still unmerged). That's
+   the opposite of the intent — it risks Ryan tuning out the exact channel meant to carry real
+   emergencies. Proposed clarification: once a blocked-PR note has gone out at `Priority: high`,
+   drop subsequent identical re-flags of the *same* PR to `Priority: default` (still mentioned
+   in every run's digest, so the log stays honest) and only jump back to `Priority: high` when
+   something actually changes — the PR crosses a new escalation threshold (e.g. 14 days), gets
+   a new comment/push, or its status otherwise moves. This keeps the phone feed meaningful
+   without ever going silent on it.
+2. **New queue item Q17 (above) — the push-to-main failure rate is climbing and unexplained.**
+   Stranded-tape recoveries have grown roughly 4x in a week (1.7k → 2.8k → 6.3k lines across
+   three runs ending 2026-07-08, still 200-2,000+/run since) and no run has looked into why,
+   only recovered after the fact. Filed as **Q17**: a read-only diagnosis + written
+   recommendation (no push/collector code changes in that item itself), so a future run has a
+   concrete milestone instead of re-noting the same growing symptom indefinitely.
+3. **New — batch the branch-cleanup ask instead of repeating the permission-boundary note
+   every run.** Adopted amendment #2 correctly stopped the wasted `git push origin --delete`
+   retries, but every run since has still spent a log sentence re-stating the same permission
+   boundary while the branch count keeps climbing — 99 `tape/hourly-*`/`tape/burst-*` branches
+   on the remote as of this retro, most already provably fully reconciled by past sweeps'
+   line-by-line diffs. Proposed: instead of a per-run note, this weekly retro leg takes it on —
+   each week, count remote `tape/hourly-*`/`tape/burst-*` branches and, only if the count looks
+   like it's compounding (as it is now), flag it to Ryan once with two concrete options: (a)
+   grant the cloud GitHub App branch-delete scope, or (b) route deletion through the VPS leg
+   instead — it clones with its own deploy key over plain `git`/SSH, a different credential
+   path than the cloud session's constrained token, and may not share the same boundary. Either
+   is a one-time Ryan-side or VPS-config change, not something a research-loop firing can do
+   itself.
 
 ## Log of runs
 
@@ -792,3 +850,4 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 - 2026-07-12T00:xxZ (research loop) · step 0a PASS + stranded-tape sweep (873 lines) + L35: frozen-pair dual-cut bracketing helper built · Step 0a: 5 most-recently-merged PRs (#42,#41,#40,#39,#38) reachable from `origin/main` (#38 confirmed by a prior run — outside this session's shallow-clone depth, not evidence of a rewind; #42/#41/#40/#39 directly visible); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-11, 0-day gap pre-sweep. `main` not rewound. Open PRs: only #4 (Q1 odds-api leg, still claimed, still draft, now ~9 days old awaiting `ODDS_API_KEY` — flagged `Priority: high` again). Step 0b sweep (`git reset --hard origin/main` first): of 93 `tape/hourly-*` branches, 2 postdating the last sweep's cutoff (`20260711T1501Z`/`1806Z`) — `20260711T205500Z` and `20260711T2156Z`, both well past 30min old — carried a union of **873 lines** `main` was missing (crypto_hourly +4, orderbook_depth +466, polymarket_macro_pairs +30, polymarket_pairs +20, sports_pairs +353; this session's shallow clone had no merge-base with these branches, so line content was read via `git show <branch>:<path>` rather than `git diff`), 0 exact duplicates, all valid JSON; branch-delete not attempted (documented permission boundary). No numbered queue item eligible (Q1 claimed, Q7/Q16 DONE, Q13 BLOCKED — 9 of ≥10 valid `tape/sports_pairs/` days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED) — drew from the lessons ledger's standing UNENFORCED queue again: L34 closed L27/L28's charter gap but left **L32** (frozen-pair no-fill precheck + dual-cut bracketing, from S6) as the one still-open UNENFORCED candidate in that lineage, with no importable counterpart in `core/bootstrap.py`. Built `core.bootstrap.bracket_by_movement(frozen_flags, values)` — takes the caller's own per-observation frozen flags (L6-style, never guesses what "frozen" means) and returns the frozen-inclusive list, movement-conditioned list, and frozen fraction; 6 new tests. Updated `.claude/agents/edge-prober.md` house style to name it alongside the L27/L28 helpers for any snapshot-based probe. Recorded **L35** in `kb/lessons/00-lessons.md` (generalizes L32; L32 stays UNENFORCED as a ledger row per the append-only rule). 476 tests green (470 prior + 6 new), `invariants --full` green (only the two expected non-gating advisories).
 - 2026-07-12T05:xxZ (research loop) · step 0a PASS + stranded-tape sweep (872 lines) + L36: strike-spacing-from-ladder helper built · Step 0a: 5 most-recently-merged PRs (#43,#42,#41,#40,#39) all reachable from `origin/main` (#43's squash commit `b3b76c4` directly visible in the local log); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-12, 0-day gap. `main` not rewound (an initial `git fetch origin main` reporting "forced update" was the local shallow-clone ref catching up to a stale snapshot from container start, not a real rewrite — confirmed HEAD `147cffe` unchanged before/after). Open PRs: only #4 (Q1 odds-api leg, still claimed, still draft, now ~9 days old awaiting `ODDS_API_KEY` — flagged `Priority: high` again). Step 0b sweep (`git reset --hard origin/main` first): of 96 `tape/hourly-*` branches, 2 postdating the last sweep's cutoff and >30min old (`202607120401Z`, `20260712T0258Z`) carried a union of **872 lines** `main` was missing (crypto_hourly +2, orderbook_depth +687, polymarket_macro_pairs +15, polymarket_pairs +7, sports_pairs +161), 0 exact duplicates, all valid JSON; `20260712T0458Z` skipped (commit 5min old, below the freshness threshold); branch-delete not attempted (documented permission boundary). No numbered queue item eligible (Q1 claimed, Q7/Q16 DONE, Q13 BLOCKED — still 9 of ≥10 valid `tape/sports_pairs/` days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED) — drew from the lessons ledger's standing UNENFORCED queue again: L7 ("derive bracket/strike spacing from the ladder itself") had stayed UNENFORCED since 2026-07-04 — its actual fix in `scripts/s8_basis_probe.py` only swapped a fixed-$100 width for a 2-symbol hardcoded dict, still a guess rather than a ladder-derived value, and no importable helper existed for what the lesson actually asked for. Built `core.pricing.infer_strike_spacing(strikes)`: dedupes/sorts the ladder's own strikes, returns the median consecutive gap (robust to one missing/duplicated member), `None` below 2 distinct strikes; 5 new tests in `tests/test_substrate_primitives.py`. Updated `.claude/agents/edge-prober.md` house style to name it. Does not retrofit S8's already-verdicted DEAD probe (Q5) — that verdict stands as-is. Recorded **L36** in `kb/lessons/00-lessons.md` (generalizes L7; L7 stays UNENFORCED as a ledger row per the append-only rule). 481 tests green (476 prior + 5 new), `invariants --full` green (only the two expected non-gating advisories).
 - 2026-07-12T11:xxZ (research loop) · step 0a PASS + stranded-tape sweep (1,708 lines) + Q12/S17 lead-lag first cut · Step 0a: 5 most-recently-merged PRs (#44,#43,#42,#41,#40) all reachable from `origin/main` (a fresh `git fetch origin main` reported "forced update" — traced to this session's shallow-clone (`--depth 50`) truncating the graph, confirmed a false positive via `git fetch --unshallow` + re-checked ancestry, not a real rewrite); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-12, 0-day gap. `main` not rewound. Open PRs: only #4 (Q1 odds-api leg, still claimed, still draft, now **9 days old** awaiting `ODDS_API_KEY` — past the 5-day escalation mark, flagged `Priority: high` in this run's phone note, same as the last several runs). Step 0b sweep (`git reset --hard origin/main` first): of 97 `tape/hourly-*` branches, 2 postdating PR #44's sweep cutoff and well past 30min old (`20260712T0458Z`, `202607120557Z`) carried a union of **1,708 lines** `main` was missing (crypto_hourly +4, orderbook_depth +1,349, polymarket_macro_pairs +30, polymarket_pairs +8, sports_pairs +317), 0 exact duplicates, all valid JSON; committed standalone (PR, squash-merged) so `main` was current before the milestone landed. No numbered queue item eligible (Q1 claimed, Q7/Q9/Q16 DONE, Q13 BLOCKED — still 9 of ≥10 valid `tape/sports_pairs/` days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED); the lessons ledger's own standing UNENFORCED rows (L23, L27/L28/L32-style) were all already resolved-as-far-as-possible or blocked on a future probe, so this run instead drew on **Q12/S17's own remaining-work note** (accumulate snapshots, then a lead-lag cross-correlation, same shape as S9) via the `edge-prober` subagent — genuine strategy-registry progress rather than another infra-only lesson closure. See the Q12 entry above for the full write-up. 507 tests green (481 prior + 26 new), `invariants --full` green (one false-positive `no_yes_ask_arithmetic` hit on a docstring's "kalshi.yes_ask / polymarket.best_ask" prose — not real arithmetic — fixed by rewording to "and" before commit).
+- 2026-07-12T12:00Z (weekly retro) · week-in-review + self-improvement PR · Reviewed 2026-07-05→07-12: Q7(S10) and Q16(S6) both reached DONE/verdict-DEAD this week (verifier-confirmed), Q12/S17 got a first lead-lag cut (no verdict yet, no shock event in-window), several runs built small reusable helpers off the lessons ledger (L33/L35/L36) during idle cycles, and hourly collection ran continuously on both legs all week. Sent Ryan a plain-English phone summary. Filed **Q17** (diagnose the rising push-to-main failure rate — read-only investigation + written recommendation, no code) and drafted 3 protocol amendments (throttle the now-repetitive PR #4 `Priority: high` re-flagging down to real state changes; batch the branch-cleanup ask instead of re-noting the same permission boundary every run) — see "Retro amendments — proposed 2026-07-12" above. Opened as a leave-open PR for Ryan's review, not self-merged.
