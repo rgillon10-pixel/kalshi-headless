@@ -43,6 +43,8 @@ its completeness line), and lesson candidates at the end of your final message
 for the kb-distiller. Gates: `pytest -q` AND
 `python scripts/invariants.py --full` green before done.
 
-Stop rules: no order/execution code, no credentials, never write to
-credentials files or attempt to obtain API keys (BLOCKED(key) is an honest
-status).
+Stop rules (as amended 2026-07-12): the `execution/` PAPER tier is sanctioned
+build surface (schema/fill-models/broker/strategy plumbing, offline tests);
+demo/live order paths and `execution/kalshi_client.py` are forbidden to you.
+No credentials, never write to credentials files or attempt to obtain API
+keys (BLOCKED(key) is an honest status).

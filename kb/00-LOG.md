@@ -6,6 +6,62 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-12 ~15:00 ET — OPERATING SYSTEM v3: protocol v3 + execution lane (paper tier) + queue restock + Opus handoff (Ryan-supervised, Fable's last day)
+
+Ryan's mandate (interactive session, plan approved): refocus the loops from infra churn to
+money convergence, kill the remaining babysitting, scale up, and build the paper harness NOW
+(funded Kalshi account + trading key exist for an eventual, hard-gated live pilot). A
+three-agent audit + firsthand review found: the queue had structurally starved (every item
+DONE/DEAD/BLOCKED; ideas only ever arrived from Ryan's interactive sessions), the pipeline
+ended at "verdict" with 0% execution plumbing by design, and the alive set had collapsed to
+S17 + slow gates after S6/S10's verifier-confirmed deaths (07-11/12).
+
+**What changed (all in this commit):**
+- **Protocol v3** (`LOOP-QUEUE.md`): idle-run policy (sweep-only is no longer a valid run
+  outcome — idle runs convert UNENFORCED lessons, prep gated probes, deep-dive tape quality,
+  or prep idea-gen); two-agent verdict rule codified (producer + independent `verifier`
+  confirmation before any registry flip — redundancy replaces Fable-class oversight);
+  step 9 paper sub-pass; research loop cadence 5h→3h; new nightly Opus `kalshi-edge-hunter`
+  leg (thinking seat: adversarial review, Q21 idea-gen, probe-prep, daily brief). Desired
+  routine state is now version-controlled in `ops/ROUTINES.md` (drift-checkable).
+- **Execution lane opened** (`CLAUDE.md` + Stop-rules amendment): three tiers under
+  `execution/` — paper (cloud-runnable, pure tape simulation, no network), demo (VPS/local,
+  unbuilt), live (per-strategy LIVE-AUTH.md signed by Ryan in person + bankroll cap + kill
+  switch + credentials that never enter cloud sandboxes). Graduation bar: real-ask CI > 0
+  AND ≥14 days consistent shadow-paper track record AND Ryan's signature.
+- **Paper spine built** (collector-engineer agent, 58 new tests, 578 total green,
+  invariants green): `execution/{schema,limits,fill_models,paper_broker,strategy_api}.py`.
+  Fills carry `fill_model` + `price_source_tag` (synthetic fills rejected at the type
+  boundary); ledger = append-only JSONL under `paper/`, deterministic replay verified;
+  MTM at real bid with exit fees reported separately; `SHADOW_REGISTRY` empty until
+  Q13/Q19/Q20 emit parameters. Live smoke over real 07-11 depth tape filled 5 contracts
+  taker_depth end-to-end (ledger line produced then removed — smoke, not a real shadow).
+- **Two new invariants** (+9 tests): `order_endpoints_confined` (order/auth endpoint
+  markers only in the unbuilt `execution/kalshi_client.py`; documented exemption:
+  `scripts/kalshi_sign.py`, the KB's offline signing repro) and `risk_caps_sanctioned`
+  (MAX_* caps bound only in `execution/limits.py`).
+- **Queue restocked** (Q17 reserved for retro PR #46; Q18–Q22 filed): Q18 odds-leg matching
+  activation (KEY IS LIVE BUT 100% UNMATCHED — 7,476 unmatched VPS attempts over 07-11/12,
+  quota burning, PR #4's matching never landed; TIME-SENSITIVE), Q19 S17 burst-event
+  studies (CPI 7/14, FOMC 7/29 — prep eligible now), Q20 BTC fine-ladder overround anatomy
+  (the +$9.27 flag, feeds S14-crypto), Q21 standing idea-generation round (S19+, verifier-
+  gated, replenishment trigger <2 eligible items), Q22 shadow wiring (spine DONE this
+  commit; wiring blocked on parameter blocks).
+- **Agent roster migrated** (`.claude/agents/`): research-lead `fable`→`opus` (Fable
+  retired today); worker charters amended for the paper-tier carve-out.
+
+**Lesson-candidates from the spine build** (for the next kb-distiller pass): (1) the paper
+ledger legitimately uses `real_bid`/`stale_no_bid` tags — an explicit JSONL-only extension
+of L24's tape namespace; document before any paper→DB loader exists. (2) A maker paper-P&L
+readout inherits s13's `optimistic_fill`/`no_queue_model` caveats AND L30's 1¢ maker-fee
+floor — paper verdicts must filter on `fill_model`+`caveats`, never read the net number
+alone. (3) `git stash` mid-gate in a shared working tree can revert an in-flight amendment
+and flip gates transiently — scan new paths instead.
+
+**Still open for Ryan:** merge or close PR #46 (retro; its Q17 already answered by #47/L38);
+routine updates per `ops/ROUTINES.md` (Chrome MCP was disconnected — either open Chrome for
+a click-through or paste the three deltas); optional branch-delete scope for the cloud app.
+
 ## 2026-07-12 (later run) — Stranded-tape sweep (2,632 lines) + L38: sweep-size growth diagnosed (not a real problem)
 
 - **Step 0a passed.** The 5 most-recently-merged PRs (#45, #44, #43, #42, #41) are all

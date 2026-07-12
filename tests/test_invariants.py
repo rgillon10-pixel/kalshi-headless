@@ -32,6 +32,8 @@ VIOLATIONS = {
     "no_static_rho_point_four": "rho = 0.4",
     "no_handrolled_fee_rate": "FEE_RATE = 0.07",
     "no_http_server": "from fastapi import FastAPI",
+    "order_endpoints_confined": "resp = client.place_order(ticker, px, qty)",
+    "risk_caps_sanctioned": "MAX_CONTRACTS_PER_ORDER = 500",
 }
 
 
@@ -271,3 +273,55 @@ def test_db_real_bid_tag_is_caught_as_invalid_enum(tmp_path):
     )
     fails = inv.scan_db(db)
     assert any("price_source_tag" in f for f in fails), fails
+
+
+# ─── Execution-lane invariants (2026-07-12 Stop-rules amendment) ─────────────────────
+
+
+@pytest.mark.parametrize("snippet", [
+    "resp = self.post('/trade-api/v2/portfolio/orders', body)",
+    "headers['KALSHI-ACCESS-SIGNATURE'] = sig",
+    "def cancel_order(self, order_id):",
+    "client.batch_create_orders(orders)",
+])
+def test_order_endpoint_rule_fires(snippet):
+    failures = inv.scan_text(GENERIC, snippet)
+    assert any("[order_endpoints_confined]" in f for f in failures), (snippet, failures)
+
+
+def test_order_endpoint_rule_exempt_in_sanctioned_client_site():
+    # execution/kalshi_client.py is the ONE file order/auth endpoints may live in
+    # (unbuilt until a strategy nears live graduation — the exemption predates the file).
+    assert inv.scan_text(ROOT / "execution" / "kalshi_client.py",
+                         "def place_order(self): ...") == []
+
+
+def test_order_endpoint_rule_skips_comment_lines():
+    assert inv.scan_text(GENERIC, "    # never call place_order from a collector") == []
+
+
+def test_order_endpoint_rule_exempts_kb_signing_repro():
+    # scripts/kalshi_sign.py is the KB's offline signing repro (throwaway key, no network) —
+    # knowledge, not action; pinned exemption so the KB artifact and the rule coexist.
+    assert inv.scan_text(ROOT / "scripts" / "kalshi_sign.py",
+                         '"KALSHI-ACCESS-SIGNATURE": signature,') == []
+
+
+@pytest.mark.parametrize("snippet", [
+    "orders = sorted(open_orders)",          # benign: no order-verb method name
+    "self.orderbook(ticker)",                # read-only public endpoint, not portfolio/orders
+    "portfolio = compute_paper_portfolio()", # 'portfolio' alone is not the REST path
+])
+def test_order_endpoint_rule_silent_on_read_only_uses(snippet):
+    assert not any("[order_endpoints_confined]" in f for f in inv.scan_text(GENERIC, snippet))
+
+
+def test_risk_caps_rule_fires_on_rebind_and_exempt_in_limits():
+    assert any("[risk_caps_sanctioned]" in f
+               for f in inv.scan_text(GENERIC, "MAX_DAILY_ORDERS = 10_000"))
+    # execution/limits.py is the single sanctioned caps site…
+    assert inv.scan_text(ROOT / "execution" / "limits.py",
+                         "MAX_DAILY_ORDERS = 200") == []
+    # …and comparisons/imports elsewhere are not bindings.
+    assert not any("[risk_caps_sanctioned]" in f for f in inv.scan_text(
+        GENERIC, "ok = n <= limits.MAX_DAILY_ORDERS\nassert x == MAX_DAILY_ORDERS"))
