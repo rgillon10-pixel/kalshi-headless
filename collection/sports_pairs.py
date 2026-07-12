@@ -18,11 +18,13 @@ per-outcome `yes_ask_dollars` sum to a bracket_sum > 1.0, the same overround str
 the weather ladders — core/pricing.py is the one sanctioned site for that arithmetic, so
 Hard Rule #3 applies here unchanged).
 
-The odds-api leg (matched sportsbook moneylines, de-vigged to a fair probability) requires
-`ODDS_API_KEY`; absent that, the Kalshi leg is still captured and the game's `odds_leg` is
-recorded as `{"status": "blocked_key"}` (Q1 spec) rather than silently omitted. The Kalshi
-game -> odds-api event MATCHING (team-name normalization across the two conventions) is not
-implemented yet — real next step once a key exists to test the match against.
+The odds-api leg (matched sportsbook moneylines, de-vigged to a fair probability) lives in
+`collection/odds_api.py` and requires `ODDS_API_KEY`; absent that, the Kalshi leg is still
+captured and the game's `odds_leg` is recorded as `{"status": "blocked_key"}` (Q1 spec)
+rather than silently omitted. With a key present the enrichment self-activates: game start
+(`occurrence_datetime`) + per-outcome team name (`yes_sub_title`) — persisted on every v2
+record either way — anchor the match to the odds-api event, and the paired sharp line is
+de-vigged to a fair prob tagged `synthetic` (a de-vig is a model, not a fill).
 
 Run one pass:
     python -m collection.sports_pairs
@@ -36,10 +38,10 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import requests
-
+from collection import odds_api
+from collection.odds_api import devig_multiplicative  # noqa: F401 — sanctioned de-vig site
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
 from core.pricing import bracket_sum, overround
@@ -47,7 +49,6 @@ from validation.v3_market import Kalshi, _load_venue_cfg
 
 TAPE = REPO_ROOT / "tape" / "sports_pairs"
 SPORTS_CATEGORY = "Sports"
-ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 # SERIES-EVENTCODE-OUTCOME, e.g. KXWCGAME-26JUL06USABEL-USA. EVENTCODE is a YYMonDD date
 # token immediately followed by concatenated team codes (empirically observed on
@@ -154,41 +155,15 @@ def discover_groups(client: Kalshi, series_list: List[str]
 
 
 # --------------------------------------------------------------------------- #
-# de-vig (Q1: sharp-odds fair prob when ODDS_API_KEY is present — SYNTHETIC, never a fill)
-# --------------------------------------------------------------------------- #
-def devig_multiplicative(decimal_odds: List[float]) -> List[float]:
-    """Proportional de-vig: 1/odds implied probabilities, normalized to sum to 1.0.
-
-    The output is `synthetic` (CLAUDE.md: "a de-vig is a model, not a fill") — it estimates
-    the sharp book's fair probability net of vig, it is never itself a tradeable price.
-    """
-    if not decimal_odds or any(o <= 1.0 for o in decimal_odds):
-        raise ValueError(f"decimal odds must each be > 1.0, got {decimal_odds!r}")
-    implied = [1.0 / o for o in decimal_odds]
-    total = sum(implied)
-    return [x / total for x in implied]
-
-
-def fetch_the_odds_api_soccer(api_key: str, sport_key: str = "soccer_fifa_world_cup"
-                              ) -> List[Dict]:
-    """One page of matched sportsbook h2h odds for a sport. NOT called unless ODDS_API_KEY
-    is present. Matching a returned event to a Kalshi event_ticker (team-name
-    normalization across the two venues' conventions) is not implemented yet — real next
-    step once a key exists to test the match against (see module docstring)."""
-    r = requests.get(f"{ODDS_API_BASE}/sports/{sport_key}/odds",
-                     params={"apiKey": api_key, "regions": "eu,us", "markets": "h2h",
-                             "oddsFormat": "decimal"}, timeout=30)
-    r.raise_for_status()
-    return r.json()
-
-
-# --------------------------------------------------------------------------- #
 # capture — one JSONL line per confirmed moneyline game
 # --------------------------------------------------------------------------- #
 def run(limit: Optional[int] = None, min_interval: float = 0.2,
         client: Optional[Kalshi] = None, tape_dir: Optional[Path] = None,
-        odds_api_key: Optional[str] = None) -> Dict:
-    """One read-only capture pass. `client`/`tape_dir` injectable for offline testing."""
+        odds_api_key: Optional[str] = None,
+        odds_http_get: Optional[Callable] = None) -> Dict:
+    """One read-only capture pass. `client`/`tape_dir`/`odds_http_get` injectable for
+    offline testing. The odds enrichment runs strictly AFTER the Kalshi leg is built —
+    an odds-side failure can never cost a Kalshi capture."""
     tape_dir = Path(tape_dir) if tape_dir is not None else TAPE
     if client is None:
         cfg = _load_venue_cfg()
@@ -204,7 +179,7 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         series_list = series_list[:limit]
     groups, raw_pages_by_series, series_errors = discover_groups(client, series_list)
 
-    lines: List[str] = []
+    records: List[Dict] = []
     for event_ticker in sorted(groups):
         g = groups[event_ticker]
         markets = sorted(g["markets"], key=lambda m: m.get("ticker", ""))
@@ -223,6 +198,7 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
             outcomes.append({
                 "ticker": ticker,
                 "outcome_code": (fields or {}).get("outcome", ""),
+                "outcome_name": odds_api.parse_outcome_name(m.get("yes_sub_title")),
                 "ticker_parse_error": err,
                 "title": m.get("title", ""),
                 "yes_ask": ya,
@@ -235,14 +211,15 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         captured = len(outcomes)
         member_count = captured
         bsum = bracket_sum(yes_asks) if yes_asks else None
-        record = {
-            "schema_version": "sports_pairs.v1",
+        records.append({
+            "schema_version": "sports_pairs.v2",
             "capture_id": capture_id,
             "captured_at": captured_at,
             "venue": "kalshi",
             "series": g["series"],
             "event_ticker": event_ticker,
             "game_date": (parse_sports_ticker(markets[0]["ticker"])[0] or {}).get("game_date"),
+            "game_start": markets[0].get("occurrence_datetime"),
             "game_title": markets[0].get("title", ""),
             "outcomes": outcomes,
             "expected_outcomes": expected,
@@ -252,11 +229,15 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
             "bracket_sum": bsum,
             "overround_absorbed": overround(yes_asks) if yes_asks else None,
             "price_source_tag": "real_ask",
-            "odds_leg": {"status": "blocked_key"} if not odds_api_key else {"status": "unmatched"},
-        }
-        lines.append(canonical_json(record))
+            "odds_leg": {"status": "blocked_key"},
+        })
 
-    n_complete = sum(1 for ln in lines if json.loads(ln)["completeness_ok"])
+    odds_summary: Optional[Dict] = None
+    if odds_api_key and records:
+        odds_summary = odds_api.enrich_records(records, odds_api_key,
+                                               http_get=odds_http_get)
+
+    n_complete = sum(1 for rec in records if rec["completeness_ok"])
     raw_index = sorted(
         [sticker, sha256_hex("".join(pages).encode("utf-8"))]
         for sticker, pages in raw_pages_by_series.items()
@@ -264,23 +245,30 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
     summary = {
         "capture_id": capture_id, "day": day, "captured_at": captured_at,
         "n_candidate_series": len(series_list),
-        "n_games": len(lines), "n_complete": n_complete,
+        "n_games": len(records), "n_complete": n_complete,
         "n_series_errors": len(series_errors),
         "raw_sha256": sha256_hex(canonical_json(raw_index)),
         "odds_api_key_present": bool(odds_api_key),
+        "odds": odds_summary,
     }
 
-    if lines:
+    if records:
         tape_dir.mkdir(parents=True, exist_ok=True)
         out_path = tape_dir / f"dt={day}.jsonl"
         with open(out_path, "a", encoding="utf-8") as f:
-            for ln in lines:
-                f.write(ln + "\n")
+            for rec in records:
+                f.write(canonical_json(rec) + "\n")
         summary["path"] = str(out_path)
 
+    odds_note = "ABSENT (blocked_key)"
+    if odds_api_key:
+        odds_note = "present"
+        if odds_summary:
+            odds_note += (f" ({odds_summary['n_matched']} matched, "
+                          f"quota_remaining={odds_summary['quota_remaining']})")
     print(f"[sports_pairs] {capture_id}: {summary['n_candidate_series']} candidate series, "
           f"{summary['n_games']} moneyline games, {n_complete} complete, "
-          f"odds_api_key={'present' if odds_api_key else 'ABSENT (blocked_key)'}")
+          f"odds_api_key={odds_note}")
     if series_errors:
         print(f"[sports_pairs] WARN {len(series_errors)} series failed enumeration",
               file=sys.stderr)
