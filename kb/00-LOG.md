@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 xx:xx ET — Q13 CLOSED: S14 ladder underwriting is the project's FIRST non-DEAD candidate (idea → data-collecting), PROXY-POSITIVE not proven — verifier CONFIRMED-WITH-CAVEAT
+
+Q13 became eligible (`tape/crypto_hourly/` crossed its day threshold). The `edge-prober`
+produced a read-only fill-sim of S14 (ladder overround underwriting) and the `verifier`
+independently re-ran it three ways — the two-agent verdict rule is satisfied.
+
+**What was tested.** `scripts/s14_ladder_fillsim.py` (21 offline tests, injected fetcher, no
+network) posts a resting short-YES maker offer at every member's `yes_ask` (real_ask) at the
+earliest capture of each settled BTC/ETH hourly bracket ladder (mean 131.5 members, MECE,
+exactly one strike settles YES — a genuine strike ladder; `sports_pairs`, a 2–3-outcome
+moneyline group, was correctly excluded as structurally not a ladder). Fill proxy = cached
+Kalshi hourly candlestick `max(high) ≥ posted_ask AND volume > 0` (the seller mirror of S13's
+resting-bid rule); premium net of the maker fee from `core.pricing` (L18); payout \$1 iff the
+`broker_truth` winner was among the filled strikes. 6,524 per-ticker summaries cached to
+`tape/s14_ladder_fillsim/dt=2026-07-13.jsonl` (`real_ask`, resumable).
+
+**The numbers (verbatim, reproduced 3 ways).** Block-bootstrap by event-hour
+(`core.bootstrap.block_bootstrap`, n_boot=10,000, n=300): mean **+\$0.0925, 95% CI
+[+\$0.0630, +\$0.1231]**, `clears_tick_magnitude` CLEARS (~6× the 1¢ tick), 72.0% events
+positive; KXBTC +\$0.150 / KXETH +\$0.035 (n=150 each). Coarser units both still clear zero and
+the magnitude gate (by-day [+0.068,+0.119]; by-day×symbol [+0.055,+0.130]).
+
+**Why it is proxy-positive, not proven (the honest ceiling).** The gate's "complete fill" term
+is **\$0** (complete-fill rate 0.0%) — the result is path-dependent partial premium net of the
+near-certain \$1 winner loss (winner filled 96.7%, near-money 95.8%, wings 2.5%). L30
+fee-annihilation deletes ~30.9% of the nominal overround. And the candlestick proxy ignores
+queue position: **78% of the \$0.093 edge (\$0.072) comes from sub-100-contract-volume income
+legs**; strip the income leg and it is −\$0.51 to −\$0.97. It survives a modest volume haircut
+(vol≥50 +\$0.026 [+0.004,+0.049]) but dies under an aggressive one or under the unmodeled
+fill↔winner adverse-selection correlation — exactly what a queue-aware L2 fill-sim must capture.
+
+**Verdict.** `verifier`: **CONFIRMED-WITH-CAVEAT**, no material bugs/mis-tags. Registry:
+**S14 idea → data-collecting** — the project's first candidate NOT to die on its first real
+cut, but a proxy-positive candidate is a forward gate, not a proven fillable edge. **Still 0
+proven edges; the bar has not moved.** Remaining binding gate: a queue-aware L2/depth fill-sim
+over `tape/orderbook_depth/` (short-YES queue read off the mirror `no_bids` side), same shape
+as S11's open fill-sim gate. `LOOP-QUEUE.md` Q13 → DONE.
+
+**Lessons.** L39 (bracket-ladder P&L that is a small net of two large legs — Σpremium ≈ payout
+— credited by a queue-blind candlestick/volume fill proxy is biased UPWARD; a per-leg volume
+gate is necessary-but-insufficient; decompose the edge as a fraction of the thinnest income legs
+before claiming fillability; family L27/L30/L31/L32). L40 (operational: wrap a ConnectionError
+retry around large candlestick sweeps — `validation.v3_market` retries status codes but not
+transport-level `ConnectionError`).
+
+Finding: `findings/2026-07-13-ladder-underwriting-s14-firstcut.md`. Gates at verdict time:
+`pytest -q` 642 passed (621 prior + 21 new); `python scripts/invariants.py --full` green (only
+the standing non-gating L25/L29 stray-directory + L20 stranded-tape advisories). This run's
+step 0a/0b: `origin/main` HEAD descends cleanly from the just-merged nightly edge-hunter PR
+(#53, S17 burst-mode scanner) — no conflict of substance, both runs picked different eligible
+queue items (Q13 here, Q19 PREP there) off the same replenished pipeline the edge-hunter's own
+log entry below identified.
+
+---
+
 ## 2026-07-13 00:15 ET — edge-hunter nightly: S11 flip re-checked (holds), pipeline healthy (3 eligible), S17 burst-mode scanner built for Jul-14 CPI
 
 First nightly `kalshi-edge-hunter` run (Opus). Protocol steps 0a/0/0b ran first, all clean.
@@ -56,6 +111,8 @@ and the width×duration distribution is now the discriminator. No registry chang
 
 **Housekeeping.** No stuck PRs (0 open). No burst trigger's event date has passed (earliest is
 CPI, Jul 14). Remote `tape/hourly-*` branch count: **111**; `tape/burst-*`: **0**.
+
+---
 
 ## 2026-07-12 20:xx ET — Q18 CLOSED: odds-leg matched records confirmed live (S11 idea → data-collecting) + stranded sweep (803 lines)
 
