@@ -6,6 +6,60 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 (later) — S20 CLOSED: "copy Polymarket whales" premise DEAD; H1 emitted as Q24; 2 dossier errors caught pre-merge
+
+Distilled from the completed S20 sprint (peer-reviewed APPROVE-WITH-NOTES, corrected). Full
+pipeline ran end to end: **/first-principles (GO, research scope) → /council (CONDITIONAL 3-0,
+conditions C1–C5) → pre-registered sprint (`findings/2026-07-13-polymarket-wallet-forensics-s20-prereg.md`,
+written before any wallet data was pulled) → sprint (`scripts/s20_wallet_forensics.py`,
+re-pullable from public APIs) → /peer-review with an independent `verifier` full recomputation
+from raw fills**. Every number tagged `polymarket_onchain` — none is Kalshi-edge evidence (C5).
+
+**Premise DEAD.** Of 50 top-leaderboard wallets, 37 evaluable; exactly 1 formally survives
+BH-FDR at q=0.10, and Result 2 discredits even that one → **credible skilled-wallet count: 0**.
+The leaderboard decomposes into rewards-subsidized MMs (31/37 `passive-maker`, non-transferable —
+Kalshi analogs S6/S13/S19 already DEAD), lottery winners with flat-to-negative per-trade edge
+(16/37 negative; #1 wallet −4.9¢, rank-3 −3.0¢), and one longshot-seller whose formal
+significance is a **degenerate-bootstrap artifact** (all 8 of its resample clusters resolved the
+same way → one-sided p mechanically 0). "Copy the Polymarket whales" is structurally void — a
+recorded dead end, not a strategy. **S20 CLOSED as a one-shot sprint** (not a recurring collector).
+
+**Live output = H1**, emitted as `LOOP-QUEUE.md` **Q24**: maker-side rich-ASK selling on
+sports/event longshots — the direct mirror of the S7c PROVED finding (Kalshi pregame sports asks
+run +2.35¢ rich vs DraftKings-devig fair) that S13's bid-side test did NOT cover. H1's
+evidentiary basis is **S7c alone** — after Result 2's degeneracy finding the Polymarket survivor
+contributes nothing but "the trade shape occurs in the wild." Q24's binding probe requirements
+carry the sprint's own lessons forward: queue-aware `orderbook_depth` fill-sim (L39, not a
+candlestick print), explicit negative-skew accounting (the sold-longshot-wins leg modeled, not
+conditioned away — the exact Result 2 artifact), the ≥1-losing-cluster floor, and a
+citation-TODO (2–3 favorite-longshot-bias papers before it becomes eligible). H1/S14 flagged as
+the same factor family (short-the-overpriced-tail), factor cap recorded now.
+
+**Two dossier errors caught pre-merge by independent verification** (recorded because catching
+them is the point): (1) zero-fill wallet count 1→6; (2) a −27.8¢/n=3,248 example figure
+mis-attributed to the #1 wallet — it belonged to a rank-47 sports wallet (wrong wallet/rank/PnL/
+category), the founding pt1 synthetic-price failure family (a number detached from its source
+row). Both corrected in place; the qualitative conclusions survived.
+
+**Lessons added:** **L41** (degenerate bootstrap — zero losing clusters ⇒ mechanical p=0, no
+evidentiary weight; requires ≥1 opposite-sign cluster + a minimum cluster count; folds in the
+resolution-conditioning root cause — conditioning long-horizon skill on already-resolved markets
+truncates the unresolved tail); **L42** (trace every headline number to its exact source row
+before publication — the two-agent verifier recompute is the control that caught S20's
+mis-attribution). L41 is genuinely assertable but its honest home is a runtime guard beside
+`core.bootstrap.clears_tick_magnitude` (`bootstrap_verdict_admissible(...)`, proposed) — that is
+`core/` work, outside this distiller's lane, so L41 stays **UNENFORCED** with the invariant text
+proposed and flagged for a future core-write run (same terminal shape as L39). L42 is terminal as
+**protocol** (the redundant independent recompute already in the loop). No new invariant/test code
+this pass — the assertable lesson's fix is out-of-lane, recorded honestly rather than half-built.
+
+Registry: `kb/strategies/00-index.md` gains an **S20** row (`dead ✗ / one-shot sprint`) with the
+Q24/H1 provenance pointer, mirroring how S19's row references Q23. Still **0 proven edges** — the
+bar has not moved; S20 removes a candidate-generation avenue and adds one probe-able Kalshi
+question. Finding: `findings/2026-07-13-polymarket-wallet-forensics-s20-dossier.md`.
+
+---
+
 ## 2026-07-13 11:51 ET — Q23 CLOSED: S19 elevated-wing maker fade — DEAD, verifier-CONFIRMED
 
 Research-loop run. Step 0a/0/0b ran first: `origin/main` reachable and un-rewound (newest

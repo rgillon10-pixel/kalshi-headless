@@ -972,6 +972,43 @@ rule applies to any kill/CI. Registered this round; three sibling proposals (spo
 overround underwriting, a cross-venue held-to-settlement box, a post-release econ-ladder fade)
 were killed at idea stage by the verifier — see the S19 note in `kb/strategies/00-index.md`.
 
+### Q24 — H1: maker-side rich-ASK selling on sports longshots (the untested S7c mirror)
+Status: TODO (added 2026-07-13, local Ryan-approved session — S20 wallet-forensics dossier,
+peer-reviewed APPROVE WITH NOTES + independent verifier recomputation; the probe's own
+verdict still requires the two-agent rule as usual)
+S7c PROVED the taker side: Kalshi pregame sports asks run **+2.35¢ rich** vs
+DraftKings-devig fair (n=80 games/237 outcomes, block-bootstrap-by-game CI
+[−0.0245,−0.0225]; `findings/2026-07-04-sports-clv-s7-verdict.md`) — do NOT re-run S7c.
+S13 then tested resting maker **BIDS at fair−1¢** → DEAD (the 0.0175 maker fee ate the
+margin; `findings/2026-07-04-sports-maker-s13-verdict.md`). The direct mirror is still
+untested: **rest the rich ASK itself** (short YES / buy-NO at `1−ask`), concentrated in
+the longshot tail where S7c's richness is largest. **Mechanism:** collect the measured
+overpricing from retail lottery-ticket takers who cross the spread pregame. **The binding
+risk is not edge, it's fills:** the incumbent maker queue already posts those asks — we
+join the BACK of it (S19 died at 0.45% fill rate; that floor applies). Provenance color
+(NOT evidence): S20's Polymarket sprint found the same trade shape in the wild
+(`findings/2026-07-13-polymarket-wallet-forensics-s20-dossier.md`); its wallet stat was
+degenerate — the evidentiary basis for Q24 is S7c alone. **Data (already collected):**
+`tape/sports_clv/` (matched-game fair anchors) + `tape/orderbook_depth/` (S6's L2 capture
+covers the sports_pairs tickers — the YES-ask/`no_bids` queue for the fill question).
+**Milestone (one probe, read-only):** queue-aware fill-sim of resting at the observed ask
+(and ask−1¢ variant) on longshot outcomes (fair ≤ ~0.20), open→kickoff window, maker fee
+0.0175, block-bootstrap by game. **Binding gates (do NOT weaken):** (1) queue-aware
+`orderbook_depth` sim, NEVER a candlestick print (L39); (2) the sold-longshot-WINS leg
+must be modeled, not conditioned away — and per S20's lesson, any positive-edge claim
+requires **≥1 losing cluster** in the resample unit, else p=0 is mechanical and the claim
+is void; (3) L27 tick-magnitude gate on any CI; (4) adverse-selection: longshot asks get
+lifted when news moves toward the longshot — condition fills on subsequent line movement
+where the tape allows. **Factor cap note:** same family as S14 (short-the-overpriced-tail,
+negative skew) — if both ever graduate they share one factor allocation; record this in
+any graduation memo. **Citation TODO (peer-review flag #13):** distill 2–3 primary
+favorite-longshot-bias papers into `kb/` as part of this milestone. **Kill:** fill rate at
+or below the S19-class floor, net CI ≤ 0, magnitude-gate fail, or zero losing clusters in
+the filled sample (data-inadequacy → report honestly, no verdict flip without the
+two-agent rule). **Honest expectation:** the edge-at-quote is real (S7c); survival hinges
+entirely on fill rate and adverse selection — a clean no-fill result converts this to
+tested-dead and closes the S7 family for good.
+
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
 Drafted by the weekly retro run from that week's "Log of runs". **Adopted** — Ryan merged
