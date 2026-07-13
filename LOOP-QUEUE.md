@@ -806,8 +806,21 @@ the-odds-api soccer coverage vs Kalshi's current sports set). S11 flips to data-
 only when matched pairs flow.
 
 ### Q19 — S17 burst-event studies (lead-lag + dislocation scan) — TIME-SENSITIVE: CPI Jul 14, FOMC Jul 29
-Status: TODO (added 2026-07-12, Ryan-approved v3 restock; PREP eligible immediately, per-event
-analysis fires as each burst tape lands)
+Status: PREP DONE (2026-07-13, edge-hunter) — per-event runs remain TODO (fire as each burst
+tape lands). Built `scripts/s17_leadlag_probe.py --burst-window START END [--poly-fee F]`
+(read-only, additive): window isolation + cadence-honesty check, per-ticker SIGNED lead-lag,
+fillable cross-venue dislocation scan (buy cheap-venue real ask / sell rich-venue real bid net
+of BOTH fees — Kalshi taker both legs via `core.pricing.fee_per_contract`, Polymarket ~0 an
+explicit tagged assumption `--poly-fee`), and a dislocation width×duration distribution. 17 new
+offline tests (43 total), 621 pytest green, `invariants --full` green. Smoke over hourly tape
+(flagged NOT burst-cadence) surfaced 616 candidate dislocations persisting hours-to-days (~$0.04)
+— the stale/nominal-quote artifact signature (S6/L31), NOT an arb; a REAL shock dislocation
+should be short-lived, and width×duration is the discriminator the burst run applies. See
+`findings/2026-07-13-s17-burst-mode-prep-q19.md`. **PER-EVENT (still TODO):** run `--burst-window`
+on each event's tape the run after it lands → `findings/<date>-s17-burst-<event>.md`, two-agent
+rule on any tradeable claim; S17 kill/live decision AFTER the FOMC event.
+Status (history): TODO (added 2026-07-12, Ryan-approved v3 restock; PREP eligible immediately,
+per-event analysis fires as each burst tape lands)
 The five one-shot burst triggers (see "Burst-capture legs") deliver 60–90s-cadence cross-venue
 tape around June-CPI (Jul 14 12:30Z), WC semis (Jul 14/15), WC final (Jul 19), FOMC (Jul 29).
 This is exactly the data class whose absence killed S9's lead-lag test, and S17's first cut

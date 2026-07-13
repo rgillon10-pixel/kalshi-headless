@@ -6,6 +6,57 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 00:15 ET — edge-hunter nightly: S11 flip re-checked (holds), pipeline healthy (3 eligible), S17 burst-mode scanner built for Jul-14 CPI
+
+First nightly `kalshi-edge-hunter` run (Opus). Protocol steps 0a/0/0b ran first, all clean.
+
+**0a history-integrity — PASS.** `origin/main` HEAD `af4a9d2` is a coherent, recent chain
+(07-13 VPS hourly passes, PRs #51/#52 merged); newest `kb/00-LOG.md` entry (07-12) vs newest
+`tape/*/dt=*` file (07-13) is a 1-day gap (< 2-day tolerance). The initial `git pull` reporting
+"forced-update" was the shallow-clone (`--depth 50`) artifact prior runs already diagnosed
+(reflog: fetch stored `78284fe`, rebase moved to true tip `af4a9d2`) — not a rewind.
+**0 open PRs** — nothing claimed, nothing stuck on a Ryan-side action to flag.
+**0b sweep:** 111 `tape/hourly-*` branches, **0 `tape/burst-*`** branches remote; no branch
+newer than the last merged sweep needed union-appending this run (the :26 VPS passes are
+already on `main` through `af4a9d2`).
+
+**Unit 1 — adversarial review (last 24h findings). CONFIRMED, no issue opened.** The one
+registry-moving verdict in the window was Q18's S11 `idea → data-collecting` flip
+(`findings/2026-07-13-odds-leg-matched-confirmation-q18-close.md`). Independently re-derived
+the load-bearing numbers straight from `tape/sports_pairs/dt=2026-07-12.jsonl`: exactly 6
+`matched` records; for all 6, `Σ(fair_prob)=1.00000000`, `fair_prob` reproduces
+`(1/decimal)/Σ(1/decimal)` to 6dp, `book_overround` matches `Σ(1/decimal)−1` exactly (Δ=0),
+odds-leg tagged `synthetic`, Kalshi leg `real_ask`. Flip holds. The other two in-window
+findings (S17 firstcut, stranded-tape growth diagnosis) made no CI/verdict claim and moved
+nothing; their load-bearing claim ("0 FOMC shocks in the 07-06→07-12 window" — July FOMC is
+Jul 29, outside the window) is correct.
+
+**Unit 2 — pipeline replenishment. 3 eligible, no Q21 round needed.** Counting TODO/unclaimed/
+unblocked research items: **Q13** (S14 ladder underwriting) — its ≥10-day gate is now met by
+FILE SHAPE (L25): `tape/sports_pairs/` and `tape/crypto_hourly/` each have 10 valid canonical
+`dt=*.jsonl` days (the `dt=2026-07-02/09/10`-dir and `crypto/dt=2026-07-10`-dir entries
+correctly excluded); **Q19-PREP** (S17 burst, done this run); **Q20** (BTC fine-ladder
+overround). ≥2 eligible → the hypothesis pipe is not starved, so no idea-generation round
+this run (manufacturing candidates when the queue is healthy is the wrong move).
+
+**Unit 3 — probe-prep: S17 burst-mode scanner (Q19 PREP).** The `kalshi-burst-cpi-0714`
+trigger fires Jul 14 12:05→13:45Z (< 72h), delivering 60s-cadence cross-venue tape — so built
+the analysis now so the per-event run only executes. `scripts/s17_leadlag_probe.py` gained a
+read-only `--burst-window START END [--poly-fee F]` mode: window isolation + cadence-honesty
+check, per-ticker SIGNED lead-lag (which venue reprices first), a fillable cross-venue
+dislocation scan (buy cheap venue real ask / sell rich venue real bid clearing BOTH fees —
+Kalshi taker fee both legs via `core.pricing.fee_per_contract`, Polymarket ~0 an explicit
+tagged assumption), and a dislocation width×duration distribution. 17 new offline tests (43
+total in the file), **621 pytest passed**, `invariants --full` green. Smoke over the HOURLY
+tape (correctly flagged NOT burst-cadence) surfaced 616 candidate dislocations persisting
+hours-to-days at ~$0.04 — the stale/nominal-quote artifact signature (S6/L31 family), NOT a
+real arb; the point of the burst run is that a REAL shock dislocation should be short-lived,
+and the width×duration distribution is now the discriminator. No registry change; S17 stays
+`data-collecting`. See `findings/2026-07-13-s17-burst-mode-prep-q19.md`.
+
+**Housekeeping.** No stuck PRs (0 open). No burst trigger's event date has passed (earliest is
+CPI, Jul 14). Remote `tape/hourly-*` branch count: **111**; `tape/burst-*`: **0**.
+
 ## 2026-07-12 20:xx ET — Q18 CLOSED: odds-leg matched records confirmed live (S11 idea → data-collecting) + stranded sweep (803 lines)
 
 Research-loop run. Step 0a history-integrity check passed: `origin/main`'s HEAD (`db33245`)
