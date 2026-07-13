@@ -6,6 +6,57 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-12 20:xx ET — Q18 CLOSED: odds-leg matched records confirmed live (S11 idea → data-collecting) + stranded sweep (803 lines)
+
+Research-loop run. Step 0a history-integrity check passed: `origin/main`'s HEAD (`db33245`)
+descends from all recently-merged PRs (#50/#49/#48/#47/#46-unmerged/#45/#44/#43/#42, verified
+via the GitHub MCP + local ancestry); `kb/00-LOG.md`'s newest entry and the newest
+`tape/*/dt=*` file are both 2026-07-12 (0-day gap). The local `main` ref and an initial
+`git fetch` reporting "forced update"/"unrelated histories" were traced to this session's
+shallow clone (depth 54, no common ancestor with the true root) — the same benign artifact
+prior runs (#43/#44/#45/#47) already diagnosed, not a real rewrite; `git reset --hard
+origin/main` resolved it. No open PRs — nothing claimed.
+
+**Step 0b stranded-tape sweep (803 lines).** Of 109 `tape/hourly-*`/`tape/burst-*` branches,
+two postdated PR #49's cutoff and were >30min old: `tape/hourly-202607122055Z` (20:57Z) and
+`tape/hourly-20260712T2306Z` (23:06Z). `tape/hourly-20260713T0006Z` (00:06Z, ~6min old) was
+skipped per the freshness rule. Union-diffed against `main`'s current tape (no merge-base
+existed in this shallow clone, so content was read via `git show <ref>:<path>` rather than
+`git diff`, same technique PR #43 used): `crypto_hourly` +4, `orderbook_depth` +538,
+`polymarket_macro_pairs` +30, `polymarket_pairs` +8, `sports_pairs` +223 — 803 lines total,
+all JSON-validated, 0 exact duplicates. Branch-delete not attempted (documented permission
+boundary).
+
+**Milestone: Q18's live-confirmation gate cleared.** Q18 (IN-PROGRESS since 2026-07-12,
+milestones 1–4 already landed) was waiting on the first keyed VPS pass to write
+`odds_leg.status="matched"` tape. Checked `tape/sports_pairs/dt=2026-07-12.jsonl`: the VPS
+pass at `20260712T212303Z` (commit `6b6938d`, ~3h after the Q18 port merged as `5b265a3`)
+did exactly that. Status distribution across the 6,201-line file: 3,129 `unmatched`, 2,752
+`blocked_key`, 170 `unmapped_series`, 144 `not_selected`, **6 `matched`** — 3 VPS passes
+(`20260712T{212303,222302,232302}Z`) × 2 World Cup games (France v Spain, England v
+Argentina). `match_score=2.0` (max — exact team-name match both sides), `outcome_coverage=
+"full"` (all 3 outcomes mapped 1:1, Draw↔Tie handled). De-vig math checks out:
+`fair_prob` sums to 1.000000 per record, reproduces `(1/decimal_odds)/Σ(1/decimal_odds)` to
+6dp, `book_overround` matches `Σ(1/decimal_odds)−1` to 6dp. Price-source tags correct per
+Hard Rule #3: Kalshi legs `real_ask`/`real_bid` (fillable), odds legs `synthetic` (a de-vig
+is a model, never a fill).
+
+**Two-agent verdict rule applied** (this is a registry status flip): the `verifier` subagent
+independently re-parsed the tape from scratch (not trusting the numbers above), ran
+`git blame` on the first `matched` line — confirmed it lands on the VPS's first post-Q18-merge
+pass and is not backfilled or fabricated — re-derived the de-vig math itself, and confirmed
+Rule #3 tagging. Verdict: **CONFIRMED**. `kb/strategies/00-index.md`: **S11 idea →
+data-collecting** (a data-flow milestone, not a P&L/CI claim — still thin: 1 bookmaker
+(Pinnacle), 2 games, 3 passes). `LOOP-QUEUE.md` Q18 → DONE.
+
+**Step 9 (paper sub-pass):** `execution/strategy_api.SHADOW_REGISTRY` is still empty (unchanged
+since the 2026-07-12 paper spine — Q22 stays blocked-in-part on Q13/Q19/Q20 parameter blocks).
+No-op this run, as expected.
+
+Gates: pytest green, `python scripts/invariants.py --full` green.
+
+---
+
 ## 2026-07-12 17:xx ET — Q18 odds-leg matching activation (S11's anchor) + stranded sweep (3,093 lines)
 
 First research-loop firing under protocol v3. Step 0b swept 3,093 lines from 4 fresh
