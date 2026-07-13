@@ -6,6 +6,78 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 (Q24) — S21 the S7-maker ASK side: DEAD by data-adequacy (verifier-CONFIRMED); 0/81 joinable; S7 family closed
+
+Q24 (LOOP-QUEUE, registry family S7/H1) tested the one leg S7c and S13 never covered: the
+**maker rich-ASK sell** on sports longshots — rest the S7c-PROVEN-rich ask (short YES / buy-NO
+at `1−ask`) in the longshot tail and harvest the **+2.35¢** overpricing retail lottery-ticket
+takers pay pregame. S7c proved the *taker*-side richness (edge_after_fee −0.02354, CI
+[−0.0245,−0.0225], n=80 games; `findings/2026-07-04-sports-clv-s7-verdict.md`); S13 tested resting
+maker BIDS → DEAD (the flat maker fee ate the margin, L30). This is the direct mirror. The
+edge-at-quote is **not** the question — S7c settled it. The binding question is **FILLS**: the
+incumbent maker queue already posts those asks, so a resting offer joins the BACK of it.
+
+An `edge-prober` built the mandated **queue-aware `orderbook_depth` `no_bids` fill-sim** (L39, NOT
+a candlestick print), and an independent `verifier` returned **CONFIRMED-WITH-CAVEAT** — the caveat
+a cosmetic 80/80→81/81 script literal (fixed separately; the real number is **81/81**), not a
+verdict issue.
+
+**What happened / the binding fact.** The mandated join — fair-anchored longshots from
+`tape/sports_clv/` × the `no_bids` resting queue from `tape/orderbook_depth/` — is **0/81 joinable
+(0.00%)** for the primary `fair_prob ≤ 0.20` selection (**0/83** for the `yes_ask ≤ 0.20` proxy).
+Cause = **L9 non-overlap, at the collector level**: `sports_clv` fair anchors cover kickoffs
+**06-04→07-03** (captured 07-03/04) while sports `orderbook_depth` began **07-07** — every
+fair-anchored game had already **settled** before the depth tape began. Zero event-ticker AND zero
+outcome-ticker overlap; because the calendar date is embedded in the ticker string the non-overlap
+is **structural** (no join-window relaxation can manufacture a match — the verifier reproduced the
+0 by bypassing the probe's own join code). Fill rate **0.00% (0 fills)**, `mean=None, CI=[None,None],
+n_units(games)=0` — the queue-aware fill-sim Q24 exists to run is **structurally un-runnable on
+committed tape**.
+
+**What it means — DEAD by data-adequacy, NOT a CI falsification.** The edge-at-quote stays
+**S7c-proven-rich**; only the maker FILL question is unanswered — **untested, not falsified.** It
+is re-testable only on a **fresh collection where `sports_clv` and `orderbook_depth` run
+concurrently over the same *upcoming* games** (a re-collected WC-final/future window) — a
+collector-alignment change (L43), out of this read-only probe's lane. Same terminal shape as
+S9/S10's data-adequacy DEADs.
+
+**The death is a depth-queue TIMING gap, not a winner gap.** Settlement
+(`tape/sports_history_s7/worldcup2026.jsonl`, `broker_truth`) was ADEQUATE: **81/81** fair-longshots
+settled, **8/81 = 9.88% settled YES** (a textbook longshot base rate). The sold-longshot-WINS
+negative-skew leg is **fully modeled and priced**, never conditioned away (Q24 gate #2 / L41):
+`premium−1−fee` ≈ **−0.86** on settle-YES, `premium−fee` on settle-NO; fee = flat **$0.01** maker
+fee via `core.pricing.fee_per_contract(1−premium, MAKER_FEE_RATE)` (L18/L30). The machinery is
+correct and complete — it simply has zero rows, because the queue (only `orderbook_depth` carries
+it) never coexists in time with a fair-anchored game.
+
+**Steelman — quantified, no rescue.** `sports_pairs` ask≤0.20 longshots that DO overlap depth
+(07-02→07-13): **346/652 (53%)** carry a measurable `no_bids` queue, **60/346 (17%)** front-of-queue,
+**MEDIAN queue-ahead 485 contracts** — you rest behind a real, deep incumbent NO-bid queue,
+directly confirming Q24's binding-risk thesis. But full-sim-eligible (queue AND settlement AND
+executed-volume all present) = only **3 markets**, far below the **10-game CI floor** (S19's
+2-event-hour data-adequacy family). The verifier independently confirmed the alternate paths
+(`sports_history/` Apr–Jun NBA; `sports_pairs`-native `.raw.json` result/volume) also yield **0**
+settled depth-overlapping longshots.
+
+**Price source tags** (every price): asks/executed-volume `real_ask` · resting queue `real_bid`
+(the `no_bids` mirror) · settlement `broker_truth` · `fair_prob` `synthetic`. Bootstrap by GAME
+(L6) via `core.bootstrap.block_bootstrap` + `clears_tick_magnitude`.
+
+**Registry / lessons.** `kb/strategies/00-index.md` gains **S21** (`dead ✗`), the S7-maker ASK side
+— sibling of S13 the S7-maker BID side. This **closes the S7 family**: taker S7c DEAD, maker-bid
+S13 DEAD, maker-ask S21 DEAD-by-data-adequacy. **Still 0 proven edges — the bar has not moved.**
+H1/S21 is the same short-the-overpriced-tail **factor family as S14** (factor cap recorded). Two
+lessons appended: **L43** (family-level recurrence of L9 — a collector must align the `sports_clv`
+and `orderbook_depth` passes over the same upcoming games, else the join is permanently empty; `protocol`) and
+**L44** (`worldcup2026.jsonl` is a viable OFFLINE sports executed-volume/touch source — per-outcome
+`candles[].volume_fp` + `yes_ask.high_dollars`, the sports analogue of the crypto-only S14 candle
+cache, WC-only; `ledger-only`). Citation half of the milestone already committed:
+`kb/quant-finance/favorite-longshot-bias.md` (3 primary favorite-longshot-bias sources). Gates: 742
+tests green (30 new Q24 tests), `invariants --full` green. Finding:
+`findings/2026-07-13-q24-sports-longshot-maker-fillsim-verdict.md`.
+
+---
+
 ## 2026-07-13 (later) — S20 CLOSED: "copy Polymarket whales" premise DEAD; H1 emitted as Q24; 2 dossier errors caught pre-merge
 
 Distilled from the completed S20 sprint (peer-reviewed APPROVE-WITH-NOTES, corrected). Full

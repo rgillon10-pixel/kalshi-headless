@@ -44,6 +44,9 @@ Everything else is a supplement or a trap. Size all of it with **fractional Kell
 - **Edge:** fade overpriced longshot YES (<~5¢) when an independent model says the event is rare.
 - **Caveat:** rarely flips to +EV after fees (only reduces loss); brutal tail risk — one hit
   erases many wins; attenuated on modern exchanges vs. parimutuel.
+- **Deep note:** primary-source distillation (Ottaviani & Sørensen 2008 taxonomy; Snowberg &
+  Wolfers 2010; Franck/Verbeek/Nüesch 2010 exchange analog) for the maker-SELL-the-longshot
+  angle (Q24/H1) → `favorite-longshot-bias.md`.
 
 ## Theme 3 — Microstructure & market-making
 
