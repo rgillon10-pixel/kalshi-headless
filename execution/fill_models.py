@@ -313,3 +313,61 @@ def maker_resting(order: Order,
         fill_model="maker_candle_through", price_source_tag=source_tag,
         caveats=["no_queue_model", "optimistic_fill"],
     )
+
+
+# --------------------------------------------------------------------------- #
+# resting_short_yes_as_no_fill — S14 ladder underwriting's fill (buy-NO mirror)
+# --------------------------------------------------------------------------- #
+def resting_short_yes_as_no_fill(order: Order,
+                                candle_summary: Optional[Dict[str, Any]]) -> Optional[Fill]:
+    """The S14 "ladder overround underwriting" fill, represented in the paper
+    broker's long-only model.
+
+    S14 rests a SHORT-YES maker offer at each member's `yes_ask` A. The broker has
+    no short model, so the same economic position is a BUY of NO at the real NO bid
+    `1 - A` (a genuine fillable maker-side price, tag `real_bid`), held to
+    settlement. `order` is that buy-NO order: side='no', action='buy',
+    limit_price = round(1 - A, 2). We RECONSTRUCT A = round(1 - limit_price, 2)
+    (a clean cent round-trip) and apply S14's SELLER fill rule on the cached YES
+    candle summary: a fill iff the realized YES trade HIGH reached the posted ask A
+    and volume > 0 (`detect_seller_fill`). That is arithmetically identical to "the
+    NO bid at 1 - A got crossed" — we key the candle by A, NOT by 1 - A, because
+    the cache stores the YES `max_high_dollars`.
+
+    Fee is the MAKER rate via core.pricing (lesson L18/L30). Because Kalshi's maker
+    fee is a flat $0.01/contract at every interior price, fee(1 - A) == fee(A), so
+    this buy-NO fee equals S14's short-YES member fee cent-for-cent. Returns None
+    (reason via last_reason()) for a non-(buy-NO) order, a missing/synthetic candle
+    summary, or a window whose seller rule never crossed."""
+    _set_reason("")
+    if order.action != "buy" or order.side != "no":
+        _set_reason("resting_short_yes_as_no_fill models the S14 buy-NO mirror only "
+                    "(needs action='buy', side='no')")
+        return None
+    if candle_summary is None:
+        _set_reason("no candle summary for ticker — cannot resolve fill")
+        return None
+    # The candle summary is a realized trade print (s14 tags it real_ask); a
+    # synthetic/untagged summary can never fill (CLAUDE.md prime directive).
+    tag = candle_summary.get("price_source_tag")
+    if tag not in (_REAL_ASK, _REAL_BID):
+        _set_reason(f"candle summary tag {tag!r} is not real — refusing synthetic fill")
+        return None
+
+    limit = float(order.limit_price)
+    posted_ask = round(1.0 - limit, 2)  # reconstruct S14's short-YES ask A from the NO bid
+
+    from scripts.s14_ladder_fillsim import detect_seller_fill  # pure, network-free
+    if not detect_seller_fill(candle_summary, posted_ask):
+        _set_reason("S14 seller rule not crossed (YES high < posted ask or zero volume)")
+        return None
+
+    fill_price = round(limit, 2)  # the NO bid 1 - A we actually filled at
+    fee = fee_per_contract(fill_price, rate=MAKER_FEE_RATE) * order.qty
+    return Fill(
+        fill_id=f"{order.order_id}:F", order_id=order.order_id,
+        ts=order.ts, ticker=order.ticker, side=order.side, action=order.action,
+        price=fill_price, qty=order.qty, fee=round(fee, 4),
+        fill_model="maker_candle_through", price_source_tag=_REAL_BID,
+        caveats=["no_queue_model", "optimistic_fill", "s14_seller_mirror"],
+    )
