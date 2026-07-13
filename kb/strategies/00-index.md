@@ -23,7 +23,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S11** | Sharp-anchored maker quoting on illiquid binaries | FP→PR · liquidity + Pinnacle filter | **data-collecting** | low | fill-sim: rest only EV+-vs-Pinnacle side; captured spread > adverse-sel + maker fee; CI>0. Anchor confirmed live 2026-07-13 (verifier-CONFIRMED): first keyed VPS pass post-Q18 wrote 6 `odds_leg.status="matched"` records (2 WC games × 3 passes, `match_score=2.0`/`outcome_coverage="full"`, de-vig math + Rule #3 tags clean) — data now flows end to end, thin so far (1 bookmaker, 2 games); no P&L/CI claim yet. |
 | **S12** | Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred) | 2026-07-04 gen pass · QF Themes 1+5 × econ category | **data-collecting** | med | ≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where \|nowcast−implied\| > overround share+fee; block-bootstrap by release; CI>0 |
 | **S13** | S7-maker — bid side of the proven sports rich-ask | 2026-07-04 gen pass · S7c verdict inversion × maker lens | **dead ✗** | med | TESTED n=80 games/223 filled outcomes (94.1% fill rate): mean edge_after_fee +0.00009, 95% block-bootstrap-by-game CI [−0.00021,+0.00039] — straddles zero → null result. The maker fee alone (~1¢ at mid-range bid prices) consumes essentially the whole assumed 1¢ bid-under-fair margin. |
-| **S14** | Ladder overround underwriting (short the complete bracket set) | 2026-07-04 gen pass · overround inversion × QF Theme 3 | idea | low | L2-tape fill-sim: E[overround × P(complete fill)] − E[loss on partial sets @ real asks] > 0, CI over ≥30 event-days |
+| **S14** | Ladder overround underwriting (short the complete bracket set) | 2026-07-04 gen pass · overround inversion × QF Theme 3 | **data-collecting** | low | **First non-DEAD candidate — PROXY-POSITIVE, not proven** (2026-07-13, Q13, verifier CONFIRMED-WITH-CAVEAT). Candlestick fill-proxy over `tape/crypto_hourly/` BTC/ETH ladders (mean 131.5 members, MECE): block-boot by event-hour mean **+\$0.0925 CI [+0.063,+0.123]** n=300, clears the tick-magnitude gate, robust to coarser units. BUT the "complete fill" term is \$0 (0.0% complete-fill) — it's path-dependent partial premium net of the near-certain \$1 winner loss (winner filled 96.7%), and **78% of the edge is sub-100-vol income legs** the queue-blind proxy over-credits. Remaining binding gate: a **queue-aware L2/depth fill-sim** (`tape/orderbook_depth/`, short-YES queue read off the mirror `no_bids` side) modeling queue position + the fill↔winner correlation, CI>0 @ real asks over ≥30 event-days |
 | **S15** | Cross-event logical-implication scanner (A⇒B ⇒ P(A)≤P(B)) | 2026-07-04 gen pass · S3 extension × QF Theme 6 | **data-collecting** | 0.30 | `scripts/anomaly_sweep.py` (Q11, 2026-07-05) 3rd check + `config/implication_pairs.yaml` (hand-audited `kxwcround_progression` family); runs in existing daily 09 UTC slot; live-validated against real KXWCROUND markets (38 pairs/40 open markets, 0 hits — expected); kill if 0 fee-clearing hits in 60 days |
 | **S16** | FedWatch-anchored shock fade on KXFED | 2026-07-04 gen pass · QF Theme 7 × S2 adjacency | idea | low | enter only \|Kalshi−FedWatch\| > spread+fee around releases; paper exit on convergence/T+24h; bootstrap by shock; CI>0; kill if Kalshi leads ZQ |
 | **S17** | Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19) | 2026-07-04 gen pass · S9 generalization × cross-venue | **data-collecting** | low | Fed + CPI matchers both built (2026-07-06); ≥5 live-book pairs/month cleared; remaining: accumulate + lead-lag xcorr + laggard paper fills @ real asks; CI>0 |
@@ -510,3 +510,35 @@ deliberately **excluded** from the real-ask correlation (Hard Rule #3), counted 
 provenance only. Same status as S9's first cut: re-run when a real FOMC decision lands inside
 the collected window (July 2026 meeting is nearest). See
 `findings/2026-07-12-polymarket-macro-leadlag-s17-firstcut.md`.
+
+**Update 2026-07-13 (Q13): S14 flips idea → data-collecting — the project's FIRST non-DEAD
+candidate, but PROXY-POSITIVE, not proven (verifier CONFIRMED-WITH-CAVEAT).** Q13 became
+eligible (`tape/crypto_hourly/` crossed the day threshold). `scripts/s14_ladder_fillsim.py`
+(read-only, 21 offline tests, injected fetcher — no network) posts a resting short-YES maker
+offer at every member's `yes_ask` (real_ask) at the earliest capture of each settled BTC/ETH
+hourly ladder (mean **131.5 members**, MECE, exactly one strike settles YES — a genuine strike
+ladder; `sports_pairs` was correctly excluded as a 2–3-outcome moneyline, structurally not a
+ladder). Fill proxy = the cached Kalshi hourly candlestick `max(high) ≥ posted_ask AND
+volume > 0` (the seller mirror of S13's resting-bid rule); premium net of the maker fee from
+`core.pricing` (L18); payout \$1 iff the `broker_truth` winner was among filled strikes.
+Block-bootstrap by event-hour (`core.bootstrap.block_bootstrap`, n_boot=10,000, **n=300**):
+mean **+\$0.0925, 95% CI [+\$0.0630, +\$0.1231]**, **`clears_tick_magnitude` CLEARS** (~6× the
+1¢ tick), 72.0% events positive; by series KXBTC +\$0.150 / KXETH +\$0.035; coarser units
+(by-day [+0.068,+0.119], by-day×symbol [+0.055,+0.130]) both still clear zero and the magnitude
+gate. **Three caveats cap the verdict to proxy-positive, not proven:** (1) the "underwrite the
+whole ladder" gate term is **\$0** — complete-fill rate 0.0%, so the result is path-dependent
+partial premium net of the near-certain \$1 winner loss (winner filled 96.7%, near-money 95.8%,
+wings 2.5%); (2) L30 fee-annihilation deletes ~30.9% of the nominal overround (1¢-floor asks net
+\$0 after the flat 1¢ maker fee) by construction; (3) the candlestick proxy ignores queue
+position — **78% of the \$0.093 edge (\$0.072) comes from sub-100-contract-volume income legs**;
+strip the income leg and it is −\$0.51 to −\$0.97. It survives a modest haircut (vol≥50 still
++\$0.026 [+0.004,+0.049], filled legs carry median 1,047 contracts) but dies under an aggressive
+one or under the unmodeled fill↔winner adverse-selection correlation. **Remaining binding gate:
+a queue-aware L2/depth fill-sim** (over `tape/orderbook_depth/`, short-YES queue read off the
+mirror `no_bids` side, 6 days crypto-covered) — same open-fill-sim shape as S11's gate.
+**Still 0 proven edges** — S14 is the first candidate NOT to die on its first real cut, but a
+proxy-positive candidate is a forward gate, not a proven fillable edge; the bar has not moved.
+Lessons L39 (small-net-of-two-large-legs candlestick fill proxy is biased UP; per-leg volume
+gate necessary-but-insufficient; decompose the edge as a fraction of the thinnest income legs
+before claiming fillability). Full writeup:
+`findings/2026-07-13-ladder-underwriting-s14-firstcut.md`.
