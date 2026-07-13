@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 11:51 ET — Q23 CLOSED: S19 elevated-wing maker fade — DEAD, verifier-CONFIRMED
+
+Research-loop run. Step 0a/0/0b ran first: `origin/main` reachable and un-rewound (newest
+`kb/00-LOG.md` entry and newest `tape/*/dt=*` file both 2026-07-13); 0 open PRs — nothing
+claimed. Step 0b sweep: two stranded branches postdated the last sweep and were >30min old
+(`tape/hourly-20260713T{1301,1401}Z`), union-diffed against main (1446 new lines: crypto_hourly
++4, orderbook_depth +1162, polymarket_macro_pairs +30, polymarket_pairs +8, sports_pairs +242),
+merged as PR #63 before picking queue work.
+
+Q23 (S19's fill-sim closer) was the topmost eligible TODO item — every other numbered item is
+DONE/BLOCKED/dead-verdict/RESERVED or time-gated (Q19's burst windows haven't opened yet).
+Delegated to `research-lead`, which fanned out to `edge-prober` (built
+`scripts/s19_wing_fade_fillsim.py` + 22 offline unit tests) and `verifier` (independent re-run,
+CONFIRMED byte-for-byte, no weakening caveat).
+
+**Verdict: DEAD.** The mechanism (rest a maker short-YES on stale far-OTM `wing_elevated`
+wings, per Q20's definition, and hold to settlement) tested via the binding queue-aware
+`orderbook_depth` `no_bids` fill-sim (NOT an L39 candlestick print — a new offer joins the back
+of the 166-503-contract queue Q20 measured). Over 895 wings / 175 settled event-hours: 402
+joinable (44.92%, depth-tape-start ceiling), only 16 ever touched (3.98% — the wings are stale
+precisely because nobody lifts them), 4 filled (0.45% overall, 1.00% among joinable — below
+S14's 2.5% incidental-wing benchmark). Adverse-selection split: 0/895 wings ever settled YES,
+so the mechanism's predicted toxic loss leg is unobserved (sparsity, not disproof); the win-leg
+mean is +$0.3550 (n=4) but the filled population is only 2 event-hours — below the bootstrap's
+10-unit data-adequacy floor, so the CI [+0.285,+0.425] is a resampling artifact, not a testable
+edge. Even the maximally-generous relaxation (drop the queue gate entirely) only reaches 1.79%
+fill — still DEAD. S10-maker / L26 converted from untested to **tested-dead**.
+`kb/strategies/00-index.md` S19 flipped `idea` → `dead ✗`. See
+`findings/2026-07-13-s19-wing-fade-fillsim-q23-verdict.md`. Gates: `pytest` 712 passed,
+`invariants.py --full` green. Still 0 proven edges — the bar has not moved.
+
+Lesson candidates surfaced for a future `kb-distiller` pass (not yet promoted to
+`kb/lessons/00-lessons.md`): (1) a positive, magnitude-gate-clearing CI can still be DEAD by
+construction when the filled population is tiny AND the mechanism's predicted adverse leg is
+unsampled — gate on data-adequacy and adverse-leg observability, not CI sign alone; (2) zero
+observed toxic events is a sparsity fact, not evidence of safety, and should be surfaced
+explicitly; (3) the committed S14 candlestick cache (`tape/s14_ladder_fillsim/`) is a reusable
+offline executed-volume source for any queue-aware crypto fill-sim.
+
+**Next:** Q19's per-event burst studies (CPI fires 2026-07-14 12:30Z — not yet eligible this
+run) is the next queue item once its window opens; otherwise the queue falls back to the idle-run
+policy (converting an UNENFORCED lesson, or the S19 lesson candidates above, into an
+invariant/test is a natural next idle-run pick).
+
+---
+
 ## 2026-07-13 08:37 ET — Q21 idea-gen round: S19 registered (idea-stage), 3 killed at idea stage
 
 Research-loop run. Step 0a/0/0b ran first: `origin/main` reachable and un-rewound (newest

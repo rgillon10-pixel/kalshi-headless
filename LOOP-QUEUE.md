@@ -934,6 +934,17 @@ gate requires (≥14 days consistent with backtest). Paper fills obey every hone
 `execution/limits.py`.
 
 ### Q23 — S19 elevated-wing stale-ask maker fade (the S10-maker / L26 untested direction)
+Status: DONE (2026-07-13, research loop) — **verdict DEAD, verifier-CONFIRMED.**
+`scripts/s19_wing_fade_fillsim.py` (+22 unit tests, offline/synthetic) ran the binding
+queue-aware `orderbook_depth` `no_bids` fill-sim (not an L39 candlestick print) over 895
+`wing_elevated` members / 175 settled event-hours: 0.45% fill rate overall (4 fills, 1.00%
+among 402 joinable) — below S14's 2.5% incidental-wing benchmark and the near-zero-fill
+kill floor; the filled population is only 2 event-hours, below the bootstrap's
+data-adequacy floor, so the +$0.355 win-leg CI [+0.285,+0.425] is a resampling artifact,
+not a testable edge (0/895 wings ever settled YES — the mechanism's predicted toxic leg is
+unsampled, not disproven). S10-maker / L26 converted from untested to tested-dead.
+`kb/strategies/00-index.md` S19 flipped `idea` → `dead ✗`. See
+`findings/2026-07-13-s19-wing-fade-fillsim-q23-verdict.md`. Still 0 proven edges.
 Status: TODO (added 2026-07-13, Q21 idea-gen round — verifier-reviewed survivor, two-agent rule)
 S10 died as a TAKER trade (a floor-pinned far tail's 1¢ YES mirrors to a $1.00 NO ask — no
 fillable price, L26); its verdict and L26 explicitly leave the MAKER side untested. Q20's
@@ -1061,3 +1072,4 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 - 2026-07-13T06:xxZ (research loop) · claim-check + stranded sweep (1405 lines, PR #55 merged) + Q20 CLOSED (anatomy only, no registry flip) · overround decomposition: 97.4%(BTC)/84.3%(ETH) in wings, depth join refutes "quote-only", active-band BTC no-edge/ETH exploratory; verifier CONFIRMED-WITH-CAVEAT. See kb/00-LOG.md.
 - 2026-07-13T09:xxZ (research loop) · claim-check + stranded sweeps (869 lines PR #57 + 240-line reconciliation PR #58) + Q22 CLOSED: S14 wired as first-ever paper shadow strategy · found+fixed a real PaperBroker gap (no short model, no settlement/expiry mechanism — `Fill.price` can't hold $0/$1) before trusting any strategy code: short-YES represented as buy-NO held to settlement (cent-for-cent reconciled against `s14_ladder_fillsim`), new `Settlement` record type (sibling of `Fill`, never loosens it). First paper pass: 10 event-hours processed, 200 orders/89 fills/89 settlements, realized P&L **+$1.83** (evidence, not a verdict — S14 registry status unchanged). 290 deferred(caps) as expected, cap not raised. 690 tests green, invariants green. See kb/00-LOG.md.
 - 2026-07-13T12:xxZ (research loop) · claim-check + stranded sweep (1,619 lines, PR #61 merged) + Q21 idea-gen round: S19 registered (idea, verifier two-agent-confirmed), 3 killed at idea stage, Q23 added · S19 = elevated-wing stale-ask maker fade on crypto ladders (the S10-maker/L26 untested direction), binding gate = queue-aware `orderbook_depth` fill-sim + adverse-selection conditioning + L27 magnitude gate, honest expectation DEAD. Killed: sports overround-underwriting (L31 wing artifact, S13/L30 fee death), cross-venue held-to-settlement box (Polymarket NO-ask not in tape, reduces to Q19's already-queued scan), post-release econ-ladder fade (Kalshi closes CPI/econ markets ~5min before the print — empty fill window). Still 0 proven edges. Step 9: SHADOW_REGISTRY non-empty but idempotent re-run confirmed 0 newly processed, P&L unchanged at +$1.83. 690 tests green, invariants green. Branch deletion 403'd (documented, not retried). See kb/00-LOG.md.
+- 2026-07-13T15:xxZ (research loop) · claim-check + stranded sweep (1,446 lines, PR #63 merged) + Q23 CLOSED: S19 verdict DEAD, verifier-CONFIRMED · queue-aware `orderbook_depth` `no_bids` fill-sim (not an L39 candle print) over 895 `wing_elevated` members/175 event-hours: 0.45% fill rate (4/895, 1.00% among 402 joinable) — below S14's 2.5% benchmark and the near-zero floor; filled population only 2 event-hours (< 10-unit data-adequacy floor) so the +$0.355 win-leg CI [+0.285,+0.425] is a resampling artifact, not an edge (0/895 wings ever settled YES — the predicted toxic leg unsampled, not disproven). S10-maker/L26 now tested-dead. `kb/strategies/00-index.md` S19 flipped idea→dead ✗. Still 0 proven edges. Step 9: paper pass idempotent, 0 new processed, P&L unchanged at +$1.83. 712 tests green, invariants green. See kb/00-LOG.md.
