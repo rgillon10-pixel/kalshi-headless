@@ -861,7 +861,20 @@ corrected per the verifier's caveat before commit. See
 `invariants --full` green.
 
 ### Q21 — Idea-generation round: S19+ candidates (standing replenishment item)
-Status: TODO (added 2026-07-12, Ryan-approved v3 restock — STANDING: re-eligible whenever
+Status: ROUND COMPLETE (2026-07-13, research loop) — delegated to `research-lead`, which
+proposed 4 falsifiable candidates and ran each through the `verifier` agent (two independent
+verifier passes on the two contested ones — real two-agent redundancy, not a rubber stamp).
+**1 survivor registered: S19** (elevated-wing stale-ask maker fade on crypto ladders — the
+S10-maker/L26 direction Q20's ladder anatomy fed directly into), queue item **Q23** added,
+Status: TODO. **3 killed at idea stage** (sports-moneyline overround underwriting — L31
+wing-artifact, S13/L30 flat-fee death, duplicate of S14's gate; a cross-venue held-to-settlement
+box — Polymarket NO-ask not in tape, reduces to Q19's already-queued dislocation scan and its
+L31 artifact; a post-release econ-ladder fade — Kalshi closes CPI/econ markets ~5min BEFORE the
+print, structurally empty fill window), recorded with reasons in the `kb/strategies/00-index.md`
+S19 note rather than silently dropped. Still 0 proven edges — this restocks the hypothesis pipe
+by one idea-stage candidate, the bar hasn't moved. Item stays STANDING per its own
+re-eligibility condition below (do not treat "complete" as permanently done).
+Status (history): TODO (added 2026-07-12, Ryan-approved v3 restock — STANDING: re-eligible whenever
 fewer than 2 non-blocked research items remain in this queue)
 The alive set has collapsed to S17 + slow gates (S6 and S10 died 2026-07-11/12; S2 gated on
 CME data, S12 on ~20 releases, S3/S15 on 60-day sweeps). The machine must replenish its own
@@ -919,6 +932,34 @@ digest carries a paper-P&L line. Shadow track records are the graduation evidenc
 gate requires (≥14 days consistent with backtest). Paper fills obey every honesty rule:
 `fill_model` + `price_source_tag` on every fill, no synthetic fills, caps from
 `execution/limits.py`.
+
+### Q23 — S19 elevated-wing stale-ask maker fade (the S10-maker / L26 untested direction)
+Status: TODO (added 2026-07-13, Q21 idea-gen round — verifier-reviewed survivor, two-agent rule)
+S10 died as a TAKER trade (a floor-pinned far tail's 1¢ YES mirrors to a $1.00 NO ask — no
+fillable price, L26); its verdict and L26 explicitly leave the MAKER side untested. Q20's
+ladder anatomy (`findings/2026-07-13-btc-ladder-overround-anatomy-q20.md`) then documented
+`wing_elevated` members — stale one-sided YES asks (0.20–0.67 with `yes_bid=0`, >±3 strikes
+from spot) that almost surely settle NO. **Mechanism:** rest a maker short-YES (buy-NO at
+`1−ask`) on those stale elevated wings and hold to settlement; the losing counterparty is
+whoever lifts the stale far-OTM ask (a lottery-chasing taker). **Data (already collected):**
+`tape/crypto_hourly/` (real_ask ladders + `broker_truth` settlement) for wing identification
+and outcome, `tape/orderbook_depth/` (the mirror `no_bids` side) for the fill question —
+verifier confirmed the depth tape covers these tickers. **Milestone (one probe, read-only):**
+build the fill-sim and block-bootstrap by event-hour (`core.bootstrap`, L6), net of the flat
+1¢ maker fee (`core.pricing`, L30). **Binding gate (verifier-mandated, do NOT weaken):**
+(1) the fill test MUST be the **queue-aware `orderbook_depth` `no_bids` sim, NOT a candlestick
+print** — a new offer joins the back of the 166–503-contract queue Q20 measured at these
+wings, so an L39 candle-print would overstate your fill; (2) P&L MUST be **conditioned on the
+fill↔settlement adverse-selection correlation** — a far-OTM YES is lifted mainly when spot
+rushes the strike, so the rare fills are toxic toward settling YES against the short; (3) any
+CI must clear the **L27 tick-magnitude gate**, not just sign. **Kill:** 0%-fill null (the
+wings are stale precisely because nobody lifts them — S14's incidental wing fill rate was
+2.5%) OR net CI ≤ 0 / fails the magnitude gate. **Honest expectation: DEAD** — this is a
+cheap, decisive closer of the S10-maker / L26 loose end (a clean no-fill or CI≤0 result
+formally converts "untested" to "tested-dead"), not a promising edge; the two-agent verdict
+rule applies to any kill/CI. Registered this round; three sibling proposals (sports-moneyline
+overround underwriting, a cross-venue held-to-settlement box, a post-release econ-ladder fade)
+were killed at idea stage by the verifier — see the S19 note in `kb/strategies/00-index.md`.
 
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
@@ -1019,3 +1060,4 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 - 2026-07-13T03:xxZ (research loop) · step 0a PASS + stranded-tape sweep (655 lines, PR #52 merged) + Q13(S14) DONE: ladder-underwriting first cut, PROXY-POSITIVE not proven (verifier CONFIRMED-WITH-CAVEAT) · Step 0a: `origin/main` HEAD (`cc7e67a`) descends from all recently-merged PRs (#51/#50/#49/#48/#47/#46/#45/#44/#43, checked via GitHub MCP + local ancestry); `kb/00-LOG.md` newest entry (2026-07-12) and newest `tape/*/dt=*` file (2026-07-13) within the 2-day gap tolerance. `main` not rewound. No open PRs — nothing claimed. Step 0b sweep: of the `tape/hourly-*` branches, `tape/hourly-20260713T0006Z` (00:06:44Z) was >30min old at check time — union-diffed against main's current tape: **655 lines** missing (crypto_hourly +2, orderbook_depth +532, polymarket_macro_pairs +15, polymarket_pairs +4, sports_pairs +102), 0 exact duplicates, all valid JSON; `tape/hourly-20260713T025Z` (02:57:27Z, ~12min old) skipped per freshness rule; committed standalone (PR #52, squash-merged) so `main` was current before the milestone landed. **Milestone: Q13** — newly eligible this run (`tape/sports_pairs/` crossed 10 valid canonical days: 03,04,05,06,07,08,10,11,12,13; 07-09 remains a real gap day). Delegated to `research-lead`, which re-scoped the spec honestly: `sports_pairs` moneyline groups (2-3 outcomes) are not a genuine strike ladder, so the fill-sim ran over `tape/crypto_hourly/`'s BTC/ETH hourly bracket ladders instead (mean 131.5 members, MECE, exactly one strike settles YES) via new `scripts/s14_ladder_fillsim.py` (21 offline tests, injected fetcher). Method: post a resting short-YES maker offer at every member's `yes_ask` at the earliest capture of each settled event-hour; fill proxy = cached Kalshi candlestick `max(high) >= posted_ask AND volume > 0` (seller mirror of S13's resting-bid rule); payout $1 iff the `broker_truth` winner was among filled strikes. Block-bootstrap by event-hour (n_boot=10,000, n=300): mean **+$0.0925, 95% CI [+$0.0630, +$0.1231]**, clears the tick-magnitude gate, robust under coarser blocking units (by-day, by-day×symbol). Adversarially reviewed by the `verifier` subagent (three independent reproductions, all to the cent): verdict **CONFIRMED-WITH-CAVEAT** — the "complete fill" gate term is $0 (0.0% complete-fill rate; the result is path-dependent partial premium net of the near-certain $1 winner loss), and the candlestick proxy is queue-blind and biased upward (78% of the edge traces to sub-100-contract-volume income legs; survives a modest vol≥50 haircut at +$0.026 [+0.004,+0.049] but the fill↔winner adverse-selection correlation is unmodeled). `kb/strategies/00-index.md` **S14: idea → data-collecting** (the project's first non-DEAD candidate, explicitly NOT a proven edge — still 0 proven edges overall; remaining binding gate is a queue-aware L2/depth fill-sim over `tape/orderbook_depth/`). Lessons **L39** (queue-blind candlestick proxy biases the income leg up; decompose by income-leg volume before any fillability claim) + **L40** appended. See `findings/2026-07-13-ladder-underwriting-s14-firstcut.md`. 642 tests green (621 prior — including the concurrently-merged nightly edge-hunter PR #53's 17 new S17 burst-mode tests — + 21 new), `invariants --full` green (only the two expected non-gating advisories). Rebased onto PR #53 (S17 burst-mode scanner, Q19 PREP) after it merged concurrently mid-run; both runs picked different eligible queue items off the same replenished pipeline, no duplicate work. Step 9: `execution/strategy_api.SHADOW_REGISTRY` still empty — no-op.
 - 2026-07-13T06:xxZ (research loop) · claim-check + stranded sweep (1405 lines, PR #55 merged) + Q20 CLOSED (anatomy only, no registry flip) · overround decomposition: 97.4%(BTC)/84.3%(ETH) in wings, depth join refutes "quote-only", active-band BTC no-edge/ETH exploratory; verifier CONFIRMED-WITH-CAVEAT. See kb/00-LOG.md.
 - 2026-07-13T09:xxZ (research loop) · claim-check + stranded sweeps (869 lines PR #57 + 240-line reconciliation PR #58) + Q22 CLOSED: S14 wired as first-ever paper shadow strategy · found+fixed a real PaperBroker gap (no short model, no settlement/expiry mechanism — `Fill.price` can't hold $0/$1) before trusting any strategy code: short-YES represented as buy-NO held to settlement (cent-for-cent reconciled against `s14_ladder_fillsim`), new `Settlement` record type (sibling of `Fill`, never loosens it). First paper pass: 10 event-hours processed, 200 orders/89 fills/89 settlements, realized P&L **+$1.83** (evidence, not a verdict — S14 registry status unchanged). 290 deferred(caps) as expected, cap not raised. 690 tests green, invariants green. See kb/00-LOG.md.
+- 2026-07-13T12:xxZ (research loop) · claim-check + stranded sweep (1,619 lines, PR #61 merged) + Q21 idea-gen round: S19 registered (idea, verifier two-agent-confirmed), 3 killed at idea stage, Q23 added · S19 = elevated-wing stale-ask maker fade on crypto ladders (the S10-maker/L26 untested direction), binding gate = queue-aware `orderbook_depth` fill-sim + adverse-selection conditioning + L27 magnitude gate, honest expectation DEAD. Killed: sports overround-underwriting (L31 wing artifact, S13/L30 fee death), cross-venue held-to-settlement box (Polymarket NO-ask not in tape, reduces to Q19's already-queued scan), post-release econ-ladder fade (Kalshi closes CPI/econ markets ~5min before the print — empty fill window). Still 0 proven edges. Step 9: SHADOW_REGISTRY non-empty but idempotent re-run confirmed 0 newly processed, P&L unchanged at +$1.83. 690 tests green, invariants green. Branch deletion 403'd (documented, not retried). See kb/00-LOG.md.

@@ -6,6 +6,85 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 08:37 ET — Q21 idea-gen round: S19 registered (idea-stage), 3 killed at idea stage
+
+Research-loop run. Step 0a/0/0b ran first: `origin/main` reachable and un-rewound (newest
+`kb/00-LOG.md` entry and newest `tape/*/dt=*` file both 2026-07-13, 0-day gap); 0 open PRs —
+nothing claimed. Step 0b sweep: of the 117 stranded `tape/hourly-*` branches, three postdated
+the last sweep and were >30min old (`tape/hourly-20260713T{0859,0957,1059}Z`) — union-diffed
+against main's current tape (name-only diff with `--diff-filter=A/M` first, since a full
+`git diff` against branches this old times out on rename-detection over 10K+ files): **1,619
+lines** missing (anomalies +1, crypto_hourly +6, econ_prints +5, orderbook_depth +1,164,
+polymarket_cpi_pairs +22, polymarket_macro_pairs +45, polymarket_pairs +12, sports_pairs +364),
+every line JSON-validated before append, 0 exact duplicates; committed standalone (PR #61,
+squash-merged) so `main` was current before the milestone landed. Branch deletion failed with
+an HTTP 403 (same permission-boundary shape as the "cloud session can't push straight to
+main" finding — cloud sessions can open/merge PRs but not delete remote branches either);
+documented, not retried. **A much larger historical backlog remains** (~114 `tape/hourly-*`
+branches spanning 2026-07-03→07-12, several showing "modified" against main's current tape
+files) — spot-checked and left untouched: Q17/L38 already diagnosed this growth pattern as
+"recovery is lossless, not a real problem" and Q17 is explicitly Ryan-review-only (PR #46);
+not reopening that investigation from a research-loop run.
+
+**Milestone: Q21** (topmost eligible — every other numbered item is DONE/BLOCKED/dead-verdict/
+RESERVED or time-gated with no action possible this run; Q21's own standing condition,
+"re-eligible whenever fewer than 2 non-blocked research items remain," is met). Delegated to
+`research-lead`, which proposed **4 falsifiable S19+ candidates** and ran each through the
+`verifier` agent — the two contested candidates got a **second independent verifier pass**
+that reproduced the load-bearing numbers itself, real two-agent redundancy rather than a
+rubber stamp (the delegate initially reported "waiting on verifier agents" twice while no
+sub-agent was actually still running — caught by resuming it directly and demanding the real
+final state rather than trusting the first "completed" notification at face value).
+
+**Survivor (1): S19 — elevated-wing stale-ask maker fade on crypto ladders.** Rest a maker
+short-YES (buy-NO) on the stale far-OTM `wing_elevated` members Q20's ladder anatomy
+documented (`yes_ask` 0.20–0.67, `yes_bid=0`, >±3 strikes from spot) and hold to settlement —
+the maker side of the tail-fade that S10's verdict + lesson L26 explicitly left UNTESTED (a
+taker short there has no fillable price per L26, but a short-YES *offer* is a real price whose
+fill rate is empirical, so it isn't structurally pre-dead like S10 was). Registered idea-stage
+in `kb/strategies/00-index.md` with three verifier-mandated tightenings baked into the gate:
+(1) the binding fill test must be the queue-aware `orderbook_depth` `no_bids` fill-sim, NOT a
+candlestick-print proxy (L39 — Q20 measured 166–503 contracts already resting at these wings,
+so a new offer joins the back of a real queue); (2) P&L must be conditioned on the
+fill↔settlement adverse-selection correlation (a far-OTM YES is lifted mainly when spot
+rushes the strike — rare fills are toxic toward settling YES against the short); (3) any CI
+must clear the L27 tick-magnitude gate. Queue item **Q23** added (Status: TODO). Honest
+expectation stated up front: DEAD — this is a cheap, decisive closer of the S10/L26 loose end,
+not a promising edge.
+
+**Killed at idea stage (3), recorded for provenance rather than silently dropped:**
+- **Sports-moneyline overround underwriting** (maker-short the complete set) — the flagged
+  +21.3¢ mean overround is an L31 wide-one-sided-wing artifact (tight two-sided books only
+  3.0–3.7¢, reproduced independently by both verifier passes); the flat 1¢ maker fee eats it
+  (S13/L30 territory) and its fill-sim gate duplicates S14's already-open one — the sports
+  maker side was already closed dead by S13.
+- **Cross-venue held-to-settlement box** (Kalshi + Polymarket) — Polymarket's NO ask isn't
+  persisted in tape (only YES best_ask/bid), and the box reduces algebraically to Q19's
+  already-queued dislocation scan, whose crossings are the same L31 no-real-size artifact;
+  "held-to-settlement escapes staleness" is unsound because the killer is un-fillability, not
+  convergence.
+- **Post-release stale-ladder fade on econ prints** — Kalshi closes CPI/econ markets ~5 min
+  BEFORE the scheduled release (`close_time` 12:25Z vs a 12:30Z print), so the post-release
+  fill window this candidate needed is structurally empty — same death class as S10.
+
+**Net:** still 0 proven edges — this round restocks the hypothesis pipe by one idea-stage
+candidate; the bar has not moved. Two lesson candidates surfaced for a future `kb-distiller`
+pass (not yet promoted to numbered lessons): (a) a "held-to-settlement box" and a "convergence
+dislocation" over the same two real quotes are the same locked pair and die to the same
+nominal-quote/no-real-size artifact — reframing the exit does not manufacture fillability;
+(b) always read `close_time` from the tape before proposing any post-release/post-settlement
+fade — Kalshi closes data-driven markets minutes before the print, not after it.
+
+Files touched by the registration: `kb/strategies/00-index.md` (S19 row + round note),
+`LOOP-QUEUE.md` (Q23 added, Q21 status updated). 690 tests green (unchanged — no code this
+run), `python scripts/invariants.py --full` green (only the standing non-gating L20/L25
+advisories). Step 9: `execution/strategy_api.SHADOW_REGISTRY` non-empty (S14 shadow) but this
+run touched no new tape beyond the already-swept 1,619 lines above and S14's ledger has no new
+settled event-hours to process since the last paper pass — `daily_summary()` unchanged from
+the 2026-07-13 05:45 ET entry (+$1.83 realized, still evidence not a verdict).
+
+---
+
 ## 2026-07-13 05:45 ET — Q22 CLOSED: S14 wired as the first-ever paper shadow strategy
 
 Research-loop run. Step 0a/0/0b ran first: newest `kb/00-LOG.md` entry (07-13, Q20 close) and
