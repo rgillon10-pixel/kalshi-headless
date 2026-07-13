@@ -876,6 +876,25 @@ by one idea-stage candidate, the bar hasn't moved. Item stays STANDING per its o
 re-eligibility condition below (do not treat "complete" as permanently done).
 Status (history): TODO (added 2026-07-12, Ryan-approved v3 restock — STANDING: re-eligible whenever
 fewer than 2 non-blocked research items remain in this queue)
+
+**Spec amendment (2026-07-13, Ryan-approved local session — from that session's pipeline
+audit of the run logs):** (1) **Re-eligibility trigger raised to "fewer than 3 non-blocked
+research items"** — at 3h cadence the loop drained a 6-item restock in 18 hours; waiting
+for <2 guarantees idle runs before the next round lands. (2) **A round's target is 3–5
+registered survivors, not 1** — the 07-13 round registered a single candidate whose own
+honest expectation was DEAD (a closer; fine, but closers don't restock the pipe). If the
+verifier honestly kills down to fewer, register what survives and say so — never pad to
+quota. (3) **Diversity floor: every round must include ≥1 proposal NOT derived from (a) a
+dead-verdict inversion or (b) the existing QF themes** — drawn instead from depth-tape
+anomaly/anatomy scans (Q25), settlement/close-time mechanics, or literature not yet in
+`kb/quant-finance/` (a new-literature candidate cites its paper and distills it into `kb/`
+as part of the round). Rationale: every currently-alive candidate came from interactive
+gen passes; the loop's own input distribution hasn't widened since 2026-07-04 — the audit
+found generation quality, not cadence or verification, is the binding constraint.
+(4) **L41 gate mandatory in every proposal's probe spec:** any bootstrap verdict must pass
+`core.bootstrap.bootstrap_verdict_admissible` (≥1 opposing-sign cluster, ≥10 units)
+alongside the L27 magnitude gate — a CI failing either is not-a-verdict by construction.
+
 The alive set has collapsed to S17 + slow gates (S6 and S10 died 2026-07-11/12; S2 gated on
 CME data, S12 on ~20 releases, S3/S15 on 60-day sweeps). The machine must replenish its own
 hypothesis pipe. One round = propose 3–5 NEW falsifiable candidates (S19+), each with: (a) a
@@ -1022,6 +1041,33 @@ the filled sample (data-inadequacy → report honestly, no verdict flip without 
 two-agent rule). **Honest expectation:** the edge-at-quote is real (S7c); survival hinges
 entirely on fill rate and adverse selection — a clean no-fill result converts this to
 tested-dead and closes the S7 family for good.
+
+### Q25 — Depth-tape anatomy scan: fill-plausibility map across ALL captured families
+Status: TODO (added 2026-07-13, Ryan-approved local session — recommendation #1 of that
+session's pipeline audit; discovery-class, no registry flip, Q20-precedent)
+`tape/orderbook_depth/` is the largest tape family (~1,100–1,280 lines/hour since 07-07,
+3–4× everything else combined, L38) yet it has only ever been read as a fill GATE after an
+idea existed (S14's queue-aware sim, S19, now Q24) — never as a discovery scan. Q20 proved
+the anatomy-scan method generates candidates (it produced S19 and S14's tradeable-parameter
+block). **Milestone (one read-only scan, anatomy only — descriptive stats, no bootstrap, no
+verdict, no strategy registration):** across every family the depth tape covers (sports,
+crypto ladders, and whatever else `orderbook_depth.py` has captured), tabulate by
+category × time-to-close bucket: (a) queue depth at best bid/ask (the 166–503-contract
+queues Q20 measured on crypto wings — where are they thin?), (b) quote age / staleness
+(consecutive-capture BBO-unchanged streaks — L32's frozen-pair notion as a *distribution*,
+not a flag), (c) one-sidedness incidence (L31's `yes_bid=0` wing shape outside crypto),
+(d) observed resting-order turnover — the direct input to fill plausibility, THE quantity
+that killed S19 (0.45%) and gates S14 (2.5% benchmark) and Q24, measured BEFORE the next
+idea is proposed instead of discovered after it dies. **Output:** a findings/ anatomy doc +
+a machine-readable `findings/depth_anatomy.json` keyed by (family, category,
+time-to-close bucket) → {median queue depth, staleness distribution, turnover rate,
+one-sided incidence}, so every future Q21 round and probe spec can cite fill plausibility
+from data instead of assuming it. Every number carries its capture-count denominator
+(honest-accounting: cells with <20 captures are reported as `insufficient`, never
+extrapolated). **This item feeds the Q21 diversity floor** — its output cells are an idea
+source, not ideas themselves. Kill/limits: read-only; if the depth tape turns out to cover
+too few families for a cross-category cut, report that coverage fact honestly (it is
+itself the answer) rather than padding with BBO-only tape.
 
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 

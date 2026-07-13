@@ -5,6 +5,7 @@ import pytest
 
 from core.bootstrap import (
     block_bootstrap,
+    bootstrap_verdict_admissible,
     bracket_by_movement,
     clears_tick_magnitude,
     floor_pinned_fraction,
@@ -161,3 +162,81 @@ def test_bracket_by_movement_empty_is_honest_not_a_crash():
 def test_bracket_by_movement_length_mismatch_raises():
     with pytest.raises(ValueError):
         bracket_by_movement([True, False], [1.0])
+
+
+# ─── bootstrap_verdict_admissible (L41) ─────────────────────────────────────
+
+def test_admissible_rejects_all_winning_clusters_the_s20_survivor_shape():
+    # S20's sole FDR "survivor": 8 clusters, every one resolved positive -> the
+    # bootstrap can never straddle zero, p is mechanically 0. Inadmissible on BOTH gates.
+    units = {f"m{i}": [0.05, 0.10] for i in range(8)}
+    report = bootstrap_verdict_admissible(units)
+    assert report["admissible"] is False
+    assert set(report["reasons"]) == {"below_min_units", "no_opposing_unit"}
+    assert report["n_opposing_units"] == 0
+
+
+def test_admissible_rejects_no_opposing_unit_even_above_min_units():
+    units = {f"m{i}": [0.02] for i in range(15)}
+    report = bootstrap_verdict_admissible(units)
+    assert report["admissible"] is False
+    assert report["reasons"] == ["no_opposing_unit"]
+
+
+def test_admissible_rejects_below_min_units_even_with_losing_cluster():
+    # S19's shape: a losing observation exists but the filled population is 2 units.
+    units = {"h1": [0.35, 0.40], "h2": [-0.10]}
+    report = bootstrap_verdict_admissible(units)
+    assert report["admissible"] is False
+    assert report["reasons"] == ["below_min_units"]
+    assert report["n_opposing_units"] == 1
+
+
+def test_admissible_accepts_healthy_mixed_population():
+    units = {f"g{i}": [0.03, -0.01, 0.02] for i in range(9)}
+    units["g_loser"] = [-0.05, -0.02]
+    report = bootstrap_verdict_admissible(units)
+    assert report["admissible"] is True
+    assert report["reasons"] == []
+    assert report["n_units"] == 10
+    assert report["n_opposing_units"] == 1
+
+
+def test_admissible_negative_claim_requires_a_winning_cluster():
+    # Mirror direction: a strictly-negative population is just as degenerate.
+    units = {f"m{i}": [-0.04] for i in range(12)}
+    assert bootstrap_verdict_admissible(units)["admissible"] is False
+    units["winner"] = [0.06]
+    report = bootstrap_verdict_admissible(units)
+    assert report["admissible"] is True
+    assert report["n_opposing_units"] == 1
+
+
+def test_admissible_zero_pooled_mean_requires_both_sides():
+    all_zero = {f"m{i}": [0.0] for i in range(12)}
+    assert bootstrap_verdict_admissible(all_zero)["reasons"] == ["no_opposing_unit"]
+    mixed = {f"p{i}": [0.01] for i in range(6)}
+    mixed.update({f"n{i}": [-0.01] for i in range(6)})
+    assert bootstrap_verdict_admissible(mixed)["admissible"] is True
+
+
+def test_admissible_empty_and_empty_valued_inputs_are_honest_not_crashing():
+    assert bootstrap_verdict_admissible({})["reasons"] == ["empty"]
+    assert bootstrap_verdict_admissible({"a": [], "b": []})["reasons"] == ["empty"]
+
+
+def test_admissible_min_units_is_tunable_but_defaults_to_ten():
+    units = {"a": [0.02], "b": [-0.01]}
+    assert bootstrap_verdict_admissible(units)["admissible"] is False
+    assert bootstrap_verdict_admissible(units, min_units=2)["admissible"] is True
+
+
+def test_admissible_zero_mean_unit_is_not_a_losing_cluster():
+    # Docstring promise: "strictly opposite" — a unit at exactly 0.0 must not count as
+    # opposing under a positive pooled mean (a refactor to `m <= 0` must fail here).
+    units = {f"m{i}": [0.02] for i in range(11)}
+    units["flat"] = [0.0]
+    report = bootstrap_verdict_admissible(units)
+    assert report["admissible"] is False
+    assert report["reasons"] == ["no_opposing_unit"]
+    assert report["n_opposing_units"] == 0

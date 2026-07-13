@@ -1,4 +1,4 @@
-"""Shared block-bootstrap + verdict-gate helpers — compounding L6/L27/L28/L32 into code.
+"""Shared block-bootstrap + verdict-gate helpers — compounding L6/L27/L28/L32/L41 into code.
 
 Every probe so far (`s6_maker_firstcut.py`, `s10_reachability_probe.py`,
 `s7c_sports_clv_bootstrap.py`, ...) has hand-rolled its own block bootstrap. That
@@ -68,6 +68,55 @@ def block_bootstrap(unit_values: Dict[str, Sequence[float]], *, n_boot: int = 10
         "n_units": len(units), "n_obs": count, "mean": grand_mean,
         "ci95": [lo, hi], "n_boot": n_boot, "seed": seed,
     }
+
+
+def bootstrap_verdict_admissible(unit_values: Dict[str, Sequence[float]], *,
+                                  min_units: int = 10) -> dict:
+    """The L41 degeneracy gate: a cluster bootstrap whose units ALL resolved the same
+    direction cannot produce a single resample on the other side of zero, so its
+    one-sided p is mechanically 0 and its CI "significance" carries no evidentiary
+    weight — S20's sole FDR "survivor" (8/8 longshot-sell clusters won, p=0.0) and
+    S19's 2-event-hour filled population (CI [+0.285,+0.425], a resampling artifact)
+    are the exhibits. A directional edge claim is admissible only if the resample
+    population could have disagreed with it.
+
+    Gate (both required):
+      1. `n_units >= min_units` (units with at least one observation) — the S19
+         data-adequacy floor, now checked BEFORE a CI is quoted, not after.
+      2. At least one unit's mean sits strictly on the OPPOSITE side of zero from the
+         pooled mean (≥1 losing cluster for a positive claim, ≥1 winning cluster for a
+         negative one). A pooled mean of exactly 0 makes no directional claim; it
+         requires ≥1 strictly-positive AND ≥1 strictly-negative unit to count as a
+         genuinely mixed population rather than an all-zeros artifact.
+
+    Returns a dict (not a bare bool) so verdict reports can record WHY a CI was
+    inadmissible: `{"admissible", "n_units", "n_opposing_units", "reasons"}` where
+    `reasons` is a list drawn from {"below_min_units", "no_opposing_unit", "empty"}
+    (empty list when admissible). Sibling to `clears_tick_magnitude` (L27) in the
+    verdict rule: a CI that fails EITHER gate is not-a-verdict by construction.
+    Empty input is inadmissible, never a crash.
+    """
+    unit_means = {k: sum(v) / len(v) for k, v in unit_values.items() if len(v) > 0}
+    n_units = len(unit_means)
+    count = sum(len(v) for v in unit_values.values())
+    if count == 0 or n_units == 0:
+        return {"admissible": False, "n_units": n_units, "n_opposing_units": 0,
+                "reasons": ["empty"]}
+    pooled = sum(sum(v) for v in unit_values.values()) / count
+    if pooled > 0:
+        n_opposing = sum(1 for m in unit_means.values() if m < 0)
+    elif pooled < 0:
+        n_opposing = sum(1 for m in unit_means.values() if m > 0)
+    else:
+        n_opposing = min(sum(1 for m in unit_means.values() if m > 0),
+                         sum(1 for m in unit_means.values() if m < 0))
+    reasons = []
+    if n_units < min_units:
+        reasons.append("below_min_units")
+    if n_opposing < 1:
+        reasons.append("no_opposing_unit")
+    return {"admissible": not reasons, "n_units": n_units,
+            "n_opposing_units": n_opposing, "reasons": reasons}
 
 
 def clears_tick_magnitude(ci95: Sequence, *, tick: float = 0.01, min_ticks: float = 1.0
