@@ -39,8 +39,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.pricing import TAKER_FEE_RATE, fee_per_contract
 from execution.limits import check_order
-from execution.schema import (Fill, Order, Position, line_to_record,
-                              record_to_line)
+from execution.schema import (Fill, Order, Position, Settlement,
+                              line_to_record, record_to_line)
 
 STARTING_CASH = 0.0  # paper starts flat; P&L is measured relative to zero.
 
@@ -57,6 +57,10 @@ class PaperBroker:
         self.cash: float = self.starting_cash
         self.realized_pnl: float = 0.0
         self.orders_today: int = 0
+        self.settled_contracts: int = 0
+        # (ticker, side) settlements that arrived with no open position to close —
+        # surfaced honestly (never crashed) though normal operation never hits it.
+        self.settlement_noops: List[Tuple[str, str]] = []
         self._replay()
 
     # ----------------------------------------------------------------- replay
@@ -82,6 +86,8 @@ class PaperBroker:
         self.positions = {}
         self.cash = self.starting_cash
         self.realized_pnl = 0.0
+        self.settled_contracts = 0
+        self.settlement_noops = []
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         orders_today = 0
         for rec in self._read_records():
@@ -90,6 +96,8 @@ class PaperBroker:
                     orders_today += 1
             elif isinstance(rec, Fill):
                 self._apply_fill(rec)
+            elif isinstance(rec, Settlement):
+                self._apply_settlement(rec)
         self.orders_today = orders_today
 
     def _apply_fill(self, fill: Fill) -> None:
@@ -112,6 +120,33 @@ class PaperBroker:
             pos.qty -= close_qty
             if pos.qty == 0:
                 pos.avg_cost = 0.0
+        self.positions[key] = pos
+
+    def _apply_settlement(self, s: Settlement) -> None:
+        """Forced close of an open long at the venue's expiry value (0.0 or 1.0),
+        ZERO fee (a settlement charges no trading fee). This mirrors the SELL
+        accounting in _apply_fill — realized = (settle_value - avg_cost) * qty —
+        but deliberately does NOT route through _apply_fill, because Fill forbids a
+        0.0/1.0 price (it is a market print, not an expiry). A settlement is the
+        one place that boundary value is legitimate (broker_truth).
+
+        No open position for (ticker, side) -> a no-op, surfaced via
+        settlement_noops rather than crashed (fault isolation). In normal
+        operation a settlement only ever follows its own fill in the same ledger."""
+        key = (s.ticker, s.side)
+        pos = self.positions.get(key)
+        if pos is None or pos.qty <= 0:
+            self.settlement_noops.append(key)
+            return
+        close_qty = min(s.qty, pos.qty)
+        self.cash += s.settle_value * close_qty
+        realized = (s.settle_value - pos.avg_cost) * close_qty
+        pos.realized_pnl += realized
+        self.realized_pnl += realized
+        pos.qty -= close_qty
+        self.settled_contracts += close_qty
+        if pos.qty == 0:
+            pos.avg_cost = 0.0
         self.positions[key] = pos
 
     # ------------------------------------------------------------------ submit
@@ -169,6 +204,10 @@ class PaperBroker:
         return {
             "accepted": [o.order_id for o in accepted],
             "fills": [f.fill_id for f in fills],
+            # the actual Fill objects booked this call, so a caller can build the
+            # matching Settlement legs authoritatively (which legs really filled)
+            # without recomputing the fill model.
+            "fill_records": fills,
             "rejected": rejected,
             "n_accepted": len(accepted), "n_fills": len(fills), "n_rejected": len(rejected),
         }
@@ -187,6 +226,46 @@ class PaperBroker:
             for fl in fills:
                 f.write(record_to_line(fl) + "\n")
         return path
+
+    def _append_settlements(self, settlements: List[Settlement]) -> Optional[Path]:
+        """Append settlement lines to today's ledger file. Called AFTER any fills
+        in the same run so a settlement always lands as a LATER line than the fill
+        it closes — replay then applies fill-then-settle in file order. Append-only:
+        never rewrites or reorders existing lines (tape/ discipline)."""
+        if not settlements:
+            return None
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        self.ledger_dir.mkdir(parents=True, exist_ok=True)
+        path = self.ledger_dir / f"dt={day}.jsonl"
+        with open(path, "a", encoding="utf-8") as f:
+            for s in settlements:
+                f.write(record_to_line(s) + "\n")
+        return path
+
+    # ---------------------------------------------------------------- settle
+    def settle(self, settlements: List[Settlement]) -> Dict[str, Any]:
+        """Book a batch of venue-truth settlements against open positions. Each is
+        validated; an INVALID settlement is never written and is returned under
+        'rejected' with its reasons (honest accounting, never a silent drop). Valid
+        settlements are appended AFTER any fills already written this run, then
+        state is re-derived by _replay (so post-settle state is a ledger replay,
+        never an in-memory shortcut). Returns a summary dict."""
+        valid: List[Settlement] = []
+        rejected: List[Dict[str, Any]] = []
+        for s in settlements:
+            errs = s.validate()
+            if errs:
+                rejected.append({"settlement_id": s.settlement_id, "reasons": errs})
+                continue
+            valid.append(s)
+
+        self._append_settlements(valid)
+        self._replay()
+        return {
+            "settled": [s.settlement_id for s in valid],
+            "rejected": rejected,
+            "n_settled": len(valid), "n_rejected": len(rejected),
+        }
 
     # ---------------------------------------------------------- state readers
     def open_notional(self) -> float:
@@ -264,9 +343,9 @@ class PaperBroker:
     def daily_summary(self) -> str:
         """One plain-English line for a phone note: open positions, realized P&L."""
         n_open = len(self.open_positions())
-        return (f"paper: {n_open} open position(s), "
-                f"realized P&L ${self.realized_pnl:+.2f}, cash ${self.cash:+.2f}, "
-                f"open notional ${self.open_notional():.2f}")
+        return (f"paper: {n_open} open position(s), {self.settled_contracts} settled "
+                f"contract(s), realized P&L ${self.realized_pnl:+.2f}, "
+                f"cash ${self.cash:+.2f}, open notional ${self.open_notional():.2f}")
 
 
 # --------------------------------------------------------------------------- #

@@ -6,8 +6,9 @@ import json
 
 import pytest
 
-from execution.schema import (SCHEMA_VERSION, VALID_FILL_PRICE_TAGS, Fill, Order,
-                              Position, line_to_record, record_to_line)
+from execution.schema import (SCHEMA_VERSION, VALID_FILL_PRICE_TAGS,
+                              VALID_SETTLEMENT_TAGS, Fill, Order, Position,
+                              Settlement, line_to_record, record_to_line)
 
 
 def _order(**kw):
@@ -23,6 +24,13 @@ def _fill(**kw):
                 fill_model="taker_depth", price_source_tag="real_ask", caveats=[])
     base.update(kw)
     return Fill(**base)
+
+
+def _settlement(**kw):
+    base = dict(settlement_id="s1", ts="2026-07-11T00:00:00Z", ticker="KX-T", side="no",
+                settle_value=1.0, qty=1, event_ticker="KX-EV", price_source_tag="broker_truth")
+    base.update(kw)
+    return Settlement(**base)
 
 
 # --------------------------------------------------------------------------- #
@@ -60,6 +68,69 @@ def test_order_validate_rejects_price_out_of_kalshi_range():
 
 def test_order_validate_rejects_nonpositive_qty():
     assert any("qty" in e for e in _order(qty=0).validate())
+
+
+def test_order_roundtrips_with_event_ticker():
+    o = _order(event_ticker="KX-EV")
+    back = line_to_record(record_to_line(o))
+    assert isinstance(back, Order)
+    assert back == o
+    assert back.event_ticker == "KX-EV"
+
+
+def test_order_without_event_ticker_defaults_empty_and_back_compat_parses():
+    # a legacy ledger line with no event_ticker field still parses (d.get default)
+    d = json.loads(record_to_line(_order()))
+    d.pop("event_ticker")
+    back = Order.from_dict(d)
+    assert back.event_ticker == ""
+
+
+# --------------------------------------------------------------------------- #
+# Settlement
+# --------------------------------------------------------------------------- #
+def test_settlement_roundtrips_through_jsonl():
+    s = _settlement()
+    line = record_to_line(s)
+    back = line_to_record(line)
+    assert isinstance(back, Settlement)
+    assert back == s
+
+
+def test_settlement_line_carries_record_kind():
+    d = json.loads(record_to_line(_settlement()))
+    assert d["record_kind"] == "settlement"
+
+
+def test_settlement_validate_accepts_zero_and_one():
+    assert _settlement(settle_value=1.0).validate() == []
+    assert _settlement(settle_value=0.0).validate() == []
+
+
+def test_settlement_validate_rejects_midband_value():
+    """0.5 is a market price, NOT a binary expiry — a settlement rejects it."""
+    assert any("settle_value" in e for e in _settlement(settle_value=0.5).validate())
+
+
+def test_settlement_validate_rejects_tradeable_market_price():
+    """Even a value inside Fill's [0.01,0.99] band is invalid for a settlement:
+    a settlement must be exactly 0.0 or 1.0 (broker-truth expiry realization)."""
+    assert any("settle_value" in e for e in _settlement(settle_value=0.40).validate())
+
+
+def test_settlement_validate_rejects_non_broker_truth_tag():
+    for bad in ("real_ask", "real_bid", "synthetic", "midpoint"):
+        assert any("price_source_tag" in e
+                   for e in _settlement(price_source_tag=bad).validate())
+
+
+def test_settlement_validate_rejects_empty_event_ticker_and_bad_side():
+    assert any("event_ticker" in e for e in _settlement(event_ticker="").validate())
+    assert any("side" in e for e in _settlement(side="maybe").validate())
+
+
+def test_valid_settlement_tags_is_only_broker_truth():
+    assert VALID_SETTLEMENT_TAGS == frozenset({"broker_truth"})
 
 
 # --------------------------------------------------------------------------- #

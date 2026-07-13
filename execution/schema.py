@@ -7,9 +7,11 @@ JSONL (de)serialization, a schema_version stamp on every persisted line.
 Ledger discipline (same as tape/): append-only JSONL under
 `paper/ledger/dt=<date>.jsonl`, one JSON object per line, never rewritten and
 never reordered. `paper/` is committed like `tape/` (it is provenance, not a
-scratch cache). A ledger line is one of two kinds — an Order or a Fill — each
-carrying a `record_kind` discriminator so a single-file replay can tell them
-apart and rebuild state deterministically.
+scratch cache). A ledger line is one of three kinds — an Order, a Fill, or a
+Settlement — each carrying a `record_kind` discriminator so a single-file replay
+can tell them apart and rebuild state deterministically. A Settlement is a
+venue-truth expiry realization (the ONLY record allowed a $0.00/$1.00 boundary
+value); Fill stays strictly a tradeable [0.01, 0.99] market print.
 
 Conventions honored here:
   * Prices are dollars floats (repo convention: 0.01..0.99), NOT integer cents.
@@ -40,6 +42,14 @@ VALID_TIF = frozenset({"rest", "ioc"})
 # (`synthetic`/`midpoint`) can never be a fill price (CLAUDE.md prime directive).
 VALID_FILL_PRICE_TAGS = frozenset({"real_ask", "real_bid"})
 
+# A Settlement is an expiry realization reported by the venue — never a market
+# fill, never a modeled price. Its only honest source tag is `broker_truth`
+# (CLAUDE.md trust defaults: a settlement is venue truth). A settlement is the
+# ONLY record allowed to carry a $0.00/$1.00 value (see Settlement.validate),
+# which is precisely why it is a SIBLING of Fill rather than a loosening of
+# Fill's [0.01, 0.99] market-price bound.
+VALID_SETTLEMENT_TAGS = frozenset({"broker_truth"})
+
 
 @dataclass
 class Order:
@@ -56,6 +66,12 @@ class Order:
     qty: int                # contracts
     tif: str                # 'rest' | 'ioc'
     strategy: str           # strategy name that proposed it
+    # The event ladder this order belongs to (e.g. a crypto_hourly event_ticker).
+    # Optional/back-compat: defaults to "" and from_dict uses d.get, so ledger
+    # lines written before this field still parse. Present so a strategy's
+    # per-event idempotency can be derived from ledger CONTENT (which events it
+    # already processed) rather than a separate state file.
+    event_ticker: str = ""
     schema_version: str = SCHEMA_VERSION
     record_kind: str = "order"
 
@@ -68,6 +84,7 @@ class Order:
             order_id=d["order_id"], ts=d["ts"], ticker=d["ticker"], side=d["side"],
             action=d["action"], limit_price=float(d["limit_price"]), qty=int(d["qty"]),
             tif=d["tif"], strategy=d["strategy"],
+            event_ticker=d.get("event_ticker", ""),
             schema_version=d.get("schema_version", SCHEMA_VERSION),
         )
 
@@ -165,21 +182,88 @@ class Position:
                    realized_pnl=float(d.get("realized_pnl", 0.0)))
 
 
+@dataclass
+class Settlement:
+    """One venue-reported expiry realization that CLOSES an open position at its
+    settled value. This is broker truth (the market resolved), NOT a market fill:
+    a settled contract pays exactly $1.00 if its side won and $0.00 if it lost.
+
+    Those two values ($0.00 / $1.00) sit deliberately OUTSIDE Fill's tradeable
+    [0.01, 0.99] band — which is the whole reason Settlement is a separate record
+    type rather than a loosening of Fill. A Fill is a market print (always a real
+    interior price); a Settlement is an expiry event (always a boundary value).
+    Keeping them distinct means Fill's price bound stays honest AND a settlement's
+    boundary value is representable without faking a 0.00/1.00 "fill".
+
+    `price_source_tag` is fixed to `broker_truth` (VALID_SETTLEMENT_TAGS): a
+    settlement is never modeled — it is what the venue reported."""
+
+    settlement_id: str
+    ts: str                 # ISO-8601 — when the settlement was booked
+    ticker: str
+    side: str               # 'yes' | 'no' — the position side being settled
+    settle_value: float     # 0.0 (lost) or 1.0 (won) — the $/contract expiry value
+    qty: int                # contracts settled
+    event_ticker: str       # the ladder event this settlement belongs to
+    price_source_tag: str = "broker_truth"
+    schema_version: str = SCHEMA_VERSION
+    record_kind: str = "settlement"
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self), sort_keys=True, separators=(",", ":"))
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Settlement":
+        return cls(
+            settlement_id=d["settlement_id"], ts=d["ts"], ticker=d["ticker"],
+            side=d["side"], settle_value=float(d["settle_value"]), qty=int(d["qty"]),
+            event_ticker=d["event_ticker"],
+            price_source_tag=d.get("price_source_tag", "broker_truth"),
+            schema_version=d.get("schema_version", SCHEMA_VERSION),
+        )
+
+    def validate(self) -> List[str]:
+        errs: List[str] = []
+        if self.side not in VALID_SIDES:
+            errs.append(f"side {self.side!r} not in {sorted(VALID_SIDES)}")
+        # A settlement realizes a BINARY expiry: exactly $0.00 (lost) or $1.00
+        # (won). Anything else — including a mid-band market price — is NOT a
+        # settlement and is rejected. This is the honest boundary escape from
+        # Fill's [0.01, 0.99] bound, not a hole in it.
+        if self.settle_value not in (0.0, 1.0):
+            errs.append(
+                f"settle_value {self.settle_value!r} must be exactly 0.0 or 1.0 — a "
+                f"settlement is a binary expiry realization (broker_truth), never a "
+                f"mid-band market price")
+        if self.price_source_tag not in VALID_SETTLEMENT_TAGS:
+            errs.append(
+                f"price_source_tag {self.price_source_tag!r} not in "
+                f"{sorted(VALID_SETTLEMENT_TAGS)} — a settlement is broker truth, never modeled")
+        if self.qty <= 0:
+            errs.append(f"qty {self.qty!r} must be > 0")
+        if not self.ticker.strip():
+            errs.append("ticker must be non-empty")
+        if not self.event_ticker.strip():
+            errs.append("event_ticker must be non-empty")
+        return errs
+
+
 # --------------------------------------------------------------------------- #
 # JSONL (de)serialization helpers — append-only ledger lines
 # --------------------------------------------------------------------------- #
 def record_to_line(rec: Any) -> str:
-    """Serialize an Order or Fill to a single canonical JSONL line (no newline)."""
-    if isinstance(rec, (Order, Fill)):
+    """Serialize an Order, Fill, or Settlement to a single canonical JSONL line."""
+    if isinstance(rec, (Order, Fill, Settlement)):
         return rec.to_json()
-    raise TypeError(f"record_to_line expects Order|Fill, got {type(rec).__name__}")
+    raise TypeError(
+        f"record_to_line expects Order|Fill|Settlement, got {type(rec).__name__}")
 
 
 def line_to_record(line: str) -> Optional[Any]:
-    """Parse one ledger line back into an Order or Fill by its `record_kind`
-    discriminator. A blank line yields None (tolerated at read time); an unknown
-    record_kind raises (a ledger we cannot fully replay is a hard error, never
-    silently skipped)."""
+    """Parse one ledger line back into an Order, Fill, or Settlement by its
+    `record_kind` discriminator. A blank line yields None (tolerated at read
+    time); an unknown record_kind raises (a ledger we cannot fully replay is a
+    hard error, never silently skipped)."""
     line = line.strip()
     if not line:
         return None
@@ -189,4 +273,6 @@ def line_to_record(line: str) -> Optional[Any]:
         return Order.from_dict(d)
     if kind == "fill":
         return Fill.from_dict(d)
+    if kind == "settlement":
+        return Settlement.from_dict(d)
     raise ValueError(f"unknown ledger record_kind {kind!r}: cannot replay this line")

@@ -6,6 +6,83 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 05:45 ET — Q22 CLOSED: S14 wired as the first-ever paper shadow strategy
+
+Research-loop run. Step 0a/0/0b ran first: newest `kb/00-LOG.md` entry (07-13, Q20 close) and
+newest `tape/*/dt=*` file (07-13) are a 0-day gap; PRs #52–#56 all reachable from
+`origin/main` HEAD; 0 open PRs claim anything. Two stranded-branch sweeps this run: 869 lines
+(`tape/hourly-20260713T{0656,0757}Z`, PR #57) plus a follow-up 40+200-line reconciliation of
+`tape/anomalies/`/`tape/econ_prints/` against a concurrent VPS pass that landed mid-run (both
+this session's local invariants-triggered 09Z captures and the VPS's own were real, unique
+captures — union-appended, 0 lines dropped).
+
+**Milestone: Q22** (topmost eligible — Q0-Q20 all DONE/BLOCKED, Q21's idle-idea-gen
+re-eligibility condition, <2 non-blocked items, not met since Q19-per-event and Q22 both still
+open). Q13's S14 finding already nailed down the parameter block (short-YES maker offer at
+every `crypto_hourly` ladder member's `yes_ask >= $0.02`, earliest capture of each settled
+event-hour). Delegating this to `research-lead` surfaced a real architectural gap before any
+code was trusted: `execution/paper_broker.PaperBroker` had **no short-position model** (a
+`sell` against a non-existent long silently clamps to zero — by its own docstring) and **no
+settlement/expiry realization mechanism at all** (`Fill.price` is hard-bounded to
+`[0.01,0.99]`, so a $1.00/$0.00 expiry value literally could not be recorded as a Fill).
+Shipping the strategy without closing this gap would have silently misbooked every event-hour's
+true P&L into a committed ledger — caught before any code was trusted, not after.
+
+**The fix.** (1) "Short-YES at ask A" is represented as "buy-NO at `round(1-A,2)`, held to
+settlement" — economically identical cash flows (receive `A` if not-winner, net `A-1` if
+winner, either framing), which the existing long-only broker already models correctly once the
+order is a NO purchase, not a YES sale. (2) A new `Settlement` record type (sibling of `Fill`,
+never a loosening of it): `settle_value` restricted to exactly `{0.0, 1.0}`, `price_source_tag`
+fixed to `broker_truth` — an expiry realization is venue truth, never a market print, so it
+gets its own record kind rather than punching a hole in `Fill`'s honest `[0.01,0.99]` bound.
+`PaperBroker._apply_settlement`/`.settle()` apply it via the same replay-from-ledger discipline
+as everything else (zero fee — a settlement charges no trading fee; a settlement with no
+matching open position is surfaced via `settlement_noops`, never crashed or silently dropped).
+
+**Proof the representation is correct, not just plausible:** a new reconciliation test
+(`tests/test_paper_pass.py`) — and a live re-run over the real committed ledger — showed the
+paper ledger's per-event realized P&L equals `scripts/s14_ladder_fillsim.simulate_event`'s
+already-verified `pnl` **cent-for-cent**, both P&L signs exercised, 0 mismatches over the 10
+real event-hours processed. This is an executable proof of the buy-NO ≡ short-YES equivalence,
+not a prose argument.
+
+**What shipped:** `execution/strategies/s14_ladder_underwriting.py` (the `Strategy` proposer,
+reusing `s14_ladder_fillsim`'s tested member-selection/earliest-capture logic rather than
+re-deriving it), `execution/fill_models.resting_short_yes_as_no_fill` (the seller-rule fill
+against the committed candle cache), `SHADOW_REGISTRY` now holds this one entry, and
+`scripts/paper_pass.py` — a no-network runner: per-strategy, per-event-hour idempotency is
+derived from ledger content (an `event_ticker` already on an Order line is skipped — no side
+state file), each event is all-or-nothing against the read-only `execution/limits.py` caps
+(never raised).
+
+**First real pass:** 683 `crypto_hourly` records, 312 candidate settled event-hours (earliest ∩
+broker-truth settlement). **10 processed → 200 orders / 89 fills / 89 settlements**;
+`daily_summary()`: `paper: 0 open position(s), 89 settled contract(s), realized P&L $+1.83,
+cash $+1.83, open notional $0.00`. **290 deferred(caps)** — `MAX_DAILY_ORDERS=200` bit exactly
+on this first backlog-clearing pass, the expected outcome per the item's own spec (drains
+~200/day on subsequent runs; the cap was NOT touched to make more fit). **14 deferred(coverage)**
+— event-hours the candle cache doesn't fully cover yet. Re-running is idempotent: 0 newly
+processed, same $+1.83, 10 already-in-ledger.
+
+**Honesty note (do not overclaim):** the +$1.83 is a 10-event-hour paper-ledger figure, not a
+verdict and not a bootstrapped CI — S14 stays exactly where Q13 left it in the registry
+(`data-collecting`, PROXY-POSITIVE not proven). This milestone is infrastructure (evidence
+accumulation toward the live gate's ≥14-day shadow-track-record requirement), not a new claim
+about the edge. The two-agent verdict rule was not triggered (no registry flip/bootstrap
+CI/kill decision here) — but given this is the project's first execution-lane code with real
+money-shaped accounting, it got a full independent read from the orchestrating context (every
+new/changed file read line-by-line, pytest and invariants re-run independently rather than
+trusted from the delegate's report, ledger JSON hand-validated, the reconciliation re-run
+against the live ledger) before commit. One process note: the first delegation attempt reported
+"waiting on a worker" as its final answer with zero files actually written — caught by checking
+the working tree directly rather than trusting the report, then re-driven to completion.
+662+26=690 tests green (26 new), `invariants --full` green (only the standing non-gating L20/L25
+advisories). Step 9 of this run's own protocol: this run's paper sub-pass = the first pass
+itself (see above); future runs will find `SHADOW_REGISTRY` non-empty and advance the broker
+over newly-arrived tape each time.
+
+---
+
 ## 2026-07-13 02:xx ET — Q20 CLOSED: BTC/ETH fine-ladder overround anatomy — wings, not active band; "quote-only" refuted — verifier CONFIRMED-WITH-CAVEAT
 
 Research-loop run. Step 0a/0/0b ran first: newest `kb/00-LOG.md` entry (07-13, Q13 close) and

@@ -12,7 +12,7 @@ from execution import limits
 from execution.limits import (MAX_CONTRACTS_PER_ORDER, MAX_DAILY_ORDERS,
                              MAX_OPEN_NOTIONAL_DOLLARS, check_order)
 from execution.paper_broker import PaperBroker
-from execution.schema import Fill, Order, record_to_line
+from execution.schema import Fill, Order, Settlement, record_to_line
 
 
 def _order(**kw):
@@ -28,6 +28,13 @@ def _fill(**kw):
                 fill_model="taker_depth", price_source_tag="real_ask", caveats=[])
     base.update(kw)
     return Fill(**base)
+
+
+def _settlement(**kw):
+    base = dict(settlement_id="s1", ts="2026-07-11T00:00:00Z", ticker="KX-T", side="no",
+                settle_value=1.0, qty=1, event_ticker="KX-EV", price_source_tag="broker_truth")
+    base.update(kw)
+    return Settlement(**base)
 
 
 def _depth(ticker="KX-T", no_bids=None, yes_bid=0.37, no_bid=0.62):
@@ -188,6 +195,97 @@ def test_submit_accepts_order_even_when_no_fill(tmp_path):
     res = b.submit([_order(order_id="o1", limit_price=0.20, qty=10)], [_depth()])
     assert res["n_accepted"] == 1
     assert res["n_fills"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# settlement application
+# --------------------------------------------------------------------------- #
+def test_apply_settlement_books_realized_pnl_on_win(tmp_path):
+    """Buy NO @0.60 fee0.01 (avg_cost 0.61), settle to 1.0 -> realized (1.0-0.61)*1."""
+    ledger = tmp_path / "ledger"
+    _write_ledger(ledger, [
+        _fill(order_id="o1", fill_id="o1:F", ticker="KX-M", side="no", action="buy",
+              price=0.60, qty=1, fee=0.01, fill_model="maker_candle_through",
+              price_source_tag="real_bid"),
+        _settlement(settlement_id="o1:S", ticker="KX-M", side="no", settle_value=1.0, qty=1),
+    ])
+    b = PaperBroker(ledger)
+    assert b.realized_pnl == pytest.approx((1.0 - 0.61) * 1)
+    assert b.positions[("KX-M", "no")].qty == 0
+    assert b.settled_contracts == 1
+
+
+def test_apply_settlement_books_loss_for_winner_member(tmp_path):
+    """A winner NO leg settles to 0.0 -> realized (0.0 - avg_cost) = full loss."""
+    ledger = tmp_path / "ledger"
+    _write_ledger(ledger, [
+        _fill(order_id="o1", fill_id="o1:F", ticker="KX-W", side="no", action="buy",
+              price=0.70, qty=1, fee=0.01, fill_model="maker_candle_through",
+              price_source_tag="real_bid"),
+        _settlement(settlement_id="o1:S", ticker="KX-W", side="no", settle_value=0.0, qty=1),
+    ])
+    b = PaperBroker(ledger)
+    assert b.realized_pnl == pytest.approx((0.0 - 0.71) * 1)
+
+
+def test_replay_applies_fill_before_settle_in_file_order(tmp_path):
+    """The settlement must be a LATER line than its fill; replay is order-sensitive."""
+    ledger = tmp_path / "ledger"
+    _write_ledger(ledger, [
+        _fill(order_id="o1", fill_id="o1:F", ticker="KX-M", side="no", action="buy",
+              price=0.55, qty=1, fee=0.01, fill_model="maker_candle_through",
+              price_source_tag="real_bid"),
+        _settlement(settlement_id="o1:S", ticker="KX-M", side="no", settle_value=1.0, qty=1),
+    ])
+    b1 = PaperBroker(ledger)
+    b2 = PaperBroker(ledger)  # deterministic replay incl. settlement
+    assert b1.realized_pnl == pytest.approx(b2.realized_pnl)
+    assert b1.realized_pnl == pytest.approx((1.0 - 0.56) * 1)
+
+
+def test_settle_rejects_invalid_settlement_without_writing(tmp_path):
+    ledger = tmp_path / "ledger"
+    _write_ledger(ledger, [
+        _fill(order_id="o1", fill_id="o1:F", ticker="KX-M", side="no", action="buy",
+              price=0.55, qty=1, fee=0.01, fill_model="maker_candle_through",
+              price_source_tag="real_bid"),
+    ])
+    b = PaperBroker(ledger)
+    before = ledger.glob("dt=*.jsonl")
+    before_lines = sum(len(p.read_text().splitlines()) for p in before)
+    res = b.settle([_settlement(settlement_id="bad", ticker="KX-M", side="no",
+                                settle_value=0.5, qty=1)])
+    assert res["n_settled"] == 0
+    assert res["n_rejected"] == 1
+    after_lines = sum(len(p.read_text().splitlines()) for p in ledger.glob("dt=*.jsonl"))
+    assert after_lines == before_lines  # invalid settlement never written
+
+
+def test_settle_appends_and_replays(tmp_path):
+    ledger = tmp_path / "ledger"
+    _write_ledger(ledger, [
+        _fill(order_id="o1", fill_id="o1:F", ticker="KX-M", side="no", action="buy",
+              price=0.60, qty=1, fee=0.01, fill_model="maker_candle_through",
+              price_source_tag="real_bid"),
+    ])
+    b = PaperBroker(ledger)
+    assert b.realized_pnl == pytest.approx(0.0)
+    res = b.settle([_settlement(settlement_id="o1:S", ticker="KX-M", side="no",
+                                settle_value=1.0, qty=1)])
+    assert res["n_settled"] == 1
+    assert b.realized_pnl == pytest.approx((1.0 - 0.61) * 1)
+    # persisted: a fresh broker over the same ledger reproduces it
+    assert PaperBroker(ledger).realized_pnl == pytest.approx(b.realized_pnl)
+
+
+def test_settlement_with_no_open_position_is_surfaced_noop(tmp_path):
+    ledger = tmp_path / "ledger"
+    b = PaperBroker(ledger)
+    res = b.settle([_settlement(settlement_id="s1", ticker="KX-NONE", side="no",
+                                settle_value=1.0, qty=1)])
+    assert res["n_settled"] == 1  # valid, written
+    assert b.realized_pnl == pytest.approx(0.0)  # nothing to close
+    assert ("KX-NONE", "no") in b.settlement_noops
 
 
 # --------------------------------------------------------------------------- #

@@ -6,13 +6,13 @@ book, or persist anything — the PaperBroker owns that (separation of concerns,
 a strategy can be unit-tested with zero I/O and the fill/ledger machinery is
 shared across all strategies).
 
-SHADOW_REGISTRY is deliberately EMPTY this milestone. Real shadow strategies get
-registered here by queue item Q22, once the Q13/Q19 analyses have defined their
-parameters (bid offsets, universe, sizing). Until then the paper sub-pass has
-nothing to run and is a no-op — an empty registry means "no strategies proposed,
-nothing filled, ledger untouched", which is the honest state before any edge is
-proven. We do NOT ship a placeholder strategy: a made-up strategy proposing
-orders would put fabricated fills into the committed ledger.
+SHADOW_REGISTRY is POPULATED as of Q22 with the S14 "ladder overround
+underwriting" shadow strategy (execution.strategies.s14_ladder_underwriting),
+whose Q13 fill-sim (scripts/s14_ladder_fillsim.py) defined its universe and
+member selection. It is a REAL proposer over already-committed tape — its fills
+are resolved by the deterministic S14 seller rule on cached (committed) candle
+summaries, never fabricated. We still do NOT ship a placeholder: every registered
+strategy must be a genuine, tape-grounded proposer.
 """
 from __future__ import annotations
 
@@ -46,8 +46,11 @@ class Strategy(Protocol):
         ...
 
 
-# Q22 registers real shadow strategies here once Q13/Q19 define their parameters.
-# EMPTY == the paper sub-pass is a no-op (see module docstring). Do not add a
-# placeholder strategy — a fabricated proposer would write fabricated fills to the
-# committed ledger.
-SHADOW_REGISTRY: Dict[str, Strategy] = {}
+# Q22: registered with the S14 ladder-underwriting shadow strategy. The import is
+# kept module-light on purpose — the strategy module pulls in only pure helpers
+# (no network client) so importing strategy_api never touches the network.
+from execution.strategies.s14_ladder_underwriting import S14LadderUnderwriting
+
+SHADOW_REGISTRY: Dict[str, Strategy] = {
+    "s14_ladder_underwriting": S14LadderUnderwriting(),
+}
