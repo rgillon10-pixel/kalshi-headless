@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 02:xx ET — Q20 CLOSED: BTC/ETH fine-ladder overround anatomy — wings, not active band; "quote-only" refuted — verifier CONFIRMED-WITH-CAVEAT
+
+Research-loop run. Step 0a/0/0b ran first: newest `kb/00-LOG.md` entry (07-13, Q13 close) and
+newest `tape/*/dt=*` file (07-13) are a 0-day gap; PRs #51–#54 all reachable from `origin/main`
+HEAD; 0 open PRs claim anything. Step 0b found 2 already-fully-swept branches (`2306Z`, `0006Z`,
+0 new lines each — prior sweeps covered them) and 3 unswept ones (`025Z`/`0401Z`/`0457Z`,
+each >30min old): union-diffed **1405 lines** missing from `main` (crypto_hourly +4,
+orderbook_depth +1142, polymarket_macro_pairs +30, polymarket_pairs +8, sports_pairs +221), 0
+exact duplicates, all valid JSON — committed standalone (PR #55, squash-merged) so `main` was
+current before the milestone.
+
+**Milestone: Q20** (topmost eligible — Q13/Q16/Q18 DONE, Q14/Q15 data-adequacy BLOCKED, Q17
+RESERVED for Ryan-review PR #46, Q19 PREP-done but per-event gated on the Jul-14 CPI burst not
+having fired yet). Delegated to `edge-prober`: the 2026-07-03 flag (188-member KXBTC ladder,
++$9.27 `bracket_sum` overround, never investigated) got its first anatomy pass.
+`scripts/s20_ladder_overround_anatomy.py` (22 offline tests) bucketed 629 `crypto_hourly`
+snapshots (KXBTC 316 / KXETH 313, 172 settled event-hours each, 07-03→07-13) into `active`
+(±3 strike-spacings of spot, spacing inferred from the ladder itself — never hardcoded),
+`wing_floor` (1¢-pinned), and `wing_elevated` (stale one-sided asks above the floor but outside
+the band).
+
+**The numbers.** Overround is **97.4% (BTC) / 84.3% (ETH) wings**, split across TWO artifact
+components — not one: 1¢-floor pins (L12) AND stale one-sided `wing_elevated` asks
+(`yes_bid=0`, far from money), which on BTC ($2.17) actually exceed the floor pins ($1.71). A
+depth join against `tape/orderbook_depth/` (328/629 snapshots join-eligible, matched by ticker +
+nearest `captured_at` since the two sub-passes carry different `capture_id`s ~20s apart, p99
+staleness 34.8s/max 165.6s per the verifier's own instrumentation) **REFUTES "wings are
+quote-only"**: floor wings rest median 22,768 (BTC) / 36,253 (ETH) contracts — deeply fillable
+in size. They carry no edge because the flat $0.01 maker fee eats a 1¢ ask exactly to $0.00
+(L30), not from thin liquidity. The S14-relevant number — active-band
+`Σyes_ask − 1 − maker_fees`, block-bootstrapped by event-hour (n=172, 10,000 resamples): **BTC
++0.0087, CI [−0.0036, +0.0215] — straddles zero, fails the L27 magnitude gate, no edge**; **ETH
++0.1271, CI [+0.1046, +0.1523] — statistically positive but explicitly EXPLORATORY**, deferred
+to S14's own queue-aware fill-sim gate (already PROXY-POSITIVE-not-proven) — the active-band
+mids sum to 1.047 > 1.0, a heuristic tell (not a coherence theorem) that this is nominal
+ask-width in a thin two-strike book requiring maker fills S14's fill-sim already showed are
+adversely selected, not fillable premium. A parameter block for a future S14-crypto shadow
+(band width, quote prices, nominal expected capture) was emitted, explicitly tagged unproven.
+
+**Verifier (two-agent rule, no registry flip so not strictly required but applied per the
+kb/findings quality bar anyway): CONFIRMED-WITH-CAVEAT.** Independently re-ran the script and
+re-derived every load-bearing number to the same digit (wing splits, both bootstrap CIs, depth
+medians, join coverage 328/629, join staleness distribution), confirmed Hard Rule #3 tagging is
+correct everywhere (spot is `synthetic`, used only as a binning coordinate, never a fill price),
+and confirmed `pytest` (664 passed, 642 prior + 22) and `invariants --full` (green) are real.
+**One caveat applied before commit:** the finding's original causal claim — "the two ATM ETH
+strikes' ~6¢ spreads push the mid-sum above 1.0" — was overstated; the verifier decomposed the
+mid-sum (1.047 all-members vs 0.976 two-sided-members-only) and showed the >1.0 is driven mainly
+by the `mid=(ask+bid)/2=ask/2` convention on one-sided (`yes_bid=0`) floor-adjacent members
+pulled into the band, not the two ATM strikes named. Reworded in the finding (§3 + the lesson
+candidate) to "heuristic tell, not a theorem" before commit — no number or verdict changed, the
+mis-attribution erred conservative (it only argued *against* the ETH figure being an edge).
+
+**Lessons (candidates, for kb-distiller).** The fine-ladder overround has two artifact
+components (floor pins AND stale one-sided elevated asks — L31's "wide one-sided spread is
+nominal" applies verbatim to the ask-sum direction, not just bid-ask spread). "Wings are
+quote-only" is the wrong mental model for why they're worthless — they rest tens of thousands of
+contracts; the load-bearing fact is the flat maker fee, not absent size (a depth check expecting
+~0 would be a confusing false alarm). A mid-sum>1.0 tell on a sub-band ask-sum CI is corroborating
+evidence, not proof, when one-sided quotes are present (the synthetic mid on a zero-bid quote is
+itself contaminated). Cross-family tape joins need ticker + nearest-timestamp matching, not
+shared `capture_id` (crypto_hourly and orderbook_depth sub-passes run ~20s apart); check the
+date-window overlap first (L9 — depth tape starts 07-07, ~52% coverage ceiling here).
+
+**Still 0 proven edges.** Q20 is anatomy, not a verdict — no registry status changed. See
+`findings/2026-07-13-btc-ladder-overround-anatomy-q20.md`. `LOOP-QUEUE.md` Q20 → DONE.
+
+---
+
 ## 2026-07-13 xx:xx ET — Q13 CLOSED: S14 ladder underwriting is the project's FIRST non-DEAD candidate (idea → data-collecting), PROXY-POSITIVE not proven — verifier CONFIRMED-WITH-CAVEAT
 
 Q13 became eligible (`tape/crypto_hourly/` crossed its day threshold). The `edge-prober`
