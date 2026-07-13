@@ -30,6 +30,7 @@ may only graduate (gain capital) after a bootstrapped CI **strictly > 0 at real 
 | **S18** | Single-poll overreaction fade (Congress-control markets) | 2026-07-04 gen pass · QF Theme 7 × elections category | idea | low | paper fade @ real ask when single-poll jump >3¢ while polling average moved <1¢-eq; exit reversion/T+72h; bootstrap by poll event; CI>0 before 2026-11 |
 | **S19** | Elevated-wing stale-ask maker fade on crypto ladders (S10-maker / L26 direction) | 2026-07-13 Q21 gen · S10-maker-untested × L26 | **dead ✗** | low | TESTED (2026-07-13, verifier-CONFIRMED): queue-aware `orderbook_depth` `no_bids` fill-sim (NOT a candlestick print, L39) over 895 `wing_elevated` members / 175 settled event-hours — 0.45% fill rate overall (4 fills, 1.00% among the 402 joinable), below S14's 2.5% incidental-wing benchmark and the near-zero-fill floor; filled population is only 2 event-hours, below the bootstrap data-adequacy floor, so the +$0.355 win-leg CI [+0.285,+0.425] is a resampling artifact, not an edge (the mechanism's predicted toxic settle-YES leg is 0/895 observed — unsampled, not disproven). S10-maker / L26 now TESTED-DEAD. See `findings/2026-07-13-s19-wing-fade-fillsim-q23-verdict.md`. |
 | **S20** | Polymarket wallet forensics (mine top-PnL whales for transferable strategy shapes) | 2026-07-13 · /first-principles → /council CONDITIONAL 3-0 → prereg sprint | **dead ✗** | — | ONE-SHOT RESEARCH SPRINT, not a tradeable strategy — CLOSED, premise DEAD (2026-07-13, peer-reviewed APPROVE-WITH-NOTES). 50 top wallets, 37 evaluable, 1 formal BH-FDR survivor discredited by Result 2 (degenerate bootstrap: 8/8 clusters resolved same-way ⇒ p mechanically 0, L41) → **0 credible skilled wallets**. Decomposes into rewards-subsidized MMs (31/37, Kalshi analogs S6/S13/S19 DEAD), lottery winners (16/37 negative per-trade edge), and the degenerate survivor. "Copy the whales" structurally void. **Live output: H1 → `LOOP-QUEUE.md` Q24** (maker-side rich-ASK selling on sports longshots, the untested S7c mirror; evidentiary basis S7c alone). Lessons L41/L42. All numbers `polymarket_onchain` — zero Kalshi-edge evidence. See `findings/2026-07-13-polymarket-wallet-forensics-s20-dossier.md`. |
+| **S21** | S7-maker ASK side — rest the rich longshot ask (H1, the S7c-mirror maker-sell) | 2026-07-13 · S20/H1 → Q24 · S7c verdict inversion (ASK side) × longshot tail × maker lens | **dead ✗** | low | TESTED (2026-07-13, Q24, verifier-CONFIRMED): queue-aware `orderbook_depth` `no_bids` fill-sim (NOT a candlestick print, L39) of resting the S7c-proven-rich ask on sports longshots. The mandated join (fair-anchored longshots from `tape/sports_clv/` × the depth queue from `tape/orderbook_depth/`) is **0/81 joinable (0.00%)** at `fair_prob ≤ 0.20` (0/83 for the `yes_ask ≤ 0.20` proxy) — L9 non-overlap: fair anchors cover kickoffs ≤07-03, sports depth began ≥07-07, so every fair-anchored game had settled before the depth tape began (zero event- AND outcome-ticker overlap, the calendar date is embedded in the ticker so no join-window relaxation manufactures one; verifier reproduced 0 bypassing the probe's join code). Fill rate **0.00%, no testable CI** (n_units=0). Settlement was ADEQUATE (81/81 settled, 8/81=9.88% YES) and the sold-longshot-WINS negative-skew leg is fully modeled (`premium−1−fee`≈−0.86 settle-YES; flat $0.01 maker fee via `core.pricing`, L18/L30) — the death is a depth-queue **timing** gap, not a winner gap. Steelman: `sports_pairs` ask≤0.20 longshots that DO overlap depth → 346/652 (53%) have a queue, MEDIAN queue-ahead **485 contracts** (confirms the binding-risk thesis), but full-sim-eligible = only **3 markets** << the 10-game floor; verifier confirmed alternate paths also 0. → **DEAD by data-adequacy** (NOT a CI falsification; the edge-at-quote stays S7c-proven-rich, the maker FILL question is untested/unmeasurable on current tape, re-testable only on concurrently-collected fair-anchor+depth tape — L43). Same factor family as S14 (short-the-overpriced-tail, factor cap). See `findings/2026-07-13-q24-sports-longshot-maker-fillsim-verdict.md`, `kb/quant-finance/favorite-longshot-bias.md`. |
 
 ## Notes on each
 
@@ -576,3 +577,39 @@ pt1 provenance-detachment failure, L42). All numbers tagged `polymarket_onchain`
 evidence. Lessons L41 (degenerate bootstrap) / L42 (trace-to-source-row). Still 0 proven edges —
 S20 removes a candidate-generation avenue and adds one probe-able Kalshi question; the bar has not
 moved. See `findings/2026-07-13-polymarket-wallet-forensics-s20-dossier.md`.
+
+**Update 2026-07-13 (Q24): S21 registered dead ✗ — the S7-maker ASK side, DEAD by data-adequacy
+(verifier-CONFIRMED).** S21 is the direct mirror S7c/S13 never covered: rest the S7c-PROVEN-rich
+ask on sports longshots (short YES / buy-NO at `1−ask`) and harvest the +2.35¢ overpricing retail
+takers pay pregame. The edge-at-quote is not in dispute — S7c proved it; the binding question is
+FILLS (you join the BACK of the incumbent maker queue). An edge-prober built a queue-aware
+`orderbook_depth` `no_bids` fill-sim (L39, NOT a candlestick print) and an independent verifier
+returned CONFIRMED-WITH-CAVEAT (the caveat a cosmetic 80/80→81/81 script literal, fixed
+separately — the real number is **81/81**). **The mandated join is 0/81 joinable (0.00%)** at
+`fair_prob ≤ 0.20` (0/83 for the `yes_ask ≤ 0.20` proxy): `sports_clv` fair anchors cover kickoffs
+≤07-03 while sports `orderbook_depth` began ≥07-07, so every fair-anchored game had already
+settled before the depth tape began — zero event- AND outcome-ticker overlap, and because the
+calendar date is embedded in the ticker string the non-overlap is structural (the verifier
+reproduced 0 by bypassing the probe's own join code). This is **L9 recurring at the collector
+level** (L43): two datasets a probe needs were collected in disjoint windows, so the join is
+permanently empty. Fill rate 0.00%, no testable CI (n_units=0), L27 n/a, L41 admissibility
+correctly False on the empty population. **The death is a depth-queue TIMING gap, not a winner
+gap:** settlement (`tape/sports_history_s7/worldcup2026.jsonl`, `broker_truth`, L44) was ADEQUATE
+(81/81 settled, 8/81=9.88% YES) and the sold-longshot-WINS negative-skew leg is fully modeled
+(`premium−1−fee`≈−0.86 settle-YES; flat $0.01 maker fee via `core.pricing`, L18/L30) — never
+conditioned away (Q24 gate #2 / L41). **Steelman (no rescue):** `sports_pairs` ask≤0.20 longshots
+that DO overlap depth → 346/652 (53%) carry a queue, MEDIAN queue-ahead **485 contracts** (you
+rest behind a real incumbent — confirms Q24's binding-risk thesis), but full-sim-eligible = only
+**3 markets** << the 10-game floor (S19's 2-event-hour data-adequacy family); verifier confirmed
+`sports_history/` NBA and `sports_pairs`-native result/volume paths also yield 0. Prices tagged
+`real_ask` (asks/volume) · `real_bid` (queue) · `broker_truth` (settlement) · `synthetic`
+(fair_prob); bootstrap by GAME (L6). **Verdict: DEAD by data-adequacy — NOT a CI falsification.**
+The edge-at-quote stays S7c-proven-rich; only the maker FILL question is unanswered, and it is
+untested/unmeasurable on current tape, NOT falsified — re-testable only on a fresh collection where
+`sports_clv` and `orderbook_depth` run concurrently over the same *upcoming* games (a re-collected
+WC-final/future window). Same short-the-overpriced-tail factor family as S14 (factor cap recorded).
+This closes the S7 family (taker S7c DEAD, maker-bid S13 DEAD, maker-ask S21 DEAD-by-data-adequacy).
+Same terminal shape as S9/S10's data-adequacy DEADs — **still 0 proven edges; the bar has not
+moved.** Lessons L43 (collector-alignment recurrence of L9) / L44 (`worldcup2026.jsonl` offline
+sports executed-volume source). See `findings/2026-07-13-q24-sports-longshot-maker-fillsim-verdict.md`
+and `kb/quant-finance/favorite-longshot-bias.md`.
