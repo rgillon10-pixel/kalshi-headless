@@ -6,6 +6,73 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 17:09 ET (Q25) — Depth-tape anatomy scan: a fill-plausibility map, discovery-class, no verdict
+
+Q25 (LOOP-QUEUE, topmost eligible TODO — Q20-24 all DONE/DEAD, Q19's per-event legs
+time-gated until the Jul-14 CPI burst lands, Q21 not yet re-eligible at 4 non-blocked
+items) was delegated to `research-lead`, which fanned out to `edge-prober` (built the scan
++ 33 offline tests) and `verifier` (independent from-scratch re-run, standing quality rule
+— no registry-flip/bootstrap-CI/kill-decision here, so the strict two-agent VERDICT rule
+doesn't bind, but every number destined for `findings/` still gets verifier scrutiny).
+
+**What it is.** `tape/orderbook_depth/` is the largest tape family (~1,100-1,280
+lines/hour since 07-07, 3-4x everything else combined, L38) but had only ever been read as
+a fill GATE bolted onto an idea that already existed (S14, S19, Q24) — never as a
+discovery scan. `scripts/q25_depth_tape_anatomy.py` tabulates, by family and category ×
+time-to-close bucket: (a) queue depth at best bid/ask, (b) staleness/quote-age as a
+distribution (frozen-pair fraction + streak-length), (c) one-sidedness incidence, (d) a
+defined (non-canonical) resting-order-turnover proxy. **Descriptive statistics only — no
+bootstrap, no CI, no verdict, no strategy registration, no registry flip**, per the item's
+own spec.
+
+**Coverage.** 122,238 depth records / 31 families / 6 capture days (07-09 honestly
+absent, not padded). 21 of 114 family × ttc cells carry ≥1 insufficient metric (<20
+captures/pairs), reported as the sentinel `"insufficient"`, never extrapolated.
+
+**Headline reads (turnover benchmarked against S19's 0.45% dead-fill floor and S14's 2.5%
+wing benchmark — turnover can only rule a cell OUT, never IN as fillable):**
+plausibly-fillable churn concentrates in WNBA (11.06%, n=2,154), UCL soccer (8.56%), KBO
+baseball (8.35%, also the least-frozen sports family at 33% — active BBO), MLB (7.62%),
+NPB (6.92%); near-close baseball/basketball/soccer runs 7-13% turnover. Dead-thin: KXBIG3GAME
+sits right on the S19 floor at 0.48% (n=856), plus VBA 1.37%/USLCup 1.41%/MLS 1.72%.
+One-sidedness (L31) is confirmed a **crypto-only** phenomenon (96-100% any-empty, the L26
+1¢-floor no-bid mirror) vs sports' 0-1% pre-close — the wing shape does not generalize
+outside crypto.
+
+**Correction caught mid-milestone.** The producer found the milestone spec's own worked
+crypto-ticker example was wrong: the hour token is **ET, not UTC** (empirically confirmed
+against a live book capture and `collection/crypto_hourly.py`'s own docstring). Using the
+spec's UTC reading would have mis-bucketed all 45,505 crypto captures.
+
+**Verifier verdict.** Independent from-scratch recomputation (not reusing the script's own
+functions) — every anatomy number **CONFIRMED exactly**: record/family counts, category
+totals, BIG3/WNBA/crypto figures, turnover formula edge cases, determinism (byte-equal
+re-run ex-timestamp), fractional-size tape (a real 91,316.82-contract WC median size), and
+clean provenance (no synthetic-as-fillable, no P&L, no CI). One **DISPUTE** raised: an
+undercounted "15/114 insufficient cells" meta-statistic (silently excluded pooled-turnover
+insufficiency). Sent back to the producer, which independently recomputed **21/114** from
+the committed JSON and corrected the doc text only — no anatomy number, JSON value, code,
+or test changed. Net verdict: **CONFIRMED-WITH-CAVEATS** (two disclosed, immaterial
+methodology caveats: cross-day-gap contamination negligible at 0.04% of frozen pairs;
+sports HHMM timezone unverifiable from the depth tape alone).
+
+**Output:** `findings/2026-07-13-depth-tape-anatomy-q25.md` +
+`findings/depth_anatomy.json` (machine-readable, keyed by family/category × ttc-bucket).
+4 lesson candidates appended: **L45** (crypto hour token is ET not UTC — confirm a ticker
+grammar's stated tz against tape before trusting a worked example), **L46** (sports HHMM
+tz is league-local and unverifiable from depth tape alone), **L47** (`orderbook_depth`
+sizes are floats, can be fractional), **L48** (a turnover proxy rules a cell OUT, never IN
+— generalizes L39's proxy caution). Still 0 proven edges — this is a map to seed future
+Q21 idea-gen rounds (the near-close two-sided sports window reads as the strongest future
+queue-aware-fill-sim candidate; the crypto mirror and sticky small leagues already read
+dead-thin), not itself an edge. 784 tests green (751 prior + 33 new),
+`python scripts/invariants.py --full` green (only the standing non-gating L25 advisory).
+
+**Next:** Q19's per-event burst analysis fires once the Jul-14 CPI tape lands; Q21 idea-gen
+re-eligible once non-blocked queue items drop below 3.
+
+---
+
 ## 2026-07-13 (Q24) — S21 the S7-maker ASK side: DEAD by data-adequacy (verifier-CONFIRMED); 0/81 joinable; S7 family closed
 
 Q24 (LOOP-QUEUE, registry family S7/H1) tested the one leg S7c and S13 never covered: the

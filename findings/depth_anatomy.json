@@ -1,0 +1,6771 @@
+{
+  "generated_at": "2026-07-13T21:23:36.828314+00:00",
+  "scope": "READ-ONLY discovery-class depth-tape anatomy (Q25). Descriptive only \u2014 NO bootstrap, NO CI, NO verdict, NO P&L, NO registry flip.",
+  "price_source_tags": {
+    "asks": "real_ask",
+    "bids": "real_bid"
+  },
+  "n_records": 122238,
+  "min_n_insufficient_threshold": 20,
+  "anchors": {
+    "s19_queue_aware_fill_rate": 0.0045,
+    "s14_incidental_wing_fill_rate": 0.025,
+    "note": "fill-rate anchors cited for orientation ONLY; turnover is a looser observability proxy, not the fill rate \u2014 it can rule a cell OUT (dead-thin), never rule one IN as fillable."
+  },
+  "definitions": {
+    "family": "series prefix, ticker.split('-')[0]",
+    "category": "crypto (KXBTC/KXETH) | soccer | baseball | basketball | sports_other (any unmapped sports family). See SUBCATEGORY_MAP.",
+    "ttc_buckets": {
+      ">24h": "ttc >= 24h",
+      "6-24h": "6h <= ttc < 24h",
+      "1-6h": "1h <= ttc < 6h",
+      "15-60m": "15m <= ttc < 60m",
+      "<15m": "0 <= ttc < 15m",
+      "post_close": "ttc < 0 (late capture of a settled/closing market)",
+      "unparsed": "middle segment failed the grammar",
+      "coarse_clamp": "day-resolved (date-only) closes are never placed in <15m or 15-60m; those are promoted to 1-6h (unknown intra-day time).",
+      "crypto_timezone": "crypto hour token is ET (EDT/UTC-4 in July), confirmed against tape + crypto_hourly.py; sports HHMM treated as UTC per spec (true tz is league-local, unverifiable from tape)."
+    },
+    "queue_depth": "per capture: yes_bid_side = yes_bids[0][1]; yes_ask_side_mirror = no_bids[0][1] (a YES offer at p is a NO bid at 1-p). Median+p25/p75.",
+    "staleness": "consecutive same-ticker pair (ordered by captured_at across all days) with UNCHANGED BBO 4-tuple = frozen (L32). frozen_pair_fraction + a family/category streak-length distribution. Hourly-cadence caveat: a frozen hourly pair is not proof of no intra-hour movement.",
+    "one_sided": "yes_side_empty (no yes_bids), no_side_empty (no no_bids => no tradeable YES ask), any_side_empty (L31 wing shape).",
+    "turnover_formula": "For a consecutive same-ticker capture pair where the best PRICE on a side is UNCHANGED and size_prev>0: turnover = max(0, size_prev - size_now) / size_prev. Per side (yes_bid_side = top yes_bid; yes_ask_side = mirror = top no_bid). Snapshot-sampled at hourly cadence: intra-hour round-trips invisible (undercount); a best-price move resets/excludes the pair. A coarse observability proxy, NOT a fill rate. Anchors for orientation: 0.45% (S19 DEAD), 2.5% (S14 wing).",
+    "pair_assignment": "staleness/turnover pairs assigned to the EARLIER capture's cell."
+  },
+  "families": {
+    "KXBTC": {
+      "category": "crypto",
+      "n_captures": 32530,
+      "n_tickers": 19370,
+      "cells": {
+        "<15m": {
+          "n_captures": 12602,
+          "n_pairs": 376,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 19608.0,
+              "p25": 8224.0,
+              "p75": 38648.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.9890493572448817,
+            "no_side_empty": 0.020234883351848913,
+            "any_side_empty": 0.9895254721472783
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.0,
+            "n_pairs": 376
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "15-60m": {
+          "n_captures": 19552,
+          "n_pairs": 12784,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 18929.0,
+              "p25": 7917.75,
+              "p75": 39303.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.9627659574468085,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.9627659574468085
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8933041301627034,
+            "n_pairs": 12784
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.06829998416218994,
+              "n_pairs": 11425
+            },
+            "pooled": {
+              "mean_turnover": 0.06830852860855667,
+              "n_pairs": 11432
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 376,
+          "n_pairs": 0,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 1.0,
+            "no_side_empty": 1.0,
+            "any_side_empty": 1.0
+          },
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 21110,
+        "median_run": 2.0,
+        "p90_run": 2.0,
+        "max_run": 3
+      },
+      "all_ttc": {
+        "n_captures": 32530,
+        "n_pairs": 13160,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 0.0,
+            "p25": 0.0,
+            "p75": 0.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 18832.0,
+            "p25": 7774.25,
+            "p75": 38971.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.9733784199200738,
+          "no_side_empty": 0.019397479249923147,
+          "any_side_empty": 0.9735628650476483
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.8677811550151976,
+          "n_pairs": 13160
+        },
+        "turnover": {
+          "yes_bid_side": "insufficient",
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.06829998416218994,
+            "n_pairs": 11425
+          },
+          "pooled": {
+            "mean_turnover": 0.06830852860855667,
+            "n_pairs": 11432
+          }
+        }
+      }
+    },
+    "KXETH": {
+      "category": "crypto",
+      "n_captures": 12975,
+      "n_tickers": 7725,
+      "cells": {
+        "15-60m": {
+          "n_captures": 7800,
+          "n_pairs": 5100,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 36581.0,
+              "p25": 15629.0,
+              "p75": 38516.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.9691025641025641,
+            "no_side_empty": 0.0008974358974358974,
+            "any_side_empty": 0.9698717948717949
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8909803921568628,
+            "n_pairs": 5100
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0582835665653479,
+              "n_pairs": 4545
+            },
+            "pooled": {
+              "mean_turnover": 0.05863808177157584,
+              "n_pairs": 4548
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 5025,
+          "n_pairs": 150,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 33039.0,
+              "p25": 13435.0,
+              "p75": 38446.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.9842786069651741,
+            "no_side_empty": 0.05353233830845771,
+            "any_side_empty": 0.9930348258706467
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.0,
+            "n_pairs": 150
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "post_close": {
+          "n_captures": 150,
+          "n_pairs": 0,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 1.0,
+            "no_side_empty": 1.0,
+            "any_side_empty": 1.0
+          },
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 8431,
+        "median_run": 2.0,
+        "p90_run": 2.0,
+        "max_run": 3
+      },
+      "all_ttc": {
+        "n_captures": 12975,
+        "n_pairs": 5250,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 0.0,
+            "p25": 0.0,
+            "p75": 0.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 35962.0,
+            "p25": 14231.0,
+            "p75": 38499.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.9753371868978805,
+          "no_side_empty": 0.03283236994219653,
+          "any_side_empty": 0.9791907514450867
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.8655238095238095,
+          "n_pairs": 5250
+        },
+        "turnover": {
+          "yes_bid_side": "insufficient",
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.0582835665653479,
+            "n_pairs": 4545
+          },
+          "pooled": {
+            "mean_turnover": 0.05863808177157584,
+            "n_pairs": 4548
+          }
+        }
+      }
+    },
+    "KXMLBGAME": {
+      "category": "baseball",
+      "n_captures": 9760,
+      "n_tickers": 192,
+      "cells": {
+        "post_close": {
+          "n_captures": 1578,
+          "n_pairs": 1444,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 33776.57,
+              "p25": 12385.5575,
+              "p75": 93623.19499999999
+            },
+            "yes_ask_side_mirror": {
+              "median": 122401.445,
+              "p25": 33682.705,
+              "p75": 591274.785
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.017743979721166033,
+            "no_side_empty": 0.017743979721166033,
+            "any_side_empty": 0.035487959442332066
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.46883656509695293,
+            "n_pairs": 1444
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.14341267288487536,
+              "n_pairs": 681
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1606544734853802,
+              "n_pairs": 678
+            },
+            "pooled": {
+              "mean_turnover": 0.1520145425001382,
+              "n_pairs": 1359
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 3226,
+          "n_pairs": 3196,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 2696.5,
+              "p25": 679.0125,
+              "p75": 46958.765
+            },
+            "yes_ask_side_mirror": {
+              "median": 22600.27,
+              "p25": 2093.18,
+              "p75": 226793.1775
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8448060075093867,
+            "n_pairs": 3196
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.08620002321617812,
+              "n_pairs": 2834
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.09494162547729586,
+              "n_pairs": 2807
+            },
+            "pooled": {
+              "mean_turnover": 0.09054990400805142,
+              "n_pairs": 5641
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 4016,
+          "n_pairs": 3990,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 500.0,
+              "p25": 22.0,
+              "p75": 1050.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 676.0,
+              "p25": 179.4875,
+              "p75": 1500.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7526315789473684,
+            "n_pairs": 3990
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.03876116327307902,
+              "n_pairs": 3326
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.04359657577766994,
+              "n_pairs": 3341
+            },
+            "pooled": {
+              "mean_turnover": 0.04118430909246376,
+              "n_pairs": 6667
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 764,
+          "n_pairs": 762,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 23919.03,
+              "p25": 2073.8375,
+              "p75": 95134.65
+            },
+            "yes_ask_side_mirror": {
+              "median": 315577.845,
+              "p25": 45357.4725,
+              "p75": 519920.1975
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8832020997375328,
+            "n_pairs": 762
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.11202834778030482,
+              "n_pairs": 688
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.09079134414018739,
+              "n_pairs": 681
+            },
+            "pooled": {
+              "mean_turnover": 0.10146414071023907,
+              "n_pairs": 1369
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 128,
+          "n_pairs": 128,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 31413.595,
+              "p25": 12396.57,
+              "p75": 109676.965
+            },
+            "yes_ask_side_mirror": {
+              "median": 492327.635,
+              "p25": 81561.14499999999,
+              "p75": 677339.3325
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8515625,
+            "n_pairs": 128
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.12305432824524204,
+              "n_pairs": 114
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.14106974920879706,
+              "n_pairs": 110
+            },
+            "pooled": {
+              "mean_turnover": 0.13190118675413065,
+              "n_pairs": 224
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 48,
+          "n_pairs": 48,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 31828.41,
+              "p25": 11322.675,
+              "p75": 100503.10250000001
+            },
+            "yes_ask_side_mirror": {
+              "median": 478253.95499999996,
+              "p25": 168663.85,
+              "p75": 628563.0375
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8541666666666666,
+            "n_pairs": 48
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.10115468160272342,
+              "n_pairs": 42
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.11523524952059334,
+              "n_pairs": 42
+            },
+            "pooled": {
+              "mean_turnover": 0.10819496556165839,
+              "n_pairs": 84
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 2557,
+        "median_run": 1.0,
+        "p90_run": 10.0,
+        "max_run": 52
+      },
+      "all_ttc": {
+        "n_captures": 9760,
+        "n_pairs": 9568,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1364.0,
+            "p25": 365.0,
+            "p75": 31471.870000000003
+          },
+          "yes_ask_side_mirror": {
+            "median": 3030.0,
+            "p25": 755.34,
+            "p75": 145006.94
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0028688524590163933,
+          "no_side_empty": 0.0028688524590163933,
+          "any_side_empty": 0.005737704918032787
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7528219063545151,
+          "n_pairs": 9568
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.07367946888687452,
+            "n_pairs": 7685
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.07876583022109318,
+            "n_pairs": 7659
+          },
+          "pooled": {
+            "mean_turnover": 0.07621834020196731,
+            "n_pairs": 15344
+          }
+        }
+      }
+    },
+    "KXBRASILEIROBGAME": {
+      "category": "soccer",
+      "n_captures": 7518,
+      "n_tickers": 63,
+      "cells": {
+        "6-24h": {
+          "n_captures": 798,
+          "n_pairs": 792,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 303.03499999999997,
+              "p25": 59.0,
+              "p75": 654.7075
+            },
+            "yes_ask_side_mirror": {
+              "median": 370.73,
+              "p25": 193.0,
+              "p75": 806.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0012531328320802004,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0012531328320802004
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7032828282828283,
+            "n_pairs": 792
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06998905600403905,
+              "n_pairs": 634
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.09778872799321926,
+              "n_pairs": 644
+            },
+            "pooled": {
+              "mean_turnover": 0.08399765440860249,
+              "n_pairs": 1278
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 6471,
+          "n_pairs": 6441,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 49.0,
+              "p25": 30.0,
+              "p75": 200.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 49.0,
+              "p25": 10.0,
+              "p75": 370.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5977332712311753,
+            "n_pairs": 6441
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.01750135365556835,
+              "n_pairs": 4883
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.01882896009171644,
+              "n_pairs": 4448
+            },
+            "pooled": {
+              "mean_turnover": 0.01813421116580164,
+              "n_pairs": 9331
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 183,
+          "n_pairs": 162,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 654.0,
+              "p25": 132.0,
+              "p75": 1338.8200000000002
+            },
+            "yes_ask_side_mirror": {
+              "median": 933.73,
+              "p25": 225.945,
+              "p75": 1683.875
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.01092896174863388,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.01092896174863388
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.3148148148148148,
+            "n_pairs": 162
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.11414226832770077,
+              "n_pairs": 69
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.23339001763317496,
+              "n_pairs": 62
+            },
+            "pooled": {
+              "mean_turnover": 0.17058013441120762,
+              "n_pairs": 131
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 66,
+          "n_pairs": 60,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 97591.015
+            },
+            "yes_ask_side_mirror": {
+              "median": 127517.14,
+              "p25": 0.0,
+              "p75": 144508.0625
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.5757575757575758,
+            "no_side_empty": 0.2727272727272727,
+            "any_side_empty": 0.8484848484848485
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8666666666666667,
+            "n_pairs": 60
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.001671522630161032,
+              "n_pairs": 35
+            },
+            "pooled": {
+              "mean_turnover": 0.024746996559964752,
+              "n_pairs": 53
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 3008,
+        "median_run": 1.0,
+        "p90_run": 6.0,
+        "max_run": 42
+      },
+      "all_ttc": {
+        "n_captures": 7518,
+        "n_pairs": 7455,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 50.0,
+            "p25": 30.0,
+            "p75": 320.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 54.0,
+            "p25": 15.0,
+            "p75": 500.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.005453578079276403,
+          "no_side_empty": 0.0023942537909018356,
+          "any_side_empty": 0.007847831870178238
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.6049631120053656,
+          "n_pairs": 7455
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.02479676578282206,
+            "n_pairs": 5604
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.031076477105588873,
+            "n_pairs": 5189
+          },
+          "pooled": {
+            "mean_turnover": 0.02781589133214447,
+            "n_pairs": 10793
+          }
+        }
+      }
+    },
+    "KXNPBGAME": {
+      "category": "baseball",
+      "n_captures": 5560,
+      "n_tickers": 100,
+      "cells": {
+        "1-6h": {
+          "n_captures": 362,
+          "n_pairs": 360,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 205.0,
+              "p25": 5.1075,
+              "p75": 454.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1567.045,
+              "p25": 698.0250000000001,
+              "p75": 2207.5724999999998
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.9111111111111111,
+            "n_pairs": 360
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.05686063280340639,
+              "n_pairs": 332
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.08345350462993863,
+              "n_pairs": 332
+            },
+            "pooled": {
+              "mean_turnover": 0.07015706871667249,
+              "n_pairs": 664
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 3372,
+          "n_pairs": 3338,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 30.0,
+              "p25": 10.0,
+              "p75": 500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 50.0,
+              "p25": 10.0,
+              "p75": 184.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.1431995206710605,
+            "n_pairs": 3338
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06079842569463324,
+              "n_pairs": 741
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.04211931440210015,
+              "n_pairs": 1527
+            },
+            "pooled": {
+              "mean_turnover": 0.04822214573709448,
+              "n_pairs": 2268
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 56,
+          "n_pairs": 56,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 205.0,
+              "p25": 32.25,
+              "p75": 711.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 1673.2849999999999,
+              "p25": 354.40999999999997,
+              "p75": 3574.4425
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7321428571428571,
+            "n_pairs": 56
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06785198360222353,
+              "n_pairs": 43
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1390215331950621,
+              "n_pairs": 41
+            },
+            "pooled": {
+              "mean_turnover": 0.10258950185587096,
+              "n_pairs": 84
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 576,
+          "n_pairs": 528,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 255.34,
+              "p25": 56.795,
+              "p75": 848.7325000000001
+            },
+            "yes_ask_side_mirror": {
+              "median": 693.1700000000001,
+              "p25": 135.5125,
+              "p75": 2835.12
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.022569444444444444,
+            "no_side_empty": 0.020833333333333332,
+            "any_side_empty": 0.03993055555555555
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.32575757575757575,
+            "n_pairs": 528
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.1904079659703835,
+              "n_pairs": 199
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1788520748572514,
+              "n_pairs": 189
+            },
+            "pooled": {
+              "mean_turnover": 0.18477893653640926,
+              "n_pairs": 388
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 36,
+          "n_pairs": 36,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 256.68,
+              "p25": 193.98250000000002,
+              "p75": 614.62
+            },
+            "yes_ask_side_mirror": {
+              "median": 2185.86,
+              "p25": 1003.9575,
+              "p75": 3284.4375
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7777777777777778,
+            "n_pairs": 36
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.10279181719145837,
+              "n_pairs": 29
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.17749149575782566,
+              "n_pairs": 28
+            },
+            "pooled": {
+              "mean_turnover": 0.13948639613634053,
+              "n_pairs": 57
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 1158,
+          "n_pairs": 1142,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 42.075,
+              "p25": 10.0,
+              "p75": 405.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 166.0,
+              "p25": 9.774999999999999,
+              "p75": 422.18
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.46409807355516636,
+            "n_pairs": 1142
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.07352107928183084,
+              "n_pairs": 630
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.059160823628464546,
+              "n_pairs": 748
+            },
+            "pooled": {
+              "mean_turnover": 0.06572610741773945,
+              "n_pairs": 1378
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 3983,
+        "median_run": 1.0,
+        "p90_run": 2.0,
+        "max_run": 27
+      },
+      "all_ttc": {
+        "n_captures": 5560,
+        "n_pairs": 5460,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 30.0,
+            "p25": 10.0,
+            "p75": 500.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 140.0,
+            "p25": 12.0,
+            "p75": 269.75
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0023381294964028776,
+          "no_side_empty": 0.002158273381294964,
+          "any_side_empty": 0.004136690647482014
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.2888278388278388,
+          "n_pairs": 5460
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.07803314422470206,
+            "n_pairs": 1974
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.06308821626299307,
+            "n_pairs": 2865
+          },
+          "pooled": {
+            "mean_turnover": 0.06918478328023085,
+            "n_pairs": 4839
+          }
+        }
+      }
+    },
+    "KXUECLGAME": {
+      "category": "soccer",
+      "n_captures": 4620,
+      "n_tickers": 81,
+      "cells": {
+        "6-24h": {
+          "n_captures": 342,
+          "n_pairs": 333,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 318.0,
+              "p25": 100.0,
+              "p75": 680.8625
+            },
+            "yes_ask_side_mirror": {
+              "median": 556.6949999999999,
+              "p25": 177.23,
+              "p75": 1157.45
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6876876876876877,
+            "n_pairs": 333
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.11915472553483172,
+              "n_pairs": 252
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1140729433675057,
+              "n_pairs": 254
+            },
+            "pooled": {
+              "mean_turnover": 0.11660379140340717,
+              "n_pairs": 506
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 4092,
+          "n_pairs": 4026,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 50.0,
+              "p25": 49.0,
+              "p75": 500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 478.5,
+              "p25": 49.0,
+              "p75": 1024.25
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6892697466467959,
+            "n_pairs": 4026
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.033927511728370933,
+              "n_pairs": 3090
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.02416458768646112,
+              "n_pairs": 3343
+            },
+            "pooled": {
+              "mean_turnover": 0.028854069310820147,
+              "n_pairs": 6433
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 66,
+          "n_pairs": 66,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 38857.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 61859.565,
+              "p25": 0.0,
+              "p75": 116041.14499999999
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.5757575757575758,
+            "no_side_empty": 0.2878787878787879,
+            "any_side_empty": 0.8636363636363636
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8636363636363636,
+            "n_pairs": 66
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.021949430685932983,
+              "n_pairs": 38
+            },
+            "pooled": {
+              "mean_turnover": 0.020448806356314433,
+              "n_pairs": 57
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 120,
+          "n_pairs": 114,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 71156.5
+            },
+            "yes_ask_side_mirror": {
+              "median": 106389.76000000001,
+              "p25": 0.0,
+              "p75": 163855.82
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.6666666666666666,
+            "no_side_empty": 0.3333333333333333,
+            "any_side_empty": 1.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 1.0,
+            "n_pairs": 114
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.007919002412529436,
+              "n_pairs": 38
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.011037570034809912,
+              "n_pairs": 76
+            },
+            "pooled": {
+              "mean_turnover": 0.009998047494049752,
+              "n_pairs": 114
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 1445,
+        "median_run": 2.0,
+        "p90_run": 7.0,
+        "max_run": 30
+      },
+      "all_ttc": {
+        "n_captures": 4620,
+        "n_pairs": 4539,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 50.0,
+            "p25": 49.0,
+            "p75": 501.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 500.0,
+            "p25": 50.0,
+            "p75": 1074.5
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.02554112554112554,
+          "no_side_empty": 0.01277056277056277,
+          "any_side_empty": 0.03831168831168831
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.6994932804582508,
+          "n_pairs": 4539
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.03986332090713867,
+            "n_pairs": 3399
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.030026860129317406,
+            "n_pairs": 3711
+          },
+          "pooled": {
+            "mean_turnover": 0.03472926943787086,
+            "n_pairs": 7110
+          }
+        }
+      }
+    },
+    "KXBRASILEIROCGAME": {
+      "category": "soccer",
+      "n_captures": 4335,
+      "n_tickers": 33,
+      "cells": {
+        "post_close": {
+          "n_captures": 9,
+          "n_pairs": 3,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        ">24h": {
+          "n_captures": 3288,
+          "n_pairs": 3288,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 49.0,
+              "p25": 49.0,
+              "p75": 500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 49.0,
+              "p25": 10.0,
+              "p75": 174.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5942822384428224,
+            "n_pairs": 3288
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.009641787532145877,
+              "n_pairs": 2846
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.010451070413947862,
+              "n_pairs": 2140
+            },
+            "pooled": {
+              "mean_turnover": 0.009989133173352505,
+              "n_pairs": 4986
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 924,
+          "n_pairs": 915,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 163.0,
+              "p25": 57.35,
+              "p75": 231.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 191.0,
+              "p25": 76.0,
+              "p75": 296.11
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.003246753246753247,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.003246753246753247
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7202185792349727,
+            "n_pairs": 915
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.03899358285616617,
+              "n_pairs": 740
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.06291830249420154,
+              "n_pairs": 736
+            },
+            "pooled": {
+              "mean_turnover": 0.05092352435589112,
+              "n_pairs": 1476
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 114,
+          "n_pairs": 96,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 179.0,
+              "p25": 65.4275,
+              "p75": 503.77
+            },
+            "yes_ask_side_mirror": {
+              "median": 317.485,
+              "p25": 153.9575,
+              "p75": 824.8225
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.19791666666666666,
+            "n_pairs": 96
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.11449735051714736,
+              "n_pairs": 31
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.2221241592295616,
+              "n_pairs": 32
+            },
+            "pooled": {
+              "mean_turnover": 0.1691649358948816,
+              "n_pairs": 63
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 1703,
+        "median_run": 1.0,
+        "p90_run": 6.0,
+        "max_run": 59
+      },
+      "all_ttc": {
+        "n_captures": 4335,
+        "n_pairs": 4302,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 76.0,
+            "p25": 49.0,
+            "p75": 500.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 76.19,
+            "p25": 10.0,
+            "p75": 198.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0016147635524798155,
+          "no_side_empty": 0.000461361014994233,
+          "any_side_empty": 0.0020761245674740486
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.6118084611808461,
+          "n_pairs": 4302
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.016545534004999096,
+            "n_pairs": 3617
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.02605953728229942,
+            "n_pairs": 2908
+          },
+          "pooled": {
+            "mean_turnover": 0.020785644584369115,
+            "n_pairs": 6525
+          }
+        }
+      }
+    },
+    "KXUSLCUPGAME": {
+      "category": "soccer",
+      "n_captures": 3792,
+      "n_tickers": 63,
+      "cells": {
+        ">24h": {
+          "n_captures": 1047,
+          "n_pairs": 1044,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1.0,
+              "p25": 1.0,
+              "p75": 15.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 10.0,
+              "p25": 10.0,
+              "p75": 10.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.9693486590038314,
+            "n_pairs": 1044
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.0,
+              "n_pairs": 1037
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0,
+              "n_pairs": 1012
+            },
+            "pooled": {
+              "mean_turnover": 0.0,
+              "n_pairs": 2049
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 1800,
+          "n_pairs": 1800,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 26.0,
+              "p25": 26.0,
+              "p75": 100.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 10.0,
+              "p25": 10.0,
+              "p75": 100.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8172222222222222,
+            "n_pairs": 1800
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.009440767409641681,
+              "n_pairs": 1554
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.008741614258085954,
+              "n_pairs": 1538
+            },
+            "pooled": {
+              "mean_turnover": 0.00909299976827922,
+              "n_pairs": 3092
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 588,
+          "n_pairs": 585,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 100.0,
+              "p25": 61.84,
+              "p75": 350.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 291.72,
+              "p25": 58.0,
+              "p75": 651.25
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5316239316239316,
+            "n_pairs": 585
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.047896791217101005,
+              "n_pairs": 422
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.059396985748650474,
+              "n_pairs": 360
+            },
+            "pooled": {
+              "mean_turnover": 0.05319099841832585,
+              "n_pairs": 782
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 357,
+          "n_pairs": 300,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 29.0,
+              "p25": 4.0,
+              "p75": 122.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 95.0,
+              "p25": 13.89,
+              "p75": 224.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.05322128851540616,
+            "no_side_empty": 0.014005602240896359,
+            "any_side_empty": 0.06722689075630252
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.19666666666666666,
+            "n_pairs": 300
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.11596426759863655,
+              "n_pairs": 101
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.057693070390169944,
+              "n_pairs": 79
+            },
+            "pooled": {
+              "mean_turnover": 0.09038968660158732,
+              "n_pairs": 180
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 939,
+        "median_run": 1.0,
+        "p90_run": 9.0,
+        "max_run": 43
+      },
+      "all_ttc": {
+        "n_captures": 3792,
+        "n_pairs": 3729,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 26.0,
+            "p25": 2.0,
+            "p75": 100.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 10.0,
+            "p25": 10.0,
+            "p75": 110.4225
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0050105485232067514,
+          "no_side_empty": 0.0013185654008438818,
+          "any_side_empty": 0.006329113924050633
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7650844730490748,
+          "n_pairs": 3729
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.014963323531041135,
+            "n_pairs": 3114
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.013176738092764737,
+            "n_pairs": 2989
+          },
+          "pooled": {
+            "mean_turnover": 0.014088326992452228,
+            "n_pairs": 6103
+          }
+        }
+      }
+    },
+    "KXLIGAMXGAME": {
+      "category": "soccer",
+      "n_captures": 3750,
+      "n_tickers": 33,
+      "cells": {
+        ">24h": {
+          "n_captures": 3750,
+          "n_pairs": 3717,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 148.0,
+              "p25": 12.45,
+              "p75": 200.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 200.35500000000002,
+              "p25": 103.43,
+              "p75": 439.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6470271724509012,
+            "n_pairs": 3717
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.04161074951143014,
+              "n_pairs": 2789
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.03081510282528871,
+              "n_pairs": 2954
+            },
+            "pooled": {
+              "mean_turnover": 0.036057843310688065,
+              "n_pairs": 5743
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 1345,
+        "median_run": 1.0,
+        "p90_run": 6.0,
+        "max_run": 56
+      },
+      "all_ttc": {
+        "n_captures": 3750,
+        "n_pairs": 3717,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 148.0,
+            "p25": 12.45,
+            "p75": 200.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 200.35500000000002,
+            "p25": 103.43,
+            "p75": 439.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0,
+          "no_side_empty": 0.0,
+          "any_side_empty": 0.0
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.6470271724509012,
+          "n_pairs": 3717
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.04161074951143014,
+            "n_pairs": 2789
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.03081510282528871,
+            "n_pairs": 2954
+          },
+          "pooled": {
+            "mean_turnover": 0.036057843310688065,
+            "n_pairs": 5743
+          }
+        }
+      }
+    },
+    "KXECULPGAME": {
+      "category": "soccer",
+      "n_captures": 3222,
+      "n_tickers": 51,
+      "cells": {
+        "post_close": {
+          "n_captures": 93,
+          "n_pairs": 78,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 98.65,
+              "p25": 0.0,
+              "p75": 1128.98
+            },
+            "yes_ask_side_mirror": {
+              "median": 302.32,
+              "p25": 59.88,
+              "p75": 145503.78
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.3870967741935484,
+            "no_side_empty": 0.1827956989247312,
+            "any_side_empty": 0.5698924731182796
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6282051282051282,
+            "n_pairs": 78
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0436380639391554,
+              "n_pairs": 34
+            },
+            "pooled": {
+              "mean_turnover": 0.031532019428900465,
+              "n_pairs": 51
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 648,
+          "n_pairs": 648,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 2077.0,
+              "p25": 273.75,
+              "p75": 2438.5
+            },
+            "yes_ask_side_mirror": {
+              "median": 1531.7,
+              "p25": 915.0,
+              "p75": 2808.69
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7361111111111112,
+            "n_pairs": 648
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06987588861635574,
+              "n_pairs": 527
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.05897702995879741,
+              "n_pairs": 524
+            },
+            "pooled": {
+              "mean_turnover": 0.0644420142713885,
+              "n_pairs": 1051
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 2301,
+          "n_pairs": 2280,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1232.73,
+              "p25": 58.4,
+              "p75": 1662.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1200.0,
+              "p25": 546.12,
+              "p75": 1819.92
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7706140350877193,
+            "n_pairs": 2280
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.0204411813299558,
+              "n_pairs": 1924
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.013480589859821453,
+              "n_pairs": 1976
+            },
+            "pooled": {
+              "mean_turnover": 0.016914481651754392,
+              "n_pairs": 3900
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 180,
+          "n_pairs": 165,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 652.765,
+              "p25": 208.99,
+              "p75": 2162.4975
+            },
+            "yes_ask_side_mirror": {
+              "median": 1379.415,
+              "p25": 287.53000000000003,
+              "p75": 2951.3125
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.027777777777777776,
+            "no_side_empty": 0.011111111111111112,
+            "any_side_empty": 0.03888888888888889
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.3575757575757576,
+            "n_pairs": 165
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.09917715677875982,
+              "n_pairs": 69
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.13515578640690096,
+              "n_pairs": 67
+            },
+            "pooled": {
+              "mean_turnover": 0.11690192284556465,
+              "n_pairs": 136
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 880,
+        "median_run": 2.0,
+        "p90_run": 8.0,
+        "max_run": 37
+      },
+      "all_ttc": {
+        "n_captures": 3222,
+        "n_pairs": 3171,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1235.0,
+            "p25": 93.0,
+            "p75": 1753.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 1200.0,
+            "p25": 570.42,
+            "p75": 2027.8375
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.012725015518311608,
+          "no_side_empty": 0.005896958410924891,
+          "any_side_empty": 0.0186219739292365
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7385682749921161,
+          "n_pairs": 3171
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.03276353520470302,
+            "n_pairs": 2537
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.026174833189008314,
+            "n_pairs": 2601
+          },
+          "pooled": {
+            "mean_turnover": 0.0294281490733636,
+            "n_pairs": 5138
+          }
+        }
+      }
+    },
+    "KXAFLGAME": {
+      "category": "sports_other",
+      "n_captures": 2934,
+      "n_tickers": 36,
+      "cells": {
+        ">24h": {
+          "n_captures": 2412,
+          "n_pairs": 2392,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1500.0,
+              "p25": 195.0,
+              "p75": 2000.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1174.0,
+              "p25": 100.0,
+              "p75": 1600.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6471571906354515,
+            "n_pairs": 2392
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.01737556761180723,
+              "n_pairs": 1671
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0152078462757685,
+              "n_pairs": 2124
+            },
+            "pooled": {
+              "mean_turnover": 0.016162329109107303,
+              "n_pairs": 3795
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 230,
+          "n_pairs": 228,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 2142.0,
+              "p25": 1510.0,
+              "p75": 3500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1900.0,
+              "p25": 1235.0,
+              "p75": 4527.17
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.9210526315789473,
+            "n_pairs": 228
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.024525862958759206,
+              "n_pairs": 217
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.034560357391087204,
+              "n_pairs": 215
+            },
+            "pooled": {
+              "mean_turnover": 0.029519882178552077,
+              "n_pairs": 432
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 108,
+          "n_pairs": 108,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1970.0,
+              "p25": 1745.75,
+              "p75": 3167.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 1740.375,
+              "p25": 1500.0,
+              "p75": 2936.75
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7685185185185185,
+            "n_pairs": 108
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.04161985454232095,
+              "n_pairs": 89
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.04650847188667344,
+              "n_pairs": 86
+            },
+            "pooled": {
+              "mean_turnover": 0.04402226078011703,
+              "n_pairs": 175
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 18,
+          "n_pairs": 18,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.07952864169654009,
+              "n_pairs": 31
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 162,
+          "n_pairs": 148,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 630.0,
+              "p25": 39.0,
+              "p75": 1945.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1587.31,
+              "p25": 34.075,
+              "p75": 2502.75
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.030864197530864196,
+            "no_side_empty": 0.037037037037037035,
+            "any_side_empty": 0.06790123456790123
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.35135135135135137,
+            "n_pairs": 148
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.10044038595885635,
+              "n_pairs": 58
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.13528502291940284,
+              "n_pairs": 62
+            },
+            "pooled": {
+              "mean_turnover": 0.11844344838847201,
+              "n_pairs": 120
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 4,
+          "n_pairs": 4,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 1023,
+        "median_run": 1.0,
+        "p90_run": 6.0,
+        "max_run": 61
+      },
+      "all_ttc": {
+        "n_captures": 2934,
+        "n_pairs": 2898,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1500.0,
+            "p25": 222.0,
+            "p75": 2000.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 1500.0,
+            "p25": 150.0,
+            "p75": 1992.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0017041581458759373,
+          "no_side_empty": 0.002044989775051125,
+          "any_side_empty": 0.003749147920927062
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.6594202898550725,
+          "n_pairs": 2898
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.02233506008323063,
+            "n_pairs": 2053
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.021693161733942173,
+            "n_pairs": 2507
+          },
+          "pooled": {
+            "mean_turnover": 0.021982156758303843,
+            "n_pairs": 4560
+          }
+        }
+      }
+    },
+    "KXUCLGAME": {
+      "category": "soccer",
+      "n_captures": 2550,
+      "n_tickers": 72,
+      "cells": {
+        "6-24h": {
+          "n_captures": 1050,
+          "n_pairs": 1026,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 166.5,
+              "p25": 79.24,
+              "p75": 506.96
+            },
+            "yes_ask_side_mirror": {
+              "median": 845.04,
+              "p25": 247.75,
+              "p75": 1563.34
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.007619047619047619,
+            "no_side_empty": 0.0038095238095238095,
+            "any_side_empty": 0.011428571428571429
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7124756335282652,
+            "n_pairs": 1026
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.12151263511032016,
+              "n_pairs": 794
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.09645469916395821,
+              "n_pairs": 775
+            },
+            "pooled": {
+              "mean_turnover": 0.10913538822795527,
+              "n_pairs": 1569
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 1446,
+          "n_pairs": 1416,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 133.05,
+              "p25": 59.0,
+              "p75": 376.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 527.385,
+              "p25": 150.0,
+              "p75": 1439.6299999999999
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6709039548022598,
+            "n_pairs": 1416
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.07366255616117966,
+              "n_pairs": 1060
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.06480292608973272,
+              "n_pairs": 1153
+            },
+            "pooled": {
+              "mean_turnover": 0.0690465808008642,
+              "n_pairs": 2213
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 54,
+          "n_pairs": 36,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 314.82,
+              "p25": 1.6,
+              "p75": 2437.8975
+            },
+            "yes_ask_side_mirror": {
+              "median": 3430.44,
+              "p25": 68.75,
+              "p75": 8352.5975
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.24074074074074073,
+            "no_side_empty": 0.09259259259259259,
+            "any_side_empty": 0.3333333333333333
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.1111111111111111,
+            "n_pairs": 36
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 865,
+        "median_run": 1.0,
+        "p90_run": 7.0,
+        "max_run": 30
+      },
+      "all_ttc": {
+        "n_captures": 2550,
+        "n_pairs": 2478,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 143.57999999999998,
+            "p25": 62.0,
+            "p75": 448.13750000000005
+          },
+          "yes_ask_side_mirror": {
+            "median": 650.3199999999999,
+            "p25": 193.7,
+            "p75": 1544.25
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.00823529411764706,
+          "no_side_empty": 0.0035294117647058825,
+          "any_side_empty": 0.011764705882352941
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.6799838579499596,
+          "n_pairs": 2478
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.09410422738999707,
+            "n_pairs": 1855
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.07740564170048798,
+            "n_pairs": 1931
+          },
+          "pooled": {
+            "mean_turnover": 0.0855873312023472,
+            "n_pairs": 3786
+          }
+        }
+      }
+    },
+    "KXCHNSLGAME": {
+      "category": "soccer",
+      "n_captures": 2481,
+      "n_tickers": 24,
+      "cells": {
+        ">24h": {
+          "n_captures": 846,
+          "n_pairs": 843,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 112.0,
+              "p25": 49.0,
+              "p75": 1500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 919.9,
+              "p25": 217.0,
+              "p75": 1513.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.763938315539739,
+            "n_pairs": 843
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.02302407961502551,
+              "n_pairs": 721
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.022539096550654,
+              "n_pairs": 726
+            },
+            "pooled": {
+              "mean_turnover": 0.022780750171532967,
+              "n_pairs": 1447
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 603,
+          "n_pairs": 597,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 100.0,
+              "p25": 34.99,
+              "p75": 1091.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 236.0,
+              "p25": 24.5,
+              "p75": 1242.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.006633499170812604,
+            "no_side_empty": 0.003316749585406302,
+            "any_side_empty": 0.009950248756218905
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6415410385259631,
+            "n_pairs": 597
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06809773265794969,
+              "n_pairs": 454
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.050421473993397345,
+              "n_pairs": 419
+            },
+            "pooled": {
+              "mean_turnover": 0.059613938407723534,
+              "n_pairs": 873
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 150,
+          "n_pairs": 150,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 2.0,
+              "p25": 1.0,
+              "p75": 18.18
+            },
+            "yes_ask_side_mirror": {
+              "median": 4.0,
+              "p25": 3.0,
+              "p75": 22.52
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8266666666666667,
+            "n_pairs": 150
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.014380865974220999,
+              "n_pairs": 131
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.023713791748033862,
+              "n_pairs": 131
+            },
+            "pooled": {
+              "mean_turnover": 0.019047328861127432,
+              "n_pairs": 262
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 882,
+          "n_pairs": 867,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 7.82,
+              "p25": 1.0,
+              "p75": 45.64
+            },
+            "yes_ask_side_mirror": {
+              "median": 5.59,
+              "p25": 3.0,
+              "p75": 60.7775
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7831603229527105,
+            "n_pairs": 867
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.016320427902463058,
+              "n_pairs": 744
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.019245493138144658,
+              "n_pairs": 745
+            },
+            "pooled": {
+              "mean_turnover": 0.01778394274503043,
+              "n_pairs": 1489
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 651,
+        "median_run": 2.0,
+        "p90_run": 9.0,
+        "max_run": 62
+      },
+      "all_ttc": {
+        "n_captures": 2481,
+        "n_pairs": 2457,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 49.0,
+            "p25": 4.0,
+            "p75": 550.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 67.0,
+            "p25": 5.0,
+            "p75": 852.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0016122531237404273,
+          "no_side_empty": 0.0008061265618702137,
+          "any_side_empty": 0.0024183796856106408
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7448107448107448,
+          "n_pairs": 2457
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.030020987234730744,
+            "n_pairs": 2050
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.027181781695160067,
+            "n_pairs": 2021
+          },
+          "pooled": {
+            "mean_turnover": 0.02861149708600259,
+            "n_pairs": 4071
+          }
+        }
+      }
+    },
+    "KXUELGAME": {
+      "category": "soccer",
+      "n_captures": 2214,
+      "n_tickers": 18,
+      "cells": {
+        ">24h": {
+          "n_captures": 2214,
+          "n_pairs": 2196,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 49.0,
+              "p25": 21.94,
+              "p75": 99.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 97.02,
+              "p25": 10.0,
+              "p75": 194.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.586976320582878,
+            "n_pairs": 2196
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.021885804287506246,
+              "n_pairs": 1628
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.02288139433165143,
+              "n_pairs": 1533
+            },
+            "pooled": {
+              "mean_turnover": 0.022368638687276753,
+              "n_pairs": 3161
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 925,
+        "median_run": 1.0,
+        "p90_run": 5.0,
+        "max_run": 22
+      },
+      "all_ttc": {
+        "n_captures": 2214,
+        "n_pairs": 2196,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 49.0,
+            "p25": 21.94,
+            "p75": 99.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 97.02,
+            "p25": 10.0,
+            "p75": 194.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0,
+          "no_side_empty": 0.0,
+          "any_side_empty": 0.0
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.586976320582878,
+          "n_pairs": 2196
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.021885804287506246,
+            "n_pairs": 1628
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.02288139433165143,
+            "n_pairs": 1533
+          },
+          "pooled": {
+            "mean_turnover": 0.022368638687276753,
+            "n_pairs": 3161
+          }
+        }
+      }
+    },
+    "KXMLSGAME": {
+      "category": "soccer",
+      "n_captures": 2172,
+      "n_tickers": 18,
+      "cells": {
+        ">24h": {
+          "n_captures": 2172,
+          "n_pairs": 2154,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 547.0,
+              "p25": 330.0,
+              "p75": 1059.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 782.5,
+              "p25": 470.0,
+              "p75": 1180.82
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8987929433611885,
+            "n_pairs": 2154
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.02113916238662687,
+              "n_pairs": 1999
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.013372041117884075,
+              "n_pairs": 2059
+            },
+            "pooled": {
+              "mean_turnover": 0.01719818094445302,
+              "n_pairs": 4058
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 236,
+        "median_run": 3.0,
+        "p90_run": 26.0,
+        "max_run": 78
+      },
+      "all_ttc": {
+        "n_captures": 2172,
+        "n_pairs": 2154,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 547.0,
+            "p25": 330.0,
+            "p75": 1059.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 782.5,
+            "p25": 470.0,
+            "p75": 1180.82
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0,
+          "no_side_empty": 0.0,
+          "any_side_empty": 0.0
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.8987929433611885,
+          "n_pairs": 2154
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.02113916238662687,
+            "n_pairs": 1999
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.013372041117884075,
+            "n_pairs": 2059
+          },
+          "pooled": {
+            "mean_turnover": 0.01719818094445302,
+            "n_pairs": 4058
+          }
+        }
+      }
+    },
+    "KXWNBAGAME": {
+      "category": "basketball",
+      "n_captures": 2154,
+      "n_tickers": 54,
+      "cells": {
+        "post_close": {
+          "n_captures": 76,
+          "n_pairs": 54,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 4227.635,
+              "p25": 134.0325,
+              "p75": 41191.8675
+            },
+            "yes_ask_side_mirror": {
+              "median": 11912.925,
+              "p25": 464.6375,
+              "p75": 73175.93000000001
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.15789473684210525,
+            "no_side_empty": 0.15789473684210525,
+            "any_side_empty": 0.2631578947368421
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.25925925925925924,
+            "n_pairs": 54
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.26538368238729493,
+              "n_pairs": 24
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 788,
+          "n_pairs": 782,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 2392.83,
+              "p25": 876.9575,
+              "p75": 5284.12
+            },
+            "yes_ask_side_mirror": {
+              "median": 6830.235000000001,
+              "p25": 2056.7025,
+              "p75": 17714.04
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7749360613810742,
+            "n_pairs": 782
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.11403491797990968,
+              "n_pairs": 639
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.13046878483924793,
+              "n_pairs": 635
+            },
+            "pooled": {
+              "mean_turnover": 0.12222605256050613,
+              "n_pairs": 1274
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 1082,
+          "n_pairs": 1068,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 100.0,
+              "p25": 11.3475,
+              "p75": 734.2975
+            },
+            "yes_ask_side_mirror": {
+              "median": 378.805,
+              "p25": 49.96,
+              "p75": 1422.86
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5234082397003745,
+            "n_pairs": 1068
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.07959837531258089,
+              "n_pairs": 680
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.10761500493802388,
+              "n_pairs": 690
+            },
+            "pooled": {
+              "mean_turnover": 0.09370894059838794,
+              "n_pairs": 1370
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 208,
+          "n_pairs": 196,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 20389.315000000002,
+              "p25": 3396.1925,
+              "p75": 36579.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 50826.335,
+              "p25": 14430.3775,
+              "p75": 84982.61249999999
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.028846153846153848,
+            "no_side_empty": 0.028846153846153848,
+            "any_side_empty": 0.057692307692307696
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6479591836734694,
+            "n_pairs": 196
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.11346203246429883,
+              "n_pairs": 126
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1434024779806484,
+              "n_pairs": 127
+            },
+            "pooled": {
+              "mean_turnover": 0.12849142606341502,
+              "n_pairs": 253
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 848,
+        "median_run": 1.0,
+        "p90_run": 5.0,
+        "max_run": 24
+      },
+      "all_ttc": {
+        "n_captures": 2154,
+        "n_pairs": 2100,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 801.0,
+            "p25": 44.5575,
+            "p75": 3142.1675
+          },
+          "yes_ask_side_mirror": {
+            "median": 1814.12,
+            "p25": 250.0,
+            "p75": 10232.4025
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.008356545961002786,
+          "no_side_empty": 0.008356545961002786,
+          "any_side_empty": 0.014856081708449397
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.621904761904762,
+          "n_pairs": 2100
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.09884743564023941,
+            "n_pairs": 1457
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.12223638321406184,
+            "n_pairs": 1464
+          },
+          "pooled": {
+            "mean_turnover": 0.11056993452694806,
+            "n_pairs": 2921
+          }
+        }
+      }
+    },
+    "KXBRASILEIROGAME": {
+      "category": "soccer",
+      "n_captures": 1845,
+      "n_tickers": 15,
+      "cells": {
+        ">24h": {
+          "n_captures": 1845,
+          "n_pairs": 1830,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 400.0,
+              "p25": 49.0,
+              "p75": 800.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 751.0,
+              "p25": 429.64,
+              "p75": 1298.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7890710382513662,
+            "n_pairs": 1830
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.03038594068695134,
+              "n_pairs": 1511
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.015775309901144317,
+              "n_pairs": 1669
+            },
+            "pooled": {
+              "mean_turnover": 0.02271765679339416,
+              "n_pairs": 3180
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 401,
+        "median_run": 2.0,
+        "p90_run": 11.0,
+        "max_run": 44
+      },
+      "all_ttc": {
+        "n_captures": 1845,
+        "n_pairs": 1830,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 400.0,
+            "p25": 49.0,
+            "p75": 800.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 751.0,
+            "p25": 429.64,
+            "p75": 1298.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0,
+          "no_side_empty": 0.0,
+          "any_side_empty": 0.0
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7890710382513662,
+          "n_pairs": 1830
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.03038594068695134,
+            "n_pairs": 1511
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.015775309901144317,
+            "n_pairs": 1669
+          },
+          "pooled": {
+            "mean_turnover": 0.02271765679339416,
+            "n_pairs": 3180
+          }
+        }
+      }
+    },
+    "KXURYPDGAME": {
+      "category": "soccer",
+      "n_captures": 1842,
+      "n_tickers": 24,
+      "cells": {
+        ">24h": {
+          "n_captures": 1101,
+          "n_pairs": 1101,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1600.0,
+              "p25": 1200.0,
+              "p75": 2000.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1600.0,
+              "p25": 1200.0,
+              "p75": 2096.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8737511353315168,
+            "n_pairs": 1101
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.006394404208249698,
+              "n_pairs": 1000
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.008242119896212428,
+              "n_pairs": 1045
+            },
+            "pooled": {
+              "mean_turnover": 0.007338591442440924,
+              "n_pairs": 2045
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 108,
+          "n_pairs": 90,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 693.01,
+              "p25": 145.9725,
+              "p75": 2405.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 1170.27,
+              "p25": 127.2475,
+              "p75": 3015.87
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.05555555555555555,
+            "no_side_empty": 0.027777777777777776,
+            "any_side_empty": 0.08333333333333333
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.23333333333333334,
+            "n_pairs": 90
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.1370748728472962,
+              "n_pairs": 29
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.18111394288228588,
+              "n_pairs": 26
+            },
+            "pooled": {
+              "mean_turnover": 0.1578933423183822,
+              "n_pairs": 55
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 633,
+          "n_pairs": 627,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 2194.0,
+              "p25": 587.0,
+              "p75": 2426.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1854.08,
+              "p25": 1000.0,
+              "p75": 3400.68
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.004739336492890996,
+            "no_side_empty": 0.001579778830963665,
+            "any_side_empty": 0.00631911532385466
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7543859649122807,
+            "n_pairs": 627
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.031508783224427094,
+              "n_pairs": 531
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.03769796662645429,
+              "n_pairs": 514
+            },
+            "pooled": {
+              "mean_turnover": 0.0345530322853285,
+              "n_pairs": 1045
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 386,
+        "median_run": 2.0,
+        "p90_run": 11.0,
+        "max_run": 56
+      },
+      "all_ttc": {
+        "n_captures": 1842,
+        "n_pairs": 1818,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 2000.0,
+            "p25": 1200.0,
+            "p75": 2149.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 1600.0,
+            "p25": 1200.0,
+            "p75": 2496.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.004885993485342019,
+          "no_side_empty": 0.002171552660152009,
+          "any_side_empty": 0.007057546145494028
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.8008800880088008,
+          "n_pairs": 1818
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.017372268854482096,
+            "n_pairs": 1560
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.020630115238157058,
+            "n_pairs": 1585
+          },
+          "pooled": {
+            "mean_turnover": 0.01901414056135803,
+            "n_pairs": 3145
+          }
+        }
+      }
+    },
+    "KXBSNGAME": {
+      "category": "basketball",
+      "n_captures": 1812,
+      "n_tickers": 28,
+      "cells": {
+        ">24h": {
+          "n_captures": 1188,
+          "n_pairs": 1180,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 10.0,
+              "p25": 10.0,
+              "p75": 500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 50.0,
+              "p25": 10.0,
+              "p75": 50.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8398305084745763,
+            "n_pairs": 1180
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.010907367473628934,
+              "n_pairs": 1018
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.009009036903795176,
+              "n_pairs": 1064
+            },
+            "pooled": {
+              "mean_turnover": 0.009937231197786904,
+              "n_pairs": 2082
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 132,
+          "n_pairs": 116,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 136.0,
+              "p25": 20.25,
+              "p75": 313.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 238.14,
+              "p25": 45.0,
+              "p75": 420.01
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.030303030303030304,
+            "no_side_empty": 0.030303030303030304,
+            "any_side_empty": 0.06060606060606061
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.25862068965517243,
+            "n_pairs": 116
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.12504483834776525,
+              "n_pairs": 38
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.16665261661361896,
+              "n_pairs": 43
+            },
+            "pooled": {
+              "mean_turnover": 0.1471329181679098,
+              "n_pairs": 81
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 362,
+          "n_pairs": 358,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 352.0,
+              "p25": 39.46,
+              "p75": 700.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 200.0,
+              "p25": 37.5,
+              "p75": 561.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5810055865921788,
+            "n_pairs": 358
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.032290801139955076,
+              "n_pairs": 236
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.043476231076297896,
+              "n_pairs": 238
+            },
+            "pooled": {
+              "mean_turnover": 0.037907114061578685,
+              "n_pairs": 474
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 12,
+          "n_pairs": 12,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.011687705787828304,
+              "n_pairs": 20
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 106,
+          "n_pairs": 106,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 432.885,
+              "p25": 189.4225,
+              "p75": 657.885
+            },
+            "yes_ask_side_mirror": {
+              "median": 277.44,
+              "p25": 111.78,
+              "p75": 643.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.49056603773584906,
+            "n_pairs": 106
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.034125371204942016,
+              "n_pairs": 67
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1121844929031932,
+              "n_pairs": 65
+            },
+            "pooled": {
+              "mean_turnover": 0.07256357507150507,
+              "n_pairs": 132
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 12,
+          "n_pairs": 12,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.00874608348599449,
+              "n_pairs": 22
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 511,
+        "median_run": 1.0,
+        "p90_run": 7.0,
+        "max_run": 43
+      },
+      "all_ttc": {
+        "n_captures": 1812,
+        "n_pairs": 1784,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 50.0,
+            "p25": 10.0,
+            "p75": 500.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 50.0,
+            "p25": 10.0,
+            "p75": 244.6
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.002207505518763797,
+          "no_side_empty": 0.002207505518763797,
+          "any_side_empty": 0.004415011037527594
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7292600896860987,
+          "n_pairs": 1784
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.01888132658058545,
+            "n_pairs": 1380
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.024125354976422424,
+            "n_pairs": 1431
+          },
+          "pooled": {
+            "mean_turnover": 0.021550912007281552,
+            "n_pairs": 2811
+          }
+        }
+      }
+    },
+    "KXALLSVENSKANGAME": {
+      "category": "soccer",
+      "n_captures": 1788,
+      "n_tickers": 24,
+      "cells": {
+        ">24h": {
+          "n_captures": 1131,
+          "n_pairs": 1131,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1500.0,
+              "p25": 158.0,
+              "p75": 1678.24
+            },
+            "yes_ask_side_mirror": {
+              "median": 1558.0,
+              "p25": 1250.0,
+              "p75": 2455.2
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8753315649867374,
+            "n_pairs": 1131
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.026943634418159286,
+              "n_pairs": 1028
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.01702313818168801,
+              "n_pairs": 1070
+            },
+            "pooled": {
+              "mean_turnover": 0.021884086766574776,
+              "n_pairs": 2098
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 651,
+          "n_pairs": 630,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1905.0,
+              "p25": 1500.62,
+              "p75": 2494.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 2367.64,
+              "p25": 1500.0,
+              "p75": 3506.125
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.02457757296466974,
+            "no_side_empty": 0.009216589861751152,
+            "any_side_empty": 0.03379416282642089
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7666666666666667,
+            "n_pairs": 630
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.05283747974154035,
+              "n_pairs": 489
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.08374435491656541,
+              "n_pairs": 483
+            },
+            "pooled": {
+              "mean_turnover": 0.06819552573900656,
+              "n_pairs": 972
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 6,
+          "n_pairs": 3,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 312,
+        "median_run": 2.0,
+        "p90_run": 16.0,
+        "max_run": 64
+      },
+      "all_ttc": {
+        "n_captures": 1788,
+        "n_pairs": 1764,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1552.5,
+            "p25": 235.75,
+            "p75": 1900.3
+          },
+          "yes_ask_side_mirror": {
+            "median": 1736.64,
+            "p25": 1364.9299999999998,
+            "p75": 2719.5
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.011185682326621925,
+          "no_side_empty": 0.0044742729306487695,
+          "any_side_empty": 0.015659955257270694
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.8367346938775511,
+          "n_pairs": 1764
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.035267182987800384,
+            "n_pairs": 1518
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.03772558281614614,
+            "n_pairs": 1555
+          },
+          "pooled": {
+            "mean_turnover": 0.036511182900939874,
+            "n_pairs": 3073
+          }
+        }
+      }
+    },
+    "KXELITESERIENGAME": {
+      "category": "soccer",
+      "n_captures": 1737,
+      "n_tickers": 27,
+      "cells": {
+        ">24h": {
+          "n_captures": 1035,
+          "n_pairs": 1032,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 800.0,
+              "p25": 72.0,
+              "p75": 1058.5
+            },
+            "yes_ask_side_mirror": {
+              "median": 1000.47,
+              "p25": 600.0,
+              "p75": 1583.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8333333333333334,
+            "n_pairs": 1032
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.02263692542002812,
+              "n_pairs": 911
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.022117958970402515,
+              "n_pairs": 944
+            },
+            "pooled": {
+              "mean_turnover": 0.0223728260515933,
+              "n_pairs": 1855
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 696,
+          "n_pairs": 675,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1400.0,
+              "p25": 1000.0,
+              "p75": 2206.39
+            },
+            "yes_ask_side_mirror": {
+              "median": 2035.99,
+              "p25": 1059.44,
+              "p75": 3563.18
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.021551724137931036,
+            "no_side_empty": 0.008620689655172414,
+            "any_side_empty": 0.03017241379310345
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7288888888888889,
+            "n_pairs": 675
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.08520494661018181,
+              "n_pairs": 505
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.06727034922645687,
+              "n_pairs": 513
+            },
+            "pooled": {
+              "mean_turnover": 0.07616717798753851,
+              "n_pairs": 1018
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 6,
+          "n_pairs": 3,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 385,
+        "median_run": 2.0,
+        "p90_run": 12.0,
+        "max_run": 50
+      },
+      "all_ttc": {
+        "n_captures": 1737,
+        "n_pairs": 1710,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1000.0,
+            "p25": 118.0,
+            "p75": 1446.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 1138.0,
+            "p25": 800.0,
+            "p75": 2190.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.008635578583765112,
+          "no_side_empty": 0.0034542314335060447,
+          "any_side_empty": 0.012089810017271158
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7906432748538011,
+          "n_pairs": 1710
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.0449510855196239,
+            "n_pairs": 1416
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.03801581497682386,
+            "n_pairs": 1457
+          },
+          "pooled": {
+            "mean_turnover": 0.04143396432893135,
+            "n_pairs": 2873
+          }
+        }
+      }
+    },
+    "KXKBOGAME": {
+      "category": "baseball",
+      "n_captures": 1724,
+      "n_tickers": 44,
+      "cells": {
+        "post_close": {
+          "n_captures": 324,
+          "n_pairs": 298,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 206.45999999999998,
+              "p25": 50.0,
+              "p75": 917.1075
+            },
+            "yes_ask_side_mirror": {
+              "median": 300.36,
+              "p25": 32.0025,
+              "p75": 2330.9575
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.009259259259259259,
+            "no_side_empty": 0.015432098765432098,
+            "any_side_empty": 0.024691358024691357
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.2651006711409396,
+            "n_pairs": 298
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.16990757748461643,
+              "n_pairs": 112
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.18176872898207003,
+              "n_pairs": 112
+            },
+            "pooled": {
+              "mean_turnover": 0.17583815323334326,
+              "n_pairs": 224
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 140,
+          "n_pairs": 140,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 291.5,
+              "p25": 50.0,
+              "p75": 530.1575
+            },
+            "yes_ask_side_mirror": {
+              "median": 1207.9450000000002,
+              "p25": 659.085,
+              "p75": 1847.455
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6428571428571429,
+            "n_pairs": 140
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.1046361803033487,
+              "n_pairs": 110
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0942249769391214,
+              "n_pairs": 104
+            },
+            "pooled": {
+              "mean_turnover": 0.09957653007026622,
+              "n_pairs": 214
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 820,
+          "n_pairs": 810,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 30.0,
+              "p25": 10.0,
+              "p75": 500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 30.0,
+              "p25": 8.0,
+              "p75": 63.18
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.20123456790123456,
+            "n_pairs": 810
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.05687076770146313,
+              "n_pairs": 253
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.06649534690634036,
+              "n_pairs": 350
+            },
+            "pooled": {
+              "mean_turnover": 0.062457173541773325,
+              "n_pairs": 603
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 20,
+          "n_pairs": 20,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 306.855,
+              "p25": 44.145,
+              "p75": 837.86
+            },
+            "yes_ask_side_mirror": {
+              "median": 2035.9499999999998,
+              "p25": 941.66,
+              "p75": 3596.54
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6,
+            "n_pairs": 20
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.06765813194287897,
+              "n_pairs": 31
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 410,
+          "n_pairs": 402,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 169.63,
+              "p25": 28.0,
+              "p75": 579.9300000000001
+            },
+            "yes_ask_side_mirror": {
+              "median": 336.5,
+              "p25": 62.4875,
+              "p75": 947.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5174129353233831,
+            "n_pairs": 402
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.03822741231376948,
+              "n_pairs": 244
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.075723625927917,
+              "n_pairs": 253
+            },
+            "pooled": {
+              "mean_turnover": 0.05731502206101155,
+              "n_pairs": 497
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 10,
+          "n_pairs": 10,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 1169,
+        "median_run": 1.0,
+        "p90_run": 2.0,
+        "max_run": 30
+      },
+      "all_ttc": {
+        "n_captures": 1724,
+        "n_pairs": 1680,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 52.0,
+            "p25": 10.0,
+            "p75": 550.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 69.5,
+            "p25": 17.0,
+            "p75": 907.34
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0017401392111368909,
+          "no_side_empty": 0.002900232018561485,
+          "any_side_empty": 0.004640371229698376
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.33035714285714285,
+          "n_pairs": 1680
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.07821131980162783,
+            "n_pairs": 742
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.08822740756659857,
+            "n_pairs": 838
+          },
+          "pooled": {
+            "mean_turnover": 0.08352364989469456,
+            "n_pairs": 1580
+          }
+        }
+      }
+    },
+    "KXWCGAME": {
+      "category": "soccer",
+      "n_captures": 1635,
+      "n_tickers": 27,
+      "cells": {
+        "post_close": {
+          "n_captures": 27,
+          "n_pairs": 21,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 367205.0,
+              "p25": 72383.765,
+              "p75": 676167.36
+            },
+            "yes_ask_side_mirror": {
+              "median": 918947.46,
+              "p25": 323375.33499999996,
+              "p75": 2525449.7750000004
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.07407407407407407,
+            "no_side_empty": 0.037037037037037035,
+            "any_side_empty": 0.1111111111111111
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.2857142857142857,
+            "n_pairs": 21
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "6-24h": {
+          "n_captures": 342,
+          "n_pairs": 339,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 207813.10499999998,
+              "p25": 136695.465,
+              "p75": 287096.16
+            },
+            "yes_ask_side_mirror": {
+              "median": 1044333.755,
+              "p25": 769920.74,
+              "p75": 2212485.355
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0029239766081871343,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0029239766081871343
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.9528023598820059,
+            "n_pairs": 339
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.0574214980717406,
+              "n_pairs": 323
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.04527069322298017,
+              "n_pairs": 323
+            },
+            "pooled": {
+              "mean_turnover": 0.051346095647360396,
+              "n_pairs": 646
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 1185,
+          "n_pairs": 1176,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 65200.26,
+              "p25": 17674.92,
+              "p75": 170088.46
+            },
+            "yes_ask_side_mirror": {
+              "median": 324763.43,
+              "p25": 129431.24,
+              "p75": 531017.45
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.9625850340136054,
+            "n_pairs": 1176
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.04545317551370406,
+              "n_pairs": 1136
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.03136752898601091,
+              "n_pairs": 1139
+            },
+            "pooled": {
+              "mean_turnover": 0.03840106501038862,
+              "n_pairs": 2275
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 81,
+          "n_pairs": 72,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 298214.35,
+              "p25": 169193.79,
+              "p75": 452474.69
+            },
+            "yes_ask_side_mirror": {
+              "median": 937380.69,
+              "p25": 542666.23,
+              "p75": 1965126.43
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6111111111111112,
+            "n_pairs": 72
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06753930302900299,
+              "n_pairs": 44
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1274631661511133,
+              "n_pairs": 44
+            },
+            "pooled": {
+              "mean_turnover": 0.09750123459005815,
+              "n_pairs": 88
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 130,
+        "median_run": 1.0,
+        "p90_run": 44.10000000000001,
+        "max_run": 120
+      },
+      "all_ttc": {
+        "n_captures": 1635,
+        "n_pairs": 1608,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 91316.82,
+            "p25": 33097.315,
+            "p75": 246514.615
+          },
+          "yes_ask_side_mirror": {
+            "median": 403560.08,
+            "p25": 153419.825,
+            "p75": 859411.21
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.001834862385321101,
+          "no_side_empty": 0.0006116207951070336,
+          "any_side_empty": 0.0024464831804281344
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.9359452736318408,
+          "n_pairs": 1608
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.04866093492830876,
+            "n_pairs": 1509
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.03734870291172325,
+            "n_pairs": 1512
+          },
+          "pooled": {
+            "mean_turnover": 0.04299920212159657,
+            "n_pairs": 3021
+          }
+        }
+      }
+    },
+    "KXNWSLGAME": {
+      "category": "soccer",
+      "n_captures": 1569,
+      "n_tickers": 30,
+      "cells": {
+        ">24h": {
+          "n_captures": 924,
+          "n_pairs": 918,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 56.0,
+              "p25": 24.0,
+              "p75": 600.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 303.0,
+              "p25": 46.027499999999996,
+              "p75": 823.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5838779956427015,
+            "n_pairs": 918
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.03223421783143873,
+              "n_pairs": 615
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.017896076165888074,
+              "n_pairs": 716
+            },
+            "pooled": {
+              "mean_turnover": 0.02452113786710045,
+              "n_pairs": 1331
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 192,
+          "n_pairs": 189,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 320.0,
+              "p25": 157.75,
+              "p75": 1088.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 845.0,
+              "p25": 256.3,
+              "p75": 1135.1299999999999
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.005208333333333333,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.005208333333333333
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.4444444444444444,
+            "n_pairs": 189
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.08147944216230327,
+              "n_pairs": 116
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.127858752635712,
+              "n_pairs": 99
+            },
+            "pooled": {
+              "mean_turnover": 0.10283549675238446,
+              "n_pairs": 215
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 75,
+          "n_pairs": 54,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 301.0,
+              "p25": 73.0,
+              "p75": 503.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 277.77,
+              "p25": 87.49,
+              "p75": 879.625
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.06666666666666667,
+            "no_side_empty": 0.013333333333333334,
+            "any_side_empty": 0.08
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.14814814814814814,
+            "n_pairs": 54
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "6-24h": {
+          "n_captures": 378,
+          "n_pairs": 378,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1000.0,
+              "p25": 127.0,
+              "p75": 1025.72
+            },
+            "yes_ask_side_mirror": {
+              "median": 835.0,
+              "p25": 470.5875,
+              "p75": 1000.66
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6851851851851852,
+            "n_pairs": 378
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.0300473421630822,
+              "n_pairs": 295
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.03766152784476414,
+              "n_pairs": 316
+            },
+            "pooled": {
+              "mean_turnover": 0.033985284348698394,
+              "n_pairs": 611
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 682,
+        "median_run": 1.0,
+        "p90_run": 5.0,
+        "max_run": 26
+      },
+      "all_ttc": {
+        "n_captures": 1569,
+        "n_pairs": 1539,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 172.0,
+            "p25": 48.0,
+            "p75": 1000.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 502.0,
+            "p25": 88.0,
+            "p75": 1000.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0038240917782026767,
+          "no_side_empty": 0.0006373486297004461,
+          "any_side_empty": 0.004461440407903123
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.5763482781026641,
+          "n_pairs": 1539
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.03954124299269153,
+            "n_pairs": 1035
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.03370322232759125,
+            "n_pairs": 1140
+          },
+          "pooled": {
+            "mean_turnover": 0.03648131491994931,
+            "n_pairs": 2175
+          }
+        }
+      }
+    },
+    "KXUSLGAME": {
+      "category": "soccer",
+      "n_captures": 1548,
+      "n_tickers": 18,
+      "cells": {
+        "post_close": {
+          "n_captures": 543,
+          "n_pairs": 540,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 17.0,
+              "p25": 2.005,
+              "p75": 62.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 33.0,
+              "p25": 5.5,
+              "p75": 85.03
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.4740740740740741,
+            "n_pairs": 540
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.03871504557241806,
+              "n_pairs": 373
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.059113993079943826,
+              "n_pairs": 307
+            },
+            "pooled": {
+              "mean_turnover": 0.0479245704030216,
+              "n_pairs": 680
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 885,
+          "n_pairs": 876,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1236.0,
+              "p25": 1200.0,
+              "p75": 1700.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1200.0,
+              "p25": 773.0,
+              "p75": 1458.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8458904109589042,
+            "n_pairs": 876
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.005480853702954568,
+              "n_pairs": 779
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.010616486940575265,
+              "n_pairs": 822
+            },
+            "pooled": {
+              "mean_turnover": 0.008117637289040901,
+              "n_pairs": 1601
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 120,
+          "n_pairs": 114,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 2058.0,
+              "p25": 107.37,
+              "p75": 2400.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1322.11,
+              "p25": 836.17,
+              "p75": 1500.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8421052631578947,
+            "n_pairs": 114
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.022014862720357437,
+              "n_pairs": 106
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.04768739828697204,
+              "n_pairs": 100
+            },
+            "pooled": {
+              "mean_turnover": 0.03447725862648103,
+              "n_pairs": 206
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 455,
+        "median_run": 1.0,
+        "p90_run": 9.0,
+        "max_run": 62
+      },
+      "all_ttc": {
+        "n_captures": 1548,
+        "n_pairs": 1530,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1003.0,
+            "p25": 27.0,
+            "p75": 1636.53
+          },
+          "yes_ask_side_mirror": {
+            "median": 895.0,
+            "p25": 54.5925,
+            "p75": 1308.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0,
+          "no_side_empty": 0.0,
+          "any_side_empty": 0.0
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7143790849673203,
+          "n_pairs": 1530
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.016728038538530544,
+            "n_pairs": 1258
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.025747345784697184,
+            "n_pairs": 1229
+          },
+          "pooled": {
+            "mean_turnover": 0.021185106735369594,
+            "n_pairs": 2487
+          }
+        }
+      }
+    },
+    "KXNZNBLGAME": {
+      "category": "basketball",
+      "n_captures": 1158,
+      "n_tickers": 20,
+      "cells": {
+        ">24h": {
+          "n_captures": 742,
+          "n_pairs": 734,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 54.5,
+              "p25": 10.0,
+              "p75": 555.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 44.0,
+              "p25": 10.0,
+              "p75": 80.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.776566757493188,
+            "n_pairs": 734
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.010561940894677919,
+              "n_pairs": 613
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.005849187444128971,
+              "n_pairs": 625
+            },
+            "pooled": {
+              "mean_turnover": 0.00818272368418269,
+              "n_pairs": 1238
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 220,
+          "n_pairs": 218,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 392.0,
+              "p25": 100.0,
+              "p75": 532.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 148.0,
+              "p25": 40.0,
+              "p75": 417.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8119266055045872,
+            "n_pairs": 218
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.026248808180899013,
+              "n_pairs": 199
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.02451005963510113,
+              "n_pairs": 189
+            },
+            "pooled": {
+              "mean_turnover": 0.025401840461425292,
+              "n_pairs": 388
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 78,
+          "n_pairs": 78,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 134.0,
+              "p25": 24.47,
+              "p75": 532.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 187.715,
+              "p25": 56.0,
+              "p75": 419.27
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7051282051282052,
+            "n_pairs": 78
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06037032576846819,
+              "n_pairs": 62
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.047743405445669525,
+              "n_pairs": 67
+            },
+            "pooled": {
+              "mean_turnover": 0.05381215784887508,
+              "n_pairs": 129
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 8,
+          "n_pairs": 8,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "<15m": {
+          "n_captures": 4,
+          "n_pairs": 4,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "post_close": {
+          "n_captures": 106,
+          "n_pairs": 96,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 115.0,
+              "p25": 39.0,
+              "p75": 325.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 166.89499999999998,
+              "p25": 61.2625,
+              "p75": 556.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.02830188679245283,
+            "no_side_empty": 0.02830188679245283,
+            "any_side_empty": 0.03773584905660377
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.25,
+            "n_pairs": 96
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.13733213236245032,
+              "n_pairs": 38
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.21050551966923323,
+              "n_pairs": 30
+            },
+            "pooled": {
+              "mean_turnover": 0.16961450911544276,
+              "n_pairs": 68
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 327,
+        "median_run": 1.0,
+        "p90_run": 9.0,
+        "max_run": 50
+      },
+      "all_ttc": {
+        "n_captures": 1158,
+        "n_pairs": 1138,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 100.0,
+            "p25": 10.0,
+            "p75": 550.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 55.0,
+            "p25": 10.0,
+            "p75": 191.43
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0025906735751295338,
+          "no_side_empty": 0.0025906735751295338,
+          "any_side_empty": 0.0034542314335060447
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7302284710017575,
+          "n_pairs": 1138
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.02402453914820093,
+            "n_pairs": 919
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.019946566592855545,
+            "n_pairs": 918
+          },
+          "pooled": {
+            "mean_turnover": 0.021986662824952666,
+            "n_pairs": 1837
+          }
+        }
+      }
+    },
+    "KXKLEAGUEGAME": {
+      "category": "soccer",
+      "n_captures": 1053,
+      "n_tickers": 18,
+      "cells": {
+        ">24h": {
+          "n_captures": 657,
+          "n_pairs": 657,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1500.0,
+              "p25": 137.0,
+              "p75": 1661.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 1385.0,
+              "p25": 793.0,
+              "p75": 1979.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8584474885844748,
+            "n_pairs": 657
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.011608883451484656,
+              "n_pairs": 607
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.012047661278995573,
+              "n_pairs": 596
+            },
+            "pooled": {
+              "mean_turnover": 0.011826266315322154,
+              "n_pairs": 1203
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 396,
+          "n_pairs": 378,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1500.0,
+              "p25": 239.0,
+              "p75": 2083.5
+            },
+            "yes_ask_side_mirror": {
+              "median": 1912.94,
+              "p25": 791.82,
+              "p75": 3119.7174999999997
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.012626262626262626,
+            "no_side_empty": 0.005050505050505051,
+            "any_side_empty": 0.017676767676767676
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5555555555555556,
+            "n_pairs": 378
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.10259504653977594,
+              "n_pairs": 235
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.11636237968994376,
+              "n_pairs": 235
+            },
+            "pooled": {
+              "mean_turnover": 0.10947871311485985,
+              "n_pairs": 470
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 279,
+        "median_run": 2.0,
+        "p90_run": 9.200000000000017,
+        "max_run": 42
+      },
+      "all_ttc": {
+        "n_captures": 1053,
+        "n_pairs": 1035,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1500.0,
+            "p25": 137.0,
+            "p75": 1674.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 1500.0,
+            "p25": 793.0,
+            "p75": 2647.75
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.004748338081671415,
+          "no_side_empty": 0.001899335232668566,
+          "any_side_empty": 0.006647673314339981
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7478260869565218,
+          "n_pairs": 1035
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.037002883838359306,
+            "n_pairs": 842
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.04154701004743461,
+            "n_pairs": 831
+          },
+          "pooled": {
+            "mean_turnover": 0.03926000809403267,
+            "n_pairs": 1673
+          }
+        }
+      }
+    },
+    "KXBIG3GAME": {
+      "category": "basketball",
+      "n_captures": 856,
+      "n_tickers": 8,
+      "cells": {
+        ">24h": {
+          "n_captures": 512,
+          "n_pairs": 512,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 10.0,
+              "p25": 1.0,
+              "p75": 10.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 200.0,
+              "p25": 10.0,
+              "p75": 666.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.91796875,
+            "n_pairs": 512
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.0,
+              "n_pairs": 483
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 3.435717721432007e-05,
+              "n_pairs": 495
+            },
+            "pooled": {
+              "mean_turnover": 1.738936883546875e-05,
+              "n_pairs": 978
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 264,
+          "n_pairs": 264,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 10.0,
+              "p25": 10.0,
+              "p75": 25.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 160.0,
+              "p25": 10.0,
+              "p75": 200.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8977272727272727,
+            "n_pairs": 264
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.000725094577553594,
+              "n_pairs": 244
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.01424634623882744,
+              "n_pairs": 247
+            },
+            "pooled": {
+              "mean_turnover": 0.007527027694324755,
+              "n_pairs": 491
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 72,
+          "n_pairs": 70,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 25.0,
+              "p25": 24.5675,
+              "p75": 30.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 41.0,
+              "p25": 14.719999999999999,
+              "p75": 164.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.06944444444444445,
+            "no_side_empty": 0.08333333333333333,
+            "any_side_empty": 0.1527777777777778
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6142857142857143,
+            "n_pairs": 70
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.026272486772486774,
+              "n_pairs": 51
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.05681747486716999,
+              "n_pairs": 42
+            },
+            "pooled": {
+              "mean_turnover": 0.04006699752492436,
+              "n_pairs": 93
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 8,
+          "n_pairs": 2,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 105,
+        "median_run": 2.0,
+        "p90_run": 24.0,
+        "max_run": 44
+      },
+      "all_ttc": {
+        "n_captures": 856,
+        "n_pairs": 848,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 10.0,
+            "p25": 10.0,
+            "p75": 10.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 200.0,
+            "p25": 10.0,
+            "p75": 588.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.008177570093457943,
+          "no_side_empty": 0.010514018691588784,
+          "any_side_empty": 0.018691588785046728
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.8856132075471698,
+          "n_pairs": 848
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.0019471372301924294,
+            "n_pairs": 779
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.007553811566495672,
+            "n_pairs": 784
+          },
+          "pooled": {
+            "mean_turnover": 0.004759442207583178,
+            "n_pairs": 1563
+          }
+        }
+      }
+    },
+    "KXVBAGAME": {
+      "category": "sports_other",
+      "n_captures": 544,
+      "n_tickers": 10,
+      "cells": {
+        ">24h": {
+          "n_captures": 364,
+          "n_pairs": 360,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 26.0,
+              "p25": 10.0,
+              "p75": 1000.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 10.0,
+              "p25": 10.0,
+              "p75": 10.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.9138888888888889,
+            "n_pairs": 360
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.001488095238095238,
+              "n_pairs": 336
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0041698048541862235,
+              "n_pairs": 349
+            },
+            "pooled": {
+              "mean_turnover": 0.0028543969257094773,
+              "n_pairs": 685
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 98,
+          "n_pairs": 96,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 10.0,
+              "p25": 5.0,
+              "p75": 100.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 10.0,
+              "p25": 1.0,
+              "p75": 71.9
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.59375,
+            "n_pairs": 96
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.024263470056855776,
+              "n_pairs": 81
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.028333128925348044,
+              "n_pairs": 66
+            },
+            "pooled": {
+              "mean_turnover": 0.026090663834546186,
+              "n_pairs": 147
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 34,
+          "n_pairs": 34,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 500.0,
+              "p25": 272.75,
+              "p75": 504.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 48.0,
+              "p25": 6.975,
+              "p75": 152.2
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.3235294117647059,
+            "n_pairs": 34
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.06070785043443879,
+              "n_pairs": 36
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 4,
+          "n_pairs": 4,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "post_close": {
+          "n_captures": 42,
+          "n_pairs": 38,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 143.625,
+              "p25": 59.25,
+              "p75": 591.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 74.78,
+              "p25": 13.79,
+              "p75": 503.96000000000004
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.07142857142857142,
+            "no_side_empty": 0.07142857142857142,
+            "any_side_empty": 0.14285714285714285
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.2894736842105263,
+            "n_pairs": 38
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.13079992806139135,
+              "n_pairs": 30
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 2,
+          "n_pairs": 2,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 134,
+        "median_run": 1.0,
+        "p90_run": 8.700000000000003,
+        "max_run": 45
+      },
+      "all_ttc": {
+        "n_captures": 544,
+        "n_pairs": 534,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 26.0,
+            "p25": 10.0,
+            "p75": 1000.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 10.0,
+            "p25": 8.85,
+            "p75": 50.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0055147058823529415,
+          "no_side_empty": 0.0055147058823529415,
+          "any_side_empty": 0.011029411764705883
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7677902621722846,
+          "n_pairs": 534
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.00891300181462799,
+            "n_pairs": 453
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.018545309985053854,
+            "n_pairs": 452
+          },
+          "pooled": {
+            "mean_turnover": 0.013723834182619691,
+            "n_pairs": 905
+          }
+        }
+      }
+    },
+    "KXPLLGAME": {
+      "category": "sports_other",
+      "n_captures": 428,
+      "n_tickers": 8,
+      "cells": {
+        ">24h": {
+          "n_captures": 224,
+          "n_pairs": 224,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 15.0,
+              "p25": 5.0,
+              "p75": 500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 11.0,
+              "p25": 8.0,
+              "p75": 81.2925
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.35267857142857145,
+            "n_pairs": 224
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.026748861907937464,
+              "n_pairs": 99
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.009800778572667628,
+              "n_pairs": 148
+            },
+            "pooled": {
+              "mean_turnover": 0.016593735051176593,
+              "n_pairs": 247
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 56,
+          "n_pairs": 54,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 32.0,
+              "p25": 11.690000000000001,
+              "p75": 186.25
+            },
+            "yes_ask_side_mirror": {
+              "median": 38.69,
+              "p25": 10.0,
+              "p75": 60.14
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.2962962962962963,
+            "n_pairs": 54
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.10158332244266156,
+              "n_pairs": 27
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.10329164266113298,
+              "n_pairs": 24
+            },
+            "pooled": {
+              "mean_turnover": 0.10238723783958929,
+              "n_pairs": 51
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 28,
+          "n_pairs": 22,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 49.0,
+              "p25": 4.75,
+              "p75": 227.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 25.0,
+              "p25": 5.0,
+              "p75": 71.15
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.07142857142857142,
+            "no_side_empty": 0.03571428571428571,
+            "any_side_empty": 0.10714285714285714
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.22727272727272727,
+            "n_pairs": 22
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "6-24h": {
+          "n_captures": 120,
+          "n_pairs": 120,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 91.11,
+              "p25": 18.0,
+              "p75": 107.95
+            },
+            "yes_ask_side_mirror": {
+              "median": 67.0,
+              "p25": 42.75,
+              "p75": 174.5
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6083333333333333,
+            "n_pairs": 120
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.031519327740541156,
+              "n_pairs": 95
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.07206045618733467,
+              "n_pairs": 85
+            },
+            "pooled": {
+              "mean_turnover": 0.05066374950708253,
+              "n_pairs": 180
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 255,
+        "median_run": 1.0,
+        "p90_run": 3.0,
+        "max_run": 15
+      },
+      "all_ttc": {
+        "n_captures": 428,
+        "n_pairs": 420,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 49.0,
+            "p25": 10.0,
+            "p75": 177.25
+          },
+          "yes_ask_side_mirror": {
+            "median": 33.0,
+            "p25": 8.0,
+            "p75": 132.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.004672897196261682,
+          "no_side_empty": 0.002336448598130841,
+          "any_side_empty": 0.007009345794392523
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.4119047619047619,
+          "n_pairs": 420
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.03899242840017362,
+            "n_pairs": 228
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.04695132165430575,
+            "n_pairs": 263
+          },
+          "pooled": {
+            "mean_turnover": 0.04325554230208145,
+            "n_pairs": 491
+          }
+        }
+      }
+    },
+    "KXFIBAGAME": {
+      "category": "basketball",
+      "n_captures": 132,
+      "n_tickers": 8,
+      "cells": {
+        "post_close": {
+          "n_captures": 132,
+          "n_pairs": 124,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 5.0,
+              "p25": 2.63,
+              "p75": 62.14
+            },
+            "yes_ask_side_mirror": {
+              "median": 24.575000000000003,
+              "p25": 2.5775,
+              "p75": 41.66
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.030303030303030304,
+            "no_side_empty": 0.030303030303030304,
+            "any_side_empty": 0.06060606060606061
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5403225806451613,
+            "n_pairs": 124
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.07107103385508372,
+              "n_pairs": 88
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0647020825132669,
+              "n_pairs": 75
+            },
+            "pooled": {
+              "mean_turnover": 0.06814053477142569,
+              "n_pairs": 163
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 65,
+        "median_run": 2.0,
+        "p90_run": 3.0,
+        "max_run": 13
+      },
+      "all_ttc": {
+        "n_captures": 132,
+        "n_pairs": 124,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 5.0,
+            "p25": 2.63,
+            "p75": 62.14
+          },
+          "yes_ask_side_mirror": {
+            "median": 24.575000000000003,
+            "p25": 2.5775,
+            "p75": 41.66
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.030303030303030304,
+          "no_side_empty": 0.030303030303030304,
+          "any_side_empty": 0.06060606060606061
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.5403225806451613,
+          "n_pairs": 124
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.07107103385508372,
+            "n_pairs": 88
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.0647020825132669,
+            "n_pairs": 75
+          },
+          "pooled": {
+            "mean_turnover": 0.06814053477142569,
+            "n_pairs": 163
+          }
+        }
+      }
+    }
+  },
+  "categories": {
+    "soccer": {
+      "n_captures": 49671,
+      "cells": {
+        "6-24h": {
+          "n_captures": 9381,
+          "n_pairs": 9252,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 292.0,
+              "p25": 55.0,
+              "p75": 1706.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 608.0,
+              "p25": 100.0,
+              "p75": 1783.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0059695128451124615,
+            "no_side_empty": 0.002238567316917173,
+            "any_side_empty": 0.008208080162029634
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7396238651102465,
+            "n_pairs": 9252
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.056674279222882075,
+              "n_pairs": 7439
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.05851074561310437,
+              "n_pairs": 7374
+            },
+            "pooled": {
+              "mean_turnover": 0.057588483176267365,
+              "n_pairs": 14813
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 36390,
+          "n_pairs": 36126,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 141.675,
+              "p25": 49.0,
+              "p75": 980.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 392.0,
+              "p25": 49.0,
+              "p75": 1066.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7141947627747329,
+            "n_pairs": 36126
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.024661402114498108,
+              "n_pairs": 29564
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.020335322277874573,
+              "n_pairs": 29345
+            },
+            "pooled": {
+              "mean_turnover": 0.022506403509773544,
+              "n_pairs": 58909
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 2172,
+          "n_pairs": 2037,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 14.0,
+              "p25": 1.0,
+              "p75": 94.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 36.0,
+              "p25": 4.0,
+              "p75": 150.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0847145488029466,
+            "no_side_empty": 0.03867403314917127,
+            "any_side_empty": 0.12338858195211787
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.600392734413353,
+            "n_pairs": 2037
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.0329518999499343,
+              "n_pairs": 1306
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.03174789100503574,
+              "n_pairs": 1291
+            },
+            "pooled": {
+              "mean_turnover": 0.03235337259226619,
+              "n_pairs": 2597
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 1728,
+          "n_pairs": 1617,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 176.5,
+              "p25": 50.0,
+              "p75": 892.5
+            },
+            "yes_ask_side_mirror": {
+              "median": 479.115,
+              "p25": 63.0,
+              "p75": 1290.13
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.03993055555555555,
+            "no_side_empty": 0.017939814814814815,
+            "any_side_empty": 0.05787037037037037
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.4805194805194805,
+            "n_pairs": 1617
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06126053333426643,
+              "n_pairs": 932
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.09135715122577992,
+              "n_pairs": 864
+            },
+            "pooled": {
+              "mean_turnover": 0.07573908448029515,
+              "n_pairs": 1796
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 15027,
+        "median_run": 1.0,
+        "p90_run": 7.0,
+        "max_run": 120
+      },
+      "all_ttc": {
+        "n_captures": 49671,
+        "n_pairs": 49032,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 149.97,
+            "p25": 49.0,
+            "p75": 1000.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 389.0,
+            "p25": 49.0,
+            "p75": 1190.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.006220933744035755,
+          "no_side_empty": 0.002738016146242274,
+          "any_side_empty": 0.00895894989027803
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7065589818893784,
+          "n_pairs": 49032
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.031875325645477764,
+            "n_pairs": 39241
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.029534325676334624,
+            "n_pairs": 38874
+          },
+          "pooled": {
+            "mean_turnover": 0.03071032490553703,
+            "n_pairs": 78115
+          }
+        }
+      }
+    },
+    "crypto": {
+      "n_captures": 45505,
+      "cells": {
+        "<15m": {
+          "n_captures": 17627,
+          "n_pairs": 526,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 23097.0,
+              "p25": 8951.0,
+              "p75": 38550.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.987689340216713,
+            "no_side_empty": 0.029727123163328983,
+            "any_side_empty": 0.9905258977704657
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.0,
+            "n_pairs": 526
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        },
+        "15-60m": {
+          "n_captures": 27352,
+          "n_pairs": 17884,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 25384.0,
+              "p25": 9200.0,
+              "p75": 38796.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.9645729745539632,
+            "no_side_empty": 0.0002559227844398947,
+            "any_side_empty": 0.9647923369406259
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8926414672332812,
+            "n_pairs": 17884
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.06544935060065915,
+              "n_pairs": 15970
+            },
+            "pooled": {
+              "mean_turnover": 0.0655562637640894,
+              "n_pairs": 15980
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 526,
+          "n_pairs": 0,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 0.0,
+              "p25": 0.0,
+              "p75": 0.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 1.0,
+            "no_side_empty": 1.0,
+            "any_side_empty": 1.0
+          },
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 29541,
+        "median_run": 2.0,
+        "p90_run": 2.0,
+        "max_run": 3
+      },
+      "all_ttc": {
+        "n_captures": 45505,
+        "n_pairs": 18410,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 0.0,
+            "p25": 0.0,
+            "p75": 0.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 24424.0,
+            "p25": 8616.0,
+            "p75": 38686.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.9739369300076914,
+          "no_side_empty": 0.02322821667948577,
+          "any_side_empty": 0.9751675640039557
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.8671374253123303,
+          "n_pairs": 18410
+        },
+        "turnover": {
+          "yes_bid_side": "insufficient",
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.06544935060065915,
+            "n_pairs": 15970
+          },
+          "pooled": {
+            "mean_turnover": 0.0655562637640894,
+            "n_pairs": 15980
+          }
+        }
+      }
+    },
+    "baseball": {
+      "n_captures": 17044,
+      "cells": {
+        "post_close": {
+          "n_captures": 2478,
+          "n_pairs": 2270,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 9785.93,
+              "p25": 404.0,
+              "p75": 47941.28
+            },
+            "yes_ask_side_mirror": {
+              "median": 25884.21,
+              "p25": 1000.625,
+              "p75": 340596.3825
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.01775625504439064,
+            "no_side_empty": 0.018159806295399514,
+            "any_side_empty": 0.035108958837772396
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.40881057268722465,
+            "n_pairs": 2270
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.1558315162711526,
+              "n_pairs": 992
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.16658311830142994,
+              "n_pairs": 979
+            },
+            "pooled": {
+              "mean_turnover": 0.16117186045564877,
+              "n_pairs": 1971
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 1266,
+          "n_pairs": 1262,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1249.075,
+              "p25": 206.6625,
+              "p75": 31572.635000000002
+            },
+            "yes_ask_side_mirror": {
+              "median": 22485.339999999997,
+              "p25": 1704.5725,
+              "p75": 433534.765
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8645007923930269,
+            "n_pairs": 1262
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.09510018866986629,
+              "n_pairs": 1130
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.0889300505803722,
+              "n_pairs": 1117
+            },
+            "pooled": {
+              "mean_turnover": 0.09203296826667774,
+              "n_pairs": 2247
+            }
+          }
+        },
+        ">24h": {
+          "n_captures": 8208,
+          "n_pairs": 8138,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 48.0,
+              "p25": 10.0,
+              "p75": 929.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 181.0,
+              "p25": 22.0,
+              "p75": 853.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.44777586630621774,
+            "n_pairs": 8138
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.0436017515542718,
+              "n_pairs": 4320
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.04470021544316231,
+              "n_pairs": 5218
+            },
+            "pooled": {
+              "mean_turnover": 0.044202693530811014,
+              "n_pairs": 9538
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 4794,
+          "n_pairs": 4740,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1016.5,
+              "p25": 150.01749999999998,
+              "p75": 28504.73
+            },
+            "yes_ask_side_mirror": {
+              "median": 2447.525,
+              "p25": 357.0,
+              "p75": 120692.49250000001
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7253164556962025,
+            "n_pairs": 4740
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.08088905996406742,
+              "n_pairs": 3708
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.08663642756003773,
+              "n_pairs": 3808
+            },
+            "pooled": {
+              "mean_turnover": 0.08380097797969478,
+              "n_pairs": 7516
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 194,
+          "n_pairs": 194,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 12396.57,
+              "p25": 390.1975,
+              "p75": 91310.73999999999
+            },
+            "yes_ask_side_mirror": {
+              "median": 57736.295,
+              "p25": 2330.7799999999997,
+              "p75": 570274.3500000001
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.788659793814433,
+            "n_pairs": 194
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.12038555261503735,
+              "n_pairs": 164
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.13835969505821014,
+              "n_pairs": 155
+            },
+            "pooled": {
+              "mean_turnover": 0.12911907010309942,
+              "n_pairs": 319
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 104,
+          "n_pairs": 104,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1504.08,
+              "p25": 236.2425,
+              "p75": 27158.52
+            },
+            "yes_ask_side_mirror": {
+              "median": 5567.0650000000005,
+              "p25": 1923.21,
+              "p75": 408967.88
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7788461538461539,
+            "n_pairs": 104
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.09436132597685405,
+              "n_pairs": 87
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.1285537460846313,
+              "n_pairs": 85
+            },
+            "pooled": {
+              "mean_turnover": 0.11125874289058117,
+              "n_pairs": 172
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 7709,
+        "median_run": 1.0,
+        "p90_run": 4.0,
+        "max_run": 52
+      },
+      "all_ttc": {
+        "n_captures": 17044,
+        "n_pairs": 16708,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 503.0,
+            "p25": 28.0,
+            "p75": 2250.6525
+          },
+          "yes_ask_side_mirror": {
+            "median": 846.82,
+            "p25": 87.0,
+            "p75": 5960.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.002581553625909411,
+          "no_side_empty": 0.002640225299225534,
+          "any_side_empty": 0.005104435578502699
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.558714388316974,
+          "n_pairs": 16708
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.074829049551774,
+            "n_pairs": 10401
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.07551045597585261,
+            "n_pairs": 11362
+          },
+          "pooled": {
+            "mean_turnover": 0.07518479737102611,
+            "n_pairs": 21763
+          }
+        }
+      }
+    },
+    "basketball": {
+      "n_captures": 6112,
+      "cells": {
+        ">24h": {
+          "n_captures": 3524,
+          "n_pairs": 3494,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 13.0,
+              "p25": 10.0,
+              "p75": 500.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 50.0,
+              "p25": 10.0,
+              "p75": 500.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7412707498568976,
+            "n_pairs": 3494
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.025663945980367506,
+              "n_pairs": 2794
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.030449797365405783,
+              "n_pairs": 2874
+            },
+            "pooled": {
+              "mean_turnover": 0.028090646206302583,
+              "n_pairs": 5668
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 454,
+          "n_pairs": 392,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 98.0,
+              "p25": 6.32,
+              "p75": 376.9975
+            },
+            "yes_ask_side_mirror": {
+              "median": 146.5,
+              "p25": 21.5,
+              "p75": 607.9225
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.05506607929515418,
+            "no_side_empty": 0.05726872246696035,
+            "any_side_empty": 0.09911894273127753
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.3469387755102041,
+            "n_pairs": 392
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.10708398701607622,
+              "n_pairs": 177
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.13733626771651727,
+              "n_pairs": 160
+            },
+            "pooled": {
+              "mean_turnover": 0.12144708764536573,
+              "n_pairs": 337
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 1634,
+          "n_pairs": 1622,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 505.0,
+              "p25": 29.9,
+              "p75": 2349.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 700.0,
+              "p25": 145.72,
+              "p75": 6160.0575
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7570900123304563,
+            "n_pairs": 1622
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.06516644731647468,
+              "n_pairs": 1318
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.07742266628044765,
+              "n_pairs": 1309
+            },
+            "pooled": {
+              "mean_turnover": 0.07127356213331541,
+              "n_pairs": 2627
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 464,
+          "n_pairs": 450,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 609.0,
+              "p25": 100.0,
+              "p75": 17150.96
+            },
+            "yes_ask_side_mirror": {
+              "median": 719.73,
+              "p25": 118.87,
+              "p75": 45371.5175
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.023706896551724137,
+            "no_side_empty": 0.02586206896551724,
+            "any_side_empty": 0.04956896551724138
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.6155555555555555,
+            "n_pairs": 450
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.07080219929501508,
+              "n_pairs": 306
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.10328654103498638,
+              "n_pairs": 301
+            },
+            "pooled": {
+              "mean_turnover": 0.08691057963065159,
+              "n_pairs": 607
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 20,
+          "n_pairs": 20,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 335.385,
+              "p25": 100.0,
+              "p75": 588.6725
+            },
+            "yes_ask_side_mirror": {
+              "median": 272.69,
+              "p25": 92.3425,
+              "p75": 552.25
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.75,
+            "n_pairs": 20
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.036001265578217985,
+              "n_pairs": 31
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 16,
+          "n_pairs": 16,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.04951789306222259,
+              "n_pairs": 25
+            }
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 1856,
+        "median_run": 1.0,
+        "p90_run": 7.5,
+        "max_run": 50
+      },
+      "all_ttc": {
+        "n_captures": 6112,
+        "n_pairs": 5994,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 91.0,
+            "p25": 10.0,
+            "p75": 750.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 182.0,
+            "p25": 33.0,
+            "p75": 761.49
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.0058900523560209425,
+          "no_side_empty": 0.006217277486910994,
+          "any_side_empty": 0.01112565445026178
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.7100433767100434,
+          "n_pairs": 5994
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.04324606678948747,
+            "n_pairs": 4623
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.05191850183765323,
+            "n_pairs": 4672
+          },
+          "pooled": {
+            "mean_turnover": 0.04760514334086244,
+            "n_pairs": 9295
+          }
+        }
+      }
+    },
+    "sports_other": {
+      "n_captures": 3906,
+      "cells": {
+        ">24h": {
+          "n_captures": 3000,
+          "n_pairs": 2976,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1500.0,
+              "p25": 50.0,
+              "p75": 1639.89
+            },
+            "yes_ask_side_mirror": {
+              "median": 693.0,
+              "p25": 45.0,
+              "p75": 1537.5925
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.657258064516129,
+            "n_pairs": 2976
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.015281439130206886,
+              "n_pairs": 2106
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.013432751855245359,
+              "n_pairs": 2621
+            },
+            "pooled": {
+              "mean_turnover": 0.014256389553800267,
+              "n_pairs": 4727
+            }
+          }
+        },
+        "6-24h": {
+          "n_captures": 448,
+          "n_pairs": 444,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 598.0,
+              "p25": 58.0,
+              "p75": 2143.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 466.34,
+              "p25": 54.165,
+              "p75": 1900.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.7657657657657657,
+            "n_pairs": 444
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.026162314178136067,
+              "n_pairs": 393
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.042146453890929414,
+              "n_pairs": 366
+            },
+            "pooled": {
+              "mean_turnover": 0.03387008115426566,
+              "n_pairs": 759
+            }
+          }
+        },
+        "1-6h": {
+          "n_captures": 198,
+          "n_pairs": 196,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1500.0,
+              "p25": 197.0,
+              "p75": 2000.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 863.95,
+              "p25": 46.025,
+              "p75": 1828.0
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.5612244897959183,
+            "n_pairs": 196
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.04775493896458093,
+              "n_pairs": 135
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.06822213088000713,
+              "n_pairs": 127
+            },
+            "pooled": {
+              "mean_turnover": 0.057676058709844776,
+              "n_pairs": 262
+            }
+          }
+        },
+        "15-60m": {
+          "n_captures": 20,
+          "n_pairs": 20,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 1965.5,
+              "p25": 1537.5,
+              "p75": 3351.75
+            },
+            "yes_ask_side_mirror": {
+              "median": 1758.0,
+              "p25": 828.75,
+              "p75": 2506.0475
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.0,
+            "no_side_empty": 0.0,
+            "any_side_empty": 0.0
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.8,
+            "n_pairs": 20
+          },
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": {
+              "mean_turnover": 0.0747087240179619,
+              "n_pairs": 33
+            }
+          }
+        },
+        "post_close": {
+          "n_captures": 232,
+          "n_pairs": 208,
+          "queue_depth": {
+            "yes_bid_side": {
+              "median": 462.0,
+              "p25": 30.4075,
+              "p75": 1900.0
+            },
+            "yes_ask_side_mirror": {
+              "median": 342.0,
+              "p25": 13.79,
+              "p75": 2228.5
+            }
+          },
+          "one_sided": {
+            "yes_side_empty": 0.04310344827586207,
+            "no_side_empty": 0.04310344827586207,
+            "any_side_empty": 0.08620689655172414
+          },
+          "staleness": {
+            "frozen_pair_fraction": 0.3269230769230769,
+            "n_pairs": 208
+          },
+          "turnover": {
+            "yes_bid_side": {
+              "mean_turnover": 0.09465181587288891,
+              "n_pairs": 78
+            },
+            "yes_ask_side_mirror": {
+              "mean_turnover": 0.15944664331718264,
+              "n_pairs": 85
+            },
+            "pooled": {
+              "mean_turnover": 0.12844052957083346,
+              "n_pairs": 163
+            }
+          }
+        },
+        "<15m": {
+          "n_captures": 8,
+          "n_pairs": 8,
+          "queue_depth": "insufficient",
+          "one_sided": "insufficient",
+          "staleness": "insufficient",
+          "turnover": {
+            "yes_bid_side": "insufficient",
+            "yes_ask_side_mirror": "insufficient",
+            "pooled": "insufficient"
+          }
+        }
+      },
+      "streak_distribution": {
+        "n_runs": 1412,
+        "median_run": 1.0,
+        "p90_run": 5.0,
+        "max_run": 61
+      },
+      "all_ttc": {
+        "n_captures": 3906,
+        "n_pairs": 3852,
+        "queue_depth": {
+          "yes_bid_side": {
+            "median": 1500.0,
+            "p25": 50.0,
+            "p75": 1900.0
+          },
+          "yes_ask_side_mirror": {
+            "median": 684.0,
+            "p25": 42.5125,
+            "p75": 1600.0
+          }
+        },
+        "one_sided": {
+          "yes_side_empty": 0.002560163850486431,
+          "no_side_empty": 0.002560163850486431,
+          "any_side_empty": 0.005120327700972862
+        },
+        "staleness": {
+          "frozen_pair_fraction": 0.6474558670820353,
+          "n_pairs": 3852
+        },
+        "turnover": {
+          "yes_bid_side": {
+            "mean_turnover": 0.021500271341674676,
+            "n_pairs": 2734
+          },
+          "yes_ask_side_mirror": {
+            "mean_turnover": 0.023313294281601425,
+            "n_pairs": 3222
+          },
+          "pooled": {
+            "mean_turnover": 0.02248105708923074,
+            "n_pairs": 5956
+          }
+        }
+      }
+    }
+  },
+  "coverage": {
+    "families_with_unparsed_captures": [],
+    "n_families": 31
+  }
+}
