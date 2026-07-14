@@ -6,6 +6,87 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-13 20:15 ET (idle run) — L45→L49: shared crypto-hour close-time helper + a real PaperBroker determinism bug found and fixed
+
+- **Step 0a passed.** `HEAD` (`b21eac2`) is a direct ancestor of `origin/main`
+  after `git fetch origin main`; no open PRs (checked via GitHub MCP).
+  `kb/00-LOG.md`'s newest entry and the newest `tape/*/dt=*` file are both
+  2026-07-13 (0-day gap). `main` not rewound.
+- **Step 0b stranded-tape sweep (1,011 lines).** Of the unswept
+  `tape/hourly-*` branches postdating the last sweep (PR #65's cutoff at
+  `...1658Z`), four were >30min old: `...2056Z`, `...2157Z`, `...2158Z`,
+  `...2257Z` (`...2356Z` skipped, ~10min old). Union-diffed against `main`'s
+  current tape and appended: `crypto_hourly` +6, `orderbook_depth` +582,
+  `polymarket_macro_pairs` +45, `polymarket_pairs` +12, `sports_pairs` +366 —
+  1,011 lines, all JSON-validated, no duplicates, no reorder.
+- **Milestone: no numbered queue item was eligible.** Q0-Q25 are all
+  DONE/DEAD except Q19, whose per-event legs stay time-gated ahead of
+  today's (Jul-14) CPI burst window — no burst tape has landed yet this run.
+  Idle-run policy (a): drew from the lessons ledger's own standing
+  UNENFORCED queue — **L45** ("crypto-hourly ticker hour token is ET, not
+  UTC — candidate: a shared ticker-grammar parsing helper... no such shared
+  close-time parser exists yet") was the newest still-unbuilt candidate;
+  Q25's own `scripts/q25_depth_tape_anatomy.py` still hand-rolled the same
+  ET-localize-then-UTC-convert logic inline rather than importing it from
+  anywhere, exactly the re-derive-per-script duplication L33-L36 closed for
+  the bootstrap/magnitude-gate/floor-precheck/frozen-cut/strike-spacing
+  helpers.
+- **`core/timeutil.py`**: new `parse_crypto_hour_token_close_utc(token)` —
+  parses a crypto-hourly ticker's bare date+hour middle segment (e.g.
+  `'26JUL0621'`), localizes to `America/New_York` via `zoneinfo` (DST-correct
+  across the calendar, not a hardcoded EDT/EST offset), returns the
+  tz-aware UTC close (or `None` on a grammar mismatch / out-of-range hour).
+  10 new tests in `tests/test_timeutil.py`, including the exact L45
+  empirical example (`26JUL0621` → `2026-07-07T01:00:00Z`) and a January
+  (EST) case to prove it isn't summer-offset-hardcoded.
+  `.claude/agents/edge-prober.md` house style updated to name it.
+- **Gate-blocking bug found and fixed while getting `pytest` green** (not
+  the chosen milestone, but required before ANY commit per protocol step 4):
+  `tests/test_paper_pass.py::test_cap_defer_counts_events_that_do_not_fit`
+  failed on a clean `main` checkout, unrelated to this run's own diff
+  (confirmed via `git stash`). Root cause: `execution/paper_broker.py`'s
+  `PaperBroker._replay()` derived the daily-order-cap's "today" from
+  **`datetime.now(timezone.utc)`** — real wall-clock — while every Order
+  record it counts is timestamped from `context.now_ts` (the paper tier's
+  own documented contract: "no clock beyond context.now_ts," "the same
+  ledger always reproduces the same state"). The test's fixtures hardcode
+  `now_ts="2026-07-13..."`; once the real calendar rolled to 2026-07-14 the
+  wall-clock "today" stopped matching the fixture's order timestamps, so
+  `orders_today` silently read back as 0 after every `_replay()` and the
+  200-order/day cap never bound — the SAME ledger, replayed on two different
+  real days, gave two different accept/reject decisions. Fixed by threading
+  an explicit `as_of: Optional[str]` through `PaperBroker.__init__`
+  (`scripts/paper_pass.py`'s `run_pass` now passes its own `now_ts`); `None`
+  still falls back to wall-clock for any caller with no injected reference
+  time. 2 new tests in `tests/test_execution_paper_broker.py` proving
+  `orders_today` follows `as_of`, not the real clock.
+- **`kb/lessons/00-lessons.md`**: appended **L49** (escalates L45; L45
+  itself stays UNENFORCED as a ledger row per the append-only rule). The
+  PaperBroker fix is infra, not a lessons-ledger row — no probe/collector
+  precedent to generalize, just a bug found while enforcing the pytest gate.
+- **Step 9 (paper sub-pass).** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`).
+  Ran `python -m scripts.paper_pass` for real over tape committed since
+  Q22's original pass: **10 more event-hours processed** (20 total
+  in-ledger), realized P&L **+$1.83 → +$5.14** (evidence, not a verdict —
+  S14 registry status unchanged). 280 deferred(caps), 38 deferred(coverage).
+  Re-run confirmed idempotent (0 newly processed, P&L unchanged at
+  **+$5.14**). New ledger lines committed under `paper/ledger/dt=2026-07-14.jsonl`.
+- Does not retrofit Q25's already-verdicted script (that scan's numbers
+  stand as-is, discovery-class, no registry flip) — the new helper is for
+  the next probe that needs a crypto-hourly close time.
+
+## Gates
+
+- 796 tests green (784 prior + 10 new `test_timeutil.py` + 2 new
+  `test_execution_paper_broker.py`).
+- `python scripts/invariants.py --full` green (only the standing non-gating
+  advisories: L20 stranded-tape, L29 tape-dir-shape).
+
+Research/infra/docs only — no order or execution code outside the sanctioned
+paper tier, no network calls, no credential handling.
+
+---
+
 ## 2026-07-13 17:09 ET (Q25) — Depth-tape anatomy scan: a fill-plausibility map, discovery-class, no verdict
 
 Q25 (LOOP-QUEUE, topmost eligible TODO — Q20-24 all DONE/DEAD, Q19's per-event legs

@@ -56,6 +56,12 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
 - Distinguish three outcomes explicitly: CI > 0 AND clears the tick-magnitude
   gate (alive), CI ≤ 0 or fails the magnitude gate (dead, falsified),
   data-adequacy dead (untestable as collected — say why).
+- Never re-derive a crypto-hourly ticker's close time from a raw hour digit
+  inline (L45 — the token's HH is America/New_York local time, not UTC; a UTC
+  reading mis-buckets every crypto capture by the ET offset). Call
+  `core.timeutil.parse_crypto_hour_token_close_utc(token)` on the ticker's
+  date+hour middle segment instead — it returns the correctly zoned UTC close
+  (or `None` on a grammar mismatch), DST-correct across the calendar.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 

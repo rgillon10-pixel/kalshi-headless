@@ -115,6 +115,24 @@ def test_replay_is_deterministic_same_ledger_same_state(tmp_path):
         k: v.qty for k, v in b2.positions.items()}
 
 
+def test_orders_today_uses_as_of_not_wall_clock(tmp_path):
+    # The class docstring promises "no clock beyond context.now_ts" / "the same
+    # ledger always reproduces the same state" — orders_today must honor that too.
+    # Both orders carry ts="2026-07-11..."; as_of pins "today" to that same date
+    # regardless of when the test actually runs.
+    ledger = tmp_path / "ledger"
+    _write_ledger(ledger, [_order(order_id="o1"), _order(order_id="o2")])
+    b = PaperBroker(ledger, as_of="2026-07-11T12:00:00+00:00")
+    assert b.orders_today == 2
+
+
+def test_orders_today_excludes_orders_from_a_different_as_of_day(tmp_path):
+    ledger = tmp_path / "ledger"
+    _write_ledger(ledger, [_order(order_id="o1"), _order(order_id="o2")])
+    b = PaperBroker(ledger, as_of="2026-07-12T00:00:00+00:00")
+    assert b.orders_today == 0
+
+
 def test_replay_reproduces_position_and_realized_pnl(tmp_path):
     ledger = tmp_path / "ledger"
     # buy 10 @ 0.40 (fee 0.03), then sell 4 @ 0.50 (fee 0.02)

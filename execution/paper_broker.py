@@ -49,9 +49,17 @@ class PaperBroker:
     """Deterministic paper broker. Construct from a ledger dir; state is a pure
     function of the ledger lines under it."""
 
-    def __init__(self, ledger_dir: Path, starting_cash: float = STARTING_CASH) -> None:
+    def __init__(self, ledger_dir: Path, starting_cash: float = STARTING_CASH,
+                 as_of: Optional[str] = None) -> None:
         self.ledger_dir = Path(ledger_dir)
         self.starting_cash = float(starting_cash)
+        # `as_of`: an ISO timestamp string marking "today" for the daily-order cap
+        # (the same value a caller threads through as context.now_ts). None falls
+        # back to the real wall clock, for interactive/live use with no injected
+        # reference time. Passing it is what keeps the class's own documented
+        # promise ("no clock beyond context.now_ts", "deterministic... same
+        # ledger always reproduces the same state") true for orders_today too.
+        self.as_of = as_of
         # derived state (rebuilt by _replay)
         self.positions: Dict[Tuple[str, str], Position] = {}
         self.cash: float = self.starting_cash
@@ -88,7 +96,8 @@ class PaperBroker:
         self.realized_pnl = 0.0
         self.settled_contracts = 0
         self.settlement_noops = []
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = (self.as_of[:10] if self.as_of
+                 else datetime.now(timezone.utc).strftime("%Y-%m-%d"))
         orders_today = 0
         for rec in self._read_records():
             if isinstance(rec, Order):

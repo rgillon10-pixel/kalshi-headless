@@ -80,3 +80,27 @@ def parse_kalshi_ts(value) -> Tuple[datetime, str]:
     if v >= 1e9:
         return datetime.fromtimestamp(v, tz=UTC), "s"
     raise ValueError(f"timestamp {value!r} too small to be epoch seconds or ms")
+
+
+_CRYPTO_HOUR_TOKEN_RE = re.compile(r"^\d{2}[A-Za-z]{3}\d{2}\d{2}$")
+_ET_ZONE = ZoneInfo("America/New_York")
+
+
+def parse_crypto_hour_token_close_utc(token: str):
+    """UTC close time for a Kalshi crypto-hourly ticker's date+hour token (e.g. '26JUL0621',
+    the middle segment of 'KXBTC-26JUL0621-B71750').
+
+    The trailing HH digit is America/New_York local time, NOT UTC (kb/lessons L45 —
+    confirmed 2026-07-07 against live tape: KXBTC-26JUL0621 was captured 00:57:50 UTC on
+    07-07, i.e. 20:57 EDT on 07-06, closing 21:00 EDT = 01:00 UTC 07-07;
+    `collection/crypto_hourly.py`'s own docstring already documents "HH in ET"). Returns
+    None if `token` doesn't match the YYMONDDHH grammar or the hour digit is out of range.
+    """
+    if not _CRYPTO_HOUR_TOKEN_RE.match(token):
+        return None
+    try:
+        naive = datetime.strptime(token.upper(), "%y%b%d%H")
+    except ValueError:
+        return None
+    local = naive.replace(tzinfo=_ET_ZONE)
+    return local.astimezone(UTC)

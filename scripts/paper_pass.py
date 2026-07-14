@@ -140,7 +140,7 @@ def run_pass(tape_dir: Path = TAPE_DIR, cache_dir: Path = CACHE_DIR,
     now_ts = now_ts or datetime.now(timezone.utc).isoformat()
     records = load_records(tape_dir)
     cache = load_candle_summary_cache(cache_dir)
-    broker = PaperBroker(ledger_dir)
+    broker = PaperBroker(ledger_dir, as_of=now_ts)
     context = TapeContext(records_by_family={FAMILY: records}, now_ts=now_ts)
 
     per_strategy: List[Dict[str, Any]] = []
