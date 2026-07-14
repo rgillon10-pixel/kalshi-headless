@@ -861,7 +861,23 @@ corrected per the verifier's caveat before commit. See
 `invariants --full` green.
 
 ### Q21 — Idea-generation round: S19+ candidates (standing replenishment item)
-Status: ROUND COMPLETE (2026-07-13, research loop) — delegated to `research-lead`, which
+Status: ROUND COMPLETE (2026-07-14, research loop) — re-eligibility trigger fired (queue drained
+to 0-1 non-blocked research items: Q19's per-event legs are time-gated on the Jul-14 CPI burst
+tape, everything else DONE/DEAD/BLOCKED/RESERVED). Delegated to `research-lead`, which proposed
+**3 falsifiable candidates and ran each through independent `verifier` review** (two-agent rule) —
+**REGISTER on all 3, 0 killed at idea stage** (proposed only what was judged defensible rather
+than padding to quota). Survivors: **S22** (OFI/depth-imbalance settlement predictor on Q25's
+high-churn two-sided sports cells — satisfies the diversity floor: drawn from the Q25 depth-anatomy
+scan + a newly-distilled paper, Cont/Kukanov/Stoikov 2014, `kb/quant-finance/order-flow-imbalance.md`
+— neither a dead-verdict inversion nor an S11/S12/S14/S17 family), **S23** (favorite-side
+settlement-underpricing maker, favorite-longshot bias with NO devig/odds-api dependency — the
+design choice that sidesteps S21's L43 join-emptiness death), **S24** (near-close hourly-return
+overreaction fade, weakest of the three, explicit anti-overlap guard vs S22). Queue items
+**Q26/Q27/Q28** added below. New lesson **L50** (settlement-leg-sourced-over-the-depth-tape's-own-
+window as the general fix for S21-style disjoint-join deaths). Still 0 proven edges — this restocks
+the hypothesis pipe by three idea-stage candidates, the bar hasn't moved. Item stays STANDING per
+its own re-eligibility condition below (do not treat "complete" as permanently done).
+Status (history): ROUND COMPLETE (2026-07-13, research loop) — delegated to `research-lead`, which
 proposed 4 falsifiable candidates and ran each through the `verifier` agent (two independent
 verifier passes on the two contested ones — real two-agent redundancy, not a rubber stamp).
 **1 survivor registered: S19** (elevated-wing stale-ask maker fade on crypto ladders — the
@@ -1096,6 +1112,73 @@ source, not ideas themselves. Kill/limits: read-only; if the depth tape turns ou
 too few families for a cross-category cut, report that coverage fact honestly (it is
 itself the answer) rather than padding with BBO-only tape.
 
+### Q26 — S22: OFI / depth-imbalance settlement predictor on high-churn two-sided sports books
+Status: TODO (added 2026-07-14, Q21 idea-gen round — verifier-reviewed survivor, two-agent rule; diversity-floor candidate)
+Mechanism: resting L2 book-imbalance (size on the yes_bids ladder vs the no_bids ladder) carries
+information that leads the mid and predicts the settlement outcome; the losing counterparty is retail
+who trade the displayed BBO/mid without reading depth. Tested ONLY on the two-sided, low-frozen,
+high-turnover sports cells Q25 flagged (KBO 8.35%/33%-frozen, NPB 6.92%/29%, WNBA 11.06%, MLB 7.62%,
+UCL 8.56%) — not the one-sided crypto wings. Literature: Cont, Kukanov & Stoikov 2014 (OFI), distilled
+this round into `kb/quant-finance/order-flow-imbalance.md`. Data (already-collected / free):
+`tape/orderbook_depth/` for the imbalance signal; settlement from Kalshi's free settled-markets endpoint
+(`collection/sports_history.py::fetch_kalshi_settled`, within the ~60-day L11 retention) over the SAME
+games, or the tape's own post_close convergence. Milestone (one read-only probe): at each game's last
+pre-close (ttc>0) depth snapshot form the imbalance signal; when it disagrees with the mid, take the
+imbalance-favored side at real_ask (best_yes_ask/best_no_ask); realized P&L = settlement − ask − taker
+fee (`core.pricing`, 0.07); block-bootstrap by GAME (L6). Binding gates (verifier-mandated, do NOT weaken):
+(1) VERIFY settlement-join non-emptiness — ≥10 distinct games each with a genuine pre-close last snapshot
+AND a retrieved result — BEFORE any CI (pull the settled API while the 07-14 cohort is still retained,
+purge ~09-12); (2) the L28-style calibration precheck (imbalance beats mid at predicting settlement) is a
+HARD gate, not a footnote — stop if the signal adds nothing over the mid; (3) fillable object is a TAKER
+lift, fee at the 0.07 taker rate; (4) route any CI through `core.bootstrap.bootstrap_verdict_admissible`
+(≥10 units, ≥1 opposing-sign cluster) AND `clears_tick_magnitude` (L41/L27) vs the taker round-trip. Kill:
+imbalance adds no predictive content beyond mid / predicted edge < round-trip cost / hourly cadence washes
+the signal to noise (S9-family data-adequacy → honest DEAD-by-cadence) / CI fails either gate. Honest
+expectation: uncertain — genuinely novel; the calibration precheck decides cheaply.
+
+### Q27 — S23: Favorite-side settlement-underpricing maker on high-churn sports (favorite-longshot bias)
+Status: TODO (added 2026-07-14, Q21 idea-gen round — verifier-reviewed survivor, two-agent rule)
+Mechanism: favorite-longshot bias (`kb/quant-finance/favorite-longshot-bias.md`) leaves favorites underbet;
+rest a maker BID to buy the favorite YES (fair ≥ ~0.65) in Q25's high-turnover two-sided sports cells and
+collect $1 on settlement when the favorite wins; the losing counterparty is retail longshot-lovers who
+overbet the underdog and leave the favorite cheap. Key design choice — the fair test is REALIZED SETTLEMENT,
+not a devig anchor, so it needs NO sports_clv tape and NO odds-api key (this is the exact dependency whose
+absence killed S21). Data (already-collected / free): `tape/orderbook_depth/` (yes_bids queue for the
+fill-sim) + Kalshi free settled endpoint (`fetch_kalshi_settled`) for the outcome, same games, within L11
+retention. Milestone (one read-only probe): queue-aware yes_bids fill-sim (L39, NOT a candlestick print),
+net = settlement − fill_price − flat 1¢ maker fee (`core.pricing`, L30), block-bootstrap by GAME. Binding
+gates (verifier-mandated, do NOT weaken): (1) record in the SAME factor slot as S14/S21 (short-the-
+overpriced-tail / favorite-longshot — one Hard-Rule-#6 ρ allocation, not diversification); (2) MODEL the
+fill↔settlement adverse-selection correlation — a resting favorite-bid fills disproportionately when an
+informed seller dumps the favorite about to lose, so the catastrophic favorite-loses leg MUST be in the
+P&L, never conditioned away (L41 / Q24 gate-2); (3) queue-aware fill-sim, kill if fill rate ≤ the S19 0.45%
+floor (Q24 measured median 485 contracts ahead); (4) verify settlement-join non-empty (≥10 games) before
+CI; route through `bootstrap_verdict_admissible` + `clears_tick_magnitude`. Kill: favorite win-rate ≤
+fill_price + 1¢ maker fee (bias too small / L30 fee-death, S13-family) / fill rate at-or-below S19 floor /
+CI fails either gate. Honest expectation: probably DEAD (attenuated modern-exchange bias rarely clears fees),
+but sound, testable, and closes an undecided branch of the S13/S21 family.
+
+### Q28 — S24: Near-close hourly-return overreaction fade on two-sided sports books
+Status: TODO (added 2026-07-14, Q21 idea-gen round — verifier-reviewed survivor, two-agent rule; weakest of the three)
+Mechanism (Theme 7 behavioral, De Bondt-Thaler/Tetlock): an hourly-scale near-close mid jump in a two-sided
+sports book (retail overreacting to the last salient in-game event) partially reverses over the next hour;
+fade the jump. Losing counterparty = the overreacting retail flow. Distinct from S18 (elections/polls,
+idea-stage) — different category and horizon. Data (already-collected): `tape/orderbook_depth/` price paths
+in the Q25 high-turnover cells. Milestone (one read-only probe): identify consecutive-snapshot mid jumps
+≥ X¢ in the near-close window; enter a fade at real_ask against the jump; measure the next-snapshot
+reversal; block-bootstrap by distinct GAME (L6). Binding gates (verifier-mandated, do NOT weaken) — the
+first is load-bearing for distinctness: (1) the EXIT must be explicitly specified and the CI must charge
+the FULL realized round-trip (both taker legs: 2× 0.07 fee + 2× half-spread ≈ a 6-8¢ hurdle on a ~3.7¢-
+overround two-sided book) — AND if the only profitable exit is hold-to-settlement, S24 collapses into S22's
+mechanism (a directional settlement bet keyed on a recent jump) and MUST be routed to S22's slot, NOT
+double-counted; (2) the ≥X¢ jump threshold must clear the frozen-BBO/bid-ask-bounce noise floor (Q25:
+58-94% frozen — a real mid move, not a one-tick flicker); (3) bootstrap by distinct GAME, ≥10 games —
+verify the jump population reaches the floor (Q25's sub-hour buckets are mostly insufficient); (4)
+momentum-vs-reversal is a sign question so the opposing-sign cluster (L41) is NOT guaranteed — assert
+`bootstrap_verdict_admissible` admissible and `clears_tick_magnitude`. Kill: jumps continue (momentum, not
+reversal) / reversal < round-trip cost / hourly cadence too coarse (S9-family) / CI fails either gate.
+Honest expectation: DEAD-by-round-trip is likely; sound and novel nonetheless.
+
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
 Drafted by the weekly retro run from that week's "Log of runs". **Adopted** — Ryan merged
@@ -1200,3 +1283,4 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 - 2026-07-13T18:xxZ (research loop) · claim-check + Q24 CLOSED: S21 registered dead ✗ (DEAD by data-adequacy), verifier-CONFIRMED · maker-side rich-ASK selling on sports longshots (H1, the S7c-mirror maker-sell S13's bid-side test never covered). Queue-aware `orderbook_depth` `no_bids` fill-sim (L39, not a candlestick print) delegated to an edge-prober, independently verified CONFIRMED-WITH-CAVEAT (caveat = a cosmetic 80/80→81/81 script literal fixed separately; the real number is 81/81). **The mandated join is 0/81 joinable (0.00%)** at `fair_prob ≤ 0.20` (0/83 for the `yes_ask ≤ 0.20` proxy): `sports_clv` fair anchors cover kickoffs ≤07-03 while sports `orderbook_depth` began ≥07-07 — every fair-anchored game had settled before the depth tape began (L9 non-overlap; the calendar date is embedded in the ticker so zero event/outcome overlap is structural, verifier reproduced 0 by bypassing the probe's join code). Fill rate 0.00%, no testable CI (n_units=0) → **DEAD by data-adequacy, NOT a CI falsification** — the edge-at-quote stays S7c-proven-rich (+2.35¢), only the maker FILL question is untested/unmeasurable on current tape (re-testable only on concurrently-collected fair-anchor+depth tape). Settlement ADEQUATE (81/81 settled, 8/81=9.88% YES); the sold-longshot-WINS negative-skew leg fully modeled (`premium−1−fee`≈−0.86 settle-YES, flat $0.01 maker fee via `core.pricing`, L18/L30). Steelman: 346/652 (53%) of depth-overlapping ask≤0.20 longshots carry a queue, MEDIAN queue-ahead 485 contracts (confirms the binding-risk thesis), but full-sim-eligible = only 3 markets << the 10-game floor; alternate paths verifier-confirmed 0. Prices tagged `real_ask`/`real_bid`/`broker_truth`/`synthetic`; bootstrap by GAME (L6). `kb/strategies/00-index.md` S21 registered dead ✗ (closes the S7 family: taker S7c / maker-bid S13 / maker-ask S21 all DEAD); still 0 proven edges. Citation note `kb/quant-finance/favorite-longshot-bias.md` distilled (3 favorite-longshot-bias sources, S14 factor cap). Lessons L43 (collector-alignment recurrence of L9) + L44 (`worldcup2026.jsonl` offline sports executed-volume source) appended. 742 tests green (30 new Q24 tests), `invariants --full` green. See `findings/2026-07-13-q24-sports-longshot-maker-fillsim-verdict.md`.
 - 2026-07-13T21:xxZ (research loop) · claim-check (no open PRs; step 0b sweep skipped, only unswept branch `tape/hourly-20260713T2056Z` <30min old) + Q25 CLOSED: depth-tape anatomy scan, discovery-class, verifier CONFIRMED-WITH-CAVEATS · Step 0a: `origin/main` HEAD (`70416b0`) descends from all recently-merged PRs (#66/#65/#64/#63/#62, checked via GitHub MCP + local ancestry); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-13, 0-day gap. `main` not rewound. `tape/orderbook_depth/` (largest tape family, 3-4x everything else combined, L38) read as a discovery scan for the first time via `scripts/q25_depth_tape_anatomy.py` (33 offline tests): 122,238 records/31 families/6 days (07-09 honestly absent) tabulated by family and category×time-to-close bucket — queue depth, staleness/streak distribution, one-sidedness, and a defined resting-order-turnover proxy benchmarked against S19's 0.45% dead floor and S14's 2.5% wing benchmark (turnover rules a cell OUT, never IN). Plausibly-fillable churn: WNBA 11.06%, UCL soccer 8.56%, KBO baseball 8.35% (also least-frozen, 33%), MLB 7.62%, NPB 6.92% — near-close sports runs 7-13%. Dead-thin: KXBIG3GAME 0.48% (on the S19 line), VBA/USLCup/MLS all <2%. One-sidedness (L31) confirmed crypto-only (96-100% vs sports' 0-1% pre-close). Corrected the milestone spec's own worked example mid-run: crypto's ticker hour token is ET, not UTC (confirmed against tape + `collection/crypto_hourly.py`'s docstring) — a UTC reading would have mis-bucketed all 45,505 crypto captures. Verifier independently recomputed every number from scratch — CONFIRMED; one dispute (an undercounted 15/114 vs correct 21/114 insufficient-cells meta-stat) resolved by the producer recomputing from the committed JSON and correcting doc text only (no number/code/test touched) — net CONFIRMED-WITH-CAVEATS (two disclosed, immaterial caveats). 4 lessons appended (L45 crypto-hour-is-ET, L46 sports-tz-unverifiable, L47 fractional depth sizes, L48 turnover-rules-out-never-in). Still 0 proven edges — a map to seed future Q21 rounds. 784 tests green (751 prior + 33 new), `invariants --full` green. See `findings/2026-07-13-depth-tape-anatomy-q25.md`, `findings/depth_anatomy.json`, `kb/00-LOG.md`.
 - 2026-07-14T00:xxZ (research loop) · claim-check (no open PRs) + stranded sweep (1,011 lines) + idle run: L45→L49 shared crypto-hour close-time helper + PaperBroker determinism bug found/fixed · Q0-Q25 all DONE/DEAD, Q19 per-event legs still time-gated ahead of today's CPI burst window — idle-run policy (a): built `core/timeutil.parse_crypto_hour_token_close_utc` (ET-localized, DST-correct) so Q25's inline hand-rolled logic has an importable home for the next probe (10 new tests, edge-prober house style updated), appended lesson L49. While driving `pytest` green (protocol step 4, not the chosen milestone) found `execution/paper_broker.py`'s daily-order cap read real wall-clock instead of the paper tier's own `context.now_ts` contract — the same ledger replayed on two different real days gave two different cap decisions, breaking `test_paper_pass.py`'s cap test the moment the real calendar rolled to 07-14. Fixed by threading `as_of` through `PaperBroker`/`paper_pass.run_pass` (2 new tests). Step 9: real paper pass over new tape, 10 more event-hours processed (20 total), P&L +$1.83→+$5.14, idempotent re-run confirmed. 796 tests green, invariants green. See kb/00-LOG.md.
+- 2026-07-14T03:xxZ (research loop) · claim-check (no open PRs; `git fetch origin main` clean, `origin/main` HEAD `cbbb5f5` not rewound — `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-07-14, 0-day gap) + stranded-tape sweep (1,531 lines: 2 branches postdating the last sweep's `...2257Z` cutoff — `tape/hourly-20260713T2356Z` + `tape/hourly-20260714T0202Z`, both >30min old — union-appended orderbook_depth +1223, sports_pairs +266, polymarket_macro_pairs +30, polymarket_pairs +8, crypto_hourly +4; newest branch `...0257Z` skipped, ~12min old) + **Q21 idea-gen round** (queue drained to 0-1 non-blocked research items — Q19's per-event legs still time-gated ahead of the Jul-14 CPI burst window — Q21's STANDING re-eligibility trigger fired). Delegated to `research-lead`: 3 candidates proposed, each independently `verifier`-reviewed (two-agent rule) — **REGISTER ×3, 0 killed at idea stage**. **S22** (OFI/depth-imbalance settlement predictor on Q25's high-churn two-sided sports cells — diversity-floor candidate, drawn from Q25's anatomy scan + a newly-distilled paper, Cont/Kukanov/Stoikov 2014 OFI, `kb/quant-finance/order-flow-imbalance.md`), **S23** (favorite-side settlement-underpricing maker, favorite-longshot bias with NO devig/odds-api dependency — sidesteps S21's L43 join-emptiness death by sourcing settlement ex-post over the depth tape's own window), **S24** (near-close hourly-return overreaction fade, weakest of the three, explicit anti-overlap guard vs S22). Queue items Q26/Q27/Q28 added. New lesson L50 (settlement-leg-over-own-window as the general S21-style disjoint-join fix). Still 0 proven edges — restocks the hypothesis pipe by three idea-stage candidates, the bar hasn't moved. Step 9: `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`) — ran `paper_pass.py`, 0 newly processed this pass (280 deferred(caps) — today's `MAX_DAILY_ORDERS` already spent by the 00:15Z pass, 44 deferred(coverage), 20 already-in-ledger); `daily_summary()` unchanged: 0 open positions, 158 settled contracts, realized P&L +$5.14, cash +$5.14. Docs-only Q21 round (no code/test/tape touched by it); combined with the tape sweep, 796 tests green (unchanged), `invariants --full` green (only standing non-gating L20/L29 advisories). See `kb/00-LOG.md`.

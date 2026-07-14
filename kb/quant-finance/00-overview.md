@@ -59,6 +59,9 @@ Everything else is a supplement or a trap. Size all of it with **fractional Kell
 - **Edge:** post two-sided A-S-calibrated, inventory-aware, vol-scaled quotes; capture the
   liquidity premium in thin retail-heavy books.
 - **Caveat:** severe adverse selection around news & near resolution; competition compresses spreads. Not passive.
+- **Deep note:** primary-source distillation (Cont/Kukanov/Stoikov 2014 order-flow imbalance;
+  Cont & de Larrard 2013 queue imbalance; Avellaneda-Stoikov backdrop) for the depth-imbalance
+  settlement-predictor angle (Q26/S22) → `order-flow-imbalance.md`.
 
 ## Theme 4 — Optimal bet sizing (Kelly)
 
