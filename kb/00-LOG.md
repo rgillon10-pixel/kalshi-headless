@@ -6,6 +6,69 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-14 18:xx ET — Q28/S24 near-close overreaction fade: DEAD-by-round-trip, verifier-CONFIRMED; L58-L60
+
+Topmost eligible queue item this firing: **Q28** (S24, the third and weakest of the Q21 idea-gen
+survivors — Q19's remaining per-event legs stay time-gated on the WC-semi/FOMC burst windows, Q1/Q10
+are blocked on an external key / months-long real-time accumulation). Delegated to an `edge-prober` +
+independent `verifier` (two-agent rule). Note on process: an initial attempt routed through
+`research-lead` stalled for ~10 minutes across two resumed turns without writing any files (its
+nested Agent-tool dispatch of a child `edge-prober` never surfaced output); rather than burn more of
+the run on it, bypassed it and dispatched `edge-prober` and `verifier` directly — worth a look by
+whoever reviews orchestration reliability, though the work itself came out clean.
+
+**Step 0b sweep (800 lines):** one unswept branch (`tape/hourly-20260714T1458Z`, >30min old) —
+orderbook_depth +637, sports_pairs +142, polymarket_macro_pairs +15, polymarket_pairs +4,
+crypto_hourly +2. Line-level dedup, additions only, all JSON valid.
+
+**The mechanism.** S24 (Theme 7 behavioral, De Bondt-Thaler/Tetlock): a near-close hourly-scale mid
+jump in a two-sided sports book (retail overreacting to the last salient in-game event) partially
+reverses; fade it. `scripts/q28_s24_nearclose_fade_probe.py` (+13 offline tests) reads
+`tape/orderbook_depth/` price paths over the 7 Q25 high-turnover two-sided cells (KBO/NPB/WNBA/
+MLB/UCL/UECL/UEL) plus the committed Q26 settlement cache (`broker_truth`, no new live pull).
+Detects ≥2¢ consecutive-snapshot mid jumps in the near-close window (ttc≤4h; 2¢ chosen against
+Q25's 58-94% frozen-BBO noise floor), fades at `real_ask`, exits at `real_bid` on the next snapshot,
+charging the FULL round-trip (2× 0.07 taker fee + 2× half-spread). An anti-overlap guard holds the
+same entries to settlement instead — if only that exit paid, the finding would have to route into
+S22's (already-dead) mechanism rather than register as a new S24 edge.
+
+**Verdict: DEAD-by-round-trip, verifier-CONFIRMED.** Primary CI (block-boot by GAME, `event_ticker`,
+L6): n=123 games/739 trades, mean **−$0.02936**, 95% CI **[−$0.05179, −$0.00587]** — strictly below
+zero, robust across the X∈{2,3,4,5}¢ sweep (126 distinct games clear the 10-game floor at every
+threshold, 12x over). The behavioral reversal IS genuinely present in mid terms (~0.7¢: post-jump-up
+mean −$0.0061, post-jump-down mean +$0.0087) — De Bondt-Thaler directionally confirmed as a price
+observation — but it's an order of magnitude below the ~6-7¢ realized round-trip hurdle on a
+~3.7¢-overround book. Anti-overlap hold-to-settlement leg (n=126/817) CI [−$0.05884, +$0.00825] also
+fails to clear >0, so the guard fired cleanly: this does **not** collapse into S22, both exits simply
+lose. `bootstrap_verdict_admissible` PASS (50 opposing-sign clusters, no L41 degeneracy).
+
+**Verifier attack.** Bit-for-bit re-run reproduced every number; a full from-scratch
+re-implementation (own tape loader, own jump detection, own fee math, own by-game bootstrap) matched
+to the last digit. Hand-verified sample trade (`KXKBOGAME-26JUL070530KIALOT-KIA`: rt = 0.21 − 0.43 −
+0.02 − 0.02 = −0.26) confirms both taker legs charged correctly, no sign error/double-count. Largest
+bootstrap cluster is 10/739 trades (1.35%) — no dominance. Lookahead clean (entry strictly precedes
+exit in `captured_at`; the load-bearing round-trip leg touches zero settlement info). **S24 flipped
+`idea → dead ✗`** in `kb/strategies/00-index.md`. Still **0 proven edges** — closes another Q21
+survivor honestly, as the item's own spec predicted ("DEAD-by-round-trip is likely; sound and novel
+nonetheless").
+
+**Lessons L58-L60:** L58 (a behavioral signal can be real yet un-tradeable by an order of magnitude —
+distinguish "exists" from "fillable," the round-trip-cost instance of L31/L39/L48's family); L59
+(reversal frequency and sign-conditioned mean can disagree — a momentum precheck must report both,
+not classify on frequency alone); L60 (L32's frozen-vs-movement maker dual-cut doesn't apply to a
+taker round-trip — the frozen guard belongs at jump *detection*, not the fill-outcome layer;
+boundary clarification, not a new mechanism).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` non-empty (S14) but idempotent this cycle (daily
+order cap already spent earlier today) — 0 newly processed, ledger unchanged: 0 open positions, 158
+settled contracts, realized P&L **+$5.14** (`broker_truth`).
+
+Gates: `pytest -q` 867 passed (854 prior + 13 new), `python scripts/invariants.py --full` green
+(only the standing non-gating L20/L29 advisories). See
+`findings/2026-07-14-nearclose-fade-s24-verdict.md`.
+
+---
+
 ## 2026-07-14 15:xx ET — Q19 CPI-burst S17 lead-lag/dislocation: PROVISIONAL, verifier REFUTED both tradeable claims; no registry flip (FOMC-deferred); L57
 
 Topmost eligible queue item this firing: **Q19's per-event CPI leg** — the June-CPI burst
