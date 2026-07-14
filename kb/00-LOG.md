@@ -6,6 +6,47 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-14 — Q26/S22 OFI depth-imbalance probe: DEAD by calibration, verifier-CONFIRMED; L51/L52 appended
+
+Topmost eligible queue item (Q0-Q25 all DONE/DEAD/time-gated; Q26 the first of the three Q21
+idea-gen survivors). Built `scripts/q26_ofi_depth_imbalance_probe.py` (4-gate structure, 21
+offline tests) testing whether resting L2 book-imbalance (`yes_bids` vs `no_bids` size) predicts
+Kalshi sports settlement beyond the displayed mid, on Q25's high-churn two-sided cells (KBO/NPB/
+WNBA/MLB/UCL/UECL/UEL).
+
+**Gate 1 (join adequacy) passed clean**: 205 distinct joinable games (20× the 10-game floor),
+via a one-time cached live pull from Kalshi's free settled-markets endpoint over the depth
+tape's own window (`tape/q26_settlement_cache/settlement.json`, 458 markets, L50's ex-post-join
+fix confirmed working — unlike S21's disjoint-window death).
+
+**Gate 2 (calibration precheck) hard-killed it**: on the disagreement subset (n=86 rows/81
+games — the actual trade population) imbalance hit only **27.9%** vs the mid's **72.1%**.
+Verifier's sharpest attack — is 27.9% (far below 50%) actually a masked contrarian signal, i.e.
+a sign bug? — resolved NO: the two hit rates are mechanically complementary on this subset
+(`imb_hit ≡ NOT mid_hit`, sum to exactly 1.0 by construction), so sign-flipping imbalance would
+just reproduce betting the mid, zero independent edge either way. Robust across every
+time-to-close cut (ttc≤1h still 0.281/0.719) — rules out a cadence-washout explanation; the
+signal is simply wrong, not stale or under-powered. Gates 3/4 (P&L, bootstrap CI) correctly
+never reached.
+
+**S22 flipped `idea → dead ✗`** (verifier-CONFIRMED, two-agent rule satisfied — three
+independent probe runs, mine plus two agent re-runs, converged on identical numbers before the
+dedicated verifier's adversarial pass). See
+`findings/2026-07-14-ofi-depth-imbalance-s22-verdict.md`. Two lesson candidates appended: **L51**
+(a disagreement-subset calibration hit-rate is complementary, not two independent
+measurements — generalizes to any future "signal beats the mid" probe on a 2-way market) and
+**L52** (Kalshi sports settlements aren't always binary — 8/458 cached were `result:"scalar"`,
+must filter explicitly). Still **0 proven edges** — the bar has not moved; Q27/Q28 (S23/S24)
+remain queued for future runs.
+
+Step 0b stranded-tape sweep: 2,265 lines union-appended from 6 unswept `tape/hourly-*` branches
+(all >30min old at sweep time). Step 9 paper sub-pass: `SHADOW_REGISTRY` non-empty (S14) but
+idempotent — 0 newly processed (daily order cap already spent earlier today), ledger unchanged
+at realized P&L +$5.14.
+
+Gates: `pytest -q` 817 passed (796 prior + 21 new), `python scripts/invariants.py --full` green
+(only the standing non-gating L25/L29 stray-directory advisory).
+
 ## 2026-07-14 — Q21 idea-gen round: S22/S23/S24 registered idea-stage (verifier REGISTER ×3), 0 killed; L50 appended
 
 Q21 replenishment round (queue drained: Q0-Q25 all DONE/DEAD except time-gated Q19). Three
