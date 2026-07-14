@@ -6,6 +6,68 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-14 — Q27/S23 favorite-side settlement-underpricing maker: DEAD by fee, verifier-CONFIRMED; L53-L56 appended
+
+Topmost eligible queue item (Q27, the second of the three Q21 idea-gen survivors; Q26/S22 closed
+DEAD earlier today). Built `scripts/q27_favorite_underpricing_fillsim.py` (read-only, 24 offline
+tests in `tests/test_q27_favorite_underpricing_fillsim.py`, all pass) testing whether the
+favorite-longshot bias manifests as a fillable maker-BID edge — rest a bid to buy the favorite YES
+(entry-time normalized `yes_ask` over `bracket_sum` ≥ 0.65, Hard Rule #3 via `core.pricing`) in
+Q25's high-turnover two-sided sports cells (KXKBOGAME/KXNPBGAME/KXWNBAGAME/KXMLBGAME/KXUCLGAME/
+KXUECLGAME/KXUELGAME) and collect $1 on settlement when the favorite wins.
+
+**The design choice that makes it testable where S21 died:** the fair test is REALIZED Kalshi
+settlement, not a devig anchor — no `sports_clv` tape, no odds-api key. The settlement leg is
+pulled ex-post from Kalshi's free settled-markets endpoint over the depth tape's OWN window
+(`tape/q27_settlement_cache/settlement.json`, `broker_truth`, live pull 2026-07-14T12:27Z, 462
+markets), so the join is non-empty by construction (L50 — the general fix for S21's L43
+disjoint-window death, positively confirmed here).
+
+**The four binding gates.** G4 (join adequacy) PASSES: 462 settled cached, 454 binary, 8 dropped
+as `result="scalar"` (L52), 207 distinct games with a genuine pre-close depth snapshot. G3 (fill
+rate) does NOT kill: queue-aware `yes_bids` fill-sim (L39, NOT a candlestick print; frozen-queue =
+no-fill, L32/L48), 25 favorite markets → 24 rested bids across 24 DISTINCT games, fill rate
+**95.83% (23/24)** ≫ the S19 0.45% floor — the long ~37-snapshot resting window clears almost any
+queue, so a high fill rate is not evidence of an edge (L53). G2 (adverse-selection leg) HOLDS: the
+7 favorite-LOSES fills (~−$0.73 each, `broker_truth`) are fully in the P&L and bootstrap, never
+conditioned away (L41) — verifier confirmed dropping them is the ONLY way to make the edge
+positive, which is forbidden. G1 (factor slot): S23 recorded in the SAME slot as S14/S21
+(short-the-overpriced-tail / favorite-longshot — one Hard-Rule-#6 ρ allocation, NOT
+diversification).
+
+**The kill — DEAD by fee.** Favorite win-rate among fills **0.6957 (16W/7L)** < mean fill_price
+**$0.7261** (`real_bid`) + **$0.01** flat maker fee (`core.pricing` MAKER_FEE_RATE, L18/L30) =
+breakeven **0.7361**. Favorites are marginally RICH at the bid — the OPPOSITE of the
+favorite-longshot bias's prediction as a fillable maker edge (L30 / S13-family fee death).
+Block-bootstrap net P&L by GAME (L6; 10,000 resamples, n_units=23): mean **−$0.0404/contract**,
+95% CI **[−$0.2435, +$0.1370]**, `bootstrap_verdict_admissible` PASS (16 opposing-sign clusters —
+L41) but `clears_tick_magnitude` FAIL — the CI fails both positivity and the L27 magnitude gate.
+Fill-model robustness (verifier): even the max-generous all-24-filled assumption gives CI
+[−0.218, +0.143], still failing the tick gate — DEAD is robust under both scarce-fill and
+abundant-fill.
+
+**S23 flipped `idea → dead ✗`** (verifier-CONFIRMED — both the producing edge-prober and an
+independent verifier reproduced every number; the verifier's verdict: safe to flip the registry).
+This DECIDES the undecided S13/S21 branch and closes the entire favorite-longshot / S7-family
+maker lens DEAD on Kalshi sports at real fills (S13 bid vs devig null, S21 ask vs fair anchor
+data-adequacy dead, S23 bid vs realized settlement DEAD-by-fee). Four lessons appended: **L53**
+(a passing fill-rate gate over a long window is necessary-but-insufficient — the edge test still
+binds), **L54** (favorite-longshot bias absent/reversed as a fillable maker-bid edge on Kalshi
+sports), **L55** (a no-lookahead pre-close favorite population is thin by construction — the
+honest anti-leak cost), **L56** (L37's Hard-Rule-#3 prose false-positive recurred at lines
+6/78/171, reworded pre-commit). Still **0 proven edges** — the bar has not moved; Q28 (S24)
+remains queued.
+
+Step 0b stranded-tape sweep reconciled **612 lines** from 4 branches (07-13 T0457Z + T1755Z,
+07-14 T0257Z + T0356Z): crypto_hourly +4/+4, polymarket_macro_pairs +30/+30, polymarket_pairs
++8/+8, sports_pairs +245/+283. Step 9 paper sub-pass: `SHADOW_REGISTRY` non-empty (S14) but
+idempotent — 0 newly processed (daily order cap already spent earlier today), ledger unchanged
+at realized P&L +$5.14.
+
+Gates: `pytest -q` 841 passed (817 prior + 24 new), `python scripts/invariants.py --full` green
+(only the standing non-gating L20 stranded-tape + L29 tape-dir-shape advisories). Finding:
+`findings/2026-07-14-favorite-underpricing-s23-verdict.md`.
+
 ## 2026-07-14 — Q26/S22 OFI depth-imbalance probe: DEAD by calibration, verifier-CONFIRMED; L51/L52 appended
 
 Topmost eligible queue item (Q0-Q25 all DONE/DEAD/time-gated; Q26 the first of the three Q21
