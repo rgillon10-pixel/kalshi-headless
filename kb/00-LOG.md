@@ -6,6 +6,45 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-14 — Q21 idea-gen round: S22/S23/S24 registered idea-stage (verifier REGISTER ×3), 0 killed; L50 appended
+
+Q21 replenishment round (queue drained: Q0-Q25 all DONE/DEAD except time-gated Q19). Three
+falsifiable candidates proposed and each independently reviewed by `verifier` (two-agent rule) —
+every data-source premise re-derived from the tape, **REGISTER on all three**, 0 killed at idea
+stage, each with mandatory tightenings folded into its queue item + registry note:
+
+- **S22 — OFI / depth-imbalance settlement predictor** (idea, `low`). Resting L2 book-imbalance
+  (`yes_bids` vs `no_bids` size) as a last-pre-close cross-sectional predictor of settlement on
+  Q25's high-churn two-sided sports cells; taker toward the imbalance side @ real_ask, full taker
+  round-trip charged. **Diversity floor (rule 2) candidate**: drawn from the Q25 depth-anatomy scan
+  × a not-yet-distilled paper (Cont, Kukanov & Stoikov 2014, order-flow imbalance), distilled this
+  round into `kb/quant-finance/order-flow-imbalance.md` — neither a dead-verdict inversion nor an
+  S11/S12/S14/S17 family. Queue item **Q26**.
+- **S23 — favorite-side settlement-underpricing maker** (idea, `low`). Rest a maker bid on the
+  favorite YES (fair ≥ ~0.65) in high-turnover two-sided sports; fair test is REALIZED settlement,
+  not a devig anchor (no `sports_clv`/odds-api dependency). Same short-the-overpriced-tail factor
+  slot as S14/S21. Queue item **Q27**.
+- **S24 — near-close hourly-return overreaction fade** (idea, `low`). Hourly near-close mid jump
+  partially reverses next hour; fade @ real_ask, full realized round-trip charged; anti-overlap
+  guard — if only hold-to-settlement pays, route to S22, not double-count. Queue item **Q28**.
+
+**Structural unlock:** S22/S23 sidestep S21's L43 death by sourcing the join's settlement leg
+**ex-post from Kalshi's free settled-markets endpoint over the SAME `orderbook_depth` window**
+(within the 60-day L11 retention), instead of the separately-scheduled `sports_clv` fair anchors
+that were disjoint from depth (S21: 0/81 joinable) — the join is non-empty by construction.
+Captured as **L50** (`kb/lessons/00-lessons.md`, `protocol` — a collector/probe-design discipline,
+not statically assertable, L6-class; generalizes L43/L9, cites L11).
+
+Docs-only compounding pass — no code/test/tape touched. Queue items Q26/Q27/Q28 handed to the
+orchestrator (owns `LOOP-QUEUE.md`). Registry: `kb/strategies/00-index.md` gains S22/S23/S24 rows
++ a round note + three per-candidate notes; new lit note `kb/quant-finance/order-flow-imbalance.md`
+(Theme 3 deepened) + a Theme 3 pointer in `00-overview.md`. **Still 0 proven edges — this restocks
+the hypothesis pipe with three idea-stage candidates; the bar has not moved.** Gates: `pytest -q`
+green, `python scripts/invariants.py --full` green (only the standing non-gating L20 stranded-tape
++ L29 tape-dir-shape advisories).
+
+---
+
 ## 2026-07-13 20:15 ET (idle run) — L45→L49: shared crypto-hour close-time helper + a real PaperBroker determinism bug found and fixed
 
 - **Step 0a passed.** `HEAD` (`b21eac2`) is a direct ancestor of `origin/main`
