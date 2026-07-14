@@ -6,6 +6,67 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-14 15:xx ET — Q19 CPI-burst S17 lead-lag/dislocation: PROVISIONAL, verifier REFUTED both tradeable claims; no registry flip (FOMC-deferred); L57
+
+Topmost eligible queue item this firing: **Q19's per-event CPI leg** — the June-CPI burst
+(`kalshi-burst-cpi-0714`, window Jul 14 12:05→13:45Z, 60s cadence, CPI released 12:30Z) landed
+today and this is the first run since, so the per-event run fired. Ran the pre-built read-only
+probe `scripts/s17_leadlag_probe.py --burst-window` over the swept burst tape; delegated the
+write-up to an `edge-prober` and an independent `verifier` re-derivation (two-agent rule).
+
+**Step 0b sweep (3,438 lines):** the June-CPI **burst** branch `tape/burst-20260714T120659Z`
+(+3,108 lines — the FIRST `tape/burst-*` leg ever to reach `main`; per the Burst-capture-legs
+protocol it commits only to a fallback branch) plus 2 post-cutoff hourly branches
+(`...1156Z`+`...1357Z`, +330). Line-level dedup, additions only (0 deletions), all JSON valid.
+Per-family: polymarket_macro_pairs +1,485, polymarket_cpi_pairs +974, econ_prints +485,
+sports_pairs +288, crypto_hourly +198, polymarket_pairs +8.
+
+**What the burst tape is.** The probe reads ONLY `tape/polymarket_macro_pairs/dt=2026-07-14.jsonl`
+(fed-decision family, Kalshi `KXFEDDECISION` 5-bucket ladder vs Polymarket "Fed Decision in
+<Month>?" CLOB — **both legs `real_ask`**, the fillable basis). The `synthetic` CPI leg
+(`polymarket_cpi_pairs/`, Kalshi side a differenced-ladder derived prob) is deliberately excluded
+per Hard Rule #3; verifier confirmed no synthetic leak. Cadence is **genuine burst** (101 distinct
+captures, median inter-capture gap 60.1s) — the first time S17 has sub-hourly cross-venue tape
+bracketing a real macro shock, the exact data class whose absence killed S9's lead-lag test.
+
+**What it means (all PROVISIONAL, verifier-attacked).**
+- **Lead-lag is a single-tick artifact.** Raw per-ticker signed lead-lag showed a strong
+  "Polymarket leads Kalshi" on the two most-CPI-sensitive July buckets (rho_polymarket-leads
+  0.902 / 0.777). But removing the single 12:30:13Z release capture **collapses it to noise**
+  (0.196 / 0.037) and, on the verifier's leave-one-out, the **residual sign flips toward Kalshi**
+  (rho_kalshi-leads rises to ~0.39 / ~0.41) — so no sign-stable directional lead-lag claim is
+  defensible. The only defensible statement is the factual 12:30:13 snapshot: Kalshi's `yes_ask`
+  sat stale at 0.29 (unchanged from 12:29) while Polymarket's ask had already repriced to 0.181
+  toward "hold", then Kalshi caught up to 0.16 by the next capture — an n=1 repricing-lag event.
+- **No clean fillable shock-scale dislocation.** 25 fee-clearing captures / 11 episodes, but the
+  WIDTH x DURATION cross (the S6/L31 discriminator this milestone was built to apply) splits
+  perfectly: the two LARGEST ($0.079 on 26JUL-H25, $0.06 on 26JUL-H0, `real_ask` both legs net
+  Kalshi **taker** fees, Polymarket fee an `assumed_zero_polymarket_clob` model) are
+  **single-capture 12:30:13Z release-instant transients**; every DURABLE dislocation is small
+  ($0.01–$0.04, September buckets, persisting 3–6 captures) — the stale/segmentation
+  nominal-basis signature. Nothing is both large and durable. And `macro_pairs` is **size-blind**
+  (best_ask/best_bid only, no depth), with a single pass-level `captured_at` that cannot prove
+  venue simultaneity — so every dislocation is a price observation, never a fill claim.
+
+**Verdict class: DESCRIPTIVE + PROVISIONAL, verifier CONFIRMED-numbers / REFUTED-both-claims.**
+No CI, no edge, **no registry flip** — S17 stays `data-collecting`; its kill/live decision waits
+for the FOMC event (Jul 29), the highest-liquidity of the five bursts, as the queue mandates.
+A CPI print is a rate-*expectations* shock and one burst window is one shock. Still **0 proven
+edges**. Lesson **L57** appended (burst lead-lag rho can be dominated by a single shock tick →
+mandatory leave-one-out; width×duration generalizes L31 to cross-venue; macro_pairs
+size-blind + single-pass-timestamp fillability caveat).
+
+**Step 9 paper sub-pass:** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`); ran
+`paper_pass.py` — idempotent, **0 newly processed** (today's `MAX_DAILY_ORDERS` already spent),
+`daily_summary()` unchanged: 0 open positions, 158 settled contracts, realized P&L **+$5.14**
+(`broker_truth`), ledger unchanged.
+
+Gates: **841 tests green**, `python scripts/invariants.py --full` green (only the standing
+non-gating L20 stranded-tape + L29 tape-dir-shape advisories). Finding:
+`findings/2026-07-14-s17-burst-cpi-q19.md`.
+
+---
+
 ## 2026-07-14 — Q27/S23 favorite-side settlement-underpricing maker: DEAD by fee, verifier-CONFIRMED; L53-L56 appended
 
 Topmost eligible queue item (Q27, the second of the three Q21 idea-gen survivors; Q26/S22 closed
