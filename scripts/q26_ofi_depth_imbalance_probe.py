@@ -158,12 +158,34 @@ def taker_lift_pnl(favored_side: str, settled_yes: int,
 # --------------------------------------------------------------------------- #
 # Settlement cache (live pull, cached to disk; verifier re-runs offline)
 # --------------------------------------------------------------------------- #
+def depth_event_tickers(depth_glob: str) -> Dict[str, set]:
+    """Scan the depth tape once and collect, per target series, the set of event_tickers
+    actually present — so the live settlement pull fetches /markets ONLY for games we can
+    join, not every settled event in the series' ~60-day retention (which would be thousands
+    of wasted calls). Read-only."""
+    by_series: Dict[str, set] = {s: set() for s in TARGET_SERIES}
+    for fp in sorted(glob.glob(depth_glob)):
+        with open(fp, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                mt = json.loads(line).get("ticker", "")
+                s = series_of(mt)
+                if s in by_series:
+                    by_series[s].add(event_ticker_of(mt))
+    return by_series
+
+
 def build_settlement_cache(series_list: Sequence[str], cache_path: Path,
-                           limit: int = 500, min_interval: float = 0.25) -> Dict[str, dict]:
+                           limit: int = 500, min_interval: float = 0.25,
+                           depth_glob: str = DEPTH_GLOB) -> Dict[str, dict]:
     """Pull settled events for each target series, then each event's markets, and cache a
-    flat map market_ticker -> {result, close_time, event_ticker, series}. Live network;
-    self-wraps a ConnectionError retry (L40 — the client retries HTTP status codes but not
-    transport drops). Writes JSON so a verifier can re-run everything else OFFLINE."""
+    flat map market_ticker -> {result, close_time, event_ticker, series}. Only fetches
+    /markets for event_tickers actually present in the depth tape (the joinable universe) —
+    every other settled event in retention is irrelevant. Live network; self-wraps a
+    ConnectionError retry (L40 — the client retries HTTP status codes but not transport
+    drops). Writes JSON so a verifier can re-run everything else OFFLINE."""
     import time
 
     import requests
@@ -195,15 +217,20 @@ def build_settlement_cache(series_list: Sequence[str], cache_path: Path,
                 time.sleep(min(2 ** attempt, 8))
         return []
 
+    wanted = depth_event_tickers(depth_glob)  # per-series event_tickers we can actually join
+
     out: Dict[str, dict] = {}
     per_series: Dict[str, int] = {}
     for series in series_list:
         events = _fetch_events_retry(series)
+        want = wanted.get(series, set())
         n_markets = 0
+        n_events_hit = 0
         for e in events:
             event_ticker = e.get("event_ticker", "")
-            if not event_ticker:
-                continue
+            if not event_ticker or event_ticker not in want:
+                continue  # not in the depth window — skip the /markets call entirely
+            n_events_hit += 1
             text = _get_text_retry("/markets", event_ticker=event_ticker)
             markets = json.loads(text).get("markets") or []
             for m in markets:
@@ -218,7 +245,8 @@ def build_settlement_cache(series_list: Sequence[str], cache_path: Path,
                 }
                 n_markets += 1
         per_series[series] = n_markets
-        print(f"[q26:cache] {series}: {len(events)} settled events, {n_markets} markets")
+        print(f"[q26:cache] {series}: {len(events)} settled events, "
+              f"{n_events_hit}/{len(want)} depth-window events joined, {n_markets} markets")
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
