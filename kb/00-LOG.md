@@ -6,6 +6,62 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 04:xx ET — kalshi-edge-hunter nightly: adversarial review (4 findings, all pass), Q21 idea-gen (3 proposed, 0 survived), L61-L63
+
+Nightly thinking-seat run. Three units, in order.
+
+**Unit 1 — adversarial review of the last 24h of findings/verdicts (4 findings, one load-bearing
+number re-checked each, all PASS).** (a) S22/Q26 OFI-imbalance DEAD-by-calibration — the
+disagreement-subset complementarity (imb 0.2791 + mid 0.7209 = 1.0) is mechanically forced
+(24/86 + 62/86), the kill is sound. (b) S23/Q27 favorite-maker DEAD-by-fee — re-derived the maker
+fee at the $0.7261 fill via `core.pricing` (ceil(0.0175·0.7261·0.2739·100)/100 = $0.01) → breakeven
+0.7361, matches. (c) S24/Q28 near-close fade DEAD-by-round-trip — taker rate 0.07 confirmed, sample
+round-trip 0.21−0.43−0.02−0.02 = −0.26 reproduces. (d) S17/Q19 CPI-burst PROVISIONAL — both
+fed-decision legs `real_ask`, synthetic CPI leg excluded (Hard Rule #3), dislocation 0.28−0.181−0.02
+= +0.079 reproduces. **No review failure → no GitHub issue opened.**
+
+**Unit 2 — pipeline replenishment (Q21 idea-gen round fired; eligible queue items = 0 < 2).**
+Proposed 3 new falsifiable S-candidates, each attacked by an independent `verifier` at the IDEA
+stage before registration. **All 3 killed at idea stage — 0 registered, still 0 proven edges:**
+- **S25** (post-print within-Kalshi known-outcome pickoff) → DOA: the resolving-month CPI ladders
+  (`-26JUN`) close 12:25/12:29Z, *before* the 12:30Z print, and are absent from the tape post-print;
+  the 100 "post-print" records are forward months (a different object). Kalshi closes markets ~5 min
+  early to deny exactly this pickoff.
+- **S26** (Polymarket-anchored single-venue Kalshi macro convergence) → the ask-to-ask "gap" is
+  mostly Kalshi's own 9–11¢ bid-ask spread (Poly sits INSIDE Kalshi's spread in 62.6% of entry-met
+  records); the genuine-gap remainder is either a full Kalshi round-trip that dwarfs the $0.01–0.04
+  gap or an unhedged directional macro bet (S2/S16); gate un-runnable (0 meetings resolved).
+- **S27** (macro-print overshoot fade) → same close-before-print structure (n=0 for the fadeable
+  object); forward ladders carry ~0.88 median yes-spreads that dwarf any retrace — S24's round-trip
+  trap on econ tape.
+
+Lessons **L61** (macro ladders settle AT the print → no post-print window; forward months are a
+different object), **L62** (a cross-venue ask-to-ask gap is not an edge when one venue's own spread
+exceeds it — check anchor-inside-spread first), **L63** (single-venue "convergence-hold" is a
+directional macro bet, not an arb — dropping the hedge leg removes the hedge, not the risk). All
+ledger-only. See `findings/2026-07-15-q21-idea-gen-round.md`. Next research-loop firing is an IDLE
+RUN per the v3 idle-run policy.
+
+**Unit 3 — probe-prep: NO-OP.** The only burst unblocking within ~72h (WC-semifinal 2, today
+Jul 15) feeds the S9-family lead-lag question (registered DEAD by data-adequacy). The next macro
+gate (FOMC Jul 29, outside 72h) already has its built + offline-tested probe
+(`scripts/s17_leadlag_probe.py --burst-window`, PREP DONE 2026-07-13). S14's remaining depth
+fill-sim gate (≥30 event-days) is weeks off — only 7 days of `orderbook_depth` collected (by file
+shape, L25). Nothing to build.
+
+**Housekeeping.** No open PRs (nothing stuck on Ryan); no open issues. Burst triggers past their
+event date → flag for deletion: `kalshi-burst-cpi-0714`, `kalshi-burst-wcsemi1-0714` (both fired
+Jul 14). Burst branch `tape/burst-20260714T120659Z` is fully swept onto main (0 lines missing
+across all 4 tape files) → safe delete candidate. Remote branch count: **141 `tape/hourly-*` + 1
+`tape/burst-*`.** No paper-tier P&L change (SHADOW_REGISTRY = S14 only, idempotent — realized
++$5.14 `broker_truth`, unchanged; this run appended no tape so the paper broker had no new tape to
+replay).
+
+Gates: `pytest -q` green, `python scripts/invariants.py --full` green (only standing non-gating
+L25/L29 advisories). Diff is docs/findings-only.
+
+---
+
 ## 2026-07-14 18:xx ET — Q28/S24 near-close overreaction fade: DEAD-by-round-trip, verifier-CONFIRMED; L58-L60
 
 Topmost eligible queue item this firing: **Q28** (S24, the third and weakest of the Q21 idea-gen
