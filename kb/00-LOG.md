@@ -6,6 +6,54 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 03:xx ET — Q29/S28 post-close settlement-lag taker: DEAD-by-convergence, verifier-CONFIRMED; L64-L66; PR #78 merged
+
+Research-loop run. Step 0a PASS (`origin/main` HEAD `88867ba` not rewound before this run's own
+sweep landed; newest `kb/00-LOG.md` entry and newest `tape/*/dt=*` file both 2026-07-15, 0-day
+gap). Claim-check found 2 open PRs: **#78** (local sweep, "clean" mergeable state, recovers
+29,637 stranded lines from unswept `claude/*` outcome branches the standing step-0b pattern never
+scanned) — merged immediately (squash, tape-only, no queue item claimed). **#77** (queue restock
+adding Q29-Q32 + housekeeping) was `dirty` — its own Q29/Q30 numbers (S14 binding-gate / fair-
+anchor+depth) collide with the Q29/Q30 already merged onto main by yesterday's Q21 idea-gen round
+(S28/S29) — left open, untouched, noted for Ryan rather than force-resolved.
+
+**Step 0b sweep:** 2 stranded `tape/hourly-*` branches (`...20260714T2355Z`, `...20260715T0100Z`,
+both >30min old) carried lines missing from `main` across 5 families/2 days — union-appended
+**1,839 lines** (crypto_hourly +2/+2, orderbook_depth +610/+841, polymarket_macro_pairs +15/+15,
+polymarket_pairs +2/+2, sports_pairs +135/+214), all JSON-validated, append-only.
+
+**Q29 — S28 post-close settlement-lag taker (topmost eligible TODO).** Delegated to `edge-prober`
++ independent `verifier` (two-agent rule). **Verdict: DEAD-by-convergence** (data-adequacy — an
+empty tradeable population, not a CI≤0). `scripts/q29_settlement_lag_probe.py` (+19 offline tests)
+found Q25's `post_close` bucket (n=2,478, defined by ticker HHMM token) was **99.86% mislabeled**:
+only 4/2,864 captures are genuinely post-close under `broker_truth` settlement `close_time`
+(median understatement +7.07h, max +24.33h — L46's ~13h tz uncertainty made concrete). All 4
+genuine post-close captures have a **fully empty book** (no `real_ask`/`real_bid`) — Kalshi
+empties and settles a sports book AT close (max observed capture-to-close gap across the whole
+depth tape: 0.024h/~1.4min), so no stale resting-quote window exists to lift. Lookahead-clean
+population = 0 games (Gate 1 FAIL, floor 10); fillability Gate 2 FAIL; bootstrap gates N/A.
+Verifier independently re-derived every number from raw tape with fresh parsing code (not reusing
+the probe's helpers), hand-confirmed the empty-book claim against raw tape lines, searched for and
+ruled out a missed population (no series anywhere in the tape shows a two-sided sub-$1 book after
+its real close), and caught one minor overstatement (the L41-degeneracy claim was too strong — a
+thin losing tail exists in principle for a settlement correction/void) that does not change the
+verdict. `kb/strategies/00-index.md` S28 flipped `idea` → `dead ✗`. Lessons **L64** (ticker-HHMM
+≠ real close_time — verify against `broker_truth` before trusting a population definition, applies
+retroactively to Q25's headline liquidity numbers), **L65** (Kalshi empties the book AT close —
+sports analogue of L61's econ-ladder-closes-before-the-print), **L66** (precision note: "buy the
+known winner" is near-L41-degenerate, not provably degenerate — state it that way). Still **0
+proven edges**.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = S14 only; `paper_pass.py` idempotent (0 newly
+processed — no new `crypto_hourly` event-hours from this run's sweep), `daily_summary()`
+unchanged: 0 open, 214 settled, realized P&L **+$5.77** (`broker_truth`).
+
+Gates: `pytest -q` → 873 passed (854 prior + 19 new). `python scripts/invariants.py --full` →
+green (only standing non-gating L20/L29 tape-hygiene advisories). See
+`findings/2026-07-15-q29-settlement-lag-s28-verdict.md`.
+
+---
+
 ## 2026-07-15 04:xx ET — kalshi-edge-hunter nightly: adversarial review (4 findings, all pass), Q21 idea-gen (3 proposed, 0 survived), L61-L63
 
 Nightly thinking-seat run. Three units, in order.
