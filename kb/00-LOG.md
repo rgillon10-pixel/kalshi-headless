@@ -6,6 +6,56 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 15:xx ET — Idle run: queue still drained, L59 converted UNENFORCED→test (core/reversal.py)
+
+Research-loop run. Step 0a PASS (`origin/main` HEAD `9a564d0` not rewound — merge commits for
+PRs #79/#80/#81/#83 all present as ancestors on `origin/main`; newest `kb/00-LOG.md` entry and
+newest `tape/*/dt=*` content both 2026-07-15, 0-day gap). Claim-check: 1 open PR **#77** (Ryan's
+own queue-restock session, still `pending`/unmerged, its Q29-Q32 numbering still collides with
+the Q29/Q30 slots #79/#81 already merged) — unchanged since #83 flagged it ~3h earlier, not
+re-flagged.
+
+**Queue state unchanged: every numbered item Q0-Q30 is still DONE, BLOCKED(data-adequacy), or
+RESERVED — no TODO/IN-PROGRESS milestone was eligible.** Second consecutive idle run. Q21
+idea-gen stays ROUND COMPLETE (PR #80, this morning) — not re-run.
+
+Per the v3 idle-run policy, order (a): while re-scanning `kb/lessons/00-lessons.md`'s UNENFORCED
+rows for a candidate, found two — **L22** (real_bid tag-enum question) and **L25** (tape dir-shape
+check) — whose enforcement column is stale: both are already implemented and tested in the current
+tree (`core/source_tag.py`'s docstring + `tests/test_invariants.py::test_db_real_bid_tag_is_caught_as_invalid_enum`
+resolve L22 via L24's supersession; `scripts/invariants.py`'s `_tape_dir_shape_issues`/
+`tape_dir_shape_warning` + `tests/test_invariants.py` resolve L25 to **test**) — left as-is rather
+than re-editing (L22 already has its L24 supersession; L25's row itself just hasn't been touched
+since the code landed, not worth a churn-only edit this run). Picked the next genuinely open
+candidate instead: **L59** (S24's momentum/reversal precheck must report reversal FREQUENCY and
+the sign-conditioned MEAN as two separate numbers, never classify on frequency alone — flagged as
+a future `core/`-write pass). Built `core/reversal.py` (`reverses`, `direction_precheck` — mirrors
+`scripts/q28_s24_nearclose_fade_probe.py`'s `gate2_direction` exactly) + `tests/test_reversal.py`
+(11 cases, incl. an L59-shaped regression: reversal_fraction=0.25 reads as momentum by frequency
+alone, but a minority of large reversals flips both sign-conditioned means, so `is_momentum`
+correctly comes out False). No blocking static invariant added — the check is a per-probe
+population/classification choice (L6-class), not a lexical pattern. Ledger row **L72** records the
+supersession. Still 0 proven edges.
+
+**Step 0b sweep:** 1 branch newer than PR #83's last sweep point (12:17:11Z) and >30min old —
+`claude/determined-goodall-4ubuvr` (13:06:30Z, the cloud collector's outcome-branch fallback,
+carrying the 2026-07-15T12:55:39Z hourly pass). Line-set diff against `main`'s current
+`tape/orderbook_depth/dt=2026-07-15.jsonl` found **0 missing lines** — already fully reconciled,
+nothing to append.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = S14 only. `scripts/paper_pass.py` ran clean: 0
+newly processed (271 deferred-caps, 112 deferred-coverage, 29 already-in-ledger) — idempotent,
+`daily_summary()` unchanged: 0 open, 214 settled, realized P&L **+$5.77** (`broker_truth`).
+
+## Gates
+- `pytest -q` — full suite green (11 new `test_reversal.py` cases; 895 total).
+- `python scripts/invariants.py --full` — green (only standing non-gating L17/L25 advisories).
+
+Docs/data/paper-tier-only diff — no execution code outside the sanctioned paper tier, no
+demo/live order paths, no credential handling.
+
+---
+
 ## 2026-07-15 12:xx ET — Idle run: queue drained (Q0-Q30 all DONE/BLOCKED/RESERVED), L67 converted UNENFORCED→test, step-0b sweep +2,242 lines
 
 Research-loop run. Step 0a PASS (`origin/main` HEAD `f9dd5f0` not rewound — merge commits for
