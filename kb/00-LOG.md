@@ -62,6 +62,84 @@ L25/L29 advisories). Diff is docs/findings-only.
 
 ---
 
+## 2026-07-14 20:xx ET — Q21 idea-gen round (S28/S29 registered); WC-semi1 burst capture found to have silently failed
+
+**Step 0a/0/0b:** `origin/main` HEAD `6ab32b7` not rewound (0 open PRs; `kb/00-LOG.md` newest entry
+and newest `tape/*/dt=*` file both 2026-07-14, 0-day gap). Step-0b sweep found two eligible (>30min
+old) stranded branches with real missing content — `tape/hourly-20260714T2258Z` (+149 lines: crypto_hourly
++2, polymarket_macro_pairs +15, polymarket_pairs +2, sports_pairs +130) and `tape/burst-20260714T120659Z`
+(0 new — its econ_prints/polymarket_cpi_pairs lines were already on `main` from a prior sweep, only the
+branch itself was never deleted, confirming L38/Q17's "branch pileup ≠ data loss" diagnosis). A broader
+spot-check of older (pre-07-08) stranded branches found `no merge base` with `main` (orphaned by the
+2026-07-08 history rewind) and a post-rewind sample (`tape/hourly-20260713T2356Z`) contributed 0 new
+lines — consistent with Q17's standing finding; did not attempt a full re-sweep of the ~150-branch
+pileup (that diagnosis stays reserved for PR #46).
+
+**Finding (flagged for Ryan, not a queue item): the `kalshi-burst-wcsemi1-0714` one-shot trigger fired
+(`last_fired_at` 2026-07-14T20:10:31Z per the trigger API) but produced NO tape anywhere** — no commit
+on `main`, no `tape/burst-*` or `tape/hourly-*` fallback branch, nothing matching `wc-semi1` in any of
+~180 remote branches checked. The session apparently did not even reach its own fallback-branch-push
+step. This silently costs one of Q19's three remaining per-event legs (WC semi 1). The kalshi-edge-hunter
+run above flagged this same trigger for deletion (its event date passed) but did not notice the capture
+itself came back empty — recorded here so it isn't lost. **The WC semi 2 trigger
+(`kalshi-burst-wcsemi2-0715`) fires again TODAY at 20:10 UTC with the identical failure mode risk** —
+worth Ryan checking the wcsemi1 session's transcript before then if he wants semi2 to land. Phone note
+sent at high priority.
+
+**Q21 idea-gen round** (topmost eligible — Q26/Q27/Q28, the three 2026-07-14 Q21 survivors, all came
+back dead this week, so Q21's own "<3 non-blocked items" re-eligibility trigger fired again). Delegated
+to `research-lead`, which proposed 3 candidates and ran each through an independent `verifier` pass
+(two-agent rule). **2 REGISTER, 1 killed at idea stage.** **Collision note:** this round ran independently
+of / concurrent with the `kalshi-edge-hunter` nightly run's own Q21 round (logged immediately above) —
+neither run's claim-check could see the other (neither PR was open yet when the other started), caught
+only at merge time. No registry conflict resulted (edge-hunter registered 0 rows, all 3 of its
+candidates killed at idea stage), but both rounds independently picked "S25" as the next free number
+from the pre-merge registry; the survivors below were renumbered **S25→S28, S26→S29** at merge time so
+the historical record doesn't have two different registered/narrative meanings for the same S-number.
+
+- **S28 (Q29) — post-close settlement-lag taker.** Mechanism: after a game ends but before Kalshi
+  auto-settles, sports books linger two-sided with real depth (Q25: baseball post_close n=2,478, median
+  ask-queue 25,884, only 4% any-empty) — lift a sub-$0.98 winner-side `real_ask` on an already-decided
+  outcome. Escapes S1/S5/S7 (a decided outcome carries no probabilistic overround) and S10 (genuinely
+  two-sided, not the crypto 1¢-floor mirror). Diversity-floor slot: settlement/close-time mechanics.
+  Verifier-mandated: lookahead margin must exceed the Q25 sports-timezone uncertainty (up to ~13h) plus
+  game duration; exclude coarse/date-only tickers; assert real traded-side depth, not the L26/L31 mirror
+  non-price. Honest expectation: probably DEAD by convergence (Kalshi likely settles too fast to leave
+  room), but a clean, cheap, novel-mechanism probe.
+- **S29 (Q30) — soccer draw-aversion maker bid (the `-TIE` leg).** Mechanism: documented sentiment/
+  loyalty bias (Forrest & Simmons; Constantinou & Fenton; Franck/Verbeek/Nüesch's exchange-attenuation
+  cross-ref, all newly distilled into `kb/quant-finance/draw-aversion-soccer.md`, trust=FALSE/`approx`-
+  tagged) leaves the 3-way-soccer draw leg underbet — an outcome-TYPE bias distinct from the
+  price-LEVEL favorite-longshot bias L54 already closed. Diversity-floor slot: new literature. Verifier-
+  mandated: pool across all `-TIE` soccer families for power (a hold-to-settlement ±$1 leg floors the
+  by-game CI half-width near $0.44/√n); model the fill-conditional no-draw adverse-selection rate as its
+  own number, never condition it away; kill on the EDGE test, not the (trivially-high) fill rate (L53).
+- **Killed at idea stage (no S-number): "sell the rich sports YES ask" (the S21 mirror).** Verifier kill
+  on two structural grounds: (1) it's the sign-flip of already-CI'd S23 (favorites measured RICH at the
+  bid ⇒ mechanically implies selling is the profitable side — no new edge information, same S14/S21/S23
+  factor slot); (2) the `clears_tick_magnitude` gate is structurally unmeetable on committed tape — the
+  ±$1 settlement leg floors the by-game CI half-width around $0.19 at n≈23 (S23's own demonstrated
+  range) and ~$0.064 even at n≈205, straddling zero for any ≤3¢ hypothesized edge regardless of true
+  effect size. A power-screen lesson candidate surfaced here (screen effect-size-vs-n for any
+  hold-to-settlement ±$1-leg probe at idea stage) — flagged for a future kb-distiller pass, not yet
+  assigned an L-id.
+
+Still **0 proven edges** — this restocks the pipe by two idea-stage candidates; the bar hasn't moved.
+Q21 stays STANDING per its own re-eligibility condition.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`) — `paper_pass.py`
+processed **9 newly-eligible fills** this pass (271 deferred(caps), 82 deferred(coverage), 20
+already-in-ledger); `daily_summary()`: 0 open positions, 214 settled contracts, realized P&L
+**+$5.77** (`broker_truth`, up from +$5.14).
+
+854 tests green (docs/registry-only round — no new test files; this environment's `pip install -e`
+initially picked up a mismatched `pip`/`python3` pair that made 18 test modules fail to collect on
+`ModuleNotFoundError: yaml`/`requests` — re-ran via `python3 -m pip install`, which resolved cleanly to
+the same 854 the `research-lead` agent's own environment reported), `invariants --full` green (only the
+standing non-gating L20 stranded-tape-ref and L29 tape-dir-shape advisories). See
+`kb/strategies/00-index.md` (S28/S29 rows + round note), `kb/quant-finance/draw-aversion-soccer.md`,
+LOOP-QUEUE.md Q29/Q30.
+
 ## 2026-07-14 18:xx ET — Q28/S24 near-close overreaction fade: DEAD-by-round-trip, verifier-CONFIRMED; L58-L60
 
 Topmost eligible queue item this firing: **Q28** (S24, the third and weakest of the Q21 idea-gen
