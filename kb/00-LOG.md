@@ -6,6 +6,59 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 12:xx ET — Idle run: queue drained (Q0-Q30 all DONE/BLOCKED/RESERVED), L67 converted UNENFORCED→test, step-0b sweep +2,242 lines
+
+Research-loop run. Step 0a PASS (`origin/main` HEAD `f9dd5f0` not rewound — merge commits for
+PRs #78/#79/#80/#81 all present as ancestors on `origin/main`; newest `kb/00-LOG.md` entry and
+newest `tape/*/dt=*` content both 2026-07-15, 0-day gap). Claim-check: 1 open PR **#77** (Ryan's
+own queue-restock session, `dirty` — its Q29-Q32 numbering collides with the Q29/Q30 slots
+already merged onto `main` by #79/#81) — untouched, left for Ryan, not force-resolved or
+re-flagged (no new information since #79/#80 already flagged it).
+
+**Queue state: every numbered item Q0-Q30 is DONE, BLOCKED(data-adequacy), or RESERVED — no
+TODO/IN-PROGRESS milestone was eligible.** (The stray `Status: TODO` lines still visible under
+Q9/Q11/Q12/Q16 are stale original-spec text kept verbatim below a later DONE resolution per the
+append-don't-rewrite Stop rule, not live work — confirmed by reading each item's full history.)
+Q21 (idea-gen) is itself ROUND COMPLETE as of this morning's edge-hunter run (PR #80, 0
+survivors) — re-running it hours later would be redundant, not a new idle-run unit.
+
+Per the v3 idle-run policy, order (a): converted lesson **L67** (the S30 two-sided-depth-illusion
+kill — a maker-spread candidate mistook whole-ladder-summed depth for capturable top-of-book
+depth) from `UNENFORCED` to `test`. Built `core/depth.py` (`capturable_depth`,
+`total_ladder_depth`, `lottery_tail_fraction` — sum-within-N-cents-of-BBO vs whole-ladder-total,
+mirroring `core/bootstrap.py`'s "give the lesson one importable home" pattern) + `tests/test_depth.py`
+(11 cases, incl. an L67-shaped KBO regression: 10 contracts at best bid vs 4,000 at a 55¢-away
+lottery price → 99.75% tail fraction). Did not add a blocking static invariant — no probe today
+violates the pattern to retrofit, and a lexical "ban raw ladder sums" scanner risks false
+positives (`orderbook_depth`'s own `depth` field is a legitimate whole-ladder count); noted as a
+revisit-if trigger in the ledger row instead of a premature invariant.
+
+**Step 0b sweep:** found 3 branches with commits after the last sweep (#81, 06:35:56Z) all >30min
+old: `tape/hourly-20260715T0656Z`, `claude/determined-goodall-x67y3a` (the cloud collector's
+outcome-branch fallback, L-class per #78), `tape/hourly-20260715T0959Z`. Set-diffed each family
+file's lines against `main` (not a raw `git diff --stat`, which is line-order-sensitive and wildly
+overstates the gap on an append-only file) and union-appended the true missing set: **2,242 lines**
+across 8 families (`orderbook_depth` +1,724, `sports_pairs` +450, `polymarket_macro_pairs` +30,
+`polymarket_cpi_pairs` +24, `econ_prints` +5, `crypto_hourly` +4, `polymarket_pairs` +4,
+`anomalies` +1) — every line JSON-validated before append, 0 invalid, 0 reordered/duplicated.
+
+**Gates:** `pytest -q` → 884 passed (873 prior + 11 new `test_depth.py`). `python
+scripts/invariants.py --full` → green (only the standing non-gating L20/L25 advisories plus a
+144-local-ref advisory that is itself the artifact of this run's own `git fetch` staging the
+swept branches, not a new gap).
+
+Still 0 proven edges (unchanged — this run touched no strategy verdict, so the two-agent rule
+does not apply). No `execution/` paper-tier tape appeared since the last `paper_pass.py` run, so
+step 9 is a no-op this cycle (`SHADOW_REGISTRY` = S14 only, unchanged realized P&L +$5.77
+`broker_truth`).
+
+**Next:** the queue needs restocking — PR #77 (Ryan's own restock) should get rebased and merged
+by Ryan, or a future run should draft fresh Q31+ items once #77's fate is resolved. Until then,
+expect more idle runs; the free-data edge space is deeply mined (2 consecutive Q21 rounds, 0
+survivors).
+
+---
+
 ## 2026-07-15 01:xx ET — Q30/S29 draw-aversion maker probe: DEAD-by-fillability, two-agent-confirmed, L69-L71
 
 Research-loop run. Step 0a PASS (`origin/main` HEAD `83a1ffa` not rewound; newest `kb/00-LOG.md`
