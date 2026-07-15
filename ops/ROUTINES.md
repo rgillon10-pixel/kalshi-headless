@@ -8,17 +8,19 @@ any session (or the weekly retro) can diff actual-vs-desired and flag drift. The
 topic URL is NEVER written here — each routine prompt carries it privately (step 8(e));
 placeholders below say `<NTFY_TOPIC_URL>`.
 
-## Leg table (desired state as of 2026-07-12)
+## Leg table (desired state as of 2026-07-15)
 
 | routine | trigger id | cadence (UTC) | model | status |
 |---|---|---|---|---|
 | kalshi-research-loop | `trig_012Usj2k1TTGMFuWcg1VD3Bn` | :07 of 00/03/06/09/12/15/18/21 (every 3 h — **was 5 h**) | Sonnet 5 | **LIVE** (updated 2026-07-12 18:52Z via RemoteTrigger; `Task` tool added so the two-agent verdict rule is executable in-cloud) |
 | kalshi-edge-hunter | `trig_01QLjRWsJPV4tRyzXExxmqV3` | 04:15 daily | **Opus 4.8** | **LIVE** (created 2026-07-12 18:53Z; first fire 2026-07-13 04:15Z) |
-| kalshi-collector | `trig_01UCmvwtTAGDB1VqrYfr1FKp` | hourly :53 | Haiku | unchanged |
+| kalshi-collector | `trig_01UCmvwtTAGDB1VqrYfr1FKp` | **:53 of 00/03/…/21 (every 3 h — was hourly)** | Haiku | **LIVE** (down-cadenced 2026-07-15 00:24Z, Ryan session: the VPS `:26` hourly leg is the primary collector; the cloud leg is a backstop — 16 Haiku runs/day saved) |
 | kalshi-weekly-retro | `trig_0147PgZMXWWXYXpb2ZdZHqfm` | Sun 12:00 | **Opus 4.8** (was Sonnet) | **LIVE** (updated 2026-07-12 18:53Z; ops-hygiene duties added) |
-| ntfy-watch | (in Ryan's account) | hourly | Haiku/Sonnet | unchanged |
-| kalshi-burst-cpi-0714 / wcsemi1-0714 / wcsemi2-0715 / wcfinal-0719 / fomc-0729 | (one-shots) | per event | — | unchanged; delete after firing |
-| VPS collector (not a routine) | cron `:23` on 87.99.146.250 | hourly | — | unchanged |
+| ntfy-watch | `trig_01GMeVmvJU79UQJC9uCizA4s` | **:17 of 00/03/…/21 (every 3 h — was hourly)** | Haiku/Sonnet | **LIVE** (down-cadenced 2026-07-15 00:24Z, Ryan session; its poll window is `since=3h` so coverage is unchanged) |
+| kalshi-burst-cpi-0714 | `trig_015g4fv76UgcZSgq263ExCVJ` | (one-shot, fired 07-14 12:06Z ✓ tape on main) | — | **DISABLED 2026-07-15** (spent; API has no delete — disabled + date-guard) |
+| kalshi-burst-wcsemi1-0714 | `trig_01RMrdhdF2aEYKT9ZxR9hC6Y` | (one-shot, fired 07-14 20:10Z — **produced NO tape**, no branch; failure unexplained from repo, check ntfy feed) | — | **DISABLED 2026-07-15** (spent) |
+| kalshi-burst-wcsemi2-0715 / wcfinal-0719 / fomc-0729 | (one-shots) | per event | — | armed; disable after firing |
+| VPS collector (not a routine) | cron `:26` on 87.99.146.250 | hourly | — | unchanged — **the primary collection leg** |
 
 ## kalshi-research-loop — prompt delta (append to existing prompt, keep its ntfy URL)
 
@@ -92,3 +94,12 @@ Cadence change: every-5h → every-3h (:07 of 00/03/06/09/12/15/18/21 UTC).
 - 2026-07-12 (later) — all three changes APPLIED live via the RemoteTrigger tool from the
   supervised local session (research-loop cron+prompt+`Task` 18:52Z; edge-hunter created
   18:53Z; retro model+duties 18:53Z). The table above reflects live state, not desired-only.
+- 2026-07-15 — token-reallocation pass (Ryan-approved local session, /goal 07-14): cloud
+  collector hourly→3h (`53 */3 * * *`) and ntfy-watch hourly→3h (`17 */3 * * *`), both
+  applied 00:24Z via RemoteTrigger — the VPS hourly leg is primary, ~32 Haiku runs/day
+  freed toward Opus verdict work. Spent burst one-shots cpi-0714 + wcsemi1-0714 DISABLED
+  (API exposes no delete). Recorded anomaly: wcsemi1 fired 20:10Z but produced no tape and
+  no fallback branch (CPI, same script, worked); wcsemi2 fires 07-15 20:10Z — if it also
+  fails, the burst runner (not the script) is the suspect. Same session: run ledger split
+  to `ops/run-log.md`, dead-notes split to `kb/strategies/01-dead-notes.md`, queue
+  restocked Q29–Q32 (PR #74).
