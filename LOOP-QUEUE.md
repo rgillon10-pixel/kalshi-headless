@@ -48,8 +48,13 @@ source tags on every persisted price, invariants green before commit.
 0b. **Stranded-tape sweep (added 2026-07-04, after 10 collector passes silently stranded).**
    The hourly collector's push to `main` fails intermittently and falls back to a
    `tape/hourly-*` branch; that tape never reaches `main` on its own. As part of every
-   research run: `git ls-remote --heads origin 'refs/heads/tape/hourly-*' 'refs/heads/tape/burst-*'`
-   (`burst-*` added 2026-07-10 — the burst legs below use the same fallback mechanism); for each such
+   research run: `git ls-remote --heads origin 'refs/heads/tape/hourly-*' 'refs/heads/tape/burst-*' 'refs/heads/claude/*'`
+   (`burst-*` added 2026-07-10 — the burst legs below use the same fallback mechanism;
+   `claude/*` added 2026-07-15 — the cloud collector's push fallback sometimes lands on its
+   session outcome branch instead of a `tape/hourly-*` branch, and those refs were never
+   scanned: a 2026-07-15 local audit found **29,637 stranded lines** across ~50 such
+   branches, recovered in PR #78. For `claude/*` refs, sweep ONLY the per-day tape files —
+   ignore any code/docs those branches carry); for each such
    branch, union-append any JSONL lines missing from `main`'s per-day tape files into your
    run's own commit (line-level dedupe is safe — tape is append-only JSONL with unique
    capture identity per line; never rewrite or reorder existing lines), then, only after
