@@ -6,6 +6,76 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 04:xx ET — kalshi-edge-hunter nightly: review (S28/Q29) PASS, Q21 idea-gen (3 proposed, 0 survived — S30 verifier-KILLED), L67-L68
+
+Nightly thinking-seat run. Step 0a PASS (`origin/main` HEAD `9e5af65` not rewound; newest
+`kb/00-LOG.md` entry and newest `tape/*/dt=*` file both 2026-07-15, 0-day gap). Claim-check: 1
+open PR **#77** (Ryan's queue-restock, `dirty` — its Q29-Q32 numbering collides with main's
+already-merged S28/S29) — already flagged by #79 three hours earlier and <1 day old, so NOT
+re-flagged (housekeeping: don't re-flag with no new info). Gates green throughout (873 tests,
+`invariants --full`).
+
+**Unit 1 — adversarial review of the one new last-24h verdict (S28/Q29 post-close settlement-lag
+DEAD-by-convergence). PASS.** The 2026-07-14 findings (S22/S23/S24/S17) were already reviewed by
+yesterday's edge-hunter #75, so today's only new verdict is S28. Re-checked its single
+load-bearing fact independently — that the 4 genuinely-post-close captures all have empty books —
+by parsing raw `tape/orderbook_depth/dt=2026-07-{11,12}.jsonl` directly: all four NPB captures
+(KXNPBGAME YOMYOK-YOK/YOM cap 12:55:57Z, YAKHAN-HAN/YAK cap 11:55:18Z) show
+`best_yes_ask=best_no_ask=None` and `yes_bids=no_bids=[]`, ~1 min after their real close_time.
+The DEAD verdict holds; no GitHub issue opened.
+
+**Unit 2 — pipeline replenishment (Q21 idea-gen; eligible items = 1 (Q30/S29) < 2).** 3
+candidates generated (`research-lead`), each attacked before registration (two-agent rule).
+**0 registered — still 0 proven edges.** This is the second consecutive 0-survivor round (with
+#75), which is itself signal: the free-data / already-collected-tape edge space is deeply mined.
+- **S30** — deep-two-sided wide-spread selective maker on illiquid foreign-sports books
+  (KBO/NPB/BSN), the round's one "likely-survives" candidate. **Independent `verifier`
+  KILL-at-idea-stage, two decisive reasons:** (1) the load-bearing "wide spread backed by
+  thousands of two-sided contracts (KBO 4,601 yes / 10,556 no)" is the *total ladder summed
+  across all price levels* — the tradeable **top-of-book is 10 yes / 26 no** contracts and
+  **98.83%** of KBO resting yes-size sits at price ≤0.10 (deep-OTM lottery bids, e.g. 4,000
+  contracts at 6¢), so the wide spread is an **L31 wing with a two-sided tail**, not a competition
+  gap; (2) the mechanism's discriminating claim ("width = absent competition, not adverse
+  selection") is structurally **unobservable** — `tape/orderbook_depth/` carries resting-depth
+  snapshots only (no trade/volume/last fields) and the only sports executed-volume tape anywhere
+  is WC2026 (L44), so no adverse-selection-modeled block-bootstrap CI (L41 needs opposing-sign
+  clusters, not toxicity assumed away) can be built. KBO also settles partly `scalar` (L52). Not
+  a fee kill — KBO's ~13.5¢ half-spread genuinely dwarfs the 1¢ fee — which is exactly why the
+  two-sided-depth illusion (not L30) is the interesting killer.
+- **S31** — crypto near-money last-capture reachability taker. Idea-killed: taker-into-overround,
+  presumptively dead per S1/S5/S7 and self-admitted; the near-money bracket would need to be
+  *under*-priced despite the vig, and the settlement-instant spot conditioner is data-starved
+  (`crypto_hourly_historical_spot` = 36 rows, 07-04 only). Distinct object from S10 (far/tail),
+  same overround wall.
+- **S32** — crypto near-money two-sided maker-short. **Folded into S14, not a new S-number** — it
+  *is* S14's explicit remaining binding gate (queue-aware `orderbook_depth` short-YES fill-sim),
+  scoped to two-sided legs; registering it would duplicate an S-number and split S14's factor slot
+  (Rule #6 ρ). Confirmed near-money crypto two-sided spread is only ~3¢ → L30 fee regime; S14's
+  ~9¢ proxy edge lives in the thin wings the queue-aware sim is expected to strip.
+
+Lessons **L67** (median total-ladder depth on an illiquid two-sided book is not evidence of a
+capturable spread — decompose by price band; ≥~90% of size at price ≤0.10 ⇒ L31 wing with a
+two-sided tail; fillable number is the top-of-book, not the ladder total) and **L68** (a
+maker-spread-capture idea over `orderbook_depth` alone is toxicity-untestable by construction —
+no trade prints — and should be killed at idea stage, not registered as "untestable"). Both
+ledger-only (UNENFORCED).
+
+**Unit 3 — probe-prep: NO-OP.** Nothing gated unblocks within 72h: WC final Jul 19 is a burst
+capture leg (not a probe); FOMC Jul 29 is outside the window and already has its built+tested
+`scripts/s17_leadlag_probe.py --burst-window`; S14's ≥30-event-day depth gate is weeks off (8
+days of `orderbook_depth` collected); Q30/S29 is ungated and the 3h research loop will execute it.
+
+**Housekeeping.** Burst triggers past event date → `kalshi-burst-cpi-0714`,
+`kalshi-burst-wcsemi1-0714` remain flag-for-deletion (both fired Jul 14; unchanged since #75).
+Note the wcsemi2/wcfinal/fomc one-shots were already Ryan-hardened with mandatory push-verification
+(updated 00:59Z) after the semi-1 burst lost its captured data to a dead sandbox — that's handled.
+Remote branches: **142 `tape/hourly-*` + 1 `tape/burst-*`** (the compounding-branch cleanup remains
+a standing weekly-retro item). Step 9 paper sub-pass: `SHADOW_REGISTRY` = S14 only, no new tape
+appended this run → paper broker idempotent, `daily_summary()` unchanged: 0 open, 214 settled,
+realized P&L **+$5.77** (`broker_truth`). See `findings/2026-07-15-q21-ideagen-edge-hunter.md`.
+
+---
+
 ## 2026-07-15 03:xx ET — Q29/S28 post-close settlement-lag taker: DEAD-by-convergence, verifier-CONFIRMED; L64-L66; PR #78 merged
 
 Research-loop run. Step 0a PASS (`origin/main` HEAD `88867ba` not rewound before this run's own
