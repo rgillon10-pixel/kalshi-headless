@@ -6,6 +6,50 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 01:xx ET — Q30/S29 draw-aversion maker probe: DEAD-by-fillability, two-agent-confirmed, L69-L71
+
+Research-loop run. Step 0a PASS (`origin/main` HEAD `83a1ffa` not rewound; newest `kb/00-LOG.md`
+entry and newest `tape/*/dt=*` file both 2026-07-15, 0-day gap; recent merged PRs #78/#79/#80 all
+ancestors). Claim-check: open PR **#77** (Ryan's queue restock) unchanged since last flagged by
+#79/#80 — not re-flagged with no new info. Step 0b: remote `tape/hourly-*`/`tape/burst-*` branch
+count (143) identical to PR #80's check 45 minutes earlier — nothing new to sweep this run.
+
+**Q30 (topmost eligible TODO) — S29 soccer draw-aversion underpricing maker probe.** Delegated to
+`edge-prober` (built `scripts/q30_draw_aversion_maker_probe.py`, 24 offline tests, live settlement
+pull for 158 `-TIE` markets across 19 discovered soccer series) then an independent `verifier`
+(two-agent rule).
+
+- **Headline (spec population, earliest pre-close entry):** 157 games, draw rate among fills
+  28.03% vs breakeven 18.99% (mean fill $0.1799 + $0.01 fee), net edge +9.03¢, block-bootstrap CI
+  [+0.0208, +0.1627] — every binding gate passes. This *contradicts* the queue's predicted
+  fee-death.
+- **Why it isn't real:** spec entry sits at a median 65.6h pre-close with p90 entry spread 86¢.
+  Verifier hand-inspection found the edge is carried by 1-contract nickel bids against 87-94¢
+  asks days before kickoff — nominal lottery-ticket placeholders the generous fill-sim (a cancel
+  ahead counts as advancing us, L48) still marks FILLED. Two honest fillable-entry robustness cuts
+  (two-sided book ≤10¢ entry spread, n=119; near-close ttc≤24h, n=15) both fail to reproduce the
+  edge — the two-sided cut's CI straddles zero, the near-close cut's point estimate goes
+  **negative** (−4.47¢).
+- **Verifier: numbers CONFIRMED (bit-for-bit independent re-derivation, fresh parser), ALIVE
+  framing REFUTED.** Recommended DEAD-by-fillability over the prober's own "ALIVE-PROVISIONAL but
+  fragile" hedge. The probe's verdict logic was patched post-verification so a re-run on updated
+  tape computes this honestly by default, not via a manual override every time.
+- `kb/strategies/00-index.md` S29 flipped `idea` → **`dead ✗`**. Still **0 proven edges**.
+  New lessons **L69** (fillable-entry restriction must be the PRIMARY population of any
+  earliest-pre-close queue-aware fill-sim, not a robustness footnote), **L70** (draw-aversion is
+  directionally real but unfillable — an empirical record distinct from L54's absent/reversed
+  favorite-longshot bias), **L71** (the gate-4 power-floor formula is `sqrt(p(1-p)/n)`, a
+  one-sigma SE, not a 1.96-scaled half-width). See
+  `findings/2026-07-15-q30-draw-aversion-s29-verdict.md`.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = `s14_ladder_underwriting` only; idempotent this
+cycle (no new tape appended to advance it), realized P&L unchanged **+$5.77** (`broker_truth`).
+
+**Gates:** `pytest -q` — full suite green (24 new Q30 tests). `python scripts/invariants.py --full`
+— green (only the standing non-gating L20/L25/L29 advisories).
+
+---
+
 ## 2026-07-15 04:xx ET — kalshi-edge-hunter nightly: review (S28/Q29) PASS, Q21 idea-gen (3 proposed, 0 survived — S30 verifier-KILLED), L67-L68
 
 Nightly thinking-seat run. Step 0a PASS (`origin/main` HEAD `9e5af65` not rewound; newest
