@@ -1297,7 +1297,9 @@ quota math — that fact gates S11 honestly; never burn quota to fake coverage.
 
 ### Q31 — Sub-hourly VPS capture leg (the cadence-floor fix) — code now; VPS install = Ryan/local
 Status: TODO (the code + offline tests are cloud-buildable; the cron INSTALL is
-BLOCKED(vps-access) — Ryan or a local session with SSH does that step)
+a LOCAL-session step. PRE-AUTHORIZED by Ryan 2026-07-15 ("take everything off my plate"):
+the first local session after this code lands on main performs the VPS SSH install
+without asking again — it is not Ryan-in-person work.)
 Why: three separate deaths/caveats were data-adequacy-by-cadence (S9 lead-lag, S6's
 fill-sim quality scope, S24's declared washout risk). The hourly floor is a claude.ai
 routine limitation, NOT a VPS limitation — a VPS cron at minutes-scale costs zero Claude
@@ -1314,9 +1316,12 @@ NOTE for Ryan: this generalizes the hand-made burst-trigger class — future CPI
 windows stop needing one-shot cloud triggers at all.
 
 ### Q32 — IBKR data leg: ZQ-implied Fed path for S2-full / S16 — offline prep now; live leg = Ryan
-Status: TODO (offline prep is cloud-runnable; the live connection is BLOCKED(ibkr-activation)
-— credentials exist ONLY on the VPS (`/root/.secrets/ibkr.env`, IB Gateway installed).
-READ-ONLY MARKET DATA, zero order-placement code anywhere — Stop rules unchanged.)
+Status: TODO (offline prep is cloud-runnable; the live connection is a LOCAL-session
+step. PRE-AUTHORIZED by Ryan 2026-07-15 ("take everything off my plate"): the first local
+session after the offline prep lands on main starts IB Gateway + the runner on the VPS
+without asking again. Credentials exist ONLY on the VPS (`/root/.secrets/ibkr.env`,
+IB Gateway installed). READ-ONLY MARKET DATA, zero order-placement code anywhere — Stop
+rules unchanged.)
 Why: S2-full (FOMC × ZQ — the structurally cleanest gated candidate, +3.4¢ overround, 3×
 cleaner than weather) has been gated on CME data since 06-19, and S16 is BLOCKED on the
 FedWatch bot-wall. Ryan already owns an unused IBKR basic-subscription key. ZQ futures
