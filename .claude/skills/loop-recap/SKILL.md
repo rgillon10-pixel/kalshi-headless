@@ -27,13 +27,16 @@ self-heal (see LOOP-QUEUE.md step 0a; `main_branch_protection` memory).
 
 ## 1. Read the run trail (the source of truth)
 
-The **`## Log of runs`** section of `LOOP-QUEUE.md` is the one-line-per-run ledger every research
-pass appends to. Pull the recent entries — default window is "since the last recap / ~last 24h";
-widen if Ryan asks.
+The run ledger **`ops/run-log.md`** (moved 2026-07-15 from LOOP-QUEUE.md's old "## Log of
+runs" section) is the one-line-per-run file every research pass appends to. Pull the recent
+entries — default window is "since the last recap / ~last 24h"; widen if Ryan asks.
 
 ```bash
-grep -nE '^\- 2026-[0-9-]+T' LOOP-QUEUE.md | tail -12   # adjust year/date to today
+grep -nE '^\- 2026-[0-9-]+T' ops/run-log.md | tail -12   # adjust year/date to today
 ```
+
+(If a run that cloned pre-move appended below LOOP-QUEUE.md's pointer header instead,
+read those lines too — the next loop run migrates them.)
 
 Each line is `<UTC ts> · <item> · <one-line outcome>`. Read the ones inside your window fully —
 they already contain the verdict, the CI, the verifier ruling, and any registry flip.

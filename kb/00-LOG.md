@@ -61,6 +61,36 @@ Gates: `pytest -q` green, `python scripts/invariants.py --full` green (only stan
 L25/L29 advisories). Diff is docs/findings-only.
 
 ---
+## 2026-07-14 21:00 ET — Ryan session: queue restock Q29–Q32 + ops trims (run-log split, index split, idle-policy (e))
+
+Ryan-approved local session (/goal), PR #74. Two problems from a full project audit: (1) the
+queue starved again the moment S22–S24 died — and the one alive candidate's binding gate had
+NEVER been queued; (2) per-run context bloat — every research firing read a 1,430-line
+LOOP-QUEUE.md (~40% run ledger) and a 628-line strategy index (~70% dead-candidate narrative
++ update chronology).
+
+- **Q29** — S14's registry-mandated binding gate (queue-aware L2/depth fill-sim first cut),
+  inserted ABOVE the dead Q26–Q28: position = priority. Pre-declared: ~7 depth days < the
+  ≥30-event-day graduation bar, so the first cut measures the candlestick proxy's bias, it
+  cannot graduate anything.
+- **Q30** — concurrent fair-anchor + depth coverage (S11's fill leg; unlocks the S21/L43
+  re-test). Time-boxed by the WC final Jul 19.
+- **Q31** — sub-hourly VPS capture leg: the hourly cadence floor is a claude.ai routine
+  limit, not a VPS limit — three data-adequacy deaths (S9, S6-scope, S24-risk) trace to it.
+  Code is cloud-buildable; the cron install is Ryan/local.
+- **Q32** — IBKR ZQ-implied Fed path (S2-full/S16 unlock): offline math + fixtures now;
+  live leg BLOCKED(ibkr-activation). Read-only market data; zero order code.
+- **Idle-policy (e)**: a missing binding-gate queue item is itself an idle run's unit of work.
+- **`findings/2026-07-14-idea-seeds.md`** — 8 verifier-gated angle seeds wired into Q21's spec.
+- **Run ledger split** → `ops/run-log.md` (LOOP-QUEUE.md 1,430→~1,370 lines and no longer
+  grows per-run); protocol step 5 + the loop-recap skill updated to point there.
+- **Index split** → `kb/strategies/01-dead-notes.md` (verbatim archive of dead-candidate
+  note blocks + the dated update chronology; 00-index.md 628→135 lines). Registry table
+  rows untouched — the registry of record is unchanged.
+
+Also flagged for Ryan from the recap: the 07-14 21:07Z research run left no trace (no
+ledger line, no PR), and the WC-semi-1 burst branch never appeared (semi 2 fires Jul 15
+20:10Z). 143 stranded tape branches pending the branch-delete decision.
 
 ## 2026-07-14 18:xx ET — Q28/S24 near-close overreaction fade: DEAD-by-round-trip, verifier-CONFIRMED; L58-L60
 
