@@ -67,6 +67,11 @@ source tags on every persisted price, invariants green before commit.
    the probe script for the NEXT time-gated queue item so it fires the day its gate opens;
    (c) a data-quality deep-dive on one tape family (gaps, drift, join-ability — one finding);
    (d) idea-gen prep for Q21 (observations memo from accumulated tape, no registration).
+   **(e — added 2026-07-14, Ryan local session; check FIRST, before (a)–(d)):** if any
+   alive candidate's registry row names a binding gate with no corresponding TODO queue
+   item, WRITE that queue item as this run's unit of work. (S14's queue-aware fill-sim
+   gate sat unqueued through a full idle run on 2026-07-14T00Z — this clause exists so
+   that never recurs.)
    The step-0b sweep still runs, but "sweep only" is no longer a valid run outcome.
 4. Gates before ANY commit: `pytest` green AND `python scripts/invariants.py --full` green.
 5. Bookkeeping: update the item's Status line in this file; append one dated entry to
@@ -954,6 +959,13 @@ every proposal BEFORE registration (two-agent rule applies to the candidate set)
 get registered in `kb/strategies/00-index.md` + a queue item here. The nightly edge-hunter
 leg owns this item by default; a research run may take it when eligible.
 
+Seed material (added 2026-07-14, Ryan local session): `findings/2026-07-14-idea-seeds.md`
+— 8 angle seeds (cross-horizon term-structure nesting, platform-wide implication graph,
+listing-age anatomy, S6-at-burst-resolution re-cut, perp-funding prior, Polymarket
+flow-as-signal at burst resolution, nowcast-leg retry, team-news shock fade). Future Q21
+rounds and the nightly edge-hunter draw from this list FIRST before free-generating;
+every registration still passes the full verifier gate — seeds are input, not approval.
+
 ### Q22 — Paper-harness shadow wiring (after the 2026-07-12 spine)
 Status: DONE (2026-07-13, research loop) — **first-ever shadow strategy wired and run.**
 Q13's S14 parameter block (short-YES maker offer at every `crypto_hourly` ladder member's
@@ -1140,6 +1152,35 @@ source, not ideas themselves. Kill/limits: read-only; if the depth tape turns ou
 too few families for a cross-category cut, report that coverage fact honestly (it is
 itself the answer) rather than padding with BBO-only tape.
 
+### Q29 — S14 binding gate: queue-aware L2/depth fill-sim, first cut (POSITION = PRIORITY — deliberately inserted above Q26)
+Status: TODO (added 2026-07-14, Ryan-approved local session; merged 07-15 after the S22–S24
+round completed and died. Numbering is chronological, position is priority: S14 is the
+project's only positive-proxy `data-collecting` candidate, and its registry-mandated binding
+gate was never given a queue item. Q26–Q28 below are now DONE/DEAD, so this is the topmost
+eligible item.)
+The gate, verbatim from S14's registry row: a **queue-aware L2/depth fill-sim** over
+`tape/orderbook_depth/` (short-YES queue read off the mirror `no_bids` side) modeling queue
+position + the fill↔winner correlation, CI>0 @ real asks over ≥30 event-days.
+**Pre-declared scope for this first cut:** only ~7 depth days exist, so THIS RUN CANNOT
+GRADUATE S14 no matter what number comes out — its purpose is to convert the candlestick
+proxy (+$0.0925 CI [+0.063,+0.123], queue-blind, biased up, 78% of edge from sub-100-vol
+legs) into a queue-aware read and measure the proxy's bias direction and magnitude.
+Milestone (one read-only probe): `scripts/s14_depth_fillsim.py` over the BTC/ETH crypto
+families — for each event-hour ladder, model resting short-YES on every member via the
+mirror `no_bids` queue (L39, NOT a candlestick print; reuse the S19/Q24 queue machinery),
+keep the near-certain $1 winner leg INSIDE the P&L (never conditioned away — L41 / Q24
+gate-2), fees via `core.pricing` (flat 1¢ maker, L30), block-bootstrap by EVENT-HOUR,
+route through `core.bootstrap.bootstrap_verdict_admissible` + `clears_tick_magnitude`
+(L41/L27). Deliverables: (1) per-leg queue-aware fill-rate distribution vs the proxy's
+implied fills — name the phantom fraction; (2) the first queue-aware P&L CI; (3) a note on
+whether the S14 paper shadow's PaperBroker `fill_model` assumptions diverge from the
+queue-aware read (the +$5.14 ledger is evidence only under its stated fill model).
+Verdict handling (two-agent rule): decisively negative + admissible → registry flip DEAD
+(verifier-confirmed); income-leg fill rates collapsing toward the S19 0.45% floor → the
+proxy edge is largely phantom, report honestly, S14 stays `data-collecting` with the
+shadow re-based; positive → S14 stays `data-collecting` (NOT proven) and keeps
+accumulating toward the ≥30-event-day graduation bar.
+
 ### Q26 — S22: OFI / depth-imbalance settlement predictor on high-churn two-sided sports books
 Status: DONE (2026-07-14, research loop) — **verdict DEAD by calibration, verifier-CONFIRMED.**
 Gate 1 (join adequacy) passed clean: 205 distinct joinable games (20× the 10-game floor), via a
@@ -1235,6 +1276,59 @@ momentum-vs-reversal is a sign question so the opposing-sign cluster (L41) is NO
 `bootstrap_verdict_admissible` admissible and `clears_tick_magnitude`. Kill: jumps continue (momentum, not
 reversal) / reversal < round-trip cost / hourly cadence too coarse (S9-family) / CI fails either gate.
 Honest expectation: DEAD-by-round-trip is likely; sound and novel nonetheless.
+
+### Q30 — Concurrent fair-anchor + depth coverage (S11's fill leg; unlocks the S21/L43 re-test) — TIME-SENSITIVE: WC final Jul 19
+Status: TODO (added 2026-07-14, Ryan-approved local session)
+Why: S21 died by data-adequacy (L43/L9 — fair anchors and depth tape never covered the same
+games). Since Q18 closed (07-13) the odds leg writes live `matched` fair anchors into
+`tape/sports_pairs/` AND `orderbook_depth` captures the same discovered tickers — concurrency
+now exists in principle but is THIN (1 bookmaker / 2 games at Q18 close). Milestone A (now,
+one run): MEASURE it — count games since 07-13 with BOTH a matched `odds_leg` record and ≥1
+same-ticker depth snapshot; report the joinable-game rate; then implement whatever
+quota-respecting odds-api widening (sport keys / regions / bookmaker set, within the 500/mo
+free tier — check remaining quota first) raises it, inside `collection/odds_api.py`'s existing
+quota-discipline rules. Milestone B (gated: ≥10 concurrently-covered SETTLED games — expect
+~1–2 weeks; the WC final Jul 19 is the liquidity peak, don't miss it): re-run the S21
+maker-ASK fill-sim per L43 AND the S11 selective-maker fill-sim (rest ONLY the EV+-vs-devig
+side), same gates as Q24 (L39 queue-aware, L41 admissible, L27 magnitude, two-agent rule).
+Kill/limits: if the free tier cannot cover ≥1 sport at usable frequency, report the exact
+quota math — that fact gates S11 honestly; never burn quota to fake coverage.
+
+### Q31 — Sub-hourly VPS capture leg (the cadence-floor fix) — code now; VPS install = Ryan/local
+Status: TODO (the code + offline tests are cloud-buildable; the cron INSTALL is
+BLOCKED(vps-access) — Ryan or a local session with SSH does that step)
+Why: three separate deaths/caveats were data-adequacy-by-cadence (S9 lead-lag, S6's
+fill-sim quality scope, S24's declared washout risk). The hourly floor is a claude.ai
+routine limitation, NOT a VPS limitation — a VPS cron at minutes-scale costs zero Claude
+tokens and converts token spend into data quality. Milestone: build
+`collection/subhourly_pass.py` — a lightweight pass capturing ONLY (1) L2 depth for
+near-close two-sided high-churn sports cells (Q25 map: WNBA/UCL/KBO/MLB/NPB) within
+~T−90min of close, (2) crypto ladder+depth in the final ~15 min pre-close, (3) econ ladders
+inside scheduled release windows (reuse `collection/burst_capture.py` family logic where it
+fits); target cadence 5 min; hard per-pass caps (family whitelist, max tickers, expected-
+lines budget) so incremental tape stays bounded (~<5k lines/day); same per-day JSONL append
+shape + honest completeness accounting as `hourly_pass`; offline tests. Deliverable includes
+the exact crontab line (offset from the :26 hourly) + a one-paragraph install doc in `ops/`.
+NOTE for Ryan: this generalizes the hand-made burst-trigger class — future CPI/NFP/game-end
+windows stop needing one-shot cloud triggers at all.
+
+### Q32 — IBKR data leg: ZQ-implied Fed path for S2-full / S16 — offline prep now; live leg = Ryan
+Status: TODO (offline prep is cloud-runnable; the live connection is BLOCKED(ibkr-activation)
+— credentials exist ONLY on the VPS (`/root/.secrets/ibkr.env`, IB Gateway installed).
+READ-ONLY MARKET DATA, zero order-placement code anywhere — Stop rules unchanged.)
+Why: S2-full (FOMC × ZQ — the structurally cleanest gated candidate, +3.4¢ overround, 3×
+cleaner than weather) has been gated on CME data since 06-19, and S16 is BLOCKED on the
+FedWatch bot-wall. Ryan already owns an unused IBKR basic-subscription key. ZQ futures
+prices → implied meeting-path probabilities is pure arithmetic (FedWatch itself is derived
+from exactly this). Milestone (offline): build `core/fed_path.py` — ZQ price → implied
+average rate → per-meeting step probabilities, methodology documented, unit-tested against
+published FedWatch snapshots committed as fixtures — plus a collector skeleton with a mock
+feed writing `tape/zq_fed_path/`, so the day the IBKR leg goes live it starts collecting
+immediately. Source tags: `broker_truth` for IBKR-delivered prices, `synthetic` for every
+derived probability (Rule #3 discipline). First live target: FOMC Jul 29 (burst trigger
+already scheduled — intraday ZQ around that window would give S2 its first real event).
+NOTE for Ryan: activation = start IB Gateway on the VPS + a ~30-line runner; say the word
+in any local session.
 
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
