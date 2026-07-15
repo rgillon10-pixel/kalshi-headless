@@ -103,3 +103,11 @@ Cadence change: every-5h → every-3h (:07 of 00/03/06/09/12/15/18/21 UTC).
   fails, the burst runner (not the script) is the suspect. Same session: run ledger split
   to `ops/run-log.md`, dead-notes split to `kb/strategies/01-dead-notes.md`, queue
   restocked Q29–Q32 (PR #74).
+- 2026-07-15 (later) — burst-integrity pass after the semi-1 loss: all three remaining
+  burst triggers (wcsemi2-0715, wcfinal-0719, fomc-0729) gained a MANDATORY push-verification
+  step (git ls-remote the commit SHA; a run may not claim success without a verified remote
+  ref; loss must be reported Priority:high). Root context: semi-1 captured 144 snapshots,
+  said "committed", and the data died with the sandbox. Also: step-0b sweep pattern widened
+  to refs/heads/claude/* (collector outcome-branch fallback was never swept — 29,637 lines
+  recovered in PR #78); 227 verified-safe stranded branches staged for deletion (list in
+  Ryan's session scratchpad; deletion awaits his explicit go).
