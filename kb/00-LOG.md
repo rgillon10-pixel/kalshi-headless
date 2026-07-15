@@ -6,6 +6,65 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 17:xx ET — Idle run: queue still drained, econ/CPI/anomaly daily-cadence gap data-quality deep-dive (L74)
+
+Research-loop run. Step 0a: local sandbox `main` ref was badly stale (pointed at an early
+2026-07-03 commit from a prior detached-HEAD state) — `git fetch --unshallow origin` +
+`git merge --ff-only origin/main` fixed it; the `78284fe`-not-an-ancestor false alarm this
+produced before unshallowing was confirmed to be the same `--depth`-graft-boundary artifact
+PR #85 already documented, not a rewrite (post-unshallow ancestry check passed). Confirmed
+`origin/main` HEAD `c20563a` not rewound: last 8 merged PRs (#78–#85) all present as ancestors;
+newest `kb/00-LOG.md` entry and newest `tape/*/dt=*` content both 2026-07-15, 0-day gap.
+Claim-check: 1 open PR **#77** (Ryan's own queue-restock session, unchanged since PR #79
+first flagged it — same head sha, same Q29-Q32 numbering collision with slots #79/#81/#83/#84/#85
+already merged) — not re-flagged, left for Ryan.
+
+**Queue state unchanged: every numbered item Q0-Q30 is still DONE, BLOCKED(data-adequacy), or
+RESERVED — no TODO/IN-PROGRESS milestone was eligible.** Fifth consecutive idle run. Q21
+idea-gen stays ROUND COMPLETE (0-survivor twice running per PR #79/#80) — not re-run a third
+time from this seat.
+
+**Idle-run policy order (a) exhausted:** re-checked every standing `UNENFORCED` row in
+`kb/lessons/00-lessons.md`. L22/L25/L27/L28/L32/L45/L47 confirmed already resolved in the
+current tree (verified L45 specifically this run: `core/timeutil.parse_crypto_hour_token_close_utc`
+does implement the ET-localized crypto-hour parser L45/L49 called for). L51/L64/L65/L66/L68/L69
+remain genuinely per-design methodology notes, not core-write candidates (their own rows say
+so). No new core-write candidate exists — order (a) is drained for now.
+
+**Order (b) NO-OP** (same as the last 2 runs): FOMC Jul 29's `--burst-window` probe is already
+built; WC final Jul 19 is pure burst-tape capture, no probe to prep; S14's depth-day gate is
+still weeks off.
+
+**Order (c):** picked a data-quality deep-dive on `tape/econ_prints/` (+ its `polymarket_cpi_pairs`/
+`anomalies` daily-cadence siblings) ahead of the Jul-29 FOMC window. Read every `.jsonl` file
+directly (cross-checked against `ls` to rule out an L25-style masked directory). Findings: (1)
+completeness/drift are clean — 4,774/4,774 nested `completeness_ok=true`, 0 settlement-value
+drift across 8 repeated-capture event tickers; (2) coverage has a real, previously-unstated
+**2-day** gap (2026-07-09 AND 2026-07-10) for `econ_prints`/`polymarket_cpi_pairs`/`anomalies` —
+double the 1-day gap the hourly families (`sports_pairs`/`crypto_hourly`/`polymarket_macro_pairs`)
+suffered in the same 2026-07-08 main-reset incident, because all three share the SAME single
+`ts.hour == 9` collector gate (`collection/hourly_pass.py`) with no retry/backfill; (3) this is a
+standing structural exposure independent of that one incident — one bad hour costs a full day of
+CPI/GDP/payrolls/Fed-nowcast/anomaly-sweep tape with nothing else to catch it. No fix built
+(read-only per the idle-run policy; `scripts/invariants.py` has no missing-calendar-day check for
+a daily family, only a shape check per L25). New lesson **L74** (ledger-only + a flagged, not
+built, invariant candidate). See `findings/2026-07-15-econ-daily-cadence-gap-dataquality.md`.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = S14 only. `scripts/paper_pass.py` ran clean:
+0 newly processed (271 deferred-caps, 122 deferred-coverage, 29 already-in-ledger) —
+idempotent, `daily_summary()` unchanged: 0 open, 214 settled, realized P&L **+$5.77**
+(`broker_truth`).
+
+## Gates
+- `pytest -q` — 931 passed (unchanged; no test/source code touched this run).
+- `python scripts/invariants.py --full` — green (only the standing non-gating L17/L25 advisories).
+
+Still 0 proven edges. Docs/findings-only diff (`findings/`, `kb/00-LOG.md`, `kb/lessons/00-lessons.md`,
+`LOOP-QUEUE.md` run-log line) — no execution code outside the sanctioned paper tier, no demo/live
+order paths, no credentials. No verdict/registry change this run → two-agent rule not triggered.
+
+---
+
 ## 2026-07-15 14:xx ET — Idle run: queue still drained, L39 converted UNENFORCED→test (core/income_legs.py)
 
 Research-loop run. Step 0a PASS (`origin/main` HEAD `4c06e00` not rewound — history-integrity
