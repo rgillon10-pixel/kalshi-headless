@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 14:xx ET — Idle run: queue still drained, L39 converted UNENFORCED→test (core/income_legs.py)
+
+Research-loop run. Step 0a PASS (`origin/main` HEAD `4c06e00` not rewound — history-integrity
+check confirmed the shallow clone's initial "forced update" fetch warning was a `--depth 50`
+graft-boundary artifact, not a rewrite: unshallowing the clone and re-checking
+`git merge-base --is-ancestor` on the prior tip confirmed ancestry; last 5 merged PRs (#79-#84)
+all present as ancestors on `origin/main`; newest `kb/00-LOG.md` entry and newest
+`tape/*/dt=*` content both 2026-07-15, 0-day gap). Claim-check: 1 open PR **#77** (Ryan's own
+queue-restock session, still open/unmerged, Q29-Q32 numbering still collides with the Q29/Q30
+slots #79/#81 already merged) — unchanged since #84 flagged it ~3h earlier, not re-flagged.
+
+**Queue state unchanged: every numbered item Q0-Q30 is still DONE, BLOCKED(data-adequacy), or
+RESERVED — no TODO/IN-PROGRESS milestone was eligible.** Fourth consecutive idle run. Q21
+idea-gen stays ROUND COMPLETE (PR #80) — not re-run.
+
+Per the v3 idle-run policy, order (a): re-scanned `kb/lessons/00-lessons.md`'s standing
+UNENFORCED rows. L22/L25/L27/L28/L32/L45 are already resolved in the current tree (via L24,
+`scripts/invariants.py`'s tape-dir-shape check, `core/bootstrap.py`'s `clears_tick_magnitude`/
+`floor_pinned_fraction`/`bracket_by_movement`, and L49's `core/timeutil.py` respectively) —
+their own ledger rows just never got a superseding entry pointing at the code, same stale-
+bookkeeping pattern PR #84 already flagged for L22/L25 and left as-is (not worth a churn-only
+edit). L47 turned out to already be resolved too — `core/depth.py`'s docstring explicitly
+documents ladder sizes as floats (L47) — left as-is for the same reason. L51/L64/L65/L66/L68/
+L69 are all per-design methodology/market-structure discipline notes their own rows already
+mark as **not statically assertable** (several say explicitly "no code change") — not core-
+write candidates. Picked the next genuinely open, code-shaped candidate: **L39** (a bracket-
+ladder P&L that nets a small edge against a large loss leg is vulnerable to a queue-blind fill
+proxy crediting the income leg too easily — S14's own finding was that 78% of its $0.093 edge
+came from sub-100-contract-volume income legs). Built `core/income_legs.py`
+(`income_leg_thin_fraction`, `income_leg_edge_at_gate` — given per-leg `(income, volume)`
+pairs, reproduces the S14 "78% from thin legs" decomposition and its complementary volume-
+gated haircut sum) + `tests/test_income_legs.py` (12 cases, incl. the S14-shaped regression
+and empty/zero/negative-total-income edge cases resolving to `None`/0.0 rather than raising).
+No blocking static invariant added — same L6-class per-design population choice as L27/L28/
+L32/L59's conversions. Ledger row **L73** records the supersession. Still 0 proven edges.
+
+**Step 0b sweep:** 1 branch newer than PR #84's merge (15:17:49Z) and >30min old —
+`claude/determined-goodall-61mt4v` (15:59:49Z, the cloud collector's outcome-branch fallback,
+carrying a 15:55:32Z hourly pass the vps legs' own 16:27Z/17:27Z passes never absorbed).
+Line-set diff (not a raw line-count diff) against `main`'s current per-family tape files found
+**1,088 missing lines**, all JSON-validated before append, 0 invalid/reordered/duplicated:
+`orderbook_depth` +850, `sports_pairs` +219, `polymarket_macro_pairs` +15, `crypto_hourly` +2,
+`polymarket_pairs` +2.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = S14 only. `scripts/paper_pass.py` ran clean:
+0 newly processed (271 deferred-caps, 118 deferred-coverage, 29 already-in-ledger) —
+idempotent, `daily_summary()` unchanged: 0 open, 214 settled, realized P&L **+$5.77**
+(`broker_truth`).
+
+## Gates
+- `pytest -q` — full suite green (12 new `test_income_legs.py` cases; 931 total).
+- `python scripts/invariants.py --full` — green (only standing non-gating L17/L25 advisories).
+
+Docs/data/paper-tier-only diff — no execution code outside the sanctioned paper tier, no
+demo/live order paths, no credential handling.
+
+---
+
 ## 2026-07-15 15:xx ET — Idle run: queue still drained, L59 converted UNENFORCED→test (core/reversal.py)
 
 Research-loop run. Step 0a PASS (`origin/main` HEAD `9a564d0` not rewound — merge commits for
