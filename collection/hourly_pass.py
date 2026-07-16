@@ -31,6 +31,15 @@ whose gate note needs the forward tape to estimate order-arrival intensity. Hone
 caveat lives in that module's docstring: hourly snapshots are coarse for intensity, not a
 continuous order-flow tape.
 
+Weather revival (2026-07-15): also runs one `collection.weather_books` pass every hour —
+forward full-depth orderbook capture for Kalshi weather markets (daily KXHIGH*/KXLOWT* ladders
+for the config cities + a live category sweep so new series don't drop, plus the KXTEMPNYCH
+hourly-directional series). The VPS weather tape was torn down 2026-07-03 and nothing has
+collected weather since; every weather edge candidate in the revival dossier is blocked on a
+fresh forward L2 tape, and (lesson L11) an un-collected snapshot is lost forever. Unlike the
+S6 depth pass this sub-pass does its OWN discovery (weather isn't in the sports/crypto
+tickers the depth pass reuses), fault-isolated like every sibling.
+
 Never fakes success: each sub-pass is invoked independently and its exception (if any) is
 caught and recorded rather than allowed to take the other sub-pass down with it. Overall
 `completeness_ok` is the AND of each sub-pass's own honest completeness signal (already
@@ -59,7 +68,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from collection import (crypto_hourly, econ_prints, orderbook_depth, polymarket_pairs,
-                        sports_pairs)
+                        sports_pairs, weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -198,6 +207,10 @@ def _default_depth_pass(tickers: List[str]) -> Dict[str, Any]:
     return orderbook_depth.run(tickers=tickers)
 
 
+def _default_weather_pass() -> Dict[str, Any]:
+    return weather_books.run()
+
+
 # --------------------------------------------------------------------------- #
 # one hourly pass
 # --------------------------------------------------------------------------- #
@@ -209,6 +222,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         econ_prints_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         polymarket_cpi_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         depth_fn: Optional[Callable[[List[str]], Dict[str, Any]]] = None,
+        weather_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
     polymarket_pairs.run_fed_decision (Fed meetings), plus anomaly_sweep, econ_prints, and
@@ -258,6 +272,19 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     depth = _safe_call(lambda: d_fn(depth_tickers))
     if depth["status"] == "ok":
         r = depth["result"]
+        n_captured = r.get("n_captured", 0)
+        n_lines += n_captured
+        n_markets += n_captured
+        completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
+    else:
+        completeness_ok = False
+
+    # weather revival: forward full-depth capture for weather markets. Own discovery,
+    # fault-isolated like every sibling; one line per open weather market, each one market.
+    w_fn = weather_fn or _default_weather_pass
+    weather = _safe_call(w_fn)
+    if weather["status"] == "ok":
+        r = weather["result"]
         n_captured = r.get("n_captured", 0)
         n_lines += n_captured
         n_markets += n_captured
@@ -318,6 +345,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "sports_pairs": sports,
         "crypto_hourly": crypto,
         "orderbook_depth": depth,
+        "weather_books": weather,
         "polymarket_pairs": polymarket,
         "polymarket_macro_pairs": polymarket_macro,
         "anomaly_sweep": anomaly,

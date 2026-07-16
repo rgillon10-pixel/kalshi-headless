@@ -6,6 +6,51 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 22:xx ET — Weather revival (Ryan interactive): family reopened, S33 ladder-coherence DEAD, weather tape restarted
+
+Ryan-directed serious re-look at weather. A four-agent mining pass over the prior repos
+produced `findings/2026-07-15-weather-revival-dossier.md` — core reframe: weather was never
+killed for lack of signal, every death (pt1, S1, S5) was **execution economics** (9.84¢
+overround + taker fee); the untested cells are **summer regime × maker execution × EMOS
+signal** plus the brand-new hourly `KXTEMPNYCH` surface. Queue restocked **Q36** (KXTEMPNYCH
+settlement-basis + microstructure, the VPS-latency thesis), **Q37** (summer maker-side S1/S5
+re-test, W-A), **Q38** (forecast + actuals tape legs). Weather family status is now **revival
+in progress per Q36–Q38; ladder-coherence dead** — the 2026-06-18 "weather DEAD, pivot"
+verdict stands only for the daily-ladder taker angle.
+
+**New verdict — S33 registered dead ✗** (`kb/strategies/00-index.md`). The dossier's W-D
+candidate (kalshi.1's old H1: intra-ladder Σ leg-ask < $1 coherence arb) TESTED-DEAD on the
+recovered 24GB spring tape (`scripts/probe_ladder_coherence.py` + `_inspect.py`,
+`tests/test_probe_ladder_coherence.py`, `reports/ladder_coherence_opps.jsonl` +
+`ladder_coherence_summary.json`): 33.5M joint ladder-seconds, 352 MECE 6-bracket ladders; raw
+Σ<$1 in 1.685% of seconds but only 0.0316% net>0 after the 6-leg fee floor; depth×duration
+anti-correlated — **0 opportunities ≥10 contracts AND ≥60s** (also 0 at ≥5/≥60s, ≥20/≥10s),
+all 17 executable-by-snapshot runs ≤1.0s wall-clock. Proven mechanism: intra-ladder
+forward-fill asynchrony (losing legs at the 1¢ floor while the winner leg's ask is stale one
+beat — `KXHIGHPHIL-26APR22-B66.5` joint 0.38 vs the leg's own 0.52). Joins S1/S5 in the
+execution-economics graveyard.
+
+**Collector:** `collection/weather_books.py` wired into `hourly_pass` (530/530 books first
+pass; 67 daily + 8 hourly series discovered, 27 daily NOT in `config/cities.yaml`) — first
+weather tape since the 2026-07-03 teardown.
+
+**Lessons added L76–L84:** L76 (wall-clock-seconds duration gate, not snapshot count — the
+one still-open UNENFORCED escalation candidate), L77 (forward-fill joint state manufactures
+phantom arbs — intra-ladder L8), L78 (net>0-prefiltered bootstrap is inadmissible by
+construction, L41; score depth×duration for a structural arb), L79 (recovered-replica
+`raw_json` carries top-of-book — reusable offline source), L80 (weather ladders empty-collapse
+losing legs to the 1¢ floor — weather analogue of L26/L65). Collector lessons: L81
+(own-discovery sub-pass makes existing hourly_pass tests hit the network — stub every call
+site), L82 (weather ticker taxonomy drift ≥3 prefixes/city; seed list is a floor — sweep every
+pass; **test**-enforced), L83 (`orderbook_fp` string-dollars is live, integer-cents legacy —
+handle both; **test**-enforced), L84 (per-(entity,day) dedup by reading the day's tape is
+concurrency-safe; **test**-enforced). **No new enforcement built this pass** per the launching
+agent's directive — L76 stays UNENFORCED with an honest candidate noted; the collector lessons
+L82/L83/L84 are already pinned by the collector-build session's own
+`tests/test_weather_books.py`, cited not authored here. Still **0 proven edges**.
+
+---
+
 ## 2026-07-15 20:xx ET — Idle run: L74 daily-cadence gap advisory converted UNENFORCED→invariant (non-gating)
 
 Research-loop run. Step 0a: shallow clone (`--depth 50`) made every recent merged-PR head
