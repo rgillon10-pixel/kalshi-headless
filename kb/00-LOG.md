@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 06:xx ET — Q34: S14 queue-aware fill-realism revalidation — verdict DEAD, closes the repo's last non-DEAD candidate
+
+Research-loop run. Step 0a passed cleanly (HEAD matched `origin/main` post-fetch, no rewind;
+0-day `kb/00-LOG.md`↔tape gap). Claim-check: only open PR is #77 (Ryan's stale queue-restock,
+unchanged, left for Ryan). Step 0b swept `tape/hourly-Z`, a literal-named fallback branch
+(01:06:37Z, never reconciled) carrying 1,284 missing lines across 4 families — landed and
+merged separately as PR #89 before the milestone.
+
+**Milestone Q34** (topmost eligible, flagged HIGHEST PRIORITY 2026-07-15): S14 ("ladder
+overround underwriting" — rest maker short-YES offers across a whole crypto-hourly MECE strike
+ladder, collect premium, pay $1 if the winner was among your filled strikes) was the project's
+ONLY non-DEAD candidate, but its Q13 first-cut used a candlestick-through fill proxy (L39) —
+the exact bias that already killed S13/S19/S21/S23. This run built the mandated queue-aware
+revalidation.
+
+`scripts/s14_queue_fillsim.py` replaces the candle proxy with a price-time-priority queue model
+over `tape/orderbook_depth/` `no_bids` (executed volume read offline from the already-committed
+`tape/s14_ladder_fillsim/` candle cache — no re-fetch, no network). Delegated through the full
+two-agent pipeline: `research-lead` → `edge-prober` (build + first run) → `verifier`
+(independent re-run, seed=42, exact reproduction) → **CONFIRMED**.
+
+**Result: the queue-aware model FALSIFIES the candle-proxy's headline.** Q13's proxy found
+block-boot-by-event-hour mean +$0.0925, CI [+0.063,+0.123], n=300. The queue-aware re-run finds
+mean **−$0.0453, 95% CI [−0.0809,−0.0121]** (fully below zero), n=146 event-hours,
+`bootstrap_verdict_admissible` PASS (54 opposing / 92 losing clusters — genuinely mixed, not an
+L41 resampling artifact) but `clears_tick_magnitude` FAIL. Mechanism: once queue position gates
+which legs actually fill, the near-money winner strike still fills 93.15% of the time and costs
+the full $1, while the collectable premium (mean +$0.886) falls short of covering the mean
++$0.9315 payout. Overall fill rate 27.18% (582/2141 priced-relevant members) is far ABOVE the
+S19 0.45% floor, so this dies on the EDGE, not on data adequacy (L53) — the queue-aware
+mechanics are real and measurable, they just don't clear.
+
+The winner-payout leg (the catastrophic $1 loss) stayed fully in the P&L for every measurable
+event-hour, never conditioned away — 290 event-hours were dropped on winner-leg measurability
+alone (exogenous to settlement, capped by the L9 depth-tape-starts-07-07-vs-crypto-07-03
+overlap), and verifier confirmed the drop was conservative: counting those as payout=0 instead
+still gives a negative mean (−$0.0152).
+
+`kb/strategies/00-index.md`: **S14 flips `data-collecting` → `dead ✗`.** This closes the
+repo's last non-DEAD candidate — the project still has **0 proven edges** after 20+ tested
+strategies. Two new lessons: **L85** (a candle-through fill proxy is presumptively
+verdict-invalidating for any P&L that nets a small edge against two large legs — the
+S13/S19/S21/S23/S14 purge of this exact bias is now complete) and **L86** (the winner /
+catastrophic-leg measurability asymmetry — drop the unit on that leg's measurability, never
+zero the loss, and verify the drop moves the result the conservative direction).
+
+Flagged, not acted on: `execution/strategy_api.SHADOW_REGISTRY` still runs the OLD candle-proxy
+`s14_ladder_underwriting` paper strategy post-kill. Harmless (paper tier, no capital) but no
+longer decision-useful; deregistering it is a judgment call left for Ryan or a future run
+rather than made unilaterally here.
+
+Step 9: `SHADOW_REGISTRY`=S14 only, `paper_pass.py` idempotent this run (0 newly processed),
+realized P&L unchanged +$9.15 (`broker_truth`). Gates: `pytest -q` → 996 passed,
+`invariants --full` → green (only standing non-gating L25/L74 advisories). See
+`findings/2026-07-16-q34-s14-queue-fillsim-verdict.md`.
+
+---
+
 ## 2026-07-16 04:xx ET — kalshi-edge-hunter nightly: adversarial review of 3 last-24h verdicts (all PASS), queue healthy (no idea-gen), no sub-72h prep
 
 Nightly thinking-seat run. Step 0a **PASS** — `origin/main` HEAD `5c4819d` not rewound: the
