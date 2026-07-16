@@ -6,6 +6,50 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 17:xx ET — Q32 prep: sharp-devig-vs-Polymarket join script built + offline-tested; found Q32/Q33 mischaracterized as fully blocked
+
+Research-loop run. Step 0a passed clean (no rewind). Step 0b (own PR #97) swept 1,783 lines
+missing from `main`'s `dt=2026-07-16` tape off two stranded `tape/hourly-*` branches
+(`orderbook_depth` +967, `sports_pairs` +269, `weather_books` +530, `polymarket_macro_pairs` +15,
+`crypto_hourly` +2), JSON-validated, pure append.
+
+Re-examined the last several runs' "0 non-blocked runnable-now items" characterization before
+defaulting to another Q21 idea-gen round (the 5th since 2026-07-13, after 4 straight rounds
+registering only 1 survivor total). **Q32's own status line explicitly authorizes offline work
+now** ("Until BOTH legs exist this is a probe-prep target ... write + offline-test the join
+script against fixtures") — this is a genuine TODO milestone, not merely an idle-run fallback,
+and prior runs had been folding it into "BLOCKED on Polymarket credentials" without ever doing
+the authorized prep. Took this as the run's milestone instead of another idea-gen round.
+
+Delegated to `edge-prober`: built `scripts/q32_sharp_devig_polymarket_probe.py` (+16 offline
+tests, no network) — joins `tape/sports_pairs/`'s odds-api de-vig-fair leg (`synthetic`) to an
+injectable `--polymarket-tape-dir` Polymarket-sports-real_ask leg (no live tape family exists
+yet; schema documented in the script's docstring, modeled on `collection/polymarket_pairs.py`
+conventions — bitemporal `captured_at`, a load-bearing `resolution_equivalent` gate that excludes
+AND counts non-equivalent/missing-flag pairs rather than assuming). Block-bootstraps by GAME (L6)
+through both `bootstrap_verdict_admissible` and `clears_tick_magnitude`. Added the sanctioned
+`POLYMARKET_SPORTS_TAKER_RATE = 0.05` (+ `_OPTIMISTIC = 0.03` sensitivity) to `core/pricing.py`
+(the one sanctioned fee-coefficient site) — conservative end of the regime note's 0.03–0.05
+international-sports range, chosen because the fee is a cost the edge must clear.
+
+Ran the script against real tape today: `tape/sports_pairs/` already has 3 matched-odds games / 9
+fair anchors (leg a partially live), `tape/polymarket_sports_pairs/` doesn't exist (leg b) — it
+correctly printed "INSUFFICIENT DATA — legs not yet captured" and exited cleanly, no fabricated
+verdict. Produces no edge claim, no `findings/` entry, no `kb/strategies/00-index.md` change —
+pure prep infrastructure, two-agent rule does not apply.
+
+**Judgment call flagged for Ryan, not acted on:** `collection/polymarket_pairs.py`'s existing
+discovery families already read Polymarket's INTERNATIONAL book via plain public CLOB reads with
+NO Ryan-side credentials required (only the Polymarket-US/QCEX venue in Q33 needs KYC'd creds) —
+a per-game sports moneyline leg could in principle be built on the international book now,
+without waiting for Q33's US-credential unblock (still carrying the "not a Polymarket-US fill"
+caveat). Re-scoping Q33's charter is Ryan's call, not decided here.
+
+Step 9: `SHADOW_REGISTRY`=S14 only, `paper_pass.py` idempotent (0 newly processed), realized P&L
+unchanged **+$9.15** (`broker_truth`). Still 0 proven edges — the bar has not moved. Gates:
+`pytest -q` → 1065 passed (1049 prior + 16 new), `python scripts/invariants.py --full` green
+(standing non-gating advisories only).
+
 ## 2026-07-16 14:xx ET — Q21 idea-gen round: 3 crypto implied-distribution candidates proposed, ALL killed at idea → 0 registered
 
 Research-loop run (research-lead orchestrated). Re-eligibility fired: 0 non-blocked runnable-now

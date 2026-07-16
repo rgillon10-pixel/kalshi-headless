@@ -106,6 +106,22 @@ def fee_per_contract(price: float, rate: float = TAKER_FEE_RATE) -> float:
 # CLOB, so this is a modeled fee on an international price, never a claimed Polymarket-US fill.
 POLYMARKET_US_TAKER_RATE = 0.05   # Polymarket US (QCX/QCEX) taker — Ryan's realizable venue
 
+# Polymarket INTERNATIONAL sports taker rate (Q32 — sharp-devig vs Polymarket sports price).
+# The regime-change note gives the international sports category as a RANGE, 0.03–0.05 (crypto is
+# 0.07, geopolitics/econ fee-free). We default the Q32 probe to the CONSERVATIVE end of that
+# range — the HIGHER 0.05 — because the fee is a COST the edge must clear: an edge that survives a
+# 0.05 taker fee survives at any lower rate, so 0.05 is the harder, safer bar to set the verdict
+# against (never flatter the edge by picking the cheap end of an uncertain schedule). It also
+# coincides with the Polymarket-US taker figure, so it is the single most-likely realized rate.
+# POLYMARKET_SPORTS_TAKER_RATE_OPTIMISTIC (0.03, the low end) exists ONLY as a sensitivity floor —
+# the most-generous rate the schedule allows — mirroring q35_maker_rebate_reframe's two-scenario
+# pattern, but kept HERE (not script-local) because core/pricing.py is the one sanctioned
+# fee-coefficient site. Neither literal is a banned schedule rate (0.07/0.0175/0.035), so a probe
+# that imports these names never hand-rolls a rate. Same p·(1−p) shape / no-round posture as
+# `polymarket_fee_per_contract` (Fee Structure V2) — pass either rate into that function.
+POLYMARKET_SPORTS_TAKER_RATE = 0.05             # conservative (harder bar): high end of 0.03–0.05
+POLYMARKET_SPORTS_TAKER_RATE_OPTIMISTIC = 0.03  # sensitivity floor: most-generous end of the range
+
 
 def polymarket_fee_per_contract(price: float, rate: float = POLYMARKET_US_TAKER_RATE) -> float:
     """Polymarket taker fee per contract, in dollars: fee = rate · P · (1−P) (Fee Structure V2,
