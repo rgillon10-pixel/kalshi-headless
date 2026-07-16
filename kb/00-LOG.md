@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 04:xx ET — kalshi-edge-hunter nightly: adversarial review of 3 last-24h verdicts (all PASS), queue healthy (no idea-gen), no sub-72h prep
+
+Nightly thinking-seat run. Step 0a **PASS** — `origin/main` HEAD `5c4819d` not rewound: the
+`git fetch` "forced update" is the documented squash-merge graft-boundary artifact (PRs
+#85/#86/#87), resolved via `git checkout -B main origin/main`; `kb/00-LOG.md` newest entry and
+newest `tape/*/dt=*` content both 2026-07-16, 0-day gap. Claim-check: 1 open PR **#77** (Ryan's
+stale queue-restock, ~1.5 days old, its Q29-Q32 numbering already superseded by the real Q31-Q38
+merged separately) — under the 5-day stuck-PR threshold and already flagged by six prior runs, so
+**not re-flagged**, left for Ryan.
+
+**Unit 1 — adversarial review of the 3 verdict-class findings from the last 24h, one load-bearing
+number each, ALL PASS → no issue opened:**
+- **Q31/S34 cross-venue two-legged arb (2026-07-16, DEAD)** — the freshest verdict, and it
+  introduced brand-new pricing code, so reviewed deepest. (a) **Provenance:** read a raw
+  `tape/polymarket_pairs/` line directly — both the Kalshi leg (`no_ask`, `price_source_tag:
+  real_ask`) and the Polymarket leg (`best_ask`, `price_source_tag: real_ask`) carry `real_ask`,
+  no synthetic/mid leg. (b) **Fee rate via `core.pricing`:** `polymarket_fee_per_contract` =
+  `rate·p·(1−p)` with `POLYMARKET_US_TAKER_RATE = 0.05`, no round-up-to-cent — internally
+  consistent with its own cited $1.25/100-contract cap (0.05·0.5·0.5 = 0.0125), and
+  **independently confirmed against the live published Polymarket US schedule** (uniform taker
+  ≈0.05, `fee = C·rate·p·(1−p)`, cap ≈$1.25/100 at 50¢ — the cap only reconciles at rate=0.05).
+  Kalshi leg uses the sanctioned ceil-to-cent `fee_per_contract` at 0.07. (c) **Bootstrap unit:**
+  by matched pair (63 clusters), not the 13,158 raw snapshots — correct L6 clustering via
+  `core.bootstrap.block_bootstrap` → `bootstrap_verdict_admissible` + `clears_tick_magnitude`.
+  Crucially the verdict is **structurally fee-independent** — the finding's own fee-free-Polymarket
+  sensitivity is still negative (CI [−0.0344,−0.0214]) and gross (pre-fee) parity is violated
+  (cost ≥ $1) in 84.9% of snapshots — so no fee-rate error could flip DEAD→alive. **PASS.**
+- **S33 weather ladder-coherence (2026-07-15, DEAD)** — load-bearing number = the 6-leg fee floor.
+  Confirmed `scripts/probe_ladder_coherence.py` sums `core.pricing.fee_per_contract` per leg
+  (never hand-rolled, L18) at rate 0.07; reports `reports/ladder_coherence_summary.json` /
+  `_opps.jsonl` present and committed; 0 opportunities ≥10 contracts AND ≥60s. **PASS.**
+- **Q30/S29 draw-aversion maker (2026-07-15, DEAD-by-fillability)** — load-bearing number =
+  breakeven. Re-derived: mean fill $0.1799 + $0.01 maker fee = **0.1899 = 18.99%**, matching the
+  finding exactly; draw rate 28.03% > breakeven so the spec population looks positive, and the kill
+  is fillability (verifier-confirmed at creation, edge carried by unfillable nickel bids). **PASS.**
+
+**Unit 2 — pipeline replenishment: NOT TRIGGERED.** The queue is no longer drained: Ryan's
+2026-07-15 regime-change + weather-revival session restocked Q31-Q38. Eligible (TODO, unclaimed,
+unblocked) items now: **Q34** (S14 queue-model fill-realism revalidation — flagged highest-priority,
+immediately runnable on existing tape, gates Q35's rebate multiplier), **Q35-analysis half**
+(maker-rebate reframe, read-only, no Polymarket data needed), and **Q38** (weather forecast/actuals
+collector milestones, offline-testable now) — **≥2 eligible**, so no Q21 idea-gen round this run.
+(Gated/blocked and correctly skipped: Q32 needs both ODDS_API_KEY + a Polymarket sports leg; Q33
+BLOCKED on Ryan-side Polymarket credentials; Q36 gated on ≥7 days weather_books coverage; Q37 gated
+on ≥21 summer days.)
+
+**Unit 3 — probe-prep: NO-OP.** No time-gated item unblocks within ~72h. Nearest gate is Q36
+(KXTEMPNYCH microstructure), gated on ≥7 days of `tape/weather_books/` — collector landed
+2026-07-15, only day-1 tape exists (`20260716T013115Z`), so the gate opens ~2026-07-22 (≈6 days
+out, outside the 72h window) and, per L25, the 7-day tape shape isn't there yet to offline-test
+against. Noted as the next prep target for a future run.
+
+**Housekeeping.** Burst branch `tape/burst-20260714T120659Z` (CPI cpi-jun26, 2026-07-14) verified
+**fully reconciled onto main** (line-level diff: 0 lines missing from main across every tape file)
+→ safe delete candidate. Burst triggers whose event date has passed → flag `kalshi-burst-cpi-0714`,
+`kalshi-burst-wcsemi1-0714`, and **newly** `kalshi-burst-wcsemi2-0715` (event was 2026-07-15) for
+deletion; `wcfinal-0719` and `fomc-0729` still future. Remote branch count: **146
+`tape/hourly-*` + 1 `tape/burst-*`** (the hourly branches keep accumulating because the GitHub App
+lacks branch-delete scope — a standing Ryan-side cleanup item, not re-escalated here).
+
+**Step 9 (paper sub-pass):** `execution/strategy_api.SHADOW_REGISTRY` = S14 only; no new
+paper-relevant tape since the last pass → `paper_pass.py` idempotent, realized P&L unchanged
+**+$9.15** (`broker_truth`, 0 open / all settled). Still **0 proven edges** — the bar has not moved.
+
+Gates: `pytest -q` → 983 passed; `python scripts/invariants.py --full` → green (only the standing
+non-gating L25/L74 tape-cadence advisories). Docs-only diff → self-merge.
+
+---
+
 ## 2026-07-16 03:xx ET — Q31/S34 cross-venue two-legged arb: DEAD, verifier-CONFIRMED, queue no longer drained
 
 Six consecutive idle runs had found Q0-Q30 fully DONE/BLOCKED/RESERVED. This run found the queue
