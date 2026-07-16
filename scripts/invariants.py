@@ -37,6 +37,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -465,6 +466,63 @@ def tape_dir_shape_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Daily-cadence family gap warning (L74: non-gating, offline-safe advisory) ────
+
+# The 3 tape families `collection/hourly_pass.py` gates to a single `now.hour == 9` UTC
+# window (anomaly_sweep -> tape/anomalies/, econ_prints, polymarket_cpi_pairs) with no
+# retry/backfill — one bad hour costs a full calendar day of coverage, and unlike the
+# always-hourly families a missed day leaves no other capture to catch it (L74).
+DAILY_CADENCE_FAMILIES = ("anomalies", "econ_prints", "polymarket_cpi_pairs")
+
+
+def _daily_family_gap_issues(tape_root: Path = ROOT / "tape",
+                              families: Tuple[str, ...] = DAILY_CADENCE_FAMILIES) -> List[str]:
+    """Missing calendar days, per daily-cadence family, between that family's earliest and
+    latest committed `dt=<date>.jsonl` file (lesson L74). Best-effort/offline: ANY failure
+    (missing tape/, unparseable filename, permission error, exception) is swallowed per-family
+    so it can never poison the gate. A family with 0 or 1 files has no interior to gap-check
+    and is silently skipped. Returns `family/dt=<date>` labels for each missing day, sorted."""
+    issues: List[str] = []
+    if not tape_root.is_dir():
+        return issues
+    for family in families:
+        family_dir = tape_root / family
+        try:
+            if not family_dir.is_dir():
+                continue
+            days = sorted(
+                date.fromisoformat(p.name[len("dt="):-len(".jsonl")])
+                for p in family_dir.glob("dt=*.jsonl")
+                if p.is_file()
+            )
+            if len(days) < 2:
+                continue
+            present = set(days)
+            d = days[0]
+            while d < days[-1]:
+                if d not in present:
+                    issues.append(f"{family}/dt={d.isoformat()}")
+                d += timedelta(days=1)
+        except Exception:
+            continue
+    return issues
+
+
+def daily_family_gap_warning(issues: List[str]) -> Optional[str]:
+    """A non-gating advisory message when a daily-cadence family is missing a calendar day
+    between its earliest and latest committed tape file, else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = ", ".join(issues[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} daily-cadence tape day(s) missing (e.g. {examples}). "
+        f"These families ({', '.join(DAILY_CADENCE_FAMILIES)}) capture only during a single "
+        f"UTC hour with no retry/backfill, so one bad hour blacks out a full day with nothing "
+        f"else to catch it. See kb/lessons/00-lessons.md L74."
+    )
+
+
 # ─── PreToolUse hook ────────────────────────────────────────────────────────
 
 def _post_edit_content(file_path: Path, old: str, new: str) -> Optional[str]:
@@ -540,6 +598,11 @@ def main() -> int:
         shape_warning = tape_dir_shape_warning(_tape_dir_shape_issues())
         if shape_warning:
             sys.stderr.write(shape_warning + "\n")
+        # L74 advisory: surface missing calendar days in the single-hour-gated daily-cadence
+        # families. Non-gating — printed to stderr only.
+        gap_warning = daily_family_gap_warning(_daily_family_gap_issues())
+        if gap_warning:
+            sys.stderr.write(gap_warning + "\n")
 
     if failures:
         sys.stderr.write(f"invariants: {len(failures)} violation(s)\n")

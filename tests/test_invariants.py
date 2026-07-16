@@ -195,6 +195,83 @@ def test_tape_dir_shape_warning_never_gates_exit_code(monkeypatch, capsys):
     assert "invariants: all green" in captured.out
 
 
+# ─── daily-cadence family gap warning (L74: non-gating advisory) ──────────────
+
+def test_daily_family_gap_warning_none_when_empty():
+    assert inv.daily_family_gap_warning([]) is None
+
+
+def test_daily_family_gap_warning_message_content():
+    msg = inv.daily_family_gap_warning(["econ_prints/dt=2026-07-09"])
+    assert msg is not None
+    assert "econ_prints/dt=2026-07-09" in msg
+    assert "non-gating" in msg
+    assert "L74" in msg
+
+
+def test_daily_family_gap_issues_finds_gap(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-05.jsonl").write_text("{}\n")
+    (fam / "dt=2026-07-08.jsonl").write_text("{}\n")
+    issues = inv._daily_family_gap_issues(tape_root, families=("econ_prints",))
+    assert issues == ["econ_prints/dt=2026-07-06", "econ_prints/dt=2026-07-07"]
+
+
+def test_daily_family_gap_issues_clean_run_is_empty(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "anomalies"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-05.jsonl").write_text("{}\n")
+    (fam / "dt=2026-07-06.jsonl").write_text("{}\n")
+    (fam / "dt=2026-07-07.jsonl").write_text("{}\n")
+    assert inv._daily_family_gap_issues(tape_root, families=("anomalies",)) == []
+
+
+def test_daily_family_gap_issues_single_file_is_empty(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-05.jsonl").write_text("{}\n")
+    assert inv._daily_family_gap_issues(tape_root, families=("econ_prints",)) == []
+
+
+def test_daily_family_gap_issues_missing_family_dir_is_empty(tmp_path):
+    tape_root = tmp_path / "tape"
+    tape_root.mkdir()
+    assert inv._daily_family_gap_issues(tape_root, families=("econ_prints",)) == []
+
+
+def test_daily_family_gap_issues_missing_tape_root_is_empty(tmp_path):
+    assert inv._daily_family_gap_issues(tmp_path / "does-not-exist") == []
+
+
+def test_daily_family_gap_issues_treats_dir_shaped_dt_entry_as_missing(tmp_path):
+    # A dt=<date>.jsonl DIRECTORY (L25 shape issue) is not a parseable file, so its day
+    # correctly surfaces as a gap here too, rather than being silently counted as present.
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-05.jsonl").write_text("{}\n")
+    (fam / "dt=2026-07-06.jsonl").mkdir()
+    (fam / "dt=2026-07-07.jsonl").write_text("{}\n")
+    issues = inv._daily_family_gap_issues(tape_root, families=("econ_prints",))
+    assert issues == ["econ_prints/dt=2026-07-06"]
+
+
+def test_daily_family_gap_warning_never_gates_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(inv, "_daily_family_gap_issues", lambda: ["fake_family/dt=2026-01-02"])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "fake_family/dt=2026-01-02" in captured.err
+    assert "L74" in captured.err
+    assert "invariants: all green" in captured.out
+
+
 # ─── DB invariants ────────────────────────────────────────────────────────────
 
 def _db(tmp_path, name, ddl, rows_sql=()):
