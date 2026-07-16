@@ -94,6 +94,30 @@ def fee_per_contract(price: float, rate: float = TAKER_FEE_RATE) -> float:
     return math.ceil(rate * float(price) * (1.0 - float(price)) * 100.0) / 100.0
 
 
+# ─── Polymarket fee-schedule rate — the cross-venue leg (Q31 / regime change 2026-07-15) ──
+# Polymarket "Fee Structure V2" (eff. ~2026-03-30) is TAKER-only (makers get a rebate) with the
+# SAME functional shape as Kalshi's: fee = C · rate · p · (1−p) per contract. Rates by venue/
+# category (researched 2026-07-15, cited in LOOP-QUEUE.md "Regime change" note): Polymarket US
+# (QCX/QCEX, the CFTC-regulated venue Ryan can actually fill on) ≈ 0.05 taker, cap ~$1.25/100
+# contracts @ 50¢; international CLOB: crypto 0.07, sports 0.03–0.05, geopolitics/econ fee-free.
+# Sources: Polymarket help "Trading Fees" (help.polymarket.com/en/articles/13364478); Sacra &
+# Galaxy fee breakdowns (V2 eff. 2026-03-30; US venue eff. 2026-04-03). We default the cross-venue
+# probe to the US taker rate — the venue Ryan realizes — but our captured book is the INTERNATIONAL
+# CLOB, so this is a modeled fee on an international price, never a claimed Polymarket-US fill.
+POLYMARKET_US_TAKER_RATE = 0.05   # Polymarket US (QCX/QCEX) taker — Ryan's realizable venue
+
+
+def polymarket_fee_per_contract(price: float, rate: float = POLYMARKET_US_TAKER_RATE) -> float:
+    """Polymarket taker fee per contract, in dollars: fee = rate · P · (1−P) (Fee Structure V2,
+    the same p·(1−p) shape as Kalshi's `fee_per_contract` — see the constant block above for the
+    schedule/citations). UNLIKE Kalshi's fee there is NO round-up-to-cent step: Polymarket settles
+    in USDC to 6 decimals, not whole cents, and its published cap (~$1.25/100 contracts at 50¢)
+    matches the un-rounded formula exactly (0.05·0.5·0.5 = 0.0125/contract). Pass rate=0.0 to model
+    the international geopolitics/econ fee-free category (the most-generous sensitivity)."""
+    p = float(price)
+    return float(rate) * p * (1.0 - p)
+
+
 def true_arb_edge(bracket_sum_value: float, total_fees: float) -> float:
     """Dollar edge of buying every YES in a COMPLETE, mutually-exclusive bracket ladder:
     guaranteed $1 payout costs `bracket_sum_value + total_fees`. Positive means a true arb

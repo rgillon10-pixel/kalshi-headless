@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 03:xx ET — Q31/S34 cross-venue two-legged arb: DEAD, verifier-CONFIRMED, queue no longer drained
+
+Six consecutive idle runs had found Q0-Q30 fully DONE/BLOCKED/RESERVED. This run found the queue
+restocked: Q31-Q38 landed on `main` (Ryan's 2026-07-15 "regime change" interactive session +
+weather revival) after the last idle run's PR merged. Picked the topmost eligible item, Q31: now
+that Ryan can trade both Kalshi and Polymarket, is there a genuine two-legged arb (buy YES on the
+cheaper venue + buy NO on the dearer venue, locking $1 regardless of outcome, net of both venues'
+fees)? S9's prior (2026-07-04) found the steady-state price gap tight (mean +0.20¢, ±3¢) — the
+queue's own honest expectation was "probably DEAD."
+
+Built `scripts/q31_cross_venue_arb_probe.py` + 17 offline tests, and a new
+`core.pricing.polymarket_fee_per_contract` / `POLYMARKET_US_TAKER_RATE = 0.05` (Polymarket Fee
+Structure V2, US/QCX taker rate, cited in the module comment — same `rate·p·(1−p)` shape as
+Kalshi's fee but no round-up-to-cent).
+
+Discovered a real, previously-unstated tape-coverage gap: `collection/polymarket_pairs.py` /
+`collection/polymarket_macro_pairs.py` only ever fetch the Polymarket "Yes" outcome token's book
+(`outcomes.index("Yes")`) — there is no captured Polymarket NO-token ask anywhere in the tape. So
+the two-legged arb is only fully computable, with real resting asks on both legs, in one
+direction: buy Polymarket YES + buy Kalshi NO (Kalshi always quotes both sides). Deriving a
+Polymarket NO ask as `1 − best_bid` would have been a mid/bid-derived synthetic price — forbidden
+by the milestone's own gate — so the mirror direction was left untested and the gap stated
+honestly rather than worked around.
+
+Over 13,158 resolution-equivalent snapshots / 63 matched pairs (48 WC-round + 15 Fed-decision;
+the CPI family excluded outright — its Kalshi leg is `synthetic`), block-bootstrap-by-pair: mean
+net edge **−$0.0340, 95% CI [−0.0417, −0.0268]** ⊄ >0, 0/63 pairs positive-mean, inadmissible
+(`no_opposing_unit`), fails `clears_tick_magnitude`. Robust to a fee-free-Polymarket sensitivity
+(CI [−0.0344,−0.0214]) and to the L32 frozen/movement-conditioned dual cut (movement CI
+[−0.0423,−0.0316]). Fillable-snapshot frequency only 2.0%, and persistence collapses from 84.2%
+(inclusive) to 34.9% once conditioned on the book actually moving — apparent persistence is
+mostly a frozen-quote artifact (75.9% of consecutive pairs are frozen), not a re-offered arb.
+
+**Verdict: DEAD.** Registered **S34 — dead ✗** in `kb/strategies/00-index.md`. Confirms the S9
+parity prior: once both legs cost a fee, the near-parity price gap leaves nothing.
+
+Two-agent verdict rule: `verifier`/`edge-prober`/`research-lead` agent types were unexpectedly
+unavailable this session (a mid-run tool-availability change), so verification used a
+`general-purpose` agent under an explicit adversarial-verifier mandate instead. It independently
+re-ran both gates, re-derived every headline number from raw tape (bypassing the probe script),
+bucketed by ticker and by price band to check for a masked positive subpopulation (found none —
+all 63 tickers and all 11 bands negative-mean), and confirmed the data-coverage gap by reading
+the collector source directly. **CONFIRMED** — safe to commit as two-agent-verified.
+
+Step 9: `SHADOW_REGISTRY` = S14 only; `paper_pass.py` ran idempotent this pass (0 newly
+processed — 261 deferred-caps, 132 deferred-coverage, 39 already-in-ledger); realized P&L
+unchanged **+$9.15** (`broker_truth`). No new paper ledger lines to commit.
+
+Gates: `pytest` → 983 passed. `python scripts/invariants.py --full` → green (only the standing
+non-gating L25/L74 tape-cadence advisories). Still 0 proven edges. See
+`findings/2026-07-16-q31-cross-venue-arb-verdict.md`, `LOOP-QUEUE.md` Q31, `kb/strategies/00-index.md` S34.
+
+**Next:** Q34 (S14 queue-model fill-realism revalidation — flagged in the queue as highest
+priority of the new items, gates Q35's rebate multiplier) is now the topmost remaining eligible
+milestone.
+
+---
+
 ## 2026-07-15 22:xx ET — Weather revival (Ryan interactive): family reopened, S33 ladder-coherence DEAD, weather tape restarted
 
 Ryan-directed serious re-look at weather. A four-agent mining pass over the prior repos
