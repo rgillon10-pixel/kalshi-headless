@@ -6,6 +6,31 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 09:xx ET — Q35 Milestone A: maker-rebate reframe — 2/5 flip to fee-line CI-positive candidates, no registry change
+
+Read-only re-derivation of the 5 fee-killed maker strategies (S13/S19/S21/S23/S29) swapping
+Kalshi's flat ~1¢ maker fee for a hypothetical Polymarket maker rebate (+0.5¢ conservative /
++1.25¢ US-venue). `scripts/q35_maker_rebate_reframe.py` (+10 offline tests) reused each
+strategy's own simulate functions over already-committed tape/cache — no network, no new
+fetch. **S13 flips both rebate scenarios** (mechanical: bid=fair−1¢ by construction, the fee
+ate almost exactly the fixed 1¢ pre-fee edge). **S29 flips only at +1.25¢**, but only on the
+two-sided-book entry cut (n=119 games) — the raw earliest-entry population's headline is an
+artifact its own finding disowns. **S19/S21 stay dead** on data adequacy (2 event-hours / 0
+fills — no fee line can manufacture units). **S23 stays dead**, having lost by roughly double
+the largest rebate swing.
+
+Two-agent trail had a real catch: the first cut reported "1/5 flips (S13 only)" because
+`collect_s29` fed the disowned raw population into the reframe instead of the two-sided-book
+cut the S29 finding's DEAD verdict actually rests on. An independent verifier REFUTED that
+cut, built its own check script over the correct population, and got a CI that clears the
+tick gate at +1.25¢ — directly contradicting the headline. Fixed (`filter_two_sided_fills`),
+re-verified by a second independent pass: numbers reproduce to 4 decimal places. Every flip
+remains a Milestone-B CANDIDATE only — portability, resolution-basis parity, and the full
+real-ask/real-fill bar on an actual Polymarket venue are all still owed before any of this is
+a proven edge. `kb/strategies/00-index.md` unchanged (Q35 Milestone A never flips a
+registry entry by spec). Still **0 proven edges**. See
+`findings/2026-07-16-q35-maker-rebate-reframe-milestone-a.md`.
+
 ## 2026-07-16 06:xx ET — Q34: S14 queue-aware fill-realism revalidation — verdict DEAD, closes the repo's last non-DEAD candidate
 
 Research-loop run. Step 0a passed cleanly (HEAD matched `origin/main` post-fetch, no rewind;
