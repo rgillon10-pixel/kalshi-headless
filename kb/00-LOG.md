@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-15 20:xx ET — Idle run: L74 daily-cadence gap advisory converted UNENFORCED→invariant (non-gating)
+
+Research-loop run. Step 0a: shallow clone (`--depth 50`) made every recent merged-PR head
+SHA look like a non-ancestor of `origin/main` — the same graft-boundary/squash-merge artifact
+PRs #85/#86 already documented, not a rewrite. `git fetch --unshallow` then confirmed via
+content presence (not head-SHA ancestry, since these PRs are squash-merged) that #78/#79/#80/
+#81/#83/#84/#85/#86's payloads (`core/income_legs.py`, `core/depth.py`, `core/reversal.py`,
+both findings docs) are all present on `origin/main` HEAD `f07beb9`, with matching `(#NN)`
+commit messages. `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` content both 2026-07-15
+— 0/1-day gap. Not rewound. Claim-check: 1 open PR **#77** (Ryan's own queue-restock session,
+unchanged since PR #79 first flagged it 07-15T03:37Z — same head sha, same Q29-Q32 numbering
+collision with slots already merged) — not re-flagged, left for Ryan.
+
+**Queue state unchanged: every numbered item Q0-Q30 is still DONE, BLOCKED(data-adequacy), or
+RESERVED — no TODO/IN-PROGRESS milestone was eligible.** Sixth consecutive idle run.
+
+**Idle-run policy order (a):** L74 (this week's own econ/CPI/anomaly daily-cadence-gap
+data-quality finding) had a genuinely open, code-shaped candidate its own row named: "a
+`dt=<date>` day-gap check for daily-cadence families in `scripts/invariants.py` (advisory,
+not gating — same class as the L25 tape-dir-shape check)". Built it: `DAILY_CADENCE_FAMILIES`
+(`anomalies`, `econ_prints`, `polymarket_cpi_pairs` — the 3 families `collection/hourly_pass.py`
+gates to the same single `now.hour == 9` UTC window) + `_daily_family_gap_issues()` +
+`daily_family_gap_warning()`, wired into `invariants.py --full`'s stderr-only advisory output
+alongside the existing L17/L25 warnings (same offline-safe, per-family exception-swallowed,
+non-gating pattern as `tape_dir_shape_warning`). Live-validated against the real committed
+tree: correctly flags all 6 days L74 first documented (`anomalies`/`econ_prints`/
+`polymarket_cpi_pairs` × `dt=2026-07-09`/`dt=2026-07-10`), 0 false positives elsewhere. New
+lesson **L75** (supersedes L74's enforcement column only — lesson content unchanged). Still
+**0 proven edges**.
+
+**Step 0b sweep:** all remote `tape/hourly-*`/`tape/burst-*` branches top out at
+`tape/hourly-20260715T1901Z`, already swept and reconciled by PR #86 — nothing new this run.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = S14 only. `scripts/paper_pass.py` processed
+10 newly-eligible fills (261 deferred-caps, 126 deferred-coverage, 29 already-in-ledger):
+`daily_summary()` now 0 open, 291 settled, realized P&L **+$9.15** (`broker_truth`, up from
++$5.77). Ledger line appended to `paper/ledger/dt=2026-07-16.jsonl`.
+
+Gates: `pytest` → 940 passed (931 prior + 9 new `test_invariants.py` cases). `python
+scripts/invariants.py --full` → green (only standing non-gating L17/L25/L74-superseded
+advisories; the new L74/L75 advisory itself fired live, correctly, non-gating).
+
 ## 2026-07-15 17:xx ET — Idle run: queue still drained, econ/CPI/anomaly daily-cadence gap data-quality deep-dive (L74)
 
 Research-loop run. Step 0a: local sandbox `main` ref was badly stale (pointed at an early
