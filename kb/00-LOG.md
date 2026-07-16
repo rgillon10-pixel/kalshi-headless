@@ -6,6 +6,73 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 11:xx ET — Q38: weather forecast + actuals collector legs wired into hourly_pass (data only)
+
+Research-loop run. Step 0b (own PR #94): scanned all 149 remote `tape/hourly-*`/`tape/burst-*`
+branches by line-set diff against current `main` — 147 already fully reconciled (undeleted
+per the 2026-07-10 retro amendment that stopped attempting a branch-delete that reliably fails
+from a cloud session), two carried genuine gaps totaling 291 lines (`tape/hourly-202607161256Z`
+289 lines across crypto_hourly/polymarket_macro_pairs/sports_pairs; an older un-swept backlog
+branch `tape/hourly-20260715T1901Z`, 2 lines in polymarket_pairs dt=2026-07-15). All JSON-
+validated, 0 invalid/reordered/duplicated.
+
+Milestone: **Q38** — Q37's future EMOS weather-signal probe needs a forecast tape and real
+settlement-truth actuals, neither collected on a recurring cadence. Delegated to
+`collector-engineer`:
+
+- **(a) Forecast leg:** `collection/forecast_collector.py` (existing multi-model Open-Meteo
+  one-shot, tag `synthetic`, `MODELS` untouched — Hard Rule #1's `ncep_gefs025` exclusion
+  unaffected) is now wired into `collection/hourly_pass.py`, firing once per UTC day at a new
+  `FORECAST_COLLECTOR_UTC_HOUR=11` gate (the laptop-sleep-cadence blocker that kept this a
+  manual one-shot is moot on always-on cloud/VPS collection).
+- **(b) Actuals leg (new):** `collection/weather_actuals.py` fires once/day at
+  `WEATHER_ACTUALS_UTC_HOUR=12` (an hour after the forecast leg, so late-posting NWS CLI reports
+  for the just-closed day are more likely available). Reuses `validation/v1_actuals.py`'s
+  `fetch_cli`/`fetch_metar`/`reconcile_day`/`TOL_F` verbatim — one definition of "do the sources
+  agree" — over the 20 verified `config/station_candidates.yaml` cities (KNYC/Central Park
+  already among them). A high/low value is tagged `broker_truth` ONLY when CLI+METAR both
+  present and agree within tolerance and the day isn't `dirty`; otherwise `unverifiable` — a
+  tape-only honest-absence-of-confirmation tag, never a DB `price_source_tag`, same posture as
+  `real_bid`/L24, never silently upgraded. Joins to that day's SETTLED Kalshi KXHIGH*/KXLOWT*
+  results via the event ticker's own structural `<SERIES>-<YYMMMDD>` weather-day token (not
+  `close_time`, which lands in the next UTC day for many US settlement instants — L16
+  discipline), bounded settled-market scan with an honest `truncated` flag (L10).
+
+28 new offline unit tests (17 in `tests/test_weather_actuals.py`, 11 added to
+`tests/test_hourly_pass.py`). **Live validation (both legs, real endpoints) was a genuine
+end-to-end structural-join confirmation, not just a wiring smoke test:** `weather_actuals
+--limit 2` captured 2/2 cities, 0 dropped, `broker_truth` high/low 2/2, settled joined 2/2 —
+and the cross-confirmed CLI/METAR actuals matched Kalshi's own settled `expiration_value`
+EXACTLY (Atlanta high/low 90.0°F/74.0°F == `KXHIGHTATL`/`KXLOWTATL` settled 90.00/74.00; Austin
+80.0°F/72.0°F likewise). `forecast_collector --limit 2` persisted 8/8 (city, model) lines, tag
+`synthetic`, to its existing gitignored `data/forecast_tape/` store (location unchanged).
+
+DATA ONLY per this item's own scope guard — no strategy claim, `kb/strategies/00-index.md`
+untouched, still **0 proven edges**. Two judgment calls flagged for Ryan rather than decided
+unilaterally: (1) the forecast tape stays in `data/forecast_tape/` (gitignored) rather than
+being relocated into committed `tape/`; (2) the actuals leg's `completeness_ok` is coupled to
+Kalshi settled-fetch health (mirrors `weather_books`' `series_errors` posture) — could be
+decoupled if preferred. New lesson candidates flagged for the kb-distiller: structural
+settled-event date-token joins reproduce broker truth exactly (extends L16); `unverifiable` as
+a fourth, tape-only honest verdict tag (extends the `real_bid`/L24 family); daily-cadence hour
+placement matters when a downstream source posts late (a scheduling-judgment caution, sibling
+to L15).
+
+Step 9: `SHADOW_REGISTRY`=S14 only, `paper_pass.py` idempotent this run (0 newly processed,
+261 deferred-caps, 146 deferred-coverage, 39 already-in-ledger), realized P&L unchanged
+**+$9.15** (`broker_truth`).
+
+Gates: `pytest -q` → **1049 passed** (1021 prior + 28 new), `python scripts/invariants.py
+--full` → green (only the standing non-gating advisories: stranded-branch count, tape-shape
+directories L25, daily-cadence gaps L74).
+
+**Next:** Q37 (summer maker-side re-test) stays gated until ~21 summer contract-days of
+`tape/weather_books/` accumulate (~2026-08-05); Q36 (KXTEMPNYCH microstructure) gated until
+~7 days of hourly weather_books coverage (~2026-07-22). Both now have a forecast+actuals tape
+accumulating in parallel so their signal layer has real data by the time their gates open.
+
+---
+
 ## 2026-07-16 12:xx ET — Q19 PER-EVENT: WC-semifinal-2 burst lead-lag — descriptive, no registry change
 
 First WC-round-schema burst-window cut. Built `--burst-window` mode for

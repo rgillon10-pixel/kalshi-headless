@@ -40,6 +40,19 @@ fresh forward L2 tape, and (lesson L11) an un-collected snapshot is lost forever
 S6 depth pass this sub-pass does its OWN discovery (weather isn't in the sports/crypto
 tickers the depth pass reuses), fault-isolated like every sibling.
 
+Weather revival forecast + actuals legs (2026-07-16, Q38): also runs, ONCE per UTC day each,
+(a) one `collection.forecast_collector` pass during the FORECAST_COLLECTOR_UTC_HOUR (multi-model
+Open-Meteo daily Tmax forecast tape, tag `synthetic` — a forecast is never a fill price) and
+(b) one `collection.weather_actuals` pass during the WEATHER_ACTUALS_UTC_HOUR (previous-UTC-day
+settlement-truth actuals: CLI + METAR cross-confirmed to `broker_truth`, else `unverifiable`,
+joined to that day's SETTLED Kalshi KXHIGH*/KXLOWT* ladders). These are the two tape legs Q37's
+future EMOS weather-signal probe is blocked on; the forecast collector was previously a manual
+one-shot ("SCHEDULING IS DEFERRED") because a sleeping-laptop cadence produced gappy tape — the
+always-on cloud/VPS cadence removes that blocker. Both are gated on their own UTC hour (distinct
+from ANOMALY/ECON's 09 so no single hour is overloaded) and, being once-daily forecast/actuals
+tape rather than fresh Kalshi market BBOs, do NOT contribute to n_markets/n_lines; they fold into
+`completeness_ok` honestly (a fetch exception lowers it, a not-yet-posted source does not).
+
 Never fakes success: each sub-pass is invoked independently and its exception (if any) is
 caught and recorded rather than allowed to take the other sub-pass down with it. Overall
 `completeness_ok` is the AND of each sub-pass's own honest completeness signal (already
@@ -67,13 +80,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from collection import (crypto_hourly, econ_prints, orderbook_depth, polymarket_pairs,
-                        sports_pairs, weather_books)
+from collection import (crypto_hourly, econ_prints, forecast_collector, orderbook_depth,
+                        polymarket_pairs, sports_pairs, weather_actuals, weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
 ANOMALY_SWEEP_SCRIPT = REPO_ROOT / "scripts" / "anomaly_sweep.py"
 ECON_PRINTS_UTC_HOUR = 9
+# Weather revival (Q38): both legs fire ONCE per UTC day, on their own hours kept distinct
+# from ANOMALY/ECON's 09 so a single hour's pass isn't overloaded. The forecast leg is a
+# DAILY Tmax forecast (not a book snapshot) — hourly capture would be redundant; the actuals
+# leg reconciles the PREVIOUS UTC day's settlement truth, run an hour later so late-posting
+# NWS CLI reports for the just-closed day are more likely to be available.
+FORECAST_COLLECTOR_UTC_HOUR = 11   # daily multi-model Open-Meteo forecast tape (tag: synthetic)
+WEATHER_ACTUALS_UTC_HOUR = 12      # daily actuals + Kalshi settled-market join for yesterday
 
 
 # --------------------------------------------------------------------------- #
@@ -211,6 +231,14 @@ def _default_weather_pass() -> Dict[str, Any]:
     return weather_books.run()
 
 
+def _default_forecast_pass() -> Dict[str, Any]:
+    return forecast_collector.run()
+
+
+def _default_weather_actuals_pass() -> Dict[str, Any]:
+    return weather_actuals.run()
+
+
 # --------------------------------------------------------------------------- #
 # one hourly pass
 # --------------------------------------------------------------------------- #
@@ -223,6 +251,8 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         polymarket_cpi_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         depth_fn: Optional[Callable[[List[str]], Dict[str, Any]]] = None,
         weather_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        forecast_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        weather_actuals_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
     polymarket_pairs.run_fed_decision (Fed meetings), plus anomaly_sweep, econ_prints, and
@@ -340,6 +370,39 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
             n_markets += polymarket_cpi["result"].get("n_matched", 0)
             completeness_ok = completeness_ok and bool(polymarket_cpi["result"].get("completeness_ok", False))
 
+    # weather revival forecast leg (Q38a): daily multi-model Tmax forecast, fired once per UTC
+    # day. Fault-isolated; its lines are forecast tape (source_tag synthetic), NOT Kalshi market
+    # contracts, so they are deliberately NOT folded into n_markets/n_lines (mirrors econ_prints).
+    # Completeness folds in honestly: every (city, model) it set out to collect must persist
+    # (n_complete == n_expected) — a config-only zero-expected pass is fine, a fetch exception is
+    # not (the exception surfaces as status=error via _safe_call).
+    forecast: Optional[Dict[str, Any]] = None
+    if ts.hour == FORECAST_COLLECTOR_UTC_HOUR:
+        f_fn = forecast_fn or _default_forecast_pass
+        forecast = _safe_call(f_fn)
+        if forecast["status"] == "error":
+            completeness_ok = False
+        else:
+            r = forecast["result"]
+            n_exp, n_comp = r.get("n_expected", 0), r.get("n_complete", 0)
+            if n_comp != n_exp:
+                completeness_ok = False
+
+    # weather revival actuals leg (Q38b): daily settlement-truth actuals + Kalshi settled-market
+    # join for the PREVIOUS UTC day, fired once per UTC day (an hour after the forecast leg).
+    # Fault-isolated; its lines are actuals tape (broker_truth / unverifiable), not fresh Kalshi
+    # market BBOs, so likewise NOT folded into n_markets/n_lines. Completeness folds in via the
+    # module's own honest signal (a city fetch/parse exception or a Kalshi settled-fetch
+    # exception lowers it; a source that simply hasn't posted yet is captured, not a drop).
+    wx_actuals: Optional[Dict[str, Any]] = None
+    if ts.hour == WEATHER_ACTUALS_UTC_HOUR:
+        wa_fn = weather_actuals_fn or _default_weather_actuals_pass
+        wx_actuals = _safe_call(wa_fn)
+        if wx_actuals["status"] == "error":
+            completeness_ok = False
+        else:
+            completeness_ok = completeness_ok and bool(wx_actuals["result"].get("completeness_ok", False))
+
     summary = {
         "captured_at": ts.isoformat(),
         "sports_pairs": sports,
@@ -351,6 +414,8 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "anomaly_sweep": anomaly,
         "econ_prints": econ,
         "polymarket_cpi_pairs": polymarket_cpi,
+        "forecast_collector": forecast,
+        "weather_actuals": wx_actuals,
         "n_markets": n_markets,
         "n_lines": n_lines,
         "completeness_ok": completeness_ok,

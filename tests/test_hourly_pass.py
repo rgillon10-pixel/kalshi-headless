@@ -565,6 +565,9 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
+    # keep the two DAILY weather-revival legs offline regardless of the wall-clock hour
+    monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
+    monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
 
     rc = hp.main(["--sports-limit", "3", "--crypto-symbols", "BTC"])
 
@@ -595,6 +598,8 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
+    monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
+    monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
 
     assert hp.main([]) == 1
 
@@ -660,3 +665,200 @@ def test_weather_raising_marks_incomplete_not_crash(tmp_path):
     assert summary["crypto_hourly"]["status"] == "ok"
     assert summary["n_lines"] == 1 + 1
     assert summary["n_markets"] == 2 + 10
+
+
+# --------------------------------------------------------------------------- #
+# forecast_collector (Q38a): DAILY cadence — fires only on its own UTC hour, folds
+# completeness (n_complete == n_expected), a fetch exception is a failure, forecast tape
+# lines are NOT folded into n_markets/n_lines (they aren't Kalshi market contracts)
+# --------------------------------------------------------------------------- #
+FORECAST_HOUR = hp.FORECAST_COLLECTOR_UTC_HOUR
+ACTUALS_HOUR = hp.WEATHER_ACTUALS_UTC_HOUR
+
+
+def test_forecast_hour_distinct_from_other_daily_slots():
+    # the whole point of a new constant: no single hour is overloaded (documented near it)
+    assert len({hp.ANOMALY_SWEEP_UTC_HOUR, hp.ECON_PRINTS_UTC_HOUR,
+                hp.FORECAST_COLLECTOR_UTC_HOUR, hp.WEATHER_ACTUALS_UTC_HOUR}) >= 3
+    assert hp.FORECAST_COLLECTOR_UTC_HOUR != hp.ANOMALY_SWEEP_UTC_HOUR
+    assert hp.WEATHER_ACTUALS_UTC_HOUR != hp.FORECAST_COLLECTOR_UTC_HOUR
+
+
+def test_forecast_not_invoked_outside_its_hour(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    calls = []
+
+    def _forecast():
+        calls.append(1)
+        return {"n_expected": 8, "n_complete": 8}
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER, forecast_fn=_forecast,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    assert calls == []
+    assert summary["forecast_collector"] is None
+
+
+def test_forecast_complete_does_not_fail_completeness(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    n_markets_before = 2 * 3 + 2 * 188
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     forecast_fn=lambda: {"n_expected": 8, "n_complete": 8},
+                     now=_ts(FORECAST_HOUR))
+
+    assert summary["completeness_ok"] is True
+    assert summary["forecast_collector"]["result"]["n_complete"] == 8
+    # forecast tape is synthetic forecast lines, not Kalshi markets -> counts untouched
+    assert summary["n_markets"] == n_markets_before
+    assert summary["n_lines"] == 2 + 2
+
+
+def test_forecast_config_only_zero_expected_pass_is_fine(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     forecast_fn=lambda: {"n_expected": 0, "n_complete": 0},
+                     now=_ts(FORECAST_HOUR))
+
+    assert summary["completeness_ok"] is True
+
+
+def test_forecast_partial_drop_marks_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     forecast_fn=lambda: {"n_expected": 8, "n_complete": 6},
+                     now=_ts(FORECAST_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_forecast_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated forecast_collector crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER, forecast_fn=_boom,
+                     now=_ts(FORECAST_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["forecast_collector"]["status"] == "error"
+    # sibling sub-passes survive (fault isolation)
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+
+
+# --------------------------------------------------------------------------- #
+# weather_actuals (Q38b): DAILY cadence — own UTC hour, folds its own completeness_ok,
+# a fetch exception is a failure, actuals lines are NOT folded into n_markets/n_lines
+# --------------------------------------------------------------------------- #
+def test_weather_actuals_not_invoked_outside_its_hour(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    calls = []
+
+    def _actuals():
+        calls.append(1)
+        return {"completeness_ok": True}
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_actuals,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    assert calls == []
+    assert summary["weather_actuals"] is None
+
+
+def test_weather_actuals_not_invoked_on_forecast_hour(tmp_path):
+    # the two daily legs are on DIFFERENT hours -> the actuals leg does not fire at 11
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    calls = []
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     forecast_fn=lambda: {"n_expected": 8, "n_complete": 8},
+                     weather_actuals_fn=lambda: calls.append(1),
+                     now=_ts(FORECAST_HOUR))
+
+    assert calls == []
+    assert summary["weather_actuals"] is None
+    assert summary["forecast_collector"]["result"]["n_complete"] == 8
+
+
+def test_weather_actuals_complete_does_not_fail_completeness(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    n_markets_before = 2 * 3 + 2 * 188
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     weather_actuals_fn=lambda: {"n_captured": 20, "completeness_ok": True},
+                     now=_ts(ACTUALS_HOUR))
+
+    assert summary["completeness_ok"] is True
+    assert summary["weather_actuals"]["result"]["n_captured"] == 20
+    # actuals tape (broker_truth/unverifiable) is not fresh Kalshi market BBOs -> counts untouched
+    assert summary["n_markets"] == n_markets_before
+    assert summary["n_lines"] == 2 + 2
+
+
+def test_weather_actuals_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     weather_actuals_fn=lambda: {"n_captured": 18, "completeness_ok": False},
+                     now=_ts(ACTUALS_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_weather_actuals_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated weather_actuals crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_boom,
+                     now=_ts(ACTUALS_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["weather_actuals"]["status"] == "error"
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
