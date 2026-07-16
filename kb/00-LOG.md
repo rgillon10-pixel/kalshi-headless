@@ -6,6 +6,34 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 12:xx ET — Q19 PER-EVENT: WC-semifinal-2 burst lead-lag — descriptive, no registry change
+
+First WC-round-schema burst-window cut. Built `--burst-window` mode for
+`scripts/s9_leadlag_probe.py` (the WC-round (`polymarket_pairs.v1`) analog of
+`s17_leadlag_probe.py`'s Fed-schema burst mode — per-ticker signed lead-lag, a
+leave-one-out that drops the single lag-pair actually driving each direction's
+correlation (not just the largest raw price move, which can pick the wrong step), and a
+fillable cross-venue dislocation scan) with offline tests, and ran it over the
+WC-semifinal-2 burst tape (`tape/polymarket_pairs/dt=2026-07-15.jsonl`, 30 captures @
+median 120s, 20:10Z-22:30Z, 2 tickers). **Fee-corrected per Q31's 2026-07-15 regime
+change**: both crossing legs charged their venue's real taker fee (Kalshi 0.07,
+Polymarket US 0.05 via `core.pricing.polymarket_fee_per_contract`) — a
+`--poly-fee-rate 0.0` sensitivity shows 2 of the fee-free view's 4 "hits" are float-dust
+zeros the real fee erases, confirming the correction is load-bearing, not cosmetic.
+
+**Lead-lag:** both tickers nominally show Polymarket leading Kalshi (rho_poly
+0.269/0.290), but the corrected leave-one-out collapses both to ~0.05 once the single
+20:15:28Z first-goal lag-pair is dropped — a one-tick artifact, the same shape as the
+CPI leg's July-bucket finding (L57). **Dislocations:** only 2 fee-clearing captures / 2
+episodes, both at the exact same 20:15:28Z instant (net_edge +$0.1291 / +$0.1832), both
+single-capture (0s duration) — large but short, not the large-AND-durable shape a real
+edge needs. No PROVISIONAL tradeable claim was raised, so the two-agent verifier rule
+did not trigger. **Honest gap:** WC-semifinal-1 (Jul 14) never produced burst tape — the
+trigger fired (`last_fired_at` 2026-07-14T20:10:31Z) but nothing was ever committed;
+flagged for Ryan, not silently dropped. `kb/strategies/00-index.md` S17 unchanged
+(`data-collecting`) — kill/live decision stays deferred to the FOMC event (Jul 29). Still
+**0 proven edges**. See `findings/2026-07-16-s17-burst-wcsemi2-q19.md`.
+
 ## 2026-07-16 09:xx ET — Q35 Milestone A: maker-rebate reframe — 2/5 flip to fee-line CI-positive candidates, no registry change
 
 Read-only re-derivation of the 5 fee-killed maker strategies (S13/S19/S21/S23/S29) swapping

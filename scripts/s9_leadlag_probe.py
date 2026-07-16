@@ -38,10 +38,17 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.io import REPO_ROOT
+from core.pricing import (
+    POLYMARKET_US_TAKER_RATE,
+    TAKER_FEE_RATE,
+    fee_per_contract,
+    polymarket_fee_per_contract,
+)
 
 TAPE_DIR = REPO_ROOT / "tape" / "polymarket_pairs"
 
@@ -205,12 +212,429 @@ def build_report(tape_dir: Path = TAPE_DIR, *, min_captures: int = MIN_CAPTURES)
     }
 
 
+# --------------------------------------------------------------------------- #
+# Burst-mode (Q19) — sub-hourly WC-round event-window lead-lag + fillable
+# cross-venue dislocation scan. Direct port of the s17 burst mode, adapted to the
+# WC-round schema (`polymarket_pairs.v1`, keyed by `kalshi.ticker`) with the Q31
+# FEE CORRECTION: BOTH crossing legs are charged their venue's REAL taker fee —
+# Kalshi via `core.pricing.fee_per_contract` (taker, round-up-to-cent), Polymarket
+# via `core.pricing.polymarket_fee_per_contract` (rate·p·(1−p), no round-up, default
+# the Polymarket US taker rate 0.05). The stale s17 assumption (Poly fee ≈ 0) is
+# WRONG post-2026-07-15 (Q31 / regime change); a `--poly-fee-rate 0.0` sensitivity
+# reproduces the old fee-free view, reported alongside the primary result.
+#
+# HONESTY BOUNDARIES (same as the CPI leg — do not oversell):
+#   - Both crossing legs lift resting size, so neither is a free maker fill (S13/L5):
+#     the Kalshi leg is charged the TAKER fee, the conservative fee.
+#   - A positive net_edge is a fillable-at-observed-quotes locked pair, NOT realised
+#     P&L: the WC tape is SIZE-BLIND (only best_ask/best_bid, no depth), captures are
+#     near-simultaneous within a pass (single `captured_at`, cannot prove venue
+#     simultaneity), and the position carries cross-venue settlement + capital-rail
+#     risk — the very segmentation S9 rests on. This mode SCANS dislocations; it books
+#     none and makes NO CI/verdict claim (L57).
+# --------------------------------------------------------------------------- #
+
+# per-capture quote carrying BOTH sides of BOTH venues' books
+BurstQuote = Dict[str, Optional[float]]
+
+
+def _ticker_key(record: Dict[str, Any]) -> Optional[str]:
+    """WC schema has no meeting/bucket — the Kalshi ticker IS the pair key."""
+    kalshi = record.get("kalshi") or {}
+    ticker = kalshi.get("ticker")
+    return str(ticker) if ticker is not None else None
+
+
+def _as_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_capture_time(record: Dict[str, Any]) -> Optional[datetime]:
+    """Aware-UTC datetime of one record's capture instant. Prefers full-ISO
+    `captured_at`; falls back to the compact `capture_id` (YYYYMMDDThhmmss[Z] or
+    YYYYMMDDThhmm[Z]). Returns None if neither parses (caller drops the record)."""
+    captured_at = record.get("captured_at")
+    if isinstance(captured_at, str):
+        try:
+            dt = datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
+            return dt.astimezone(timezone.utc)
+        except ValueError:
+            pass
+    cid = record.get("capture_id")
+    if isinstance(cid, str):
+        s = cid.strip().rstrip("Zz")
+        for fmt in ("%Y%m%dT%H%M%S", "%Y%m%dT%H%M", "%Y%m%dT%H%M%S%f"):
+            try:
+                return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+    return None
+
+
+def parse_window_bound(text: str) -> datetime:
+    """Parse a CLI window bound (ISO 8601, e.g. 2026-07-15T20:10:00Z) to aware UTC."""
+    return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def filter_burst_window(records: Sequence[Dict[str, Any]], start: datetime,
+                        end: datetime) -> List[Dict[str, Any]]:
+    """Records whose capture instant falls in [start, end] (inclusive)."""
+    out: List[Dict[str, Any]] = []
+    for r in records:
+        t = parse_capture_time(r)
+        if t is not None and start <= t <= end:
+            out.append(r)
+    return out
+
+
+def cadence_stats(records: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """min/median/max inter-capture gap in seconds across DISTINCT capture instants —
+    the honesty check that a window is genuinely burst-cadence (60-120s) and not sparse
+    hourly tape masquerading as one. A median near 3600s means this is NOT burst tape."""
+    times = sorted({t for t in (parse_capture_time(r) for r in records) if t is not None})
+    gaps = [(b - a).total_seconds() for a, b in zip(times, times[1:])]
+    if not gaps:
+        return {"n_distinct_captures": len(times), "min_gap_s": None,
+                "median_gap_s": None, "max_gap_s": None}
+    gaps_sorted = sorted(gaps)
+    median = gaps_sorted[len(gaps_sorted) // 2]
+    return {"n_distinct_captures": len(times), "min_gap_s": min(gaps),
+            "median_gap_s": median, "max_gap_s": max(gaps)}
+
+
+def build_burst_series(records: Sequence[Dict[str, Any]]) -> Dict[str, List[Tuple[datetime, BurstQuote]]]:
+    """Per-ticker series carrying BOTH sides of BOTH venues' books (Kalshi yes-ask &
+    yes-bid, Polymarket best-ask & best-bid) sorted by capture time. De-dupes by capture
+    instant (last-write-wins, tape-append-safe). Drops Polymarket book-fetch failures.
+    A row keeps whichever quotes were present; a dislocation is only scored when the two
+    legs it needs are both present."""
+    by_ticker: Dict[str, Dict[datetime, BurstQuote]] = defaultdict(dict)
+    for r in records:
+        poly = r.get("polymarket") or {}
+        if not poly.get("book_fetch_ok", True):
+            continue
+        key = _ticker_key(r)
+        t = parse_capture_time(r)
+        if key is None or t is None:
+            continue
+        kalshi = r.get("kalshi") or {}
+        by_ticker[key][t] = {
+            "kalshi_yes_ask": _as_float(kalshi.get("yes_ask")),
+            "kalshi_yes_bid": _as_float(kalshi.get("yes_bid")),
+            "poly_best_ask": _as_float(poly.get("best_ask")),
+            "poly_best_bid": _as_float(poly.get("best_bid")),
+        }
+    series: Dict[str, List[Tuple[datetime, BurstQuote]]] = {}
+    for key, by_t in by_ticker.items():
+        series[key] = [(t, by_t[t]) for t in sorted(by_t)]
+    return series
+
+
+def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
+                       *, min_steps: int = 3, margin: float = 0.05) -> List[Dict[str, Any]]:
+    """SIGNED lead-lag per ticker at burst resolution: does Kalshi's move predict
+    Polymarket's NEXT move (kalshi leads) more than the reverse? `signed_leader` is
+    'kalshi'/'polymarket' when one lag's correlation beats the other by `margin`, else
+    'none'. Uses the Kalshi yes-ask and Polymarket best-ask series (both real_ask)."""
+    out: List[Dict[str, Any]] = []
+    for key, rows in burst_series.items():
+        seq = [(q["kalshi_yes_ask"], q["poly_best_ask"]) for _, q in rows
+               if q["kalshi_yes_ask"] is not None and q["poly_best_ask"] is not None]
+        dk = [b[0] - a[0] for a, b in zip(seq, seq[1:])]
+        dp = [b[1] - a[1] for a, b in zip(seq, seq[1:])]
+        if len(dk) < min_steps:
+            continue
+        rho_k_leads = pearson(dk[:-1], dp[1:])
+        rho_p_leads = pearson(dp[:-1], dk[1:])
+        leader: Optional[str] = None
+        if rho_k_leads is not None and rho_p_leads is not None:
+            if rho_k_leads > rho_p_leads + margin:
+                leader = "kalshi"
+            elif rho_p_leads > rho_k_leads + margin:
+                leader = "polymarket"
+            else:
+                leader = "none"
+        out.append({
+            "pair": key,
+            "n_steps": len(dk),
+            "rho_contemporaneous": pearson(dk, dp),
+            "rho_kalshi_leads": rho_k_leads,
+            "rho_polymarket_leads": rho_p_leads,
+            "signed_leader": leader,
+        })
+    return out
+
+
+def _drop_top_crossproduct_pair(xs: Sequence[float], ys: Sequence[float]
+                                ) -> Tuple[Optional[float], Optional[int]]:
+    """Find the single (x_i, y_i) pair with the largest centered cross-product contribution
+    to pearson(xs, ys) — the one lag-pair a single-shock correlation leans on most — drop it,
+    and return (recomputed ρ, dropped index). This is the honest L57 leave-one-out for a
+    DIRECTIONAL lead claim: it removes the biggest driver OF THAT DIRECTION's ρ, not merely
+    the biggest raw price move (which at burst resolution is often a CONTEMPORANEOUS collapse
+    that never contributed to the lead in the first place)."""
+    n = len(xs)
+    if n < 3:
+        return (None, None)
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    contrib = [(xs[i] - mx) * (ys[i] - my) for i in range(n)]
+    j = max(range(n), key=lambda i: contrib[i])
+    xs2 = [v for i, v in enumerate(xs) if i != j]
+    ys2 = [v for i, v in enumerate(ys) if i != j]
+    return (pearson(xs2, ys2), j)
+
+
+def per_ticker_leadlag_drop_largest(
+        burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
+        *, min_steps: int = 3) -> List[Dict[str, Any]]:
+    """Leave-one-out robustness (L57): for each ticker AND each direction, drop the single
+    lag-pair that contributes most to that direction's lag±1 ρ (the shock/goal repricing the
+    correlation leans on) and recompute. If the 'lead' collapses when that one pair is
+    removed, it was a one-tick artifact, not a persistent relationship — report it, don't
+    oversell it. Also records the largest RAW combined move step for provenance (the naive
+    'drop biggest move' which, at burst resolution, may be a contemporaneous collapse)."""
+    out: List[Dict[str, Any]] = []
+    for key, rows in burst_series.items():
+        seq = [(q["kalshi_yes_ask"], q["poly_best_ask"]) for _, q in rows
+               if q["kalshi_yes_ask"] is not None and q["poly_best_ask"] is not None]
+        dk = [b[0] - a[0] for a, b in zip(seq, seq[1:])]
+        dp = [b[1] - a[1] for a, b in zip(seq, seq[1:])]
+        if len(dk) < min_steps + 1:
+            continue
+        # poly-leads pairs: (dp[i], dk[i+1]); kalshi-leads pairs: (dk[i], dp[i+1]).
+        rho_p_drop, p_idx = _drop_top_crossproduct_pair(dp[:-1], dk[1:])
+        rho_k_drop, k_idx = _drop_top_crossproduct_pair(dk[:-1], dp[1:])
+        raw_i = max(range(len(dk)), key=lambda i: abs(dk[i]) + abs(dp[i]))
+        out.append({
+            "pair": key,
+            "n_pairs": len(dk) - 1,
+            "rho_polymarket_leads_full": pearson(dp[:-1], dk[1:]),
+            "rho_polymarket_leads_drop_top_pair": rho_p_drop,
+            "dropped_poly_leads_pair_index": p_idx,
+            "rho_kalshi_leads_full": pearson(dk[:-1], dp[1:]),
+            "rho_kalshi_leads_drop_top_pair": rho_k_drop,
+            "dropped_kalshi_leads_pair_index": k_idx,
+            "largest_raw_move_step_index": raw_i,
+            "largest_raw_move_delta_kalshi": dk[raw_i],
+            "largest_raw_move_delta_poly": dp[raw_i],
+        })
+    return out
+
+
+def _best_dislocation(quote: BurstQuote, *, kalshi_fee_rate: float,
+                      poly_fee_rate: float) -> Optional[Dict[str, Any]]:
+    """Best (max net-edge) fillable cross-venue Yes/Yes pair at one capture, or None if
+    neither direction's two legs are both present. net_edge > 0 is a locked, outcome-neutral
+    dislocation net of BOTH venues' REAL fees (Kalshi taker on the crossing leg; Polymarket
+    per `poly_fee_rate` on the Polymarket leg being crossed). Directions:
+      A buy_kalshi_sell_poly: poly_best_bid − kalshi_yes_ask − fee_k(kalshi_yes_ask) − fee_p(poly_best_bid)
+      B buy_poly_sell_kalshi: kalshi_yes_bid − poly_best_ask − fee_k(kalshi_yes_bid) − fee_p(poly_best_ask)"""
+    ka, kb = quote["kalshi_yes_ask"], quote["kalshi_yes_bid"]
+    pa, pb = quote["poly_best_ask"], quote["poly_best_bid"]
+    cands: List[Tuple[float, str]] = []
+    if ka is not None and pb is not None:
+        edge_a = (pb - ka
+                  - fee_per_contract(ka, kalshi_fee_rate)
+                  - polymarket_fee_per_contract(pb, poly_fee_rate))
+        cands.append((edge_a, "buy_kalshi_sell_poly"))
+    if pa is not None and kb is not None:
+        edge_b = (kb - pa
+                  - fee_per_contract(kb, kalshi_fee_rate)
+                  - polymarket_fee_per_contract(pa, poly_fee_rate))
+        cands.append((edge_b, "buy_poly_sell_kalshi"))
+    if not cands:
+        return None
+    edge, direction = max(cands, key=lambda x: x[0])
+    return {"net_edge": edge, "direction": direction}
+
+
+def dislocation_scan(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
+                     *, kalshi_fee_rate: float = TAKER_FEE_RATE,
+                     poly_fee_rate: float = POLYMARKET_US_TAKER_RATE) -> List[Dict[str, Any]]:
+    """Every capture whose best cross-venue pair clears BOTH fees (net_edge > 0)."""
+    hits: List[Dict[str, Any]] = []
+    for key, rows in burst_series.items():
+        for t, quote in rows:
+            best = _best_dislocation(quote, kalshi_fee_rate=kalshi_fee_rate,
+                                     poly_fee_rate=poly_fee_rate)
+            if best is not None and best["net_edge"] > 0.0:
+                hits.append({
+                    "pair": key,
+                    "capture_time": t.isoformat(),
+                    "direction": best["direction"],
+                    "net_edge": best["net_edge"],
+                    "quote": quote,
+                })
+    return hits
+
+
+def dislocation_episodes(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
+                         *, kalshi_fee_rate: float = TAKER_FEE_RATE,
+                         poly_fee_rate: float = POLYMARKET_US_TAKER_RATE) -> List[Dict[str, Any]]:
+    """Contiguous runs of positive-edge captures on the SAME ticker+direction → one
+    episode each, with width (max net_edge) and duration (wall-clock seconds first→last
+    capture + capture count). A dislocation surviving many captures is a very different
+    animal from a single-tick blip — the width × duration distribution (L57) is the
+    stale-nominal-basis vs real-shock discriminator."""
+    episodes: List[Dict[str, Any]] = []
+    for key, rows in burst_series.items():
+        run: List[Tuple[datetime, float]] = []
+        run_dir: Optional[str] = None
+        for t, quote in rows:
+            best = _best_dislocation(quote, kalshi_fee_rate=kalshi_fee_rate,
+                                     poly_fee_rate=poly_fee_rate)
+            live = best is not None and best["net_edge"] > 0.0
+            direction = best["direction"] if best is not None else None
+            if live and (run_dir is None or run_dir == direction):
+                run.append((t, best["net_edge"]))
+                run_dir = direction
+            else:
+                if run:
+                    episodes.append(_episode(key, run_dir, run))
+                run = [(t, best["net_edge"])] if live else []
+                run_dir = direction if live else None
+        if run:
+            episodes.append(_episode(key, run_dir, run))
+    return episodes
+
+
+def _episode(pair: str, direction: Optional[str],
+             run: Sequence[Tuple[datetime, float]]) -> Dict[str, Any]:
+    times = [t for t, _ in run]
+    edges = [e for _, e in run]
+    duration_s = (max(times) - min(times)).total_seconds()
+    return {
+        "pair": pair,
+        "direction": direction,
+        "n_captures": len(run),
+        "start": min(times).isoformat(),
+        "end": max(times).isoformat(),
+        "duration_s": duration_s,
+        "max_net_edge": max(edges),
+        "mean_net_edge": sum(edges) / len(edges),
+    }
+
+
+def _fee_model_block(kalshi_fee_rate: float, poly_fee_rate: float) -> Dict[str, Any]:
+    return {
+        "kalshi_rate": kalshi_fee_rate,
+        "kalshi_fee_fn": "core.pricing.fee_per_contract (taker; both crossing legs)",
+        "poly_rate": poly_fee_rate,
+        "poly_fee_fn": "core.pricing.polymarket_fee_per_contract",
+        "poly_fee_source": ("assumed_zero_polymarket_clob" if poly_fee_rate == 0.0
+                            else "polymarket_us_taker_v2"),
+    }
+
+
+def build_burst_report(records: Sequence[Dict[str, Any]], *,
+                       start: Optional[datetime] = None, end: Optional[datetime] = None,
+                       kalshi_fee_rate: float = TAKER_FEE_RATE,
+                       poly_fee_rate: float = POLYMARKET_US_TAKER_RATE) -> Dict[str, Any]:
+    window = filter_burst_window(records, start, end) if (start and end) else list(records)
+    bseries = build_burst_series(window)
+    disl = dislocation_scan(bseries, kalshi_fee_rate=kalshi_fee_rate, poly_fee_rate=poly_fee_rate)
+    episodes = dislocation_episodes(bseries, kalshi_fee_rate=kalshi_fee_rate, poly_fee_rate=poly_fee_rate)
+    # Fee-free-Poly sensitivity (Q31 reproduces the stale-assumption view alongside primary).
+    disl_ff = dislocation_scan(bseries, kalshi_fee_rate=kalshi_fee_rate, poly_fee_rate=0.0)
+    episodes_ff = dislocation_episodes(bseries, kalshi_fee_rate=kalshi_fee_rate, poly_fee_rate=0.0)
+    return {
+        "mode": "burst",
+        "window_start": start.isoformat() if start else None,
+        "window_end": end.isoformat() if end else None,
+        "n_records_in_window": len(window),
+        "cadence": cadence_stats(window),
+        "n_pairs": len(bseries),
+        "per_ticker_leadlag": per_ticker_leadlag(bseries),
+        "per_ticker_leadlag_drop_largest": per_ticker_leadlag_drop_largest(bseries),
+        "n_dislocations": len(disl),
+        "dislocations": disl,
+        "dislocation_episodes": episodes,
+        "fee_model": _fee_model_block(kalshi_fee_rate, poly_fee_rate),
+        "poly_fee_free_sensitivity": {
+            "n_dislocations": len(disl_ff),
+            "dislocations": disl_ff,
+            "dislocation_episodes": episodes_ff,
+            "fee_model": _fee_model_block(kalshi_fee_rate, 0.0),
+        },
+    }
+
+
+def _print_burst_report(report: Dict[str, Any]) -> None:
+    print("=" * 78)
+    print("S9 BURST-MODE lead-lag + fillable dislocation scan (read-only — NOT a verdict)")
+    print("WC-round leg, both sides real_ask. Kalshi taker fee + Polymarket taker fee")
+    print(f"({report['fee_model']['poly_fee_source']}, rate={report['fee_model']['poly_rate']}), "
+          "both from core.pricing. Scans dislocations, books none.")
+    print("=" * 78)
+    cad = report["cadence"]
+    print(f"window {report['window_start']} -> {report['window_end']}  "
+          f"records={report['n_records_in_window']} pairs={report['n_pairs']}")
+    print(f"cadence: distinct_captures={cad['n_distinct_captures']} "
+          f"min_gap_s={cad['min_gap_s']} median_gap_s={cad['median_gap_s']} "
+          f"max_gap_s={cad['max_gap_s']}")
+    if cad["median_gap_s"] is not None and cad["median_gap_s"] > 300:
+        print("  -> WARNING median gap > 5min: NOT burst-cadence tape; this is the hourly "
+              "noise-floor characterization, not a shock-window result.")
+    leaders = [t for t in report["per_ticker_leadlag"] if t["signed_leader"] not in (None, "none")]
+    print(f"per-ticker signed lead-lag computed for {len(report['per_ticker_leadlag'])} pairs; "
+          f"{len(leaders)} show a directional leader")
+    for t in report["per_ticker_leadlag"]:
+        print(f"  {t['pair']}: leader={t['signed_leader']} "
+              f"rho_k_leads={t['rho_kalshi_leads']} rho_p_leads={t['rho_polymarket_leads']} "
+              f"(n={t['n_steps']})")
+    for t in report["per_ticker_leadlag_drop_largest"]:
+        print(f"  LOO {t['pair']}: rho_p_leads {t['rho_polymarket_leads_full']} -> "
+              f"{t['rho_polymarket_leads_drop_top_pair']} (drop top poly-leads pair); "
+              f"rho_k_leads {t['rho_kalshi_leads_full']} -> "
+              f"{t['rho_kalshi_leads_drop_top_pair']} (drop top kalshi-leads pair); "
+              f"largest raw move dK={t['largest_raw_move_delta_kalshi']:.3f} "
+              f"dP={t['largest_raw_move_delta_poly']:.3f}")
+    print(f"fillable dislocations (net_edge>0 after BOTH real fees): {report['n_dislocations']} "
+          f"captures across {len(report['dislocation_episodes'])} episodes")
+    for e in sorted(report["dislocation_episodes"], key=lambda x: x["max_net_edge"], reverse=True):
+        print(f"  {e['pair']} {e['direction']}: max_edge=${e['max_net_edge']:.4f} "
+              f"mean=${e['mean_net_edge']:.4f} dur={e['duration_s']:.0f}s over {e['n_captures']} captures")
+    ff = report["poly_fee_free_sensitivity"]
+    print(f"[fee-free-Poly sensitivity, rate=0.0] dislocations={ff['n_dislocations']} "
+          f"across {len(ff['dislocation_episodes'])} episodes")
+    if report["n_dislocations"] == 0:
+        print("  -> zero fee-clearing cross-venue dislocations in this window at the real fee model.")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="S9 lead-lag first cut (read-only, descriptive)")
     ap.add_argument("--tape-dir", default=str(TAPE_DIR))
     ap.add_argument("--min-captures", type=int, default=MIN_CAPTURES)
     ap.add_argument("--json-out", default=None)
+    ap.add_argument("--burst-window", nargs=2, metavar=("START", "END"), default=None,
+                    help="ISO8601 start end (e.g. 2026-07-15T20:10:00Z 2026-07-15T22:30:00Z): "
+                         "run burst-mode (per-ticker signed lead-lag + leave-one-out + fillable "
+                         "cross-venue dislocation scan net of BOTH venues' real fees) over "
+                         "sub-hourly event-window tape instead of the hourly first cut")
+    ap.add_argument("--poly-fee-rate", type=float, default=POLYMARKET_US_TAKER_RATE,
+                    help="Polymarket taker fee RATE for the dislocation scan "
+                         f"(default {POLYMARKET_US_TAKER_RATE} = Polymarket US taker V2; "
+                         "pass 0.0 for the fee-free-Poly sensitivity). Charged via "
+                         "core.pricing.polymarket_fee_per_contract, never hand-rolled.")
     args = ap.parse_args(argv)
+
+    if args.burst_window is not None:
+        start = parse_window_bound(args.burst_window[0])
+        end = parse_window_bound(args.burst_window[1])
+        records = load_records(Path(args.tape_dir))
+        report = build_burst_report(records, start=start, end=end,
+                                    poly_fee_rate=args.poly_fee_rate)
+        _print_burst_report(report)
+        if args.json_out:
+            Path(args.json_out).write_text(json.dumps(report, indent=2))
+            print(f"wrote {args.json_out}")
+        return 0
 
     report = build_report(Path(args.tape_dir), min_captures=args.min_captures)
 
