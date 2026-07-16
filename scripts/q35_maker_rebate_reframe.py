@@ -25,6 +25,12 @@ Because the Kalshi maker fee is a flat $0.01 at every interior fill price (L30),
 swing is a per-contract constant: swing = kalshi_fee + rebate (recomputed per unit from the
 row's own price via core.pricing.fee_per_contract at MAKER_FEE_RATE — never hand-rolled).
 
+S29 uses its finding's actual DEAD-basis population -- the two-sided-book entry cut
+(entry_yes_spread <= q30.TWO_SIDED_SPREAD_MAX), NOT build_draw_trades()'s raw earliest-entry
+output. The raw population's headline number is an entry-timing artifact the finding disowns;
+feeding it into the reframe would misapply Milestone A to a population the source strategy
+does not stand behind (caught by the two-agent verifier, 2026-07-16).
+
 Each of the 3 series is block-bootstrapped (core.bootstrap.block_bootstrap) on the SAME unit
 each original strategy blocked on (GAME for S13/S21/S23/S29; EVENT-hour for S19), and the CI is
 run through core.bootstrap.clears_tick_magnitude (L27). A strategy "flips" only if a rebate
@@ -177,23 +183,52 @@ def collect_s23() -> Tuple[List[Tuple[str, float, float]], Dict[str, Any]]:
     return units, meta
 
 
+def filter_two_sided_fills(trades: List[Dict[str, Any]], spread_max: float
+                            ) -> List[Dict[str, Any]]:
+    """Filled trades whose entry_yes_spread is within the fillable two-sided-book band
+    (<= spread_max). Pure/offline — the piece of new S29-specific logic this fix adds."""
+    return [
+        t for t in trades
+        if t.get("filled") and t.get("pnl") is not None
+        and t.get("entry_yes_spread") is not None
+        and t["entry_yes_spread"] <= spread_max + 1e-9
+    ]
+
+
 def collect_s29() -> Tuple[List[Tuple[str, float, float]], Dict[str, Any]]:
     """S29 — soccer draw-aversion maker bid on the -TIE leg. Block unit = GAME (event_ticker).
-    Offline over the committed q30 (or q27-fallback) settlement cache + orderbook_depth."""
+    Offline over the committed q30 (or q27-fallback) settlement cache + orderbook_depth.
+
+    Uses the TWO-SIDED-BOOK entry cut (entry_yes_spread <= q30.TWO_SIDED_SPREAD_MAX), NOT
+    build_draw_trades()'s raw earliest-pre-close-entry population. The raw population's +9.03c
+    headline is an entry-timing artifact `findings/2026-07-15-q30-draw-aversion-s29-verdict.md`
+    itself disowns (median 65.6h pre-close entry on thin one-sided books the generous fill-sim
+    still "fills", L31/L48/L53) -- the finding's actual DEAD-by-fillability verdict rests on this
+    two-sided cut (CI straddles zero) and the near-close cut (CI negative), not the raw number.
+    Feeding the raw population into a fee-line reframe would silently resurrect the artifact
+    this project's own verifier already refuted (two-agent-rule catch, 2026-07-16)."""
     from scripts import q30_draw_aversion_maker_probe as q30
 
     settlement, cache_source = q30.load_settlement_for_run(q30.CACHE_PATH)
     per_market, _ = q30.load_preclose_snapshots(q30.DEPTH_GLOB, settlement)
     trades, _ = q30.build_draw_trades(per_market)
 
+    two_sided = filter_two_sided_fills(trades, q30.TWO_SIDED_SPREAD_MAX)
+
     units: List[Tuple[str, float, float]] = []
-    for t in trades:
-        if not t["filled"] or t.get("pnl") is None:
-            continue
+    for t in two_sided:
         kalshi_fee = fee_per_contract(t["fill_price"], rate=MAKER_FEE_RATE)
         units.append((t["event_ticker"], float(t["pnl"]), kalshi_fee))
-    meta = {"cache_source": cache_source, "n_rested": len(trades), "n_filled": len(units),
-            "block_unit": "game (event_ticker)"}
+    meta = {
+        "cache_source": cache_source,
+        "n_rested": len(trades),
+        "n_filled_raw_population": sum(1 for t in trades if t.get("filled")),
+        "n_filled_two_sided_book": len(units),
+        "population": ("two-sided-book entry cut (entry_yes_spread <= %.2f) -- the finding's "
+                        "actual DEAD basis, NOT the raw earliest-entry headline population"
+                        % q30.TWO_SIDED_SPREAD_MAX),
+        "block_unit": "game (event_ticker)",
+    }
     return units, meta
 
 

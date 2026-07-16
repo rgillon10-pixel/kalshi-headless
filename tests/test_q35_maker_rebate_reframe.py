@@ -17,6 +17,7 @@ from scripts.q35_maker_rebate_reframe import (
     POLYMARKET_REBATE_CONSERVATIVE,
     POLYMARKET_REBATE_US,
     _group,
+    filter_two_sided_fills,
     rebate_swap,
 )
 
@@ -78,3 +79,35 @@ def test_group_preserves_block_membership():
     grouped = _group(units, None)
     assert grouped["g1"] == [0.1, 0.2]
     assert grouped["g2"] == [0.3]
+
+
+# --------------------------------------------------------------------------- #
+# S29 two-sided-book population fix (two-agent-rule catch, 2026-07-16): collect_s29 must
+# use the fillable two-sided-book cut, NOT build_draw_trades()'s raw earliest-entry output
+# (an entry-timing artifact the S29 finding itself disowns as its DEAD-verdict basis).
+# --------------------------------------------------------------------------- #
+def _trade(spread, filled=True, pnl=0.1):
+    return {"filled": filled, "pnl": pnl, "entry_yes_spread": spread}
+
+
+def test_filter_two_sided_fills_keeps_within_band():
+    trades = [_trade(0.05), _trade(0.10), _trade(0.10 + 1e-9)]
+    kept = filter_two_sided_fills(trades, spread_max=0.10)
+    assert len(kept) == 3
+
+
+def test_filter_two_sided_fills_drops_wide_one_sided_spread():
+    trades = [_trade(0.05), _trade(0.11), _trade(0.86)]
+    kept = filter_two_sided_fills(trades, spread_max=0.10)
+    assert kept == [trades[0]]
+
+
+def test_filter_two_sided_fills_drops_unfilled_and_unpriced():
+    trades = [
+        _trade(0.05, filled=False),
+        _trade(0.05, pnl=None),
+        {"filled": True, "pnl": 0.2, "entry_yes_spread": None},
+        _trade(0.05),
+    ]
+    kept = filter_two_sided_fills(trades, spread_max=0.10)
+    assert kept == [trades[-1]]
