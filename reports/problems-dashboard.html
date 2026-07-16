@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kalshi.headless — problem ledger since inception</title>
+<style>
+:root {
+  --bg:#0d1117; --panel:#161b22; --panel2:#1c232c; --bd:#2a323d; --tx:#e6edf3;
+  --mut:#8b949e; --acc:#58a6ff;
+  --unenforced:#f0883e; --protocol:#a371f7; --ledger:#8b949e; --test:#3fb950; --invariant:#238636;
+  --dead:#6e7681; --collecting:#58a6ff; --gated:#d29922; --built:#238636; --blocked:#484f58; --idea:#8b949e;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--tx);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+.wrap { max-width:1180px; margin:0 auto; padding:32px 20px 80px; }
+h1 { font-size:26px; margin:0 0 4px; letter-spacing:-.02em; }
+.sub { color:var(--mut); margin:0 0 26px; font-size:14px; }
+h2 { font-size:19px; margin:38px 0 6px; letter-spacing:-.01em; }
+h2 .n { color:var(--mut); font-weight:400; font-size:15px; }
+.lead { color:var(--mut); margin:0 0 16px; max-width:80ch; }
+code { background:#0b0f14; border:1px solid var(--bd); border-radius:4px; padding:.5px 4px;
+  font:12.5px/1.4 "SF Mono",ui-monospace,Menlo,monospace; color:#c9d4e3; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:18px 0 8px; }
+.card { background:var(--panel); border:1px solid var(--bd); border-radius:10px; padding:14px 16px; }
+.card .big { font-size:30px; font-weight:700; letter-spacing:-.02em; }
+.card .lbl { color:var(--mut); font-size:12.5px; margin-top:2px; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 10px; }
+.chip { cursor:pointer; border:1px solid var(--bd); background:var(--panel); color:var(--tx);
+  border-radius:999px; padding:5px 12px; font-size:13px; transition:.12s; }
+.chip b { font-size:14px; }
+.chip:hover { border-color:var(--acc); }
+.chip.active { background:var(--acc); color:#04101f; border-color:var(--acc); }
+.chip.reset { opacity:.8; }
+.chip.unenforced b { color:var(--unenforced); } .chip.unenforced.active b { color:#04101f; }
+.chip.protocol b { color:var(--protocol); } .chip.protocol.active b { color:#04101f; }
+.chip.ledger b { color:var(--ledger); }
+.chip.test b { color:var(--test); } .chip.test.active b { color:#04101f; }
+.chip.invariant b { color:var(--invariant); }
+table { width:100%; border-collapse:collapse; margin-top:6px; font-size:13.5px; }
+th { text-align:left; color:var(--mut); font-weight:600; font-size:12px; text-transform:uppercase;
+  letter-spacing:.04em; padding:8px 10px; border-bottom:1px solid var(--bd); position:sticky; top:0;
+  background:var(--bg); }
+td { padding:10px; border-bottom:1px solid var(--bd); vertical-align:top; }
+tr:hover td { background:var(--panel); }
+.lid,.sid { font-weight:700; color:var(--acc); white-space:nowrap; }
+.ldate,.sname { white-space:nowrap; color:var(--mut); }
+.ltext { max-width:640px; } .lsrc { color:var(--mut); font-size:12px; max-width:220px; }
+.sgate { color:var(--mut); }
+.pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:600;
+  white-space:nowrap; }
+.p-unenforced { background:rgba(240,136,62,.16); color:var(--unenforced); border:1px solid rgba(240,136,62,.4); }
+.p-protocol { background:rgba(163,113,247,.16); color:var(--protocol); border:1px solid rgba(163,113,247,.4); }
+.p-ledger { background:rgba(139,148,158,.16); color:var(--ledger); border:1px solid rgba(139,148,158,.4); }
+.p-test { background:rgba(63,185,80,.16); color:var(--test); border:1px solid rgba(63,185,80,.4); }
+.p-invariant { background:rgba(35,134,54,.2); color:#4ac26b; border:1px solid rgba(35,134,54,.5); }
+.s-dead { background:rgba(110,118,129,.16); color:#adbac7; border:1px solid var(--bd); }
+.s-collecting { background:rgba(88,166,255,.16); color:var(--collecting); border:1px solid rgba(88,166,255,.4); }
+.s-gated { background:rgba(210,153,34,.16); color:var(--gated); border:1px solid rgba(210,153,34,.4); }
+.s-built { background:rgba(35,134,54,.2); color:#4ac26b; border:1px solid rgba(35,134,54,.5); }
+.s-blocked { background:rgba(72,79,88,.3); color:var(--mut); border:1px solid var(--bd); }
+.s-idea { background:rgba(139,148,158,.12); color:var(--mut); border:1px solid var(--bd); }
+.panel { background:var(--panel); border:1px solid var(--bd); border-radius:12px; padding:20px 22px; margin-top:8px; }
+.grad { display:flex; align-items:stretch; gap:0; margin:14px 0; flex-wrap:wrap; }
+.step { flex:1; min-width:150px; background:var(--panel2); border:1px solid var(--bd); padding:12px 14px;
+  position:relative; }
+.step:first-child { border-radius:8px 0 0 8px; } .step:last-child { border-radius:0 8px 8px 0; }
+.step h4 { margin:0 0 4px; font-size:13.5px; } .step p { margin:0; color:var(--mut); font-size:12px; }
+.step .dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; }
+.flow { display:grid; gap:10px; margin-top:6px; }
+.flow .row { display:grid; grid-template-columns:190px 1fr; gap:14px; padding:11px 0; border-bottom:1px solid var(--bd); }
+.flow .row:last-child { border-bottom:none; }
+.flow .who { font-weight:600; } .flow .who small { display:block; color:var(--mut); font-weight:400; font-size:11.5px; margin-top:2px;}
+.flow .what { color:var(--tx); font-size:13.5px; } .flow .what .m { color:var(--mut); }
+ul.log { margin:6px 0 0; padding-left:18px; columns:1; }
+ul.log li { margin:3px 0; font-size:12.5px; color:var(--mut); }
+.foot { color:var(--mut); font-size:12px; margin-top:40px; border-top:1px solid var(--bd); padding-top:14px; }
+.hidden { display:none; }
+a { color:var(--acc); }
+</style></head>
+<body><div class="wrap">
+<h1>kalshi.headless — problem ledger since inception</h1>
+<p class="sub">Every recorded problem — bugs, methodology traps, venue gotchas, and disproved strategies — parsed live from the repo's append-only registries. Generated 2026-07-15 · source of truth: <code>kb/lessons/00-lessons.md</code>, <code>kb/strategies/00-index.md</code>, <code>kb/00-LOG.md</code>.</p>
+
+<div class="cards">
+  <div class="card"><div class="big">74</div><div class="lbl">codified lessons (L1–L74)</div></div>
+  <div class="card"><div class="big" style="color:var(--unenforced)">16</div><div class="lbl">still UNENFORCED (open work queue)</div></div>
+  <div class="card"><div class="big" style="color:#4ac26b">21</div><div class="lbl">hardened into a CI assert / test</div></div>
+  <div class="card"><div class="big" style="color:#adbac7">16</div><div class="lbl">strategies proven dead</div></div>
+  <div class="card"><div class="big">89</div><div class="lbl">run-log entries read by the loops</div></div>
+</div>
+
+<h2>1 · Lessons ledger <span class="n">— the codified-problem catalog</span></h2>
+<p class="lead">CLAUDE.md's rule is <em>invariants over memory</em>: every hard-won problem becomes a row the moment it's learned, then climbs an enforcement gradient. <strong>UNENFORCED</strong> rows are the standing work queue; <strong>ledger-only</strong> is an honest terminal state (venue behavior / methodology judgment that can't be asserted). Click a status to filter.</p>
+
+<div class="grad">
+  <div class="step"><h4><span class="dot" style="background:var(--unenforced)"></span>UNENFORCED</h4><p>learned the hard way; nothing stops the next variant yet</p></div>
+  <div class="step"><h4><span class="dot" style="background:var(--protocol)"></span>protocol</h4><p>encoded in a charter / probe precedent</p></div>
+  <div class="step"><h4><span class="dot" style="background:var(--test)"></span>test</h4><p>a regression test pins the exact fix</p></div>
+  <div class="step"><h4><span class="dot" style="background:var(--invariant)"></span>invariant</h4><p>a CI assert fails the build on recurrence</p></div>
+</div>
+
+<div class="chips">
+  <button class="chip reset active" data-filter="all">All 74</button>
+  <button class="chip unenforced" data-filter="unenforced"><b>16</b> UNENFORCED</button><button class="chip protocol" data-filter="protocol"><b>21</b> Protocol</button><button class="chip ledger" data-filter="ledger"><b>16</b> Ledger-only</button><button class="chip test" data-filter="test"><b>15</b> Test-pinned</button><button class="chip invariant" data-filter="invariant"><b>6</b> Invariant</button>
+</div>
+<div style="overflow-x:auto">
+<table id="lessons">
+<thead><tr><th>ID</th><th>Date</th><th>Lesson</th><th>Enforcement</th><th>Source</th></tr></thead>
+<tbody>
+<tr data-bucket="invariant">
+  <td class="lid">L1</td>
+  <td class="ldate">2026-06-18</td>
+  <td class="ltext">A synthetic/model price is NEVER a fill price. The pt1 trade lost 9.6% partly by treating synthetic prices as fillable. Every persisted number carries a source tag; untagged defaults to <code>synthetic</code>.</td>
+  <td><span class="pill p-invariant">Invariant</span></td>
+  <td class="lsrc">CLAUDE.md prime directive; <code>findings/2026-06-18-codebase-money-map.md</code></td>
+</tr>
+<tr data-bucket="invariant">
+  <td class="lid">L2</td>
+  <td class="ldate">2026-06-18</td>
+  <td class="ltext"><code>pstdev</code> over ensemble members without <code>member_count &gt;= 4</code> produces garbage spread estimates.</td>
+  <td><span class="pill p-invariant">Invariant</span></td>
+  <td class="lsrc">arb-bot post-mortem, inherited</td>
+</tr>
+<tr data-bucket="invariant">
+  <td class="lid">L3</td>
+  <td class="ldate">2026-06-18</td>
+  <td class="ltext"><code>ncep_gefs025</code> is byte-identical to <code>gfs_seamless</code> — including it double-counts a model and silently narrows ensembles.</td>
+  <td><span class="pill p-invariant">Invariant</span></td>
+  <td class="lsrc">arb-bot post-mortem, inherited</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L4</td>
+  <td class="ldate">2026-07-03</td>
+  <td class="ltext">Cloud sessions cannot <code>git push origin main</code> (permission boundary, not a race — proven by two clean rebases that still fell back). Assuming otherwise caused Q1 to be built twice from scratch.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">LOOP-QUEUE run log 2026-07-03 reconciliation</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L5</td>
+  <td class="ldate">2026-07-04</td>
+  <td class="ltext">Kalshi&#x27;s maker fee is 0.0175, taker 0.07 — a 4x difference. A first S13 draft charged every maker fill the taker rate; at mid-range prices the maker fee alone is ~1¢/contract, enough to consume a 1¢ edge entirely. Always take fees from <code>core.pricing.fee_per_contract</code>, never hand-roll.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-07-04-sports-maker-s13-verdict.md</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L6</td>
+  <td class="ldate">2026-07-04</td>
+  <td class="ltext">Bootstrap the independent unit, never the row: outcomes within one game are correlated draws — resampling by outcome fakes n. Same for strikes within a release, hours within a session.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-04-sports-clv-s7-verdict.md</code> (block-bootstrap by GAME)</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L7</td>
+  <td class="ldate">2026-07-04</td>
+  <td class="ltext">Never hardcode a bracket/strike width: BTC hourly brackets are $50-spaced (fine bands $100), ETH $10/$20. A fixed-$100 half-band check silently mis-scored every ETH hour. Derive spacing from the ladder itself.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-07-04-crypto-basis-s8-verdict.md</code> (latent bug fixed)</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L8</td>
+  <td class="ldate">2026-07-03</td>
+  <td class="ltext">A &quot;paired&quot; reference price lagging the event by collector cadence is a confound, not a basis: S8&#x27;s spot lagged settlement by mean 29 min, fully explaining the observed gaps. Align timestamps to lag 0 (historical minute candles) before measuring any basis.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-03-crypto-basis-s8-q5.md</code> → fixed in <code>findings/2026-07-04-crypto-basis-s8-verdict.md</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L9</td>
+  <td class="ldate">2026-07-03</td>
+  <td class="ltext">Before joining two datasets, verify their date windows actually overlap: S7a&#x27;s ESPN pull (Jun 15–21) had zero overlap with the Kalshi tape (Jun 26–Jul 02) and would have joined nothing — or worse, joined wrongly.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-03-sports-history-s7b.md</code></td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L10</td>
+  <td class="ldate">2026-07-04</td>
+  <td class="ltext">Kalshi&#x27;s open-market universe is 10,000+ markets; an unbounded <code>/markets</code> pull grew RSS past 3GB. Cap pulls and carry an honest <code>markets_truncated</code> flag — never silently claim full coverage.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc">LOOP-QUEUE Q6 entry, 2026-07-04 run log</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L11</td>
+  <td class="ldate">2026-07-04</td>
+  <td class="ltext">Kalshi purges settled markets ~60 days after close (NFL fully purged by discovery time). Un-collected history is lost forever — collection starts the day a strategy is conceived, not the day it&#x27;s tested.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-03-sports-history-s7a.md</code></td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L12</td>
+  <td class="ldate">2026-07-04</td>
+  <td class="ltext">Fine-band ladders near Kalshi&#x27;s 1¢ minimum ask produce enormous *apparent* overround (KXBTC bracket_sum 7.78 across 188 members) that is NOT an arb — the fee floor and unfillable wings absorb it. Any arb claim must clear <code>core.pricing.true_arb_edge</code>&#x27;s real fee-floor math.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc">LOOP-QUEUE Q2/Q5/Q6 entries; <code>findings/2026-07-03-crypto-basis-s8-q5.md</code> (overround decomposition)</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L13</td>
+  <td class="ldate">2026-07-05</td>
+  <td class="ltext">A membership-diff over accumulated tape has a startup artifact: everything &quot;appears&quot; at the first capture. Exclude the first capture window before calling a membership change an event.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-07-05-polymarket-leadlag-s9-first-cut.md</code>, <code>scripts/s9_shock_eventstudy.py</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L14</td>
+  <td class="ldate">2026-07-05</td>
+  <td class="ltext">The sandbox&#x27;s local <code>main</code> ref can silently lag <code>origin/main</code> by days — every diff against it lies. Always <code>git fetch origin main</code> and diff against the remote tip before trusting any line-set comparison.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">LOOP-QUEUE run log 2026-07-05T00:14Z (step-0b sweep caught its own bug)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L15</td>
+  <td class="ldate">2026-07-06</td>
+  <td class="ltext">Kalshi lists no hourly BTC/ETH group during the 20 UTC hour — a recurring venue-side hole (12/12 incomplete crypto passes 07-03→07-05 are exactly the 20:2x/20:5x captures, both collectors). Expect 2 incomplete passes/day; a probe over hourly tape must treat that hour as structurally missing, not as collector failure.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-06-tape-audit.md</code></td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L16</td>
+  <td class="ldate">2026-07-06</td>
+  <td class="ltext">Match cross-venue/cross-series markets by their own title/rules text, never by ticker arithmetic: KXFEDDECISION uses &quot;26&quot; as a stand-in for &quot;&gt;25bps&quot;, and ticker-suffix matching would mispair it.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-07-06-fed-decision-macro-pairs-q12-first-cut.md</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L17</td>
+  <td class="ldate">2026-07-06</td>
+  <td class="ltext">The hourly collector&#x27;s push to main fails intermittently and strands tape on <code>tape/hourly-*</code> branches — tape that never reaches main on its own. Every research run must union-append the line-set diff (30-min freshness rule) or the canonical tape silently under-counts. This run swept 1,158 stranded lines.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">LOOP-QUEUE step 0b; <code>findings/2026-07-06-tape-audit.md</code></td>
+</tr>
+<tr data-bucket="invariant">
+  <td class="lid">L18</td>
+  <td class="ldate">2026-07-06</td>
+  <td class="ltext">Kalshi fee-schedule rates live solely in <code>core/pricing.py</code> as <code>TAKER_FEE_RATE</code> (0.07) / <code>MAKER_FEE_RATE</code> (0.0175) / <code>SP500_NDX_FEE_RATE</code> (0.035); no module may hand-roll a fee coefficient. Supersedes L5&#x27;s <code>UNENFORCED</code> static-check clause. Honest scope: name-bound fee/rate/coeff constants and positional literal args into <code>fee_per_contract()</code> are statically caught; a from-scratch re-implementation of the fee formula that reads an imported rate is NOT statically catchable and stays <strong>protocol</strong>.</td>
+  <td><span class="pill p-invariant">Invariant</span></td>
+  <td class="lsrc">this run (escalate L5/L7/L17); supersedes L5; <code>findings/2026-07-04-sports-maker-s13-verdict.md</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L19</td>
+  <td class="ldate">2026-07-06</td>
+  <td class="ltext">L7 (never hardcode a bracket/strike width) is genuinely NOT statically assertable: a numeric width literal is indistinguishable from any other constant at regex level, and the one live site (<code>scripts/s8_basis_probe.py</code> <code>BAND_WIDTH_DOLLARS_BY_SYMBOL = {&quot;BTC&quot;: 100.0, &quot;ETH&quot;: 20.0}</code>) is a deliberate documented schedule map — a name-anchored ban would either false-positive on it or have to sanction it, and the next hand-rolled width would just carry the sanctioned-looking name. Residual hazard this review found: <code>s8_basis_probe.py</code> lines 162/284 use <code>.get(symbol, 100.0)</code> — a silent $100 fallback that repeats the exact ETH-class bug for any NEW symbol (e.g. SOL). S8 is dead and the script historical so it is NOT edited; any future crypto probe (Q7/S10) MUST derive spacing from the ladder itself or fail loudly on an unknown symbol. Records L7&#x27;s terminal state.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">this run (escalate L5/L7/L17); records L7; <code>findings/2026-07-04-crypto-basis-s8-verdict.md</code></td>
+</tr>
+<tr data-bucket="invariant">
+  <td class="lid">L20</td>
+  <td class="ldate">2026-07-06</td>
+  <td class="ltext"><code>scripts/invariants.py --full</code> now surfaces locally-known stranded <code>tape/hourly-*</code> refs as a <strong>non-gating</strong> stderr warning: offline-safe (any git failure yields no refs and can never poison the gate), reports LOCAL refs as of the last fetch only, and never flips the exit code — 35 such refs print on today&#x27;s tree and the gate still exits 0. Supersedes L17&#x27;s <code>UNENFORCED</code>-automated-check clause. LOOP-QUEUE step 0b (fetch + union-append line-set sweep) remains the binding reconciliation.</td>
+  <td><span class="pill p-invariant">Invariant</span></td>
+  <td class="lsrc">this run (escalate L5/L7/L17); supersedes L17; <code>findings/2026-07-06-tape-audit.md</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L21</td>
+  <td class="ldate">2026-07-07</td>
+  <td class="ltext">When a new sub-pass needs &quot;the set of tickers an upstream sub-pass already discovered this pass&quot; (e.g. S6&#x27;s depth collector needs sports_pairs/crypto_hourly&#x27;s tickers), don&#x27;t re-run discovery and don&#x27;t thread a new return field through every sibling collector&#x27;s <code>run()</code> (would change every existing return shape and break their tests) — read the tickers straight back out of the freshly-written tape, filtered by this pass&#x27;s own <code>capture_id</code>. Zero extra API calls, no shape change to existing collectors.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>collection/hourly_pass.py::_gather_depth_tickers</code>/<code>_tickers_from_tape</code>, LOOP-QUEUE Q16 (2026-07-07)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L22</td>
+  <td class="ldate">2026-07-07</td>
+  <td class="ltext"><code>core/source_tag.py</code>&#x27;s <code>VALID_SOURCE_TAGS</code> (<code>real_ask</code>/<code>midpoint</code>/<code>synthetic</code>/<code>broker_truth</code>, per CLAUDE.md) has no slot for a resting bid&#x27;s own genuine fillable price — a live order book has two real sides, not one. <code>collection/orderbook_depth.py</code> tags the ask ladder <code>real_ask</code> and the bid ladder <code>real_bid</code>, a value outside the canonical enum; harmless today (JSONL tape, not a DB row the invariant scans) but would trip <code>scripts/invariants.py</code>&#x27;s source-tag check the moment a <code>real_bid</code>-tagged value lands in a DB column.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>kb/lessons/00-lessons.md</code> L22 (this run); <code>findings</code> — see LOOP-QUEUE Q16 (2026-07-07)</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L23</td>
+  <td class="ldate">2026-07-07</td>
+  <td class="ltext">An empty <code>yes_bids</code>/<code>no_bids</code> ladder on one side of a Kalshi order book is normal for a far-from-strike wing market (real one-sided book), not a capture failure — a depth collector must record it as valid data (<code>depth=0</code> on that side, ticker still counted captured), never as a DROP, or genuine market shape will spuriously tank <code>completeness_ok</code> on every wing.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>collection/orderbook_depth.py</code>, <code>tests/test_orderbook_depth.py::test_run_missing_book_still_captures_empty_ladders</code>, confirmed against a live Kalshi pass (LOOP-QUEUE Q16, 2026-07-07)</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L24</td>
+  <td class="ldate">2026-07-07</td>
+  <td class="ltext">L22 asked whether to add <code>real_bid</code> to <code>VALID_SOURCE_TAGS</code> or keep it a separate tape-only namespace. Decision: keep it separate — <code>VALID_SOURCE_TAGS</code> mirrors CLAUDE.md&#x27;s own literal four-tag trust-taxonomy contract, and widening a project-contract enum is outside a single research-loop milestone&#x27;s authority (the same class of decision as S9&#x27;s sub-hourly-automation call and the PreToolUse-hook registration, both left for Ryan). The &quot;harmless today&quot; half of L22&#x27;s claim is no longer just inspection — a new regression test proves the existing DB-side enum check already rejects <code>real_bid</code> (or any non-canonical tag) the moment one reaches a <code>price_source_tag</code> column, so no live gap exists to close. <code>core/source_tag.py</code>&#x27;s docstring now cross-references this decision so the next reader doesn&#x27;t reopen it as a bug.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc">this run; supersedes L22; <code>core/source_tag.py</code> docstring; <code>tests/test_invariants.py::test_db_real_bid_tag_is_caught_as_invalid_enum</code></td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L25</td>
+  <td class="ldate">2026-07-10</td>
+  <td class="ltext">A queue day-count check (e.g. Q7&#x27;s &quot;≥7 distinct days of <code>tape/crypto_hourly/</code>&quot;) must verify a <code>dt=&lt;date&gt;</code> entry is the expected <strong>file</strong> shape, not just that a same-named path exists. The 2026-07-08 main-rewind caused the collectors to briefly run a different (post-reset) code version that wrote <code>tape/crypto_hourly/dt=2026-07-10/</code> and <code>tape/sports_pairs/dt=2026-07-10/</code> as <strong>directories</strong> of raw per-market API blobs, not the canonical <code>dt=2026-07-10.jsonl</code> line format — a naive <code>ls tape/&lt;family&gt;/ | grep dt=</code> day-count would have miscounted Q7 as newly eligible on unreadable data. 23 hourly passes (2026-07-10T00:26Z–19:24Z) affected; self-corrected the moment collectors picked up the post-PR#35-reconciliation code (confirmed via the first pass after merge, stranded branch <code>tape/hourly-20260710T1955Z</code>).</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-10-tape-format-regression-crypto-sports.md</code></td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L26</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">Kalshi&#x27;s 1¢ minimum YES tick mechanically mirrors into a <strong>\$1.00 NO ask</strong> on any genuinely-far / floor-pinned bracket: <code>yes_ask</code> at the 1¢ floor ⇒ <code>yes_bid = 0</code> ⇒ <code>no_ask = 1 − yes_bid = \$1.00</code>. A <strong>taker</strong> &quot;fade the rich tail&quot; trade therefore has NO fillable positive-EV price on that side — profit is capped at exactly \$0 before fees (and <code>fee_per_contract(\$1.00) = 0</code>). In S10&#x27;s tape only 4/18,992 (0.02%) far observations had any <code>no_ask &lt; \$1.00</code> room, 3 of the 4 from a single hour. Any real tail-fade edge must live on the <strong>maker</strong> side (rest a NO offer / sell the rich YES *at* the elevated ask), which is S6/S11 territory (maker fee 4× cheaper) and needs L2 depth + a fill-sim — not falsified by a taker cut. Generalizes L12&#x27;s fine-band floor-artifact caution to the NO / fade direction.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-11-crypto-reachability-s10-firstcut.md</code> (S10 structural DEAD, verifier-CONFIRMED)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L27</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext"><code>core.pricing.fee_per_contract(1.00) == 0</code> is <strong>correct, not a bug</strong> (a \$1.00 fill has no fee), but a block-bootstrap dominated by ~\$1.00-priced legs can yield a 95% CI whose lower bound is a floating-point <strong>+0.000000</strong> — technically &quot;not negative&quot; yet economically meaningless. S10: mean <strong>+\$0.000008</strong>, 95% CI <strong>[+\$0.000000, +\$0.000024]</strong> — three orders of magnitude below the 1¢ minimum tick (~0.001¢), i.e. unfillable rounding residue of a few floored trades. A sign-only CI check lets a mechanically-floored population masquerade as &quot;alive&quot;; every CI-based verdict must ALSO clear an <strong>economic-significance / magnitude gate</strong> (compare the estimate and CI bounds against the 1¢ tick), not just strictly-positive-on-sign.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-11-crypto-reachability-s10-firstcut.md</code></td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L28</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">Before running a decay/CI pipeline to satisfy a gate like &quot;clear the artifact floor,&quot; first verify the floor is even <strong>observable</strong> in the data: check what fraction of the candidate population is ALREADY floor-pinned at the <strong>earliest</strong> observation. S10&#x27;s far brackets sat at the 1¢ YES floor ~40 min before close (mean early→late Δ<code>yes_ask</code> <strong>+0.00014</strong> across 18,992 obs) — there was no decay window beneath the floor to measure, a fact the probe surfaced only after building the whole EARLY/LATE-capture pipeline. A cheap early floor-pinned-fraction precheck would have surfaced this before the full build. Same discipline family as L6 (bootstrap the right unit) and L13 (exclude the startup artifact): descriptive sanity checks precede the verdict machinery.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-11-crypto-reachability-s10-firstcut.md</code>, <code>scripts/s10_reachability_probe.py</code></td>
+</tr>
+<tr data-bucket="invariant">
+  <td class="lid">L29</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">L25&#x27;s candidate (an invariants/tape-audit check that a <code>dt=&lt;date&gt;</code> path is a regular file, not a directory) is now built: <code>scripts/invariants.py</code>&#x27;s <code>_tape_dir_shape_issues()</code>/<code>tape_dir_shape_warning()</code>, wired into <code>--full</code>&#x27;s stderr output alongside the L20 stranded-tape advisory (same non-gating pattern — offline-safe, never flips the exit code). Live-validated against the real committed tree: it correctly flags the 4 stray directories the 2026-07-08 regression left behind (<code>crypto_hourly/dt=2026-07-10</code>, <code>sports_pairs/dt=2026-07-02</code>, <code>sports_pairs/dt=2026-07-09</code>, <code>sports_pairs/dt=2026-07-10</code>) that L25 first documented — those directories were never cleaned up after the regression self-corrected, only the newly-written data went back to the canonical format. Cleaning up the stray directories themselves (or reprocessing their raw blobs) is separate follow-up work, out of scope for this milestone.</td>
+  <td><span class="pill p-invariant">Invariant</span></td>
+  <td class="lsrc">this run; supersedes L25; <code>scripts/invariants.py</code>; <code>tests/test_invariants.py::test_tape_dir_shape_warning_none_when_empty</code>, <code>::test_tape_dir_shape_warning_message_content</code>, <code>::test_tape_dir_shape_issues_finds_directories</code>, <code>::test_tape_dir_shape_issues_clean_tree_is_empty</code>, <code>::test_tape_dir_shape_issues_missing_tape_root_is_empty</code>, <code>::test_tape_dir_shape_warning_never_gates_exit_code</code></td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L30</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">Kalshi&#x27;s maker fee is a <strong>flat $0.01/contract at every interior price</strong>, not price-scaled: <code>fee_per_contract(P, MAKER_FEE_RATE) = ceil(0.0175·P·(1−P)·100)/100 = 0.01</code> for all <code>0&lt;P&lt;1</code>, because <code>max P(1−P) = 0.25</code> ⇒ <code>0.0175·0.25·100 = 0.4375</code> always ceils to 1. Consequence: a maker must net <strong>more than a full cent</strong> of half-spread-minus-adverse-selection to break even, so the modal 1–2¢-spread Kalshi book (0.5–1¢ half-spread) is structurally unprofitable to quote *before* adverse selection is even counted — this is the structural killer of S6 (spread-capture) and the same fee-floor that killed S13 (the maker fee ate the assumed 1¢ bid-under-fair margin). Sharpens L5/L18&#x27;s &quot;4× cheaper than taker&quot; framing into a hard 1¢ floor.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-07-11-mm-spread-s6-firstcut.md</code> (S6 first-cut DEAD, verifier-CONFIRMED)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L31</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">A <strong>wide (&gt;30¢) bid-ask spread on a far / one-sided Kalshi bracket is a nominal, not maker-capturable, spread</strong> — it is wide *because* there is no two-sided interest (e.g. a 0.03 bid against a 0.89 ask). A naive maker-spread P&amp;L that books the half-spread as income lets these unfillable wings dominate the mean: S6&#x27;s &gt;30¢-wing population showed <strong>+$0.339/contract</strong> (99.9% &quot;profitable&quot;) vs <strong>−$0.002</strong> on realistic ≤10¢ two-sided books, and the naive &quot;ALL two-sided&quot; mean (+$0.06928) was *entirely* this wing artifact. Any maker-P&amp;L calc must cap the spread / exclude the wing before a verdict — declaring the wing &quot;alive&quot; repeats the L12 (arb-direction) and L26 (taker fade / $1.00-NO-ask direction) floor-artifact errors, now generalized to the <strong>spread-capture</strong> direction.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-11-mm-spread-s6-firstcut.md</code></td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L32</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">For a maker-spread proxy built over <strong>hourly BBO snapshots</strong>, a *frozen* consecutive pair (bid AND ask unchanged between two captures) is a <strong>no-fill</strong>, not free spread income — booking its nominal half-spread as riskless profit (<code>dmid=0</code> ⇒ <code>net = half_spread − fee</code>) is the naive error that inflates a phantom maker edge. Report the frozen fraction as an L28-style observability precheck (S6: 25,618/36,738 = <strong>69.7%</strong> of ≤90-min consecutive two-sided pairs frozen) and bracket every verdict with BOTH a frozen-inclusive cut (maximally generous — counts unrealized spread as income) AND a movement-conditioned cut (the only population where a fill plausibly occurred and adverse selection is real). S6&#x27;s DEAD is robust precisely because both ends came out strictly negative (≤10¢ frozen-inclusive CI [−$0.00297,−$0.00094]; movement-conditioned CI [−$0.02271,−$0.01759]) — the kill survives either fill assumption.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-11-mm-spread-s6-firstcut.md</code>, <code>scripts/s6_maker_firstcut.py</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L33</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">L27&#x27;s (magnitude-vs-tick CI gate) and L28&#x27;s (floor-pinned-fraction precheck) own candidate notes said each was &quot;likely terminal as protocol... once a probe-precedent encodes it&quot; rather than a statically-assertable invariant — but every probe to date (<code>s6_maker_firstcut.py</code>, <code>s10_reachability_probe.py</code>, <code>s7c_sports_clv_bootstrap.py</code>, ...) still hand-rolls its own block-bootstrap loop from scratch, so the fix has to be re-remembered per script instead of reused. Encoding the protocol as an importable helper (not a memory) is what turns &quot;likely terminal as protocol&quot; into something a future probe actually gets for free.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">this run; generalizes L27/L28; queue drained (Q1 claimed by open PR #4, Q7/Q16 DONE, Q13/Q14/Q15 BLOCKED) — drawn from the lessons ledger&#x27;s own standing UNENFORCED queue, same pattern as L25→L29</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L34</td>
+  <td class="ldate">2026-07-11</td>
+  <td class="ltext">L33 built the importable bootstrap-helper module but left the actual &quot;probe-precedent encodes it&quot; half of L27/L28&#x27;s own candidate wording undone — the module existed, but nothing yet told a future probe to reach for it instead of hand-rolling again, so the next probe was still one memory-lapse away from repeating L27/L28. Closed that gap in the one place every probe is required to read before writing code: <code>.claude/agents/edge-prober.md</code>&#x27;s house-style section now names <code>core.bootstrap.block_bootstrap</code>/<code>clears_tick_magnitude</code>/<code>floor_pinned_fraction</code> explicitly and folds the tick-magnitude gate into the three-outcome verdict rule itself (a CI&gt;0 that fails the magnitude gate is DEAD, not merely &quot;worth flagging&quot;). Docs-only — no probe re-run, no verdict re-opened.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">this run; supersedes the &quot;encode it&quot; half of L27/L28 and closes L33&#x27;s remaining gap; queue drained (Q1 claimed by open PR #4, Q7/Q16 DONE, Q13 BLOCKED — 8 of ≥10 valid <code>tape/sports_pairs/</code> days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED) — drawn from the lessons ledger&#x27;s own standing UNENFORCED queue</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L35</td>
+  <td class="ldate">2026-07-12</td>
+  <td class="ltext">L34 closed L27/L28&#x27;s &quot;probe-precedent encodes it&quot; gap but left L32 (frozen-pair no-fill precheck + dual-cut bracketing) as the one still-open UNENFORCED methodology candidate from the S6 lineage — <code>core/bootstrap.py</code> had <code>block_bootstrap</code>/<code>clears_tick_magnitude</code>/<code>floor_pinned_fraction</code> importable, but nothing importable for L32&#x27;s own pattern, so a future maker/spread-style probe would still hand-roll the frozen-vs-movement split from scratch (exactly the class of duplication L33 was built to stop).</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">this run; generalizes L32; queue drained (Q1 claimed by open PR #4, Q7/Q16 DONE, Q13 BLOCKED — 9 of ≥10 valid <code>tape/sports_pairs/</code> days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED) — drawn from the lessons ledger&#x27;s own standing UNENFORCED queue, same pattern as L25→L29 and L33→L34</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L36</td>
+  <td class="ldate">2026-07-12</td>
+  <td class="ltext">L7 (&quot;never hardcode a bracket/strike width... derive spacing from the ladder itself&quot;) stayed <code>UNENFORCED</code> for over a week: <code>scripts/s8_basis_probe.py</code>&#x27;s actual fix only swapped a single fixed-$100 half-band check for a per-symbol dict (<code>BAND_WIDTH_DOLLARS_BY_SYMBOL = {&quot;BTC&quot;: 100.0, &quot;ETH&quot;: 20.0}</code>) — still a hardcoded guess two symbols wide, not a value read off the ladder&#x27;s own strikes, so a third symbol or a mid-series spacing change would silently mis-score exactly like the original bug. No importable helper existed for the thing L7&#x27;s own wording asked for.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">this run; generalizes L7; queue drained (Q1 claimed by open PR #4, Q7/Q16 DONE, Q13 BLOCKED — 9 of ≥10 valid <code>tape/sports_pairs/</code> days, eligible ~07-13, Q14/Q15 data-adequacy BLOCKED) — drawn from the lessons ledger&#x27;s own standing UNENFORCED queue, same pattern as L25→L29, L33→L34, L32→L35</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L37</td>
+  <td class="ldate">2026-07-12</td>
+  <td class="ltext"><code>scripts/invariants.py</code>&#x27;s <code>inv_no_yes_ask_arithmetic</code> (Hard Rule #3) scans raw text, including comments and docstrings, for <code>(yes|no)_ask</code> immediately adjacent to an arithmetic operator. A test docstring&#x27;s plain-English prose &quot;<code>kalshi.yes_ask / polymarket.best_ask</code>&quot; (describing two fields, not dividing them) tripped it — a false positive, not a real Hard Rule #3 violation. When naming a sanctioned real-ask field next to another field in a comment or docstring, use a word (&quot;and&quot;/&quot;vs&quot;) instead of <code>/</code>, <code>+</code>, <code>-</code>, <code>*</code>, or <code>%</code> as the separator.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc">this run (Q12/S17 lead-lag probe build); <code>tests/test_s17_leadlag_probe.py</code> docstring (fixed before commit)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L38</td>
+  <td class="ldate">2026-07-12</td>
+  <td class="ltext">The step-0b stranded-tape sweep&#x27;s raw total-lines-swept number is NOT a health metric on its own: full chronological series 2,076→223→1,936→873→872→1,708→2,632 is noisy/non-monotone, not climbing. <code>orderbook_depth</code> alone runs a flat ~1,100-1,280 lines/hour (not growing) but is ~3-4x every other family&#x27;s per-hour volume combined, so whether a sweep window happens to catch 0/1/2 orderbook_depth passes swings the total by ±1,200-2,400 lines regardless of any real trend. A weekly retro (PR #46) read a local 4-sweep upswing as a possible regression before checking the fuller series.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-12-stranded-tape-sweep-growth-diagnosis.md</code> (tape-auditor diagnosis)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L39</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext">When a bracket-ladder P&amp;L is a <strong>small net of two large legs</strong> (Σ collected premium ≈ the \$1 payout — S14&#x27;s mean +\$0.0925 sits on top of a ~\$0.51–\$0.97 winner-\$1 loss), a <strong>candlestick/volume fill proxy</strong> (<code>high ≥ ask AND volume &gt; 0</code>) that credits the <strong>income leg without queue position is biased UPWARD</strong>: a bar only proves the price *printed*, not that a resting offer ahead of the whole book would have filled. The loss leg is NOT so biased (heavy volume sweeps the offer — S14 winner filled 96.7%), so the bias is <strong>asymmetric</strong> and inflates the net. A per-leg <strong>volume gate</strong> (require the income leg to carry volume ≥ X) is <strong>necessary-but-INSUFFICIENT</strong> — it caps thin-print optimism but cannot model the <strong>adverse-selection correlation</strong> between *which* income strikes fill and *which* strike wins (which the queue-blind proxy assumes independent). Before claiming fillability, <strong>decompose the edge as a fraction of the thinnest income legs</strong>: S14&#x27;s \$0.072 of \$0.093 (<strong>78%</strong>) came from sub-100-contract-volume legs, and the &quot;complete fill&quot; gate term was exactly \$0 (0.0% complete-fill) — the fat nominal overround never underwrites; the edge is entirely near-money partial pass-through. Family L27 (magnitude gate) / L30 (flat 1¢ fee annihilates 30.9% of the nominal overround) / L31 (nominal ≠ capturable) / L32 (frozen-vs-movement dual-cut).</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-ladder-underwriting-s14-firstcut.md</code> (S14 first cut, verifier CONFIRMED-WITH-CAVEAT)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L40</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext"><code>validation.v3_market</code>&#x27;s Kalshi <code>get_*</code> retries on HTTP <strong>status codes</strong> (429/5xx) but NOT on transport-level <code>ConnectionError</code> — a long candlestick sweep (S14 fetched 6,524 per-ticker summaries) that hits a mid-stream connection drop will raise rather than retry. The S14 script wrapped its own <code>ConnectionError</code> retry (self-contained, resumable via the cached <code>tape/s14_ladder_fillsim/dt=*.jsonl</code>), so no data was lost; recording so the next large-sweep script does the same rather than re-discovering it.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-ladder-underwriting-s14-firstcut.md</code>; <code>scripts/s14_ladder_fillsim.py</code> (self-contained retry)</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L41</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext"><strong>Degenerate bootstrap: when every resample cluster resolves the same direction (zero losing clusters), a one-sided cluster-bootstrap p is MECHANICALLY 0 and carries no evidentiary weight</strong> — no resample can produce a pooled mean ≤ 0 if no unit is ≤ 0, so p=0.0 regardless of the population&#x27;s true edge. S20&#x27;s sole BH-FDR survivor (<code>afkpnlucl</code>, mean e +6.6¢, boot CI90 [+1.3¢,+9.3¢], n=174) drew all 174 fills from <strong>8 market clusters, every one of which resolved to 0</strong> (the wallet sold longshots that all lost) — the &quot;significance&quot; was a construction artifact, and the catastrophic leg (a sold longshot that *wins*, −89¢ at this median) was structurally absent because the eval set conditions on markets already RESOLVED during the sample, and in a long-horizon winner ladder the early resolutions are disproportionately longshot eliminations. Root-cause family = <strong>resolution-conditioning bias</strong> (conditioning long-horizon skill evaluation on already-resolved markets truncates the tail that hasn&#x27;t resolved yet — the wallet&#x27;s still-alive book, Spain/England/France, was exactly the unpriced tail). Any positive-edge bootstrap claim requires <strong>≥1 losing (opposite-sign-mean) cluster</strong> in the resample unit AND a minimum cluster count (8 is below any comfortable floor — cf. S19&#x27;s 2-event-hour filled population, L-family: a positive magnitude-gate-clearing CI over a below-floor unit count is a resampling artifact, not an edge).</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-polymarket-wallet-forensics-s20-dossier.md</code> (Result 2, verifier finding; §Peer review); <code>findings/2026-07-13-polymarket-wallet-forensics-s20-prereg.md</code> (C1 cluster-bootstrap spec)</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L42</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext"><strong>Trace every headline example number in a dossier to its exact source row (wallet / rank / PnL / category) before publication</strong> — S20&#x27;s first draft attributed a −27.8¢/n=3,248 per-trade-edge figure to the #1 leaderboard wallet (<code>0x3a8aa345…</code>, a 5-min crypto grinder) when it actually belonged to a <strong>rank-47 sports wallet</strong> (<code>0x8c80d213…</code>): wrong wallet, rank, PnL, and category. Caught ONLY by an independent verifier recomputing from raw fills, not by internal review. This is the same failure family as the founding pt1 synthetic-price mistake (L1) — a number detached from its provenance. The qualitative conclusion survived the correction, but the specific claim was false as first written; a dossier&#x27;s numbers are load-bearing evidence and each must cite the row it came from.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-polymarket-wallet-forensics-s20-dossier.md</code> (Result 1 correction note + §Peer review: verifier REFUTED-and-corrected, zero-fill count 1→6 and the −27.8¢ mis-attribution)</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L43</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext"><strong>L9 (verify two datasets&#x27; date windows overlap before joining) recurs at the COLLECTOR level, and there it is permanently fatal, not just a probe-time caution.</strong> Q24&#x27;s binding probe needs <code>tape/sports_clv/</code> (fair-anchored longshots) joined to <code>tape/orderbook_depth/</code> (the <code>no_bids</code> resting queue) — but the two collectors ran over <strong>disjoint game windows</strong> (<code>sports_clv</code> fair anchors cover kickoffs ≤07-03; sports <code>orderbook_depth</code> began 07-07), so every fair-anchored game had already SETTLED before any depth was captured → <strong>0/81 joinable (0.00%)</strong>, zero event- AND outcome-ticker overlap. Because the calendar date is embedded in the Kalshi ticker string, the non-overlap is STRUCTURAL — no probe-time join-window relaxation can manufacture a match (the verifier reproduced 0 by bypassing the probe&#x27;s join code). The generalization beyond L9: when a future probe will need two tape families JOINED, the fix is not a careful probe-time check (L9) but <strong>collector alignment</strong> — the two capture passes must fire concurrently over the same *upcoming* (not-yet-settled) games, or the join is permanently empty regardless of how carefully the probe is written. Q24 is re-testable only on a fresh collection where <code>sports_clv</code> and <code>orderbook_depth</code> run concurrently over the same future window (e.g. a re-collected WC-final).</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-q24-sports-longshot-maker-fillsim-verdict.md</code> (S21 DEAD by data-adequacy, verifier-CONFIRMED); generalizes L9</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L44</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext"><code>tape/sports_history_s7/worldcup2026.jsonl</code> is a viable <strong>OFFLINE sports executed-volume / touch source</strong> for future sports fill-sims — it carries per-outcome <code>candles[].volume_fp</code> (executed contract volume, <code>real_ask</code>) and <code>yes_ask.high_dollars</code> (the bar&#x27;s ask touch), the sports analogue of the crypto-only cached-candlestick source S14&#x27;s ladder fill-sim used. In Q24 it supplied the ADEQUATE settlement + executed-volume side (81/81 fair-longshots settled, 8/81=9.88% YES; <code>broker_truth</code> settlement) while <code>orderbook_depth</code>&#x27;s queue was the missing leg — i.e. it is a real, reusable offline tape source, WC-only (Kalshi purges settled markets ~60 days post-close per L11, so this file is a fixed World-Cup-2026 snapshot, not a growing feed). Useful for any future sports fill-sim&#x27;s settlement/executed-volume leg, but it does NOT carry the resting-queue depth a queue-aware fill-sim (L39) needs — that only lives in <code>orderbook_depth</code>.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-q24-sports-longshot-maker-fillsim-verdict.md</code>; <code>scripts/q24_sports_longshot_maker_fillsim.py</code></td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L45</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext">Kalshi&#x27;s crypto hourly-market ticker hour token (<code>KXBTC-26JUL0621-...</code>) is <strong>America/New_York (ET), not UTC</strong> — empirically confirmed against live tape: token hour 21 (<code>KXBTC-26JUL0621</code>) was captured 00:57:50 UTC on 07-07 (= 20:57 EDT on 07-06), closing 21:00 EDT = 01:00 UTC 07-07; <code>collection/crypto_hourly.py</code>&#x27;s own docstring already says &quot;HH in ET&quot;. Q25&#x27;s own milestone spec worked example (&quot;...1221 → 21:00 UTC&quot;) was off by exactly the ET offset (4h in summer) — a close/ttc parser that reads the token as UTC mis-times every crypto market. Confirm a ticker grammar&#x27;s stated timezone against the tape empirically before trusting a spec&#x27;s worked example.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-depth-tape-anatomy-q25.md</code>; <code>scripts/q25_depth_tape_anatomy.py</code></td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L46</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext">Kalshi sports-market tickers with an <code>HHMM</code> component (<code>KXAFLGAME-26JUL160530SKSGEE-GEE</code>) encode a <strong>league-local time whose zone is NOT independently verifiable from the depth tape</strong> — settled markets linger in the <code>orderbook_depth</code> feed, so last-capture time is not a reliable close-time proxy to check the token against (unlike crypto, where a live book cross-check was possible for L45). Q25 treated sports HHMM as UTC per its own spec&#x27;s contract but flagged the caveat explicitly; a wrong assumption only shifts near-close bucket boundaries by a few hours in an hourly-cadence descriptive scan, not structurally, but any consumer wanting &lt; few-hour precision on a sports close time needs an independent source (e.g. matched odds-api kickoff time, L18) to confirm the zone.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-depth-tape-anatomy-q25.md</code></td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L47</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext"><code>collection/orderbook_depth.py</code>&#x27;s persisted book-side sizes (<code>yes_bids</code>/<code>no_bids</code> price+size ladders) are stored as <strong>floats and can be fractional</strong> (Q25 observed a real KXWCGAME median best-level size of 91,316.82 contracts) — a consumer assuming integer contract counts (e.g. <code>int(size)</code> truncation, or an equality check against a whole-number queue position) will silently corrupt real queue-depth reads. Report/compare sizes as floats throughout; do not coerce to int without an explicit, justified rounding rule.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-depth-tape-anatomy-q25.md</code>; <code>findings/depth_anatomy.json</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L48</td>
+  <td class="ldate">2026-07-13</td>
+  <td class="ltext">A <strong>resting-order turnover proxy</strong> computed from consecutive same-ticker, same-best-price snapshot pairs (<code>max(0, size_prev−size_now)/size_prev</code>) is a strictly <strong>looser, order-of-magnitude observable than a queue-aware fill rate</strong> — it is snapshot-sampled (intra-hour round-trips invisible, undercounted) and a best-price move excludes the pair entirely (also undercounted, differently). Q25 used it only to orient cells against the S19 0.45%/S14 2.5% fill-rate anchors and explicitly could ONLY rule a cell OUT (dead-thin, e.g. KXBIG3GAME&#x27;s 0.48% sitting on the S19-dead line) — never rule one IN as fillable; the highest-turnover cells (WNBA 11.06%, KBO 8.35%) are candidate-generation signal for a *future* queue-aware fill-sim, not evidence a fill-sim would succeed. Generalizes L39&#x27;s &quot;necessary-but-insufficient proxy&quot; caution from candlestick fill-proxies to turnover-style observability proxies.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-13-depth-tape-anatomy-q25.md</code>; <code>scripts/q25_depth_tape_anatomy.py</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L49</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">L45&#x27;s own candidate wording (&quot;a shared ticker-grammar parsing helper... no such shared close-time parser exists yet&quot;) stayed unbuilt for a run cycle: Q25&#x27;s <code>scripts/q25_depth_tape_anatomy.py</code> still hand-rolled the ET-localize-then-convert-to-UTC logic for the crypto hour token inline (<code>parse_ticker_close</code>&#x27;s crypto branch, lines ~174-183) rather than importing it from anywhere — exactly the re-derive-per-script duplication L33/L34/L35/L36 closed for the bootstrap, magnitude-gate, floor-precheck, frozen-vs-movement, and strike-spacing helpers. No importable close-time parser existed for the thing L45&#x27;s own wording asked for. Idle research-loop run (no eligible TODO/IN-PROGRESS queue item this firing — all of Q0-Q25 DONE/DEAD except Q19&#x27;s per-event legs, still time-gated ahead of the Jul-14 CPI burst window) drew this from the lessons ledger&#x27;s standing UNENFORCED queue, same pattern as L25→L29, L33→L34, L32→L35, L7→L36.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">this run; escalates L45; queue drained (Q0-Q25 all DONE/DEAD except Q19 per-event, time-gated)</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L50</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">The fix for L43 (a two-family join permanently empty because the two collectors ran over disjoint windows) is to source the join&#x27;s SECOND leg from a same-venue outcome/settlement endpoint retrievable ex-post over the PRIMARY tape&#x27;s OWN window (within Kalshi&#x27;s ~60-day purge, L11), rather than from a separate pre-computed anchor collected on a different, earlier schedule. S21 died because <code>sports_clv</code> fair anchors (kickoffs ≤07-03) were disjoint from <code>orderbook_depth</code> (≥07-07) → 0/81 joinable; S22/S23 (Q21 2026-07-14) instead pull realized settlement from Kalshi&#x27;s free settled-markets endpoint (<code>fetch_kalshi_settled</code>) over the SAME depth-window games, so the join is non-empty by construction. At idea stage, this is the test that distinguishes a registrable candidate from an S21-class permanently-empty join: before registering any two-family-join probe, confirm the second leg is retrievable ex-post over the first leg&#x27;s own window.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc">Q21 2026-07-14 idea-gen round (verifier-surfaced); generalizes L43/L9, cites L11</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L51</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">A &quot;does signal X beat the mid&quot; calibration precheck run on a DISAGREEMENT subset (both directional, X&#x27;s call ≠ mid&#x27;s call) produces two hit rates that are mechanically COMPLEMENTARY on a two-way market (<code>hit_X ≡ NOT hit_mid</code>, sum to exactly 1.0) — they are not two independent measurements. Q26/S22&#x27;s disagreement-subset hit rate (imbalance 27.9% vs mid 72.1%) looked suspicious (&quot;far below 50%, is the sign flipped and this a hidden contrarian edge?&quot;) until the verifier confirmed the arithmetic identity: X can only &quot;beat the mid&quot; on this subset if the mid is &lt;50% accurate exactly where they disagree — a bar a liquid, calibrated market essentially never fails, and sign-flipping X on this subset just reproduces betting the mid (zero independent edge either direction). Any future &quot;feature beats the market price&quot; probe on a 2-way market should report the disagreement-subset result as &quot;mid accuracy where they disagree = X%&quot;, not as two independent hit rates, to avoid the illusion of an extra data point.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-ofi-depth-imbalance-s22-verdict.md</code> (Q26/S22 verdict, verifier-surfaced)</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L52</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">Kalshi sports settlement results are not always binary: Q26&#x27;s live pull of <code>fetch_kalshi_settled</code> over 458 settled markets in 7 sports series returned 8 with <code>result:&quot;scalar&quot;</code>, not <code>result ∈ {&quot;yes&quot;,&quot;no&quot;}</code>. A binary-outcome probe must filter explicitly on the result field&#x27;s actual value, never assume &quot;settled&quot; implies &quot;yes/no&quot; — an unfiltered join would silently inject non-binary rows into a yes/no hit-rate or P&amp;L calculation.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-ofi-depth-imbalance-s22-verdict.md</code> (Q26/S22); <code>scripts/q26_ofi_depth_imbalance_probe.py</code></td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L53</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">A queue-aware fill-sim&#x27;s fill-rate KILL gate (the S19 0.45% floor, Q27 gate G3) does NOT bind when the resting window is long: over a median ~37 hourly pre-close snapshots a cumulative-departures model clears almost any queue (S23 fill rate <strong>95.83%</strong>, 23/24), so a high fill rate is NOT evidence of a real edge — the strategy must still die or live on the EDGE (win-rate vs fill_price+fee), which is exactly where S23 died (DEAD-by-fee, not by fill or adequacy). Complements L39/L48&#x27;s caution that a generous fill proxy orients but never substitutes for the edge test.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-favorite-underpricing-s23-verdict.md</code> (Q27/S23, verifier-CONFIRMED)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L54</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">Favorite-longshot bias does NOT manifest as a fillable maker-BID edge on Kalshi two-sided sports: buying the favorite YES (normalized ask/bracket_sum ≥0.65) at the resting bid, favorites were marginally RICH — win-rate <strong>0.6957</strong> &lt; breakeven fill_price+fee <strong>0.7361</strong> (mean fill $0.7261 <code>real_bid</code> + $0.01 flat maker fee) — the OPPOSITE of the textbook bias&#x27;s prediction. With S13 (bid side vs devig, null), S21 (ask side, data-adequacy dead) and now S23 (bid side vs realized settlement, DEAD-by-fee), the entire favorite-longshot / S7-family maker lens is closed DEAD on Kalshi sports at real fills.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-favorite-underpricing-s23-verdict.md</code> (Q27/S23, verifier-CONFIRMED)</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L55</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">An entry-time favorite filter (normalized ask/bracket_sum ≥0.65 chosen strictly from pre-close snapshots, with NO settlement lookahead) is small by construction — S23 yielded only <strong>24 rested markets from 207 joinable games</strong> — because a no-lookahead pre-close favorite population is inherently thin. This is the honest cost of an anti-lookahead design (contrast a lookahead filter that would inflate n by selecting on the outcome); a thin-but-honest population that still clears the ≥10-game floor is the correct trade.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-favorite-underpricing-s23-verdict.md</code> (Q27/S23)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L56</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">L37 (the Hard-Rule-#3 static scanner false-positives on prose/comments literally writing &quot;yes_ask/bracket_sum&quot; with a slash) RECURRED in <code>scripts/q27_favorite_underpricing_fillsim.py</code> (lines 6/78/171) and was again fixed by rewording the separator to &quot;over&quot;/&quot;and&quot;. L37 is a prose-convention protocol, not a code bug; recording the recurrence so the next probe author writes &quot;ask over bracket_sum&quot; in comments/docstrings from the start.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-favorite-underpricing-s23-verdict.md</code> (Q27/S23); <code>scripts/q27_favorite_underpricing_fillsim.py</code> (reworded pre-commit)</td>
+</tr>
+<tr data-bucket="protocol">
+  <td class="lid">L57</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">A burst-resolution cross-venue lead-lag correlation can be DOMINATED BY A SINGLE SHOCK TICK: on the June-CPI burst tape, Kalshi&lt;-&gt;Polymarket rho(polymarket-leads) on the two CPI-sensitive July fed buckets was 0.902/0.777, but removing the single 12:30:13Z release-instant capture collapsed it to noise (0.196/0.037) AND the residual sign is unstable (flips toward Kalshi on leave-one-out) — the &quot;lead&quot; was that one snapshot expressed as a Pearson rho over ~100 near-flat steps, not a persistent relationship. Any burst-window lead-lag figure MUST be reported WITH the release-tick-removed recompute before any directional claim. Two corollaries confirmed this run: (i) the WIDTH x DURATION cross cleanly discriminates a real shock dislocation from a stale-quote nominal basis and generalizes L31 from single-venue wings to CROSS-VENUE dislocations — the two largest gaps ($0.079/$0.06 net of both fees) were single-capture release-instant transients while every durable gap was small ($0.01-0.04), the S6/L31 signature; (ii) <code>tape/polymarket_macro_pairs/</code> is SIZE-BLIND (only best_ask/best_bid, no depth) and <code>captured_at</code> is a single pass-level timestamp shared by all records in a capture, so it can neither prove venue simultaneity nor claim fillability — every cross-venue dislocation over it is a price observation, never a fill.</td>
+  <td><span class="pill p-protocol">Protocol</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-s17-burst-cpi-q19.md</code> (Q19 CPI-burst per-event, verifier CONFIRMED-numbers / REFUTED-both-tradeable-claims)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L58</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext"><strong>A behavioral signal can be directionally real yet un-tradeable by an order of magnitude — distinguish &quot;the effect exists&quot; from &quot;the effect is fillable.&quot;</strong> S24&#x27;s near-close mid genuinely mean-reverts after a jump (~0.7¢ net, De Bondt-Thaler confirmed as a <code>synthetic</code> mid-price observation) but a taker round-trip must pay 2× the 0.07 fee + 2× the half-spread (~6-7¢ on a ~3.7¢-overround two-sided book), turning the confirmed signal into a strictly-negative <code>real_ask</code>/<code>real_bid</code> CI (mean −$0.029, 95% CI [−0.052,−0.006], n=123 games/739 trades). Same family as L31/L57 (nominal ≠ capturable) and L39/L48 (a signal orients, the fill/cost test binds) — this is the round-trip-cost instance of that pattern.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-nearclose-fade-s24-verdict.md</code> (Q28/S24, verifier-CONFIRMED)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L59</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext">**Reversal *frequency* and reversal *magnitude* can disagree in sign of implication — a momentum/reversal precheck must report BOTH, not pick one.** S24&#x27;s raw continuation frequency was 0.454 (a slight MAJORITY of jumps kept going, which alone would read as momentum), yet the sign-conditioned mean next-step pointed the opposite way (post-jump-up mean −$0.0061, post-jump-down mean +$0.0087) — a minority of large reversals carried the mean. Classifying on frequency alone would have mislabeled this DEAD-by-momentum and skipped the real (round-trip-cost) kill entirely.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-nearclose-fade-s24-verdict.md</code> (Q28/S24 Gate 2 direction precheck, verifier-CONFIRMED)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L60</td>
+  <td class="ldate">2026-07-14</td>
+  <td class="ltext"><strong>The S6/L32 frozen-vs-movement maker dual-cut does not apply to a taker round-trip — it has a different boundary.</strong> L32 exists because a maker&#x27;s resting order can go UNFILLED when the book is frozen (no fill, no loss); but a TAKER round-trip fills both legs by crossing the spread regardless of whether the book was &quot;frozen&quot; at entry, so a frozen exit is a real (losing) fill, not a no-fill — bucketing taker trades by frozen-vs-movement would misapply L32&#x27;s rationale. The correct place for a frozen guard on a taker jump-detection probe is at DETECTION (a zero-Δmid pair is never counted as a jump event in the first place), not at the fill-outcome layer. Records the boundary of where L32 applies (maker resting fills) vs where it doesn&#x27;t (taker round-trips).</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc"><code>findings/2026-07-14-nearclose-fade-s24-verdict.md</code> (Q28/S24 design note, verifier-CONFIRMED)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L61</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext">**A scheduled-macro Kalshi ladder settles AT the print, so its resolving-month event has no post-release live quotes at all — the tradeable window ends *before* the outcome becomes public.** On the June-CPI burst tape (<code>tape/econ_prints/dt=2026-07-14.jsonl</code>) the resolving events <code>KXCPI-26JUN</code>/<code>KXCPICORE-26JUN</code>/<code>KXCPIYOY-26JUN</code> have <code>close_time</code> 12:25:00Z/12:29:00Z — *ahead* of the 12:30Z release — and vanish from the tape at 12:28:59Z; there are <strong>zero</strong> post-12:30Z records of the resolving ladder. The 100 &quot;post-print&quot; records in the 12:30–12:49Z window are all FORWARD months (<code>-26JUL</code>/<code>-26AUG</code>/…), a *different object* whose outcome the June print does not determine, and they carry ~0.88 median yes-spreads. Any &quot;post-print staleness pickoff&quot; (buy the now-certain bucket) or &quot;print-overshoot fade&quot; thesis on econ tape is therefore structurally DOA — Kalshi closes the market early precisely to deny the stale-order pickoff. Verify the resolving event&#x27;s <code>close_time</code> against the release instant before proposing any post-print econ trade.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc">Q21 idea-gen round 2026-07-15, verifier KILL of S25 &amp; S27 (<code>findings/2026-07-15-q21-idea-gen-round.md</code>)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L62</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>A cross-venue ask-to-ask &quot;gap&quot; is not an edge when one venue&#x27;s own bid-ask spread exceeds the gap.</strong> Scoring the S26 entry condition <code>|kalshi_yes_ask − poly_best_ask| &gt; overround_share + fee</code> on <code>tape/polymarket_macro_pairs/dt=2026-07-14.jsonl</code> cleared for 19.8% of records — but on these thin far-dated KXFEDDECISION buckets the Kalshi yes bid-ask spread is median 9¢ (mean 11¢, up to 30¢) and the Polymarket anchor sits <strong>INSIDE</strong> Kalshi&#x27;s own bid-ask in <strong>62.6%</strong> of the entry-met records. So the &quot;divergence&quot; is Kalshi&#x27;s half-spread against Poly&#x27;s tight top-of-book ask — Kalshi&#x27;s true mid already agrees with Poly, and there is nothing to converge (the size-blind top-of-book illusion, one layer worse than L39). Any Kalshi↔Polymarket divergence claim must first check whether the anchor falls inside the Kalshi bid-ask, and must name a realizable exit (round-trip the Kalshi spread vs hold-to-settlement) before calling a gap an edge.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc">Q21 idea-gen round 2026-07-15, verifier KILL of S26 (<code>findings/2026-07-15-q21-idea-gen-round.md</code>)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L63</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>A cross-venue laggard trade is market-neutral only if BOTH legs are held; a single-venue &quot;take the laggard toward the anchor&quot; is a directional bet, not an arbitrage.</strong> S26 tried to escape S17&#x27;s cross-venue rail-risk caveat by executing only the Kalshi leg (Polymarket as a free anchor, never held) — but dropping the hedge leg removes the *hedge*, not the *risk*: &quot;convergence-hold&quot; on a single macro bucket to its FOMC/CPI resolution is unbounded directional event risk (the S2/S16 family), and it re-inherits the exact &quot;Kalshi is the laggard&quot; premise that S17-burst already REFUTED as sign-unstable (residual lead flips toward Kalshi on leave-one-out). Escaping S9&#x27;s data-adequacy death and S17&#x27;s rail caveat only re-lands the idea on the directional-macro-bet objection. Before proposing any &quot;single-venue convergence&quot; trade, state whether &quot;convergence&quot; is defined anywhere but at settlement — if not, it is a directional position.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc">Q21 idea-gen round 2026-07-15, verifier KILL of S26 (<code>findings/2026-07-15-q21-idea-gen-round.md</code>)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L64</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>A &quot;post-close&quot; definition anchored on a ticker&#x27;s HHMM token, not the settlement <code>close_time</code> (broker_truth), silently mislabels the majority of a population as post-close when it is actually pre-close.</strong> Q25&#x27;s <code>post_close</code> sports-depth bucket (n=2,478, ticker-HHMM-as-UTC) turned out to be 2,860/2,864 (99.86%) still pre-close under the real settlement <code>close_time</code> — median understatement +7.07h, max +24.33h, concretizing L46&#x27;s ~13h league-local tz uncertainty into a measured number. The genuinely-post-close population was only 4 captures / 2 games. Any liquidity or fill-plausibility claim keyed off a ticker-embedded time token must be re-verified against <code>broker_truth</code> settlement timestamps before being trusted as a population definition.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc">Q29/S28 probe, verifier-CONFIRMED (<code>findings/2026-07-15-q29-settlement-lag-s28-verdict.md</code>)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L65</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>Kalshi empties and settles a sports book AT close — there is no post-close resting-quote window to pick off.</strong> Across the entire committed <code>tape/orderbook_depth/</code> history the maximum observed gap between a capture and its market&#x27;s real settlement close is 0.024h (~1.4 min), and the 4 genuinely-post-close captures found (L64) all have a fully empty book (both BBO sides <code>None</code>, empty ladders) — confirmed by hand against the raw tape (e.g. <code>KXNPBGAME-26JUL120500YAKHAN-HAN</code>: full two-sided ladder at 11:24:58Z, fully empty at 11:55:18Z, ~30min after close). The sports-analogue of L61&#x27;s &quot;econ ladder closes before the print&quot;: Kalshi structurally denies the stale-quote pickoff by pulling the book at settlement, not by keeping asks near $1.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc">Q29/S28 probe, verifier-CONFIRMED</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L66</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>&quot;Buy the ex-post known winner&quot; constructions are near-L41-degenerate by design — record the boundary precisely, don&#x27;t overstate it.</strong> A trade defined as &quot;lift the winner-side ask after the outcome is already public&quot; has <code>edge = 1 − ask − fee</code>, so a losing cluster requires <code>ask</code> to already be priced within the fee of $1 (or a settlement correction/void after entry) — both are real but rare, so while not perfectly degenerate, in practice this trade shape structurally starves the block-bootstrap of the opposing-sign clusters L41 requires. State this precisely as &quot;a genuine but thin losing tail&quot; rather than &quot;provably degenerate,&quot; since an adversarial verifier can construct a synthetic counterexample (as done here) even when the real tape never realizes it.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc">Q29/S28 probe, verifier-CONFIRMED (minor overstatement caught, did not change the verdict)</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L67</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>Median total-ladder depth on an illiquid two-sided book is not evidence of a capturable spread — decompose the resting size by price band before believing a wide two-sided spread is tradeable.</strong> A maker-spread candidate (S30, foreign-sports wide-spread capture) rested on &quot;the wide KBO spread is backed by thousands of two-sided contracts (4,601 yes / 10,556 no).&quot; That figure is the *total ladder summed across all price levels*; the top-of-book at the 27¢ spread was <strong>10 yes / 26 no</strong> contracts, and <strong>98.83%</strong> of the resting yes-ladder size sat at price ≤ 0.10 (deep-OTM lottery bids, e.g. 4,000 contracts at 6¢). Capture happens at the top of book, so the fillable number is the 10-contract one, not the 4,600 total — the wide spread is an <strong>L31 wing with a two-sided tail</strong>, not a competition gap. Always split ladder depth into &quot;size within ~5¢ of top&quot; vs &quot;lottery tail&quot; before quoting a two-sided-liquidity claim. Generalizes L31/L39 to the two-sided-depth-illusion case; sibling of L62&#x27;s anchor-inside-spread check.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc">Q21 idea-gen S30 verifier-KILL (<code>findings/2026-07-15-q21-ideagen-edge-hunter.md</code>)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L68</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>A maker-spread-capture idea evaluated over <code>tape/orderbook_depth/</code> alone is toxicity-untestable by construction — kill it at the idea stage rather than register it as &quot;untestable.&quot;</strong> <code>orderbook_depth</code> carries resting-depth snapshots only (<code>best_*_bid/ask</code>, <code>yes_bids</code>, <code>no_bids</code>) — <strong>no trade / volume / last-price fields</strong> — and the only sports executed-volume tape anywhere is <code>tape/sports_history_s7/worldcup2026.jsonl</code> (WC-only, L44). A maker&#x27;s survival hinges on whether fills are adversely selected (does resting size get lifted disproportionately on the side that then loses?); with no trade prints that correlation cannot be measured, so the L41 adverse-modeled block-bootstrap CI is unconstructible. A wide spread on a thin book is equally consistent with &quot;absent competition&quot; (good) and &quot;adverse-selection compensation&quot; (fatal), and the depth tape cannot adjudicate. Such a candidate has no path to the registration bar and is a clean idea-stage KILL — do not register it as data-collecting/untestable (that would burn a research-loop probe).</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc">Q21 idea-gen S30 verifier-KILL (<code>findings/2026-07-15-q21-ideagen-edge-hunter.md</code>)</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L69</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>A queue-aware maker fill-sim that rests at the EARLIEST pre-close snapshot systematically enters on thin, often one-sided early books — the fillable-entry restriction (two-sided book / near-close) must be the PRIMARY population, never a robustness footnote applied after a positive headline.</strong> Q30&#x27;s spec population (earliest-entry, median 65.6h pre-close, p90 entry spread 86¢) cleared every binding gate (+9.03¢, CI [+0.021,+0.163]) on nickel bids against 87-94¢ asks days before kickoff — nominal lottery-ticket placeholders the generous fill-sim (L48: a cancel ahead counts as advancing us) still marks FILLED. Both honest fillable-entry cuts (two-sided book ≤10¢, near-close ttc≤24h) failed to reproduce the edge; near-close went negative. This is the pt1 &quot;synthetic price treated as fillable&quot; mistake one abstraction up — a nominal ONE-SIDED quote, not a synthetic midpoint. Sibling of L67&#x27;s two-sided-depth-illusion (that one attacked a static depth CLAIM; this one attacks a fill-SIM&#x27;s default entry rule).</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc">Q30/S29 probe, verifier-REFUTED the ALIVE framing (numbers CONFIRMED, interpretation overturned)</td>
+</tr>
+<tr data-bucket="ledger">
+  <td class="lid">L70</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>Draw-aversion IS directionally present on Kalshi 3-way soccer, but is not a fillable maker edge — record the outcome-type bias as real-but-unfillable, distinct from L54&#x27;s absent/reversed favorite-longshot closure.</strong> Empirical record (157 games, 19 pooled <code>-TIE</code> series): draws settled 28.0% of the time against resting draw-YES bids priced (nominally) at ~18¢ — a genuine ~9¢ gap in the direction the literature predicts. But under the only defensible fillable-entry populations (two-sided book, near-close) the edge collapses to a zero-straddling CI or goes negative (L69). Distinguishes &quot;bias absent/reversed&quot; (S23/L54) from &quot;bias present but only visible in unfillable prices&quot; (S29) — both are DEAD verdicts but for different reasons, and a future literature-driven candidate should check which failure mode it&#x27;s walking into.</td>
+  <td><span class="pill p-ledger">Ledger-only</span></td>
+  <td class="lsrc">Q30/S29 probe verdict, verifier-CONFIRMED</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L71</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext"><strong>The gate-4 &quot;power floor&quot; for a hold-to-settlement Bernoulli P&amp;L is <code>sqrt(p(1-p)/n)</code> — a one-sigma standard error, NOT a 1.96-scaled 95% half-width.</strong> Q30&#x27;s milestone spec stated &quot;~$0.09 at n≈24, ~$0.044 at n≈100,&quot; which matches <code>sqrt(0.1875/n)</code> (p=0.25) exactly, not <code>1.96*sqrt(p(1-p)/n)</code>. Pinning this so the next settlement-Bernoulli probe (any &quot;buy the outcome, held to settlement&quot; trade shape) doesn&#x27;t reach for the wrong CI scaling by reflex when computing its own power-floor commentary.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc">Q30/S29 probe (<code>power_floor_halfwidth</code> in <code>scripts/q30_draw_aversion_maker_probe.py</code>), verifier-CONFIRMED</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L72</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext">Supersedes L59&#x27;s enforcement column (the lesson content is unchanged: reversal *frequency* and reversal *magnitude* can disagree in sign of implication, so a momentum/reversal precheck must report both, never classify on frequency alone). Idle-run policy order (a): built <code>core/reversal.py</code> (<code>reverses</code>, <code>direction_precheck</code> — mirrors <code>scripts/q28_s24_nearclose_fade_probe.py</code>&#x27;s <code>gate2_direction</code> exactly: <code>is_momentum</code> requires BOTH <code>reversal_fraction &lt;= 0.5</code> AND both sign-conditioned means agreeing with the jump direction) so a future momentum/reversal precheck imports the two-number check by default instead of re-deriving a frequency-only classifier per script, the <code>core/</code>-write pass L59 flagged as future work.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc">this run; <code>core/reversal.py</code>; supersedes L59&#x27;s enforcement</td>
+</tr>
+<tr data-bucket="test">
+  <td class="lid">L73</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext">Supersedes L39&#x27;s enforcement column (the lesson content is unchanged: a bracket-ladder P&amp;L that nets a small edge against a large loss leg is vulnerable to a queue-blind fill proxy crediting the income leg too easily — decompose the edge as a fraction of the thinnest-volume income legs before calling it fillable). Idle-run policy order (a): built <code>core/income_legs.py</code> (<code>income_leg_thin_fraction</code>, <code>income_leg_edge_at_gate</code> — the S14-shaped &quot;78% of the edge came from sub-100-contract legs&quot; decomposition, and its complementary volume-gated haircut sum, given per-leg <code>(income, volume)</code> pairs) so a future small-net-of-two-legs probe imports the volume-gate decomposition by default instead of re-deriving it per script, the <code>core/</code>-write pass L39 flagged as future work. Does not retrofit S14&#x27;s already-verdicted first-cut probe (PROXY-POSITIVE, not proven — Q13&#x27;s own remaining binding gate is the queue-aware L2 fill-sim, unchanged by this) — this is for the next probe that needs the decomposition.</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc">this run; <code>core/income_legs.py</code>; supersedes L39&#x27;s enforcement</td>
+</tr>
+<tr data-bucket="unenforced">
+  <td class="lid">L74</td>
+  <td class="ldate">2026-07-15</td>
+  <td class="ltext">A daily-cadence tape family gated to a single <code>ts.hour == N</code> window (no retry, no backfill) is exposed to a full-day blackout from any one bad hour, and a multi-day incident costs it MORE days than an always-hourly family in the same window. Concretely: the 2026-07-08 main-branch reset (<code>kb/00-LOG.md</code> reconciliation entry) cost <code>sports_pairs</code>/<code>crypto_hourly</code>/<code>polymarket_macro_pairs</code> (hourly cadence, 23 other chances/day) exactly one missing day (2026-07-09), but cost <code>econ_prints</code>/<code>polymarket_cpi_pairs</code>/<code>anomalies</code> (all gated to the SAME single <code>ts.hour == 9</code> slot in <code>collection/hourly_pass.py</code>) two consecutive missing days (2026-07-09 AND 2026-07-10) — a 48h CPI/GDP/payrolls/Fed-nowcast/anomaly-sweep blackout, confirmed by direct <code>.jsonl</code>-file + directory listing (not just a glob, to rule out an L25-style masked directory). Data quality when the pass DOES run is otherwise clean (4,774/4,774 nested <code>completeness_ok=true</code>, 0 settlement-value drift across 8 repeated-capture event tickers). Idle-run policy order (c) deep-dive; no fix built — <code>scripts/invariants.py</code> has no missing-calendar-day check for a daily family (only a shape check, per L25), and none was requested; flagging the exposure ahead of the Jul-29 FOMC window, whose burst leg is separate infra and unaffected.</td>
+  <td><span class="pill p-unenforced">UNENFORCED</span></td>
+  <td class="lsrc"><code>findings/2026-07-15-econ-daily-cadence-gap-dataquality.md</code> (this run)</td>
+</tr>
+</tbody></table>
+</div>
+
+<h2>2 · Strategy registry <span class="n">— hypotheses the codebase investigated and closed</span></h2>
+<p class="lead">A distinct class of "problem": each S-candidate is a falsifiable money-making hypothesis. The prime directive lets one graduate only on a bootstrapped CI <strong>&gt; 0 at real fillable asks</strong>. Most die there — a dead strategy recorded honestly is a success, not a failure. 16 dead, 6 still collecting, 0 live.</p>
+<div class="chips"><span class="sstat"><b>16</b> Dead ✗</span><span class="sstat"><b>6</b> Data-collecting</span><span class="sstat"><b>1</b> First-cut done · gated</span><span class="sstat"><b>1</b> Blocked on data</span><span class="sstat"><b>2</b> Idea</span><span class="sstat"><b>1</b> Built ✅</span></div>
+<div style="overflow-x:auto">
+<table id="strats">
+<thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Binding gate / verdict</th></tr></thead>
+<tbody>
+<tr data-sbucket="built">
+  <td class="sid">S0</td>
+  <td class="sname">Real-ask substrate (tape + actuals gate + ask primitive)</td>
+  <td><span class="pill s-built"><strong>built ✅</strong></span></td>
+  <td class="sgate">substrate, not an edge — enables all scoring (53 tests green, invariants live)</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S1</td>
+  <td class="sname">Longshot-fade real-ask calibration (weather)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED n=990 real-ask brackets: net P&amp;L CI [−$0.005,+$0.013] ⊄ &gt;0 → falsified</td>
+</tr>
+<tr data-sbucket="gated">
+  <td class="sid">S2</td>
+  <td class="sname">FOMC × ZQ single-meeting basis</td>
+  <td><span class="pill s-gated"><strong>first-cut done · gated</strong></span></td>
+  <td class="sgate">June&#x27;26 free-data cut: bracket overround +3.4¢ (3× cleaner than weather) → structure HOLDS; full test gated on CME ticks</td>
+</tr>
+<tr data-sbucket="collecting">
+  <td class="sid">S3</td>
+  <td class="sname">K3 cross-strike monotonicity staleness</td>
+  <td><span class="pill s-collecting"><strong>data-collecting</strong></span></td>
+  <td class="sgate"><code>scripts/anomaly_sweep.py</code> (Q6, 2026-07-04) sweeps daily @09 UTC for real fee-floor-clearing crossings; 0 so far in 3 capped live passes (expected, rare); verdict needs accumulated tape</td>
+</tr>
+<tr data-sbucket="blocked">
+  <td class="sid">S4</td>
+  <td class="sname">FEx wing-strike fat-tail mispricing</td>
+  <td><span class="pill s-blocked">blocked-on-data</span></td>
+  <td class="sgate">quoted tail mass &lt; empirical by &gt; overround+fee</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S5</td>
+  <td class="sname">Weather rehab (EMOS-calibrated × honest fill × real asks)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED n=641: EMOS CRPS −7.9% but net P&amp;L CI [−$0.063,+$0.008] ⊄ &gt;0 → weather family dead</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S6</td>
+  <td class="sname">Inventory-aware market-making (maker rebate of spread)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">DEAD (first cut, 2026-07-11, verifier-CONFIRMED): by-ticker block-bootstrap net maker P&amp;L strictly &lt; 0 on every realistic two-sided book (≤10¢ frozen-inclusive mean −$0.00195 CI [−$0.00297,−$0.00094]; movement-conditioned −$0.02010 CI [−$0.02271,−$0.01759]). Structural killer: the flat 1¢ maker fee exceeds the modal 1–2¢ spread&#x27;s capturable half. Naive +$0.069 &quot;edge&quot; was a &gt;30¢ wing artifact. Selective-maker (S11) untested.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S7</td>
+  <td class="sname">Kalshi WC/NBA-tail moneyline vs DraftKings no-vig closing line (CLV harvest)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED n=80 games/237 outcomes: mean edge_after_fee −0.0235, 95% block-bootstrap-by-game CI [−0.0245,−0.0225] ⊄ &gt;0 → falsified (taker side)</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S8</td>
+  <td class="sname">Crypto-hourly settlement basis (CF BRRNY vs public spot)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED n=18 hrs/symbol: ρ-guard (historical-spot, lag=0s) BTC 0.9997/ETH 0.9998, max gap never crosses half a band (0.00% both) → dies cheap, same as S5&#x27;s NWS/WU</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S9</td>
+  <td class="sname">Kalshi↔Polymarket same-question lead-lag (laggard leg)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">RESOLVED 2026-07-06: n=8 ticker-steps across 2 real round transitions, both venues repriced together every time (mean |Δk−Δp| 2.2¢) — collection cadence (hourly-min, platform trigger constraint) is coarser than the event itself; data-adequacy DEAD, not a CI falsification. Parity sub-question survives under S17.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S10</td>
+  <td class="sname">Crypto-hourly reachability decay (stale far-bracket pricing)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">STRUCTURAL DEAD (2026-07-11, verifier-CONFIRMED): far brackets already 1¢-YES-floor-pinned ~40min pre-close (no decay window); the 1¢ tick mirrors to a \$1.00 NO ask (yes_bid=0) so the taker fade has no fillable price (only 4/18,992 far obs had <code>no_ask&lt;\$1</code>, 3 from one hour). Block-bootstrap-by-hour n=164 hrs/18,992 obs: mean +\$0.000008, 95% CI [+\$0.000000,+\$0.000024] — 3 orders below the 1¢ tick (rounding residue, <code>fee(\$1.00)=0</code>). Maker side untested (S6/S11).</td>
+</tr>
+<tr data-sbucket="collecting">
+  <td class="sid">S11</td>
+  <td class="sname">Sharp-anchored maker quoting on illiquid binaries</td>
+  <td><span class="pill s-collecting"><strong>data-collecting</strong></span></td>
+  <td class="sgate">fill-sim: rest only EV+-vs-Pinnacle side; captured spread &gt; adverse-sel + maker fee; CI&gt;0. Anchor confirmed live 2026-07-13 (verifier-CONFIRMED): first keyed VPS pass post-Q18 wrote 6 <code>odds_leg.status=&quot;matched&quot;</code> records (2 WC games × 3 passes, <code>match_score=2.0</code>/<code>outcome_coverage=&quot;full&quot;</code>, de-vig math + Rule #3 tags clean) — data now flows end to end, thin so far (1 bookmaker, 2 games); no P&amp;L/CI claim yet.</td>
+</tr>
+<tr data-sbucket="collecting">
+  <td class="sid">S12</td>
+  <td class="sname">Econ-print nowcast overlay (CPI/NFP/GDP brackets, maker-preferred)</td>
+  <td><span class="pill s-collecting"><strong>data-collecting</strong></span></td>
+  <td class="sgate">≥20 releases forward-collected real-ask ladders; paper taker AND maker-at-bid where |nowcast−implied| &gt; overround share+fee; block-bootstrap by release; CI&gt;0</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S13</td>
+  <td class="sname">S7-maker — bid side of the proven sports rich-ask</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED n=80 games/223 filled outcomes (94.1% fill rate): mean edge_after_fee +0.00009, 95% block-bootstrap-by-game CI [−0.00021,+0.00039] — straddles zero → null result. The maker fee alone (~1¢ at mid-range bid prices) consumes essentially the whole assumed 1¢ bid-under-fair margin.</td>
+</tr>
+<tr data-sbucket="collecting">
+  <td class="sid">S14</td>
+  <td class="sname">Ladder overround underwriting (short the complete bracket set)</td>
+  <td><span class="pill s-collecting"><strong>data-collecting</strong></span></td>
+  <td class="sgate"><strong>First non-DEAD candidate — PROXY-POSITIVE, not proven</strong> (2026-07-13, Q13, verifier CONFIRMED-WITH-CAVEAT). Candlestick fill-proxy over <code>tape/crypto_hourly/</code> BTC/ETH ladders (mean 131.5 members, MECE): block-boot by event-hour mean <strong>+\$0.0925 CI [+0.063,+0.123]</strong> n=300, clears the tick-magnitude gate, robust to coarser units. BUT the &quot;complete fill&quot; term is \$0 (0.0% complete-fill) — it&#x27;s path-dependent partial premium net of the near-certain \$1 winner loss (winner filled 96.7%), and <strong>78% of the edge is sub-100-vol income legs</strong> the queue-blind proxy over-credits. Remaining binding gate: a <strong>queue-aware L2/depth fill-sim</strong> (<code>tape/orderbook_depth/</code>, short-YES queue read off the mirror <code>no_bids</code> side) modeling queue position + the fill↔winner correlation, CI&gt;0 @ real asks over ≥30 event-days</td>
+</tr>
+<tr data-sbucket="collecting">
+  <td class="sid">S15</td>
+  <td class="sname">Cross-event logical-implication scanner (A⇒B ⇒ P(A)≤P(B))</td>
+  <td><span class="pill s-collecting"><strong>data-collecting</strong></span></td>
+  <td class="sgate"><code>scripts/anomaly_sweep.py</code> (Q11, 2026-07-05) 3rd check + <code>config/implication_pairs.yaml</code> (hand-audited <code>kxwcround_progression</code> family); runs in existing daily 09 UTC slot; live-validated against real KXWCROUND markets (38 pairs/40 open markets, 0 hits — expected); kill if 0 fee-clearing hits in 60 days</td>
+</tr>
+<tr data-sbucket="idea">
+  <td class="sid">S16</td>
+  <td class="sname">FedWatch-anchored shock fade on KXFED</td>
+  <td><span class="pill s-idea">idea</span></td>
+  <td class="sgate">enter only |Kalshi−FedWatch| &gt; spread+fee around releases; paper exit on convergence/T+24h; bootstrap by shock; CI&gt;0; kill if Kalshi leads ZQ</td>
+</tr>
+<tr data-sbucket="collecting">
+  <td class="sid">S17</td>
+  <td class="sname">Kalshi↔Polymarket recurring-macro parity (S9 infra past Jul 19)</td>
+  <td><span class="pill s-collecting"><strong>data-collecting</strong></span></td>
+  <td class="sgate">Fed + CPI matchers both built (2026-07-06); ≥5 live-book pairs/month cleared; remaining: accumulate + lead-lag xcorr + laggard paper fills @ real asks; CI&gt;0</td>
+</tr>
+<tr data-sbucket="idea">
+  <td class="sid">S18</td>
+  <td class="sname">Single-poll overreaction fade (Congress-control markets)</td>
+  <td><span class="pill s-idea">idea</span></td>
+  <td class="sgate">paper fade @ real ask when single-poll jump &gt;3¢ while polling average moved &lt;1¢-eq; exit reversion/T+72h; bootstrap by poll event; CI&gt;0 before 2026-11</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S19</td>
+  <td class="sname">Elevated-wing stale-ask maker fade on crypto ladders (S10-maker / L26 direction)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED (2026-07-13, verifier-CONFIRMED): queue-aware <code>orderbook_depth</code> <code>no_bids</code> fill-sim (NOT a candlestick print, L39) over 895 <code>wing_elevated</code> members / 175 settled event-hours — 0.45% fill rate overall (4 fills, 1.00% among the 402 joinable), below S14&#x27;s 2.5% incidental-wing benchmark and the near-zero-fill floor; filled population is only 2 event-hours, below the bootstrap data-adequacy floor, so the +$0.355 win-leg CI [+0.285,+0.425] is a resampling artifact, not an edge (the mechanism&#x27;s predicted toxic settle-YES leg is 0/895 observed — unsampled, not disproven). S10-maker / L26 now TESTED-DEAD. See <code>findings/2026-07-13-s19-wing-fade-fillsim-q23-verdict.md</code>.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S20</td>
+  <td class="sname">Polymarket wallet forensics (mine top-PnL whales for transferable strategy shapes)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">ONE-SHOT RESEARCH SPRINT, not a tradeable strategy — CLOSED, premise DEAD (2026-07-13, peer-reviewed APPROVE-WITH-NOTES). 50 top wallets, 37 evaluable, 1 formal BH-FDR survivor discredited by Result 2 (degenerate bootstrap: 8/8 clusters resolved same-way ⇒ p mechanically 0, L41) → <strong>0 credible skilled wallets</strong>. Decomposes into rewards-subsidized MMs (31/37, Kalshi analogs S6/S13/S19 DEAD), lottery winners (16/37 negative per-trade edge), and the degenerate survivor. &quot;Copy the whales&quot; structurally void. <strong>Live output: H1 → <code>LOOP-QUEUE.md</code> Q24</strong> (maker-side rich-ASK selling on sports longshots, the untested S7c mirror; evidentiary basis S7c alone). Lessons L41/L42. All numbers <code>polymarket_onchain</code> — zero Kalshi-edge evidence. See <code>findings/2026-07-13-polymarket-wallet-forensics-s20-dossier.md</code>.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S21</td>
+  <td class="sname">S7-maker ASK side — rest the rich longshot ask (H1, the S7c-mirror maker-sell)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED (2026-07-13, Q24, verifier-CONFIRMED): queue-aware <code>orderbook_depth</code> <code>no_bids</code> fill-sim (NOT a candlestick print, L39) of resting the S7c-proven-rich ask on sports longshots. The mandated join (fair-anchored longshots from <code>tape/sports_clv/</code> × the depth queue from <code>tape/orderbook_depth/</code>) is <strong>0/81 joinable (0.00%)</strong> at <code>fair_prob ≤ 0.20</code> (0/83 for the <code>yes_ask ≤ 0.20</code> proxy) — L9 non-overlap: fair anchors cover kickoffs ≤07-03, sports depth began ≥07-07, so every fair-anchored game had settled before the depth tape began (zero event- AND outcome-ticker overlap, the calendar date is embedded in the ticker so no join-window relaxation manufactures one; verifier reproduced 0 bypassing the probe&#x27;s join code). Fill rate <strong>0.00%, no testable CI</strong> (n_units=0). Settlement was ADEQUATE (81/81 settled, 8/81=9.88% YES) and the sold-longshot-WINS negative-skew leg is fully modeled (<code>premium−1−fee</code>≈−0.86 settle-YES; flat $0.01 maker fee via <code>core.pricing</code>, L18/L30) — the death is a depth-queue <strong>timing</strong> gap, not a winner gap. Steelman: <code>sports_pairs</code> ask≤0.20 longshots that DO overlap depth → 346/652 (53%) have a queue, MEDIAN queue-ahead <strong>485 contracts</strong> (confirms the binding-risk thesis), but full-sim-eligible = only <strong>3 markets</strong> &lt;&lt; the 10-game floor; verifier confirmed alternate paths also 0. → <strong>DEAD by data-adequacy</strong> (NOT a CI falsification; the edge-at-quote stays S7c-proven-rich, the maker FILL question is untested/unmeasurable on current tape, re-testable only on concurrently-collected fair-anchor+depth tape — L43). Same factor family as S14 (short-the-overpriced-tail, factor cap). See <code>findings/2026-07-13-q24-sports-longshot-maker-fillsim-verdict.md</code>, <code>kb/quant-finance/favorite-longshot-bias.md</code>.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S22</td>
+  <td class="sname">OFI / depth-imbalance settlement predictor (high-churn two-sided sports books)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED (2026-07-14, Q26, verifier-CONFIRMED): join gate passed clean (205 joinable games, 20× the 10-game floor, L50&#x27;s ex-post-settlement-join fix confirmed working) but the calibration precheck hard-killed it — on the disagreement subset (n=86 rows/81 games, the actual trade population) imbalance hit <strong>27.9%</strong> vs the mid&#x27;s <strong>72.1%</strong>; because <code>imb_side</code>/<code>mid_side</code> are opposite by construction on this subset the two hit rates are exactly complementary (sum to 1.0), so this is NOT a masked contrarian signal — sign-flipping imbalance would just reproduce the mid. Robust across every ttc cut (ttc≤1h still 0.281/0.719), ruling out a cadence-washout explanation: the displayed mid already integrates whatever the depth ladder shows on these books. Gates 3/4 (P&amp;L, bootstrap CI) correctly never reached. See <code>findings/2026-07-14-ofi-depth-imbalance-s22-verdict.md</code>.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S23</td>
+  <td class="sname">Favorite-side settlement-underpricing maker (favorite-longshot bias, no devig anchor)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED (2026-07-14, Q27, verifier-CONFIRMED): settlement-as-fair-test favorite maker bid (normalized ask/bracket_sum ≥0.65) queue-aware yes_bids fill-sim over tape/orderbook_depth/ joined to ex-post Kalshi settlement (L50, sidesteps S21&#x27;s L43 death). Join ADEQUATE (24 distinct games ≥10 floor, fill rate 95.83% ≫ S19 0.45% floor — dies on the EDGE, not adequacy/fill). Favorite win-rate among fills 0.6957 (16W/7L) &lt; mean fill_price $0.7261 (real_bid) + $0.01 maker fee = breakeven 0.7361 → favorites marginally RICH at the bid, favorite-longshot bias absent/reversed as a fillable maker edge. Block-boot by GAME n=23: mean −$0.0404, 95% CI [−0.2435,+0.1370], admissible PASS (16 opposing clusters) / clears_tick_magnitude FAIL. Catastrophic favorite-loses leg fully modeled (G2/L41). Same factor slot as S14/S21 (short-the-overpriced-tail / favorite-longshot). See findings/2026-07-14-favorite-underpricing-s23-verdict.md.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S24</td>
+  <td class="sname">Near-close hourly-return overreaction fade (two-sided sports books)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED (2026-07-14, Q28, verifier-CONFIRMED): block-boot by GAME (<code>event_ticker</code>, L6) of a real_ask-entry/real_bid-exit fade round-trip on ≥2¢ near-close mid jumps over 7 Q25 high-turnover two-sided sports cells, n=123 games/739 trades: mean <strong>−$0.02936, 95% CI [−0.05179, −0.00587]</strong> — strictly below zero, robust across X∈{2..5}¢. The De Bondt-Thaler reversal is real in mid terms (~0.7¢, conditional-mean sign confirms reversal despite a 0.454 continuation frequency) but an order of magnitude below the ~6-7¢ realized round-trip (2× taker fee + 2× half-spread). Anti-overlap hold-to-settlement leg (n=126/817) CI [−0.05884,+0.00825] also does not clear &gt;0 → does <strong>not</strong> collapse into S22 (both exits unprofitable). Verifier: bit-for-bit re-run + from-scratch re-implementation reproduced every number; hand-verified sample trade, no fee/lookahead/cluster-degeneracy defects. See <code>findings/2026-07-14-nearclose-fade-s24-verdict.md</code>.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S28</td>
+  <td class="sname">Post-close settlement-lag taker on decided sports outcomes</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED (2026-07-15, Q29, verifier-CONFIRMED): DEAD-by-convergence, data-adequacy — no CI (empty tradeable population, not a CI≤0). Q25&#x27;s <code>post_close</code> bucket (n=2,478 by ticker-HHMM) was 99.86% mislabeled: only 4/2,864 captures are genuinely post-close by <code>broker_truth</code> settlement <code>close_time</code> (median understatement +7.07h, max +24.33h vs the ticker token — L46 tz uncertainty made concrete). All 4 genuine post-close captures have a fully empty book (no <code>real_ask</code>/<code>real_bid</code>, confirmed by hand against raw tape) — Kalshi empties and settles a sports book AT close (max observed gap 0.024h across the whole depth tape); there is no resting-quote window to pick off. Lookahead-clean population = 0 games, below the 10-game floor (Gate 1 FAIL); Gate 2 (fillability) also FAIL. Verifier independently re-derived every number from raw tape + a from-scratch parser, confirmed the empty-book claim by hand, checked for a missed population (none exists — no series has a post-close two-sided sub-$1 book anywhere in the tape), and flagged one minor overstatement (L41-degeneracy claimed too strongly; a thin losing tail exists in principle) that does not change the verdict. New lessons L64–L66. See <code>findings/2026-07-15-q29-settlement-lag-s28-verdict.md</code>.</td>
+</tr>
+<tr data-sbucket="dead">
+  <td class="sid">S29</td>
+  <td class="sname">Soccer draw-aversion underpricing maker bid (3-way soccer, the <code>-TIE</code> leg)</td>
+  <td><span class="pill s-dead"><strong>dead ✗</strong></span></td>
+  <td class="sgate">TESTED (2026-07-15, Q30, verifier-CONFIRMED numbers / REFUTED the ALIVE framing): <strong>DEAD-by-fillability</strong>, not the queue&#x27;s predicted fee-death. Spec population (earliest pre-close entry, 157 games pooled across 19 discovered <code>-TIE</code> series) clears every binding gate — draw rate among fills 28.03% vs breakeven 18.99%, CI [+0.0208,+0.1627] — but that population&#x27;s median entry is 65.6h pre-close with p90 entry spread 86¢: hand-verified nickel bids on days-out one-sided books that the generous fill-sim still &quot;fills&quot; (nominal-price-as-fillable, L31/L48). Both honest fillable-entry cuts fail: two-sided-book entry (spread≤10¢, n=119) CI straddles zero [−0.0065,+0.1564]; near-close entry (ttc≤24h, n=15) goes <strong>negative</strong> (−4.47¢) and is underpowered. Draw-aversion is directionally real (L70) but not a demonstrated fillable maker edge. New lessons L69–L71. See <code>findings/2026-07-15-q30-draw-aversion-s29-verdict.md</code>.</td>
+</tr>
+</tbody></table>
+</div>
+
+<h2>3 · How recent logs are read &amp; acted on</h2>
+<p class="lead">The findings and lessons above aren't passive notes — an autonomous cloud loop system reads them every few hours and moves problems up the enforcement gradient. This is the read→act machinery.</p>
+
+<div class="panel">
+<div class="flow">
+  <div class="row"><div class="who">kalshi-collector <small>hourly · Haiku</small></div><div class="what">Runs <code>python -m collection.hourly_pass</code> — appends L2 tape. Nothing else, ever. <span class="m">Push to <code>main</code> fails intermittently → strands tape on <code>tape/hourly-*</code> branches (L17).</span></div></div>
+  <div class="row"><div class="who">kalshi-research-loop <small>every 3h · Sonnet 5</small></div><div class="what">The <strong>doer</strong>. Steps 0a→9 of <code>LOOP-QUEUE.md</code>: history-integrity check → claim-check open PRs → <strong>step 0b stranded-tape sweep</strong> → execute ONE queue milestone → gates (<code>pytest</code> + <code>invariants.py --full</code>) → append to <code>kb/00-LOG.md</code> → PR + self-merge. <span class="m">Idle-run policy: "sweep only" is invalid — an idle run must convert an UNENFORCED lesson into an invariant, prep a gated probe, or run a data-quality deep-dive.</span></div></div>
+  <div class="row"><div class="who">kalshi-edge-hunter <small>nightly 04:15Z · Opus 4.8</small></div><div class="what">The <strong>thinking seat</strong>. Reads the last 24h of <code>kb/00-LOG.md</code> + new <code>findings/</code>, then: (1) <strong>adversarially re-checks</strong> one load-bearing number per finding — a failure opens a GitHub issue + Priority:high phone note; (2) replenishes the queue (Q21 idea-gen) if &lt;2 eligible items; (3) pre-builds scripts for probes whose data-gate opens within 72h. Ends with a plain-English ntfy brief.</div></div>
+  <div class="row"><div class="who">kb-distiller <small>agent · on demand</small></div><div class="what">The <strong>compounder</strong>. Turns verified findings + worker lesson-candidates into new ledger rows, and escalates UNENFORCED rows into invariants/tests. This is the mechanism that empties the orange column above.</div></div>
+  <div class="row"><div class="who">kalshi-weekly-retro <small>Sun 12:00Z · Opus 4.8</small></div><div class="what">Diffs live routines vs <code>ops/ROUTINES.md</code>, flags stuck PRs &gt;5d, verifies the daily briefs actually flowed (a silent day is Priority:high), reports stranded-branch trend.</div></div>
+  <div class="row"><div class="who">ntfy-watch <small>hourly</small></div><div class="what">Relays every leg's phone note to Ryan's device over a secret ntfy topic — the human-in-the-loop channel for anything needing a decision.</div></div>
+</div>
+</div>
+<p class="lead" style="margin-top:16px"><strong>Two guardrails on acting.</strong> (a) The <strong>two-agent verdict rule</strong>: no registry flip / bootstrap CI / kill decision commits without an independent <code>verifier</code> agent re-run confirming it — unconfirmed verdicts are PROVISIONAL and flip nothing. (b) <strong>Structural stop</strong>: a cloud run can never place a trade — the gate is missing credentials (paper tier only), not behavior. <span style="color:var(--mut)">Two operational scars are baked into step 0: cloud sessions <em>cannot</em> <code>git push origin main</code> (L4, permission boundary) and <code>main</code> was silently rewound to a 6-day-old checkpoint on 2026-07-08 (step 0a integrity check exists because of it).</span></p>
+
+<h3 style="margin:26px 0 4px;font-size:15px">Most recent run-log entries (newest first)</h3>
+<ul class="log">
+<li>2026-07-15 17:xx ET — Idle run: queue still drained, econ/CPI/anomaly daily-cadence gap data-quality deep-dive (L74)</li>
+<li>Gates</li>
+<li>2026-07-15 14:xx ET — Idle run: queue still drained, L39 converted UNENFORCED→test (core/income_legs.py)</li>
+<li>Gates</li>
+<li>2026-07-15 15:xx ET — Idle run: queue still drained, L59 converted UNENFORCED→test (core/reversal.py)</li>
+<li>Gates</li>
+<li>2026-07-15 12:xx ET — Idle run: queue drained (Q0-Q30 all DONE/BLOCKED/RESERVED), L67 converted UNENFORCED→test, step-0b sweep +2,242 lines</li>
+<li>2026-07-15 01:xx ET — Q30/S29 draw-aversion maker probe: DEAD-by-fillability, two-agent-confirmed, L69-L71</li>
+<li>2026-07-15 04:xx ET — kalshi-edge-hunter nightly: review (S28/Q29) PASS, Q21 idea-gen (3 proposed, 0 survived — S30 verifier-KILLED), L67-L68</li>
+<li>2026-07-15 03:xx ET — Q29/S28 post-close settlement-lag taker: DEAD-by-convergence, verifier-CONFIRMED; L64-L66; PR #78 merged</li>
+<li>2026-07-15 04:xx ET — kalshi-edge-hunter nightly: adversarial review (4 findings, all pass), Q21 idea-gen (3 proposed, 0 survived), L61-L63</li>
+<li>2026-07-14 20:xx ET — Q21 idea-gen round (S28/S29 registered); WC-semi1 burst capture found to have silently failed</li>
+<li>2026-07-14 18:xx ET — Q28/S24 near-close overreaction fade: DEAD-by-round-trip, verifier-CONFIRMED; L58-L60</li>
+<li>2026-07-14 15:xx ET — Q19 CPI-burst S17 lead-lag/dislocation: PROVISIONAL, verifier REFUTED both tradeable claims; no registry flip (FOMC-deferred); L57</li>
+<li>2026-07-14 — Q27/S23 favorite-side settlement-underpricing maker: DEAD by fee, verifier-CONFIRMED; L53-L56 appended</li>
+<li>2026-07-14 — Q26/S22 OFI depth-imbalance probe: DEAD by calibration, verifier-CONFIRMED; L51/L52 appended</li>
+<li>2026-07-14 — Q21 idea-gen round: S22/S23/S24 registered idea-stage (verifier REGISTER ×3), 0 killed; L50 appended</li>
+<li>2026-07-13 20:15 ET (idle run) — L45→L49: shared crypto-hour close-time helper + a real PaperBroker determinism bug found and fixed</li>
+</ul>
+
+<p class="foot">Self-contained · no external requests · regenerate with <code>python scripts/gen_problems_dashboard.py</code>. Problem definitions are exactly the repo's own: a lesson is a row in the ledger; a dead strategy is a falsified hypothesis; an operational incident is whichever lesson/log entry recorded it. Nothing here is hand-authored — all rows are parsed from the append-only registries.</p>
+
+<script>
+const chips = document.querySelectorAll('.chip');
+const rows = document.querySelectorAll('#lessons tbody tr');
+chips.forEach(c => c.addEventListener('click', () => {
+  chips.forEach(x => x.classList.remove('active'));
+  c.classList.add('active');
+  const f = c.dataset.filter;
+  rows.forEach(r => r.classList.toggle('hidden', f !== 'all' && r.dataset.bucket !== f));
+}));
+</script>
+</div></body></html>
