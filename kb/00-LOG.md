@@ -6,6 +6,33 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 14:xx ET — Q21 idea-gen round: 3 crypto implied-distribution candidates proposed, ALL killed at idea → 0 registered
+
+Research-loop run (research-lead orchestrated). Re-eligibility fired: 0 non-blocked runnable-now
+research items (Q19 time-gated on Jul-19 WC-final / Jul-29 FOMC; Q32/Q33/Q35-build/Q35 blocked on
+Polymarket credentials; Q36/Q37 time-gated on the freshly-restarted weather tape). Proposed
+**3 crypto implied-distribution candidates (S35/S36/S37)** from NEW literature — Bollen & Whaley
+2004 (net buying pressure) / Coval & Shumway 2001 (variance risk premium), plus Rabin 2002 /
+Terrell 1994 (gambler's fallacy) for S37 — the diversity floor met by that literature. Each was
+attacked by an **independent `verifier` that re-ran the committed tape** (`tape/crypto_hourly/`,
+`tape/crypto_hourly_historical_spot/`); **all three killed at the idea stage → 0 registered**
+(two-agent rule, same honest shape as 2026-07-15).
+
+Kills: **S35** — near-money is overround-RICH not cheap (realized win-rate below ask *before*
+fees; net-buying-pressure thesis REVERSED = S1-on-crypto). **S36** — the skew is one-sided
+(upside rich, downside fair) and lives inside the spread; the overround-neutral taker pair nets
+−$0.0204 with a CI straddling zero (maker-only residual, S24/L58). **S37** — no fillable ATM
+directional instrument on the range-ladder (a single bracket is a pin bet, not a direction bet) +
+~189% strip overround + data-thin, structural like S10.
+
+Outputs: new distillation `kb/quant-finance/net-buying-pressure-implied-distribution.md` (records
+the papers AND their venue refutation so a future round doesn't re-propose them); lessons **L87**
+(crypto near-money overround-rich, thesis reversed) and **L88** (no fillable ATM directional
+instrument on crypto range-ladders), both ledger-only. S35/S36/S37 labels consumed for
+provenance; next free S-number **S38**. No S-rows, no status flip, no new Q-item (no survivors to
+queue) — Q21 stays STANDING. **Still 0 proven edges — the bar has not moved.** See
+`findings/2026-07-16-q21-idea-gen-round.md`.
+
 ## 2026-07-16 11:xx ET — Q38: weather forecast + actuals collector legs wired into hourly_pass (data only)
 
 Research-loop run. Step 0b (own PR #94): scanned all 149 remote `tape/hourly-*`/`tape/burst-*`
