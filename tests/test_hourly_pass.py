@@ -908,3 +908,88 @@ def test_perp_raising_marks_incomplete_not_crash(tmp_path):
     assert "simulated perp_tape crash" in summary["perp_tape"]["error"]
     assert summary["sports_pairs"]["status"] == "ok"
     assert summary["crypto_hourly"]["status"] == "ok"
+
+
+# --------------------------------------------------------------------------- #
+# settlement_ledger (Q45): DAILY cadence — own UTC hour (distinct from 9/11/12), folds its
+# own completeness_ok, a fetch exception is a failure, settlement LABEL lines are NOT folded
+# into n_markets/n_lines (they aren't fresh Kalshi live-market BBOs)
+# --------------------------------------------------------------------------- #
+SETTLEMENT_HOUR = hp.SETTLEMENT_LEDGER_UTC_HOUR
+
+
+def test_settlement_ledger_hour_distinct_from_other_daily_slots():
+    assert hp.SETTLEMENT_LEDGER_UTC_HOUR not in {
+        hp.ANOMALY_SWEEP_UTC_HOUR, hp.ECON_PRINTS_UTC_HOUR,
+        hp.FORECAST_COLLECTOR_UTC_HOUR, hp.WEATHER_ACTUALS_UTC_HOUR}
+
+
+def test_settlement_ledger_not_invoked_outside_its_hour(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    calls = []
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     settlement_ledger_fn=lambda: calls.append(1),
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert calls == []
+    assert summary["settlement_ledger"] is None
+
+
+def test_settlement_ledger_complete_does_not_fail_or_alter_counts(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    n_markets_before = 2 * 3 + 2 * 188
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     settlement_ledger_fn=lambda: {"n_binary": 4200, "n_new": 120,
+                                                   "completeness_ok": True},
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+
+    assert summary["completeness_ok"] is True
+    assert summary["settlement_ledger"]["result"]["n_new"] == 120
+    # settlement LABEL tape (broker_truth), not fresh Kalshi market BBOs -> counts untouched
+    assert summary["n_markets"] == n_markets_before
+    assert summary["n_lines"] == 2 + 2
+
+
+def test_settlement_ledger_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     settlement_ledger_fn=lambda: {"n_binary": 5000, "markets_truncated": True,
+                                                   "completeness_ok": False},
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_settlement_ledger_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated settlement_ledger crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER, settlement_ledger_fn=_boom,
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["settlement_ledger"]["status"] == "error"
+    # sibling sub-passes survive (fault isolation)
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
