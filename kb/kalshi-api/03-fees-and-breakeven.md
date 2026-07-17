@@ -61,8 +61,57 @@ normalize `yes_ask / bracket_sum`) and the whole reason `price_source_tag` exist
 4. **Always persist `fee_paid` and `overround_absorbed` per trade.** A P&L number without
    them is synthetic (hard rule #4).
 
-## Open item
+## Weather-series fee schedule (confirmed 2026-07-17, LOOP-QUEUE.md Q37 sub-task)
 
-Confirm whether Kalshi still charges fees only on entry (not settlement) and whether any
-maker-rebate or volume-tier discount applies to weather series specifically. Pull the live
-`get-series-fee-changes` / `get-event-fee-changes` endpoints before sizing.
+`broker_truth` (live Kalshi API, read-only) unless noted `docs`. Reproduce with
+`python scripts/weather_fee_schedule_probe.py` (offline-tested in
+`tests/test_weather_fee_schedule_probe.py`).
+
+1. **Settlement fees are zero for binary yes/no contracts** (`docs`, Kalshi's Market
+   Settlement doc: "Settlement fees are zero for simple yes/no determinations but may apply
+   for sub-cent scalar settlement"). All weather series here are binary — fees are charged
+   once, at fill, never again at resolution. Confirms the existing assumption in this file.
+2. **No series-level or event-level fee override on any weather series.** Live-checked all
+   48 temperature series the collector's own discovery (`collection.weather_books`)
+   currently tracks (config `high_series`/`low_series` union the "Climate and Weather"
+   category's hourly-directional title sweep): every one carries the STANDARD base rate
+   (`fee_type: "quadratic"`, `fee_multiplier: 1` — the same coefficients `core.pricing`
+   already uses, no special weather discount). `/series/fee_changes` and
+   `/events/fee_changes` (both `show_historical=True`) return an empty array for every
+   series checked, including `KXTEMPNYCH` — zero historical or scheduled overrides, ever.
+3. **A standing platform-wide Liquidity Incentive Program (LIP) DOES apply to weather
+   series** — this is the open item's "maker rebate" answer, and it is real. Every newly
+   listed weather market (both the `KXTEMPNYCH`-family hourly-directional series and the
+   daily `KXHIGH*`/`KXLOWT*` ladders) gets a `type: "liquidity"`,
+   `incentive_description: "new_event"` program: `discount_factor_bps: 5000` (a 50%
+   discount factor) for a window of ~54–60 minutes right after listing (a handful of
+   outliers ran longer, up to ~11h — not yet explained), gated on providing up to
+   `target_size_fp` 1000 (or 300 on some markets) contracts of resting size. Live pull
+   (2026-07-17, 40 bounded pages / 40,000 programs, **truncated — the platform-wide
+   incentive universe exceeds the pull cap, so this is a lower bound, not a full census**):
+   10,372 weather-tagged programs across 25 series, window observed 2026-05-12 → ongoing
+   (still generating new entries at probe time — this reads as a standing program, not a
+   one-off promo). **Not fully understood, flagged rather than guessed at:** the exact
+   payout mechanics — how `discount_factor_bps` (a fee discount) and `period_reward`
+   (a separate "total reward for the period in centi-cents" field) combine, and what
+   qualifies a specific order for the discount vs. the reward — are not in Kalshi's public
+   API docs beyond field names. Before Q37 sizes off this, pin the mechanism (support
+   ticket or empirical fee-paid-on-a-real-fill check) rather than assuming a specific
+   formula.
+
+**Bottom line for Q37:** the base maker fee (0.0175) is the right assumption for a
+between-listing-windows resting bid, but a resting bid placed within the first ~hour of a
+NEW weather market's life may be discounted ~50% by this LIP — a real, currently-live lever
+this file didn't previously account for. Whether that window is exploitable (does it
+overlap with when Q37's EMOS-filtered entries actually fire?) is untested — a new
+sub-question for Q37's own milestone, not answered here.
+
+**Not a re-open of the killed "LIP maker-rebate harvest" idea.** `kb/00-LOG.md`'s dead-end
+ledger (2026-06-18) and `findings/2026-06-18-codebase-money-map.md` already killed a
+DIFFERENT proposal at idea stage — treating the LIP reward payout itself as the edge
+("harvest the rebate"), correctly rejected as sub-$1-per-provider against dedicated farmers
+plus the same adverse-selection overround as any resting bid. This entry does not revive
+that idea. It answers a narrower, purely mechanical question Q37 needs regardless: what fee
+rate applies to a Q37 EMOS-signal maker bid if it happens to land inside a new-listing
+window. The `period_reward` totals above are the PROGRAM's pool, not a per-provider payout
+estimate — do not conflate the two.

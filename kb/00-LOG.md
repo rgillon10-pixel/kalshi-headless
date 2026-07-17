@@ -6,6 +6,55 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 18:2x ET — Q37 fee-structure sub-task: weather LIP maker-fee discount confirmed live (idle-run milestone)
+
+- Research-loop run. Step 0a: no history rewind (main's tip and `kb/00-LOG.md`/tape dates agree).
+  Step 0: only open PR is #77 (Ryan's own stale `Q29-Q32` queue restock, base ~2 days behind
+  current `main` and all four of its queue items already independently landed as DONE by later
+  runs — left untouched, noted stale rather than merged or redone). Step 0b: nothing new to sweep.
+- Queue scan (every item Q0–Q46) found genuinely 0 eligible TODO/IN-PROGRESS milestones: every
+  non-DONE item is either BLOCKED (Q14/Q15/Q33/Q35-build, all data-adequacy or Ryan-credential
+  gated) or time/tape-GATED with its gate not yet open (Q19 WC-final Jul 19 / FOMC Jul 29, Q36
+  ≥7 weather-book days ~Jul 22-23, Q37 ≥21 summer contract-days ~Aug 5, Q43 ≥7 perp_tape days).
+  Matches Q21's own 2026-07-16 "0 non-blocked runnable-now items" finding — this would otherwise
+  be an IDLE RUN. Q37's own text names one exception: "Fee-structure sub-task (cheap, runnable
+  NOW): pull `get-series-fee-changes`/`get-event-fee-changes` for the weather series and pin the
+  ACTUAL maker fee / any LIP rebate window" — ungated, cheap, and closes the standing "Open item"
+  in `kb/kalshi-api/03-fees-and-breakeven.md`. Took that as this run's real-work milestone.
+- Built `scripts/weather_fee_schedule_probe.py` (+9 offline tests, `FakeKalshi`-mocked, no live
+  network in tests) that reuses `collection.weather_books`'s own series-discovery logic (never a
+  hand-maintained ticker list) and queries three read-only, unauthenticated Kalshi endpoints:
+  `/series?category=Climate+and+Weather` (per-series `fee_type`/`fee_multiplier`), `/series/fee_changes`
+  + `/events/fee_changes` (`show_historical=True`), and `/incentive_programs?type=liquidity` (bounded,
+  paginated, truncation reported honestly).
+- **Live run (2026-07-17):** all 48 tracked temperature series carry the standard base rate
+  (`fee_type=quadratic`, `fee_multiplier=1` — same coefficients `core.pricing` already uses) with
+  **zero** historical or scheduled series-/event-level fee overrides, ever, including `KXTEMPNYCH`.
+  Settlement fees are zero for binary yes/no per Kalshi's own Market Settlement doc (`docs` citation)
+  — fees are charged once, at fill. **New finding:** a standing platform-wide Liquidity Incentive
+  Program DOES apply to weather listings — every newly-listed weather market (hourly `KXTEMPNYCH`
+  family and daily `KXHIGH*`/`KXLOWT*` ladders alike) gets a `discount_factor_bps=5000` (50%) maker
+  fee discount for ~54-60 minutes post-listing, gated on providing up to 1000 (or 300) contracts of
+  resting size. Pull (40 bounded pages, 40k programs, **truncated — platform-wide universe exceeds
+  the cap, so this is a lower bound**) found 10,372 weather-tagged programs, window 2026-05-12 →
+  still generating new entries at probe time (a standing program, not a one-off promo). Payout
+  mechanics (`discount_factor_bps` vs. the separate `period_reward` pool field) are NOT documented
+  beyond field names in Kalshi's public API docs — flagged explicitly rather than guessed at.
+- **Distinguished from an already-dead idea, on purpose:** the 2026-06-18 dead-end ledger already
+  killed "Kalshi LIP maker-rebate harvest" (treating the reward payout itself as the edge — correctly
+  rejected as sub-$1-per-provider against dedicated farmers, same adverse-selection overround as any
+  resting bid). This entry does not reopen that. It answers a narrower mechanical question Q37's own
+  fill-sim needs regardless: what fee rate applies if an EMOS-signal maker bid happens to land inside
+  a new-listing window. Documented the distinction directly in the kb note so a future reader doesn't
+  conflate the two.
+- No strategy claim, no P&L, no registry change — a fee-schedule confirmation, not a verdict; the
+  two-agent rule does not apply (same class as Q44/Q45/Q46's collector-build precedent). `pytest`:
+  1176 passed (1167 prior + 9 new). `invariants --full`: green (only the pre-existing non-gating
+  L25/L74 advisories). Q37's main gated milestone (summer maker fill-sim) stays TODO, waiting on
+  ≥21 summer contract-days of tape (~2026-08-05).
+- Files: `scripts/weather_fee_schedule_probe.py`, `tests/test_weather_fee_schedule_probe.py`,
+  `kb/kalshi-api/03-fees-and-breakeven.md`, `LOOP-QUEUE.md` (Q37 status).
+
 ## 2026-07-17 11:37 ET — Q46: full-universe top-of-book sweep built; live universe is >80k markets (the queue's ~10k premise is broken)
 
 - Research-loop run (step 0/0a/0b already cleared by the parent: only open PR is #77, no history rewind,
