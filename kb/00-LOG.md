@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 00:xx ET — kalshi-edge-hunter nightly: adversarial review of all 4 last-24h numeric findings — ALL REPRODUCE, 0 failures; queue healthy (2 eligible), no idea-gen; no gated probe within 72h
+
+Nightly thinking-seat run. **Step 0a PASS** (`origin/main` HEAD `28c793a` not rewound; merged
+PRs #100/#99/#98 are ancestors of `main`; newest `kb/00-LOG.md` entry and newest `tape/*/dt=*`
+both 2026-07-17, 0-day gap). **Claim-check:** 1 open PR **#77** (Ryan's queue-restock, 2 days
+old, superseded by main's already-merged Q29+ numbering) — under the 5-day escalation mark and
+already flagged 2026-07-15, so NOT re-flagged (housekeeping: no re-flag without new info).
+Gates green throughout: **996 tests pass**, `invariants --full` green (only the standing
+non-gating L25 stray-directory / L74 single-hour-cadence advisories).
+
+**Unit 1 — adversarial review of the last-24h findings. ALL 4 numeric findings independently
+reproduced; nothing failed re-check, no GitHub issue opened.** Re-ran each probe from a clean
+env and re-derived the load-bearing number:
+- **Q42 funding-clamp** (`scripts/q42_funding_clamp_probe.py`): pooled exact-zero fraction
+  **0.7616→0.762**, 1,102 exact zeros, 0 nonzeros in `(0,1e-4)`, GENUINE clamp on 12/13,
+  KXLINKPERP undecidable — reproduced **exactly**. Tags `broker_truth`. PASS.
+- **Q34 / S14 queue fill-sim** (`scripts/s14_queue_fillsim.py`): verdict CI reproduced
+  **exactly** — mean **−$0.0453**, 95% CI **[−0.0809, −0.0121]**, n_units=146, fill 27.18%,
+  winner-strike 93.15%, admissible (54 opposing / 92 losing). Fee = `MAKER_FEE_RATE` via
+  `core.pricing` (flat 1¢ at interior prices, hand-checked). Unit = event-hour (L6). Tags
+  `real_ask+real_bid+broker_truth`. The only drift is a secondary descriptive stat — coverage
+  denominator 436→**468** — caused by one extra appended day of `orderbook_depth` tape adding
+  candidate event-hours; the measurable 146 units and the CI are identical, so the DEAD verdict
+  is robust (benign, not a defect). PASS.
+- **Q31 / S34 cross-venue arb** (`scripts/q31_cross_venue_arb_probe.py`): mean **−$0.0337**,
+  95% CI **[−0.0416, −0.0264]**, 0/63 pairs positive, inadmissible (`no_opposing_unit`),
+  movement-conditioned CI [−0.0423, −0.0314] — reproduced (finding was −0.0340 / [−0.0417,
+  −0.0268] / 13,158 obs; now 13,640 obs from +1 appended tape-day; verdict fully robust). New
+  `polymarket_fee_per_contract` (rate 0.05, un-rounded, 0.0125 @ 50¢) verified against
+  `core.pricing`. Unit = matched pair (L6). PASS.
+- **Q35 maker-rebate reframe** (candidate-only, no registry change): S13's flip is a mechanical
+  constant shift — as-is CI [−0.0002,+0.0004] + (1¢ fee removed + 0.5¢/1.25¢ rebate) =
+  [+0.0148,+0.0154] / [+0.0223,+0.0229] — hand-verified from the finding's own table. Every
+  flip is explicitly a Milestone-B CANDIDATE, BUILD half BLOCKED(polymarket-collector). PASS.
+
+**Unit 2 — pipeline replenishment: NOT triggered.** Eligible (TODO, unclaimed, unblocked)
+research items = **2** (Q44 collector gap-detector + Q45 settlement-ledger harvester, both
+GOAL.md Phase-1, offline-buildable now, unclaimed — Q46 is soft-blocked behind them). 2 is not
+`< 2`, so no Q21 idea-gen round this run.
+
+**Unit 3 — probe-prep: nothing to build.** No time-gated item unblocks within ~72h, verified by
+FILE SHAPE (L25): `tape/weather_books/` = 2 days (Q36 needs ≥7 → ~2026-07-22), `tape/perp_tape/`
+= 1 day (Q43 needs ≥7 → ~2026-07-23), Q37 ~2026-08-05.
+
+**Housekeeping.** Stranded-branch backlog: **153** `tape/hourly-*` + **1** `tape/burst-*`
+(`tape/burst-20260714T120659Z`). Step-0b check on the burst branch: line-level dedup across all
+4 of its 2026-07-14 tape files (crypto_hourly / econ_prints / polymarket_cpi_pairs /
+polymarket_macro_pairs) found **0 lines missing from main** — its CPI-burst tape is fully swept,
+so the branch is safe to delete (cloud can't; named for VPS/retro deletion). Burst triggers whose
+event date has passed → flag for deletion: **cpi-0714, wcsemi1-0714, wcsemi2-0715** (wcfinal-0719
+and fomc-0729 still future). No PR >5 days blocked on a Ryan-side action (only #77, 2 days).
+
+Docs-only run (this log entry + queue run-line); no code, no registry change, no findings.
+Still **0 proven edges, 0 non-DEAD candidates** — the honest state after the S14 close.
+
 ## 2026-07-17 xx:xx ET — Q42 part 1 CONFIRMED: the perp funding zero-majority is a GENUINE ±1bp dead-band clamp, not a rounding artifact
 
 Research loop, Q42 characterization sub-milestone (part 1 of 3). Probe
