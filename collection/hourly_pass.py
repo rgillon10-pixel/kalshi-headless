@@ -92,8 +92,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from collection import (crypto_hourly, econ_prints, forecast_collector, orderbook_depth,
-                        perp_tape, polymarket_pairs, sports_pairs, weather_actuals,
-                        weather_books)
+                        perp_tape, polymarket_pairs, settlement_ledger, sports_pairs,
+                        weather_actuals, weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -106,6 +106,11 @@ ECON_PRINTS_UTC_HOUR = 9
 # NWS CLI reports for the just-closed day are more likely to be available.
 FORECAST_COLLECTOR_UTC_HOUR = 11   # daily multi-model Open-Meteo forecast tape (tag: synthetic)
 WEATHER_ACTUALS_UTC_HOUR = 12      # daily actuals + Kalshi settled-market join for yesterday
+# Settlement-ledger harvester (Q45): systematic append-only settlement-truth tape (every
+# backtest's y-variable). Fires ONCE per UTC day on its own hour (distinct from 9/11/12 so no
+# single hour is overloaded). Settled markets purge ~60 days after close (L11) — a daily fold
+# of the most-recently-settled slice, deduped by key, keeps that history before it ages out.
+SETTLEMENT_LEDGER_UTC_HOUR = 10
 
 
 # --------------------------------------------------------------------------- #
@@ -251,6 +256,10 @@ def _default_weather_actuals_pass() -> Dict[str, Any]:
     return weather_actuals.run()
 
 
+def _default_settlement_ledger_pass() -> Dict[str, Any]:
+    return settlement_ledger.run()
+
+
 def _default_perp_pass() -> Dict[str, Any]:
     return perp_tape.run()
 
@@ -269,6 +278,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         weather_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         forecast_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         weather_actuals_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        settlement_ledger_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         perp_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
@@ -433,6 +443,21 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         else:
             completeness_ok = completeness_ok and bool(wx_actuals["result"].get("completeness_ok", False))
 
+    # settlement-ledger harvester (Q45): systematic append-only settlement-truth tape, fired
+    # once per UTC day on its own hour. Fault-isolated; its lines are settled-market LABELS
+    # (broker_truth), not fresh Kalshi live-market BBOs, so — like econ_prints/weather_actuals —
+    # they are deliberately NOT folded into n_markets/n_lines. Completeness folds in via the
+    # module's own honest signal (a truncated cap or a per-market parse exception lowers it; a
+    # scalar filter or a not-yet-posted pending market does not).
+    settlement: Optional[Dict[str, Any]] = None
+    if ts.hour == SETTLEMENT_LEDGER_UTC_HOUR:
+        sl_fn = settlement_ledger_fn or _default_settlement_ledger_pass
+        settlement = _safe_call(sl_fn)
+        if settlement["status"] == "error":
+            completeness_ok = False
+        else:
+            completeness_ok = completeness_ok and bool(settlement["result"].get("completeness_ok", False))
+
     summary = {
         "captured_at": ts.isoformat(),
         "sports_pairs": sports,
@@ -447,6 +472,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "polymarket_cpi_pairs": polymarket_cpi,
         "forecast_collector": forecast,
         "weather_actuals": wx_actuals,
+        "settlement_ledger": settlement,
         "n_markets": n_markets,
         "n_lines": n_lines,
         "completeness_ok": completeness_ok,

@@ -6,6 +6,54 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 08:27 ET — Q45: systematic settlement-ledger harvester built; 4 legacy caches folded in, 605 labels migrated
+
+- Research-loop run (0h step 0a: main not rewound, PRs #101-#105 all reachable from `origin/main`,
+  `kb/00-LOG.md` and newest `tape/*/dt=*` both 2026-07-17; step 0: only open PR is #77, Ryan's own
+  stale queue-restock, already flagged by prior runs, left untouched; step 0b: newest stranded
+  `tape/hourly-*` branch is `20260717T0403Z`, already swept by PR #102 — nothing new to sweep).
+- Delegated to `collector-engineer`; independently re-verified before commit (pytest + invariants
+  re-run myself, tape lines spot-checked for tag/result/dedup correctness — not just the agent's
+  self-report).
+- Built `collection/settlement_ledger.py` (+16 tests) — a read-only, unauthenticated harvester over
+  Kalshi's public settled `/markets` endpoint. Writes `tape/settlement_ledger/dt=*.jsonl` keyed by
+  `(ticker, close_time, result, settlement_value)`, tagged `broker_truth`. Enforces the L52 binary-only
+  filter (drops `result=="scalar"` explicitly, counts the drop, never fakes a yes/no label). Honest
+  completeness: a truncated pull (5000-market cap) or a per-market parse error lowers `completeness_ok`;
+  a scalar filter or a not-yet-posted `pending` market does not.
+- Non-destructively migrated the four ad-hoc `tape/qNN_settlement_cache/settlement.json` probe caches
+  (Q26/Q27/Q29/Q30) into the new systematic family: 605 new keys folded in, 955 cross-cache duplicates
+  deduped, 25 scalar-result rows dropped. Old cache files untouched.
+- Wired into `collection/hourly_pass.py` on its own `SETTLEMENT_LEDGER_UTC_HOUR = 10` (distinct from
+  the existing 9/11/12 legs), same `_safe_call` fault-isolation as the weather collectors.
+- **Live verification (real committed tape, independently re-checked):** 5,605 lines committed, all
+  `price_source_tag: broker_truth`, `result ∈ {yes, no}` only (0 scalar leakage), 0 duplicate keys.
+  `pytest`: 1151 passed (1135 prior + 16 new). `invariants --full`: green (only pre-existing non-gating
+  L25/L74 advisories).
+- **Judgment call flagged for Ryan (not decided here):** the platform's settled universe exceeds the
+  5000-market cap, so `completeness_ok=False` is the EXPECTED steady state every time this leg fires —
+  not a bug, but it will read as "incomplete" in every `hourly_pass` summary and any downstream gap
+  monitor from now on. Whether `hourly_pass`'s overall completeness should fold this leg in as-is, or
+  treat a capped-but-honest daily slice as acceptable, is a design call left open.
+- **Deviation from the queue's literal wording (documented, not silently forced):** Q45's text named
+  `/events?status=settled` as the enumeration route; a live probe found that endpoint returns empty
+  nested `markets` platform-wide (the settlement fields live only on `/markets`). The harvester instead
+  paginates `/markets?status=settled` directly — same fields, one bounded sweep instead of ~1.7k extra
+  per-event calls (an L10-class hazard the literal route would have hit).
+- New lesson candidates appended to `kb/lessons/00-lessons.md`: **L90** (Kalshi's settled-market fields
+  are `_dollars`/`_fp`-suffixed, not bare — a naive reader silently gets `None` for every value), **L91**
+  (use `/markets?status=settled` directly, not `/events` — the latter's nested markets are empty), **L92**
+  (closes the shared-helper gap L52 explicitly named — `collection/settlement_ledger.py` is now that home).
+- No strategy claim, no P&L verdict, `kb/strategies/00-index.md` untouched. Two-agent verdict rule does
+  not apply (collector build, not a verdict-class change). Q46 (full-universe top-of-book sweep) is now
+  soft-unblocked on this leg landing (still wants Q44's monitor wired into a live cron — a separate
+  Ryan pause point, not crossed here).
+- Step 9 (paper sub-pass): `SHADOW_REGISTRY` = `s14_ladder_underwriting` only. Ran `scripts/paper_pass.py`
+  — idempotent, 0 newly processed, realized P&L unchanged **+$9.91** (`broker_truth`).
+
+**Next:** Q46 (full-universe top-of-book sweep) is the next TODO item once Q44's monitor gets wired into
+a live cron (Ryan pause point); Q36/Q37/Q43 remain time/day-count gated. See `LOOP-QUEUE.md` Q45.
+
 ## 2026-07-17 05:xx ET — Q44: tape gap-detector built; live run finds the collector pipe currently degraded
 
 Built `scripts/tape_gap_monitor.py` (+27 offline tests) — the GOAL.md M1a collector
