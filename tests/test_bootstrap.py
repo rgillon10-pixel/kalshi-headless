@@ -8,6 +8,7 @@ from core.bootstrap import (
     bootstrap_verdict_admissible,
     bracket_by_movement,
     clears_tick_magnitude,
+    collapse_duration_gated_runs,
     floor_pinned_fraction,
 )
 
@@ -162,6 +163,83 @@ def test_bracket_by_movement_empty_is_honest_not_a_crash():
 def test_bracket_by_movement_length_mismatch_raises():
     with pytest.raises(ValueError):
         bracket_by_movement([True, False], [1.0])
+
+
+# ─── collapse_duration_gated_runs (L76) ─────────────────────────────────────
+
+def test_collapse_duration_gated_runs_burst_fails_duration_gate_despite_count():
+    # W-D's own shape: 2 consecutive hits but 0s wall-clock (a repricing burst) — a
+    # naive MIN_SNAPS>=2 count gate would call this executable; the duration gate must not.
+    is_hit = [True, True, False]
+    seconds = [0.0, 0.0, 5.0]
+    runs = collapse_duration_gated_runs(is_hit, seconds, min_duration_seconds=1.0)
+    assert len(runs) == 1
+    assert runs[0]["n_snaps"] == 2
+    assert runs[0]["seconds"] == 0.0
+    assert runs[0]["executable"] is False
+
+
+def test_collapse_duration_gated_runs_sustained_run_clears_duration_gate():
+    is_hit = [True, True, True, False]
+    seconds = [30.0, 30.0, 30.0, 0.0]
+    runs = collapse_duration_gated_runs(is_hit, seconds, min_duration_seconds=60.0)
+    assert runs[0]["seconds"] == 90.0
+    assert runs[0]["executable"] is True
+
+
+def test_collapse_duration_gated_runs_depth_gate_applies_alongside_duration():
+    is_hit = [True, True]
+    seconds = [60.0, 60.0]
+    depths = [500.0, 50.0]
+    runs = collapse_duration_gated_runs(
+        is_hit, seconds, depths, min_duration_seconds=60.0, min_depth=100.0
+    )
+    assert runs[0]["min_depth"] == 50.0
+    assert runs[0]["executable"] is False  # duration clears, depth does not
+
+
+def test_collapse_duration_gated_runs_no_depths_arg_skips_depth_gate():
+    is_hit = [True, True]
+    seconds = [60.0, 60.0]
+    runs = collapse_duration_gated_runs(is_hit, seconds, min_duration_seconds=60.0)
+    assert runs[0]["min_depth"] is None
+    assert runs[0]["executable"] is True
+
+
+def test_collapse_duration_gated_runs_multiple_maximal_runs():
+    is_hit = [True, False, True, True, False]
+    seconds = [10.0, 0.0, 10.0, 10.0, 0.0]
+    runs = collapse_duration_gated_runs(is_hit, seconds, min_duration_seconds=15.0)
+    assert len(runs) == 2
+    assert (runs[0]["start_index"], runs[0]["end_index"]) == (0, 0)
+    assert (runs[1]["start_index"], runs[1]["end_index"]) == (2, 3)
+    assert runs[0]["executable"] is False
+    assert runs[1]["executable"] is True
+
+
+def test_collapse_duration_gated_runs_trailing_run_included():
+    is_hit = [False, True, True]
+    seconds = [0.0, 10.0, 10.0]
+    runs = collapse_duration_gated_runs(is_hit, seconds, min_duration_seconds=15.0)
+    assert len(runs) == 1
+    assert runs[0]["seconds"] == 20.0
+
+
+def test_collapse_duration_gated_runs_no_hits_is_empty_not_a_crash():
+    runs = collapse_duration_gated_runs([False, False], [1.0, 1.0], min_duration_seconds=1.0)
+    assert runs == []
+
+
+def test_collapse_duration_gated_runs_length_mismatch_raises():
+    with pytest.raises(ValueError):
+        collapse_duration_gated_runs([True, False], [1.0], min_duration_seconds=1.0)
+
+
+def test_collapse_duration_gated_runs_depths_length_mismatch_raises():
+    with pytest.raises(ValueError):
+        collapse_duration_gated_runs(
+            [True, True], [1.0, 1.0], [5.0], min_duration_seconds=1.0
+        )
 
 
 # ─── bootstrap_verdict_admissible (L41) ─────────────────────────────────────

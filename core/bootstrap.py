@@ -182,3 +182,57 @@ def bracket_by_movement(frozen_flags: Sequence[bool], values: Sequence[float]) -
         "frozen_inclusive": list(values),
         "movement_conditioned": movement_conditioned,
     }
+
+
+def collapse_duration_gated_runs(is_hit: Sequence[bool], seconds: Sequence[float],
+                                  depths: Sequence[float] = None, *,
+                                  min_duration_seconds: float, min_depth: float = 0.0
+                                  ) -> List[dict]:
+    """The L76 duration gate: collapse maximal consecutive runs of `is_hit` snapshots and
+    report BOTH snapshot count and wall-clock seconds — never gate executability on
+    snapshot count alone. A sub-second repricing burst can rack up >= 2 consecutive hits
+    (satisfying a naive `MIN_SNAPS`-style count gate) while lasting < 1s of real time
+    (W-D's ladder-coherence probe: every one of its 17 count-gated runs persisted <= 1.0s
+    wall-clock). `seconds[i]` is the elapsed time attributed to snapshot `i` (e.g. time
+    until the next snapshot, or 0.0 for the last one in a series — the caller's own
+    convention); a run's total seconds is the sum over its member snapshots.
+
+    `is_hit`/`seconds`/`depths` (if given) must be the same length and index-aligned
+    (caller's own per-snapshot condition and binding depth — this function does not
+    inspect price/depth fields itself, same discipline as `bracket_by_movement`).
+
+    Returns one dict per maximal run: `start_index`/`end_index` (inclusive, into the input
+    sequences), `n_snaps`, `seconds` (summed wall-clock), `min_depth` (None if `depths` not
+    given), and `executable` — True iff `seconds >= min_duration_seconds` AND (no `depths`
+    given, or the run's `min_depth >= min_depth`). Never True on snapshot count alone.
+    """
+    if len(is_hit) != len(seconds) or (depths is not None and len(depths) != len(is_hit)):
+        raise ValueError(
+            f"is_hit ({len(is_hit)}), seconds ({len(seconds)})"
+            + (f", depths ({len(depths)})" if depths is not None else "")
+            + " must be the same length"
+        )
+    runs: List[dict] = []
+    cur = None
+    for i, hit in enumerate(is_hit):
+        if hit:
+            if cur is None:
+                cur = {"start_index": i, "end_index": i, "n_snaps": 0, "seconds": 0.0,
+                       "min_depth": None if depths is None else float("inf")}
+            cur["end_index"] = i
+            cur["n_snaps"] += 1
+            cur["seconds"] += seconds[i]
+            if depths is not None:
+                cur["min_depth"] = min(cur["min_depth"], depths[i])
+        else:
+            if cur is not None:
+                runs.append(cur)
+                cur = None
+    if cur is not None:
+        runs.append(cur)
+    for run in runs:
+        run["executable"] = (
+            run["seconds"] >= min_duration_seconds
+            and (depths is None or run["min_depth"] >= min_depth)
+        )
+    return runs
