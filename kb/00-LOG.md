@@ -6,6 +6,53 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 21:1x ET — Stranded-tape sweep (806 lines) + L76→L93 duration-gate helper (idle-run milestone)
+
+- Research-loop run. Step 0a: no history rewind (`origin/main` HEAD matches local, merged
+  PRs #101-#108 all present in history, `kb/00-LOG.md`/tape dates both 2026-07-17). Step 0:
+  only open PR is #77 (Ryan's stale queue restock, base far behind, already independently
+  landed by later runs — left untouched, as every prior run has flagged). Queue scan (every
+  item Q0-Q46) reconfirmed genuinely 0 eligible TODO/IN-PROGRESS milestones — matches the
+  prior run's (Q37 fee sub-task, 18:2x ET) own finding; every non-DONE item is still either
+  BLOCKED or time/day-count GATED with its gate not yet open.
+- **Step 0b sweep found REAL unswept content**, contrary to several recent runs' "nothing
+  new since PR #102's sweep at 0403Z" note: two newer branches, `tape/hourly-20260717T1556Z`
+  and `tape/hourly-20260717T1600Z` (both >5h old, well past the 30-min freshness guard),
+  carried lines `main` was missing. Did a proper line-set diff (not a `git diff --stat` byte
+  count, which undercounted — a naive tail-2 spot-check on `crypto_hourly` first read "0
+  missing" and was wrong; the full-file line-set diff found 2). Union-appended, JSON-validated,
+  0 exact duplicates, pure append (no reorder): 2 `crypto_hourly`, 15 `polymarket_macro_pairs`,
+  259 `sports_pairs`, 530 `weather_books` lines (806 total) into today's per-day tape files.
+  `git push origin --delete` on the two branches was not attempted (confirmed-dead permission
+  boundary since 2026-07-04's log entries — cloud sessions cannot delete remote branches
+  either); left in place, harmless/stale like the hundreds of older already-reconciled branches.
+- **Idle-run policy order (a):** converted lesson **L76** (UNENFORCED — a structural-arb
+  run-collapse executability gate keyed on snapshot COUNT is not a duration gate; W-D's own
+  17 count-gated runs were all <=1.0s wall-clock) into an importable helper:
+  `core.bootstrap.collapse_duration_gated_runs(is_hit, seconds, depths,
+  min_duration_seconds=..., min_depth=...)` — collapses consecutive per-snapshot hits into
+  maximal runs, reports BOTH snapshot count and summed wall-clock seconds, gates `executable`
+  on the duration (and optional depth) floor, never on count alone. 9 new tests in
+  `tests/test_bootstrap.py`. `.claude/agents/edge-prober.md` house style updated to name it,
+  same pattern as L33/L35/L36/L49's prior bootstrap-module helpers. Does not retrofit
+  `scripts/probe_ladder_coherence.py`'s already-run W-D dossier (that scan's numbers stand
+  as-is) — for the next structural-arb probe. New lesson row L93 supersedes L76's enforcement
+  column (content unchanged, ledger append-only).
+- Gates: `pytest -q` green (1185 = 1176 prior + 9 new), `python scripts/invariants.py --full`
+  green (only the pre-existing non-gating L25/L74 advisories; the stranded-branch advisory
+  this run's sweep resolves also fired, confirming the sweep was the correct action).
+- No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent
+  verifier rule does not apply (tape sweep + methodology-helper build, same class as the
+  Q44/Q45/Q46 collector-build precedent, not a verdict-class change).
+- Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} only, `paper_pass.py` idempotent this
+  run (0 newly processed, 48 already-in-ledger), realized P&L unchanged +$9.91 (`broker_truth`).
+
+**Next:** L76's own class of remaining candidates (L39/L59's per-probe verdict-methodology
+gates) stay the standing UNENFORCED queue for the next idle run; Q19/Q36/Q37/Q43 open on
+their own schedule (WC final Jul 19, FOMC Jul 29, weather day-counts through early August).
+
+---
+
 ## 2026-07-17 18:2x ET — Q37 fee-structure sub-task: weather LIP maker-fee discount confirmed live (idle-run milestone)
 
 - Research-loop run. Step 0a: no history rewind (main's tip and `kb/00-LOG.md`/tape dates agree).

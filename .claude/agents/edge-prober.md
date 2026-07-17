@@ -62,6 +62,15 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   `core.timeutil.parse_crypto_hour_token_close_utc(token)` on the ticker's
   date+hour middle segment instead — it returns the correctly zoned UTC close
   (or `None` on a grammar mismatch), DST-correct across the calendar.
+- For a structural-arb probe that collapses consecutive incoherent/executable
+  snapshots into runs, never gate executability on snapshot COUNT alone (L76 —
+  a sub-second repricing burst can rack up >= 2 consecutive hits while lasting
+  < 1s of real time; W-D's own count-gated runs were all <= 1.0s wall-clock).
+  Call `core.bootstrap.collapse_duration_gated_runs(is_hit, seconds, depths,
+  min_duration_seconds=..., min_depth=...)` on your own per-snapshot hit flags
+  and elapsed-seconds — it reports both n_snaps and wall-clock seconds and
+  only marks a run `executable` once the duration (and depth, if given)
+  gate clears.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 
