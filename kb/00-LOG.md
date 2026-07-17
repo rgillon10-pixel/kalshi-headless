@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 11:37 ET — Q46: full-universe top-of-book sweep built; live universe is >80k markets (the queue's ~10k premise is broken)
+
+- Research-loop run (step 0/0a/0b already cleared by the parent: only open PR is #77, no history rewind,
+  nothing new to sweep off stranded branches). Q46 was soft-unblocked by Q44 + Q45 landing earlier today.
+- Built `collection/universe_sweep.py` (+16 tests: 10 `tests/test_universe_sweep.py` + 6 wiring tests in
+  `tests/test_hourly_pass.py`) — a read-only, unauthenticated, paginated sweep of the public
+  `/markets?status=open` listing with NO `series_ticker` (a genuine full-universe enumeration), bounded at a
+  20-call cap. One append-only `real_ask`-tagged JSONL snapshot line per open market with raw top-of-book
+  (`yes_bid`/`yes_ask`/`no_bid`/`no_ask` parsed from Kalshi's `_dollars` strings, L90) + at-touch sizes +
+  `last_price` + `volume`/`volume_24h` + `open_interest` + `liquidity`, `raw_sha256` page-provenance per line.
+  Top-of-book ONLY — zero per-market `/orderbook` calls (no scope-creep into the L2/Phase-2 depth lane). A BBO
+  time series, so NOT deduped across passes (unlike the settlement label ledger). Honest completeness: a call-cap
+  truncation with an active cursor sets `truncated=True`/`completeness_ok=False`; nothing else lowers it.
+- Wired into `hourly_pass.py` on `UNIVERSE_SWEEP_UTC_HOURS = {0, 6, 12, 18}` with the same `_safe_call`
+  fault-isolation as every sibling; these are FRESH live BBOs so they fold into n_markets/n_lines.
+- **Live run, independently re-verified against the committed tape (not just the agent's self-report):** 20 calls,
+  20,000 lines, all `price_source_tag: real_ask`, single `capture_id`, 0 JSON errors, 0 missing required fields;
+  7,489/20k lines carry a non-zero `yes_ask`, 2,018/20k a non-zero `volume`. `pytest`: 1167 passed (1151 prior +
+  16 new). `invariants --full`: green (only pre-existing non-gating L25/L74 advisories); Hard Rule #3 not tripped.
+- **STOP-level premise finding, ESCALATED to Ryan (not silently forced):** the live `status=open` universe is
+  **>80,000 markets** (probed to 80 calls; cursor still active at 80k), NOT the ~10k the queue assumed. So
+  “≥95% coverage in ≤20 calls” is UNMEETABLE — 20×1000 reaches <25% and every live pass HONESTLY reports
+  `completeness_ok=False`. The collector's honest-partial behavior works as designed; the acceptance target and
+  its 10k premise are what's broken.
+- **Storage bombshell (GOAL.md M3):** ~17.8 MB per capped 20k-line pass × 4/day ≈ ~71 MB/day — over the 50 MB
+  ceiling in a single day (full 80k coverage ≈ ~1 GB/day), vs the queue's projected 12 MB/day. A design decision
+  is needed BEFORE this leg runs on the live cadence; the wiring is in place but firing {0,6,12,18} is effectively
+  gated behind that decision (flagged, not switched on).
+- **Dead-tail finding:** ~63% of open markets have `yes_ask=0` and ~90% `volume=0` (dominated by auto-generated
+  `KXMVESPORTSMULTIGAMEEXTENDED` multi-leg series) — a cross-sectional BBO census should filter on
+  activity/liquidity before treating a market as a real quote. Three Ryan design calls left open: raise the cap
+  (~85+ calls), add an activity/liquidity discovery filter, or accept a bounded partial snapshot per pass.
+- **Run-hygiene lesson:** this run hit a background-subagent race — a delegated `collector-engineer` ran
+  concurrently with the lead's direct build and collided on the same files (duplicate test defs, a clobbered
+  untracked module, a 3× bloated smoke tape). Resolved to one coherent state + one clean pass, but: never run a
+  background collector build concurrently with direct edits to the same files.
+- Lesson candidates for a kb-distiller pass: correct L10's “10k+” open-universe figure to >80k; the dead-tail
+  activity-filter rule; L90 corroboration for OPEN `/markets`; the multi-hour-gate ({0,6,12,18} vs a single-hour
+  daily leg) test-collision rule.
+- No strategy claim, no P&L; `kb/strategies/00-index.md` untouched. Files: `collection/universe_sweep.py`,
+  `tests/test_universe_sweep.py`, `collection/hourly_pass.py`, `tests/test_hourly_pass.py`,
+  `tape/universe_sweep/dt=2026-07-17.jsonl`.
+
 ## 2026-07-17 08:27 ET — Q45: systematic settlement-ledger harvester built; 4 legacy caches folded in, 605 labels migrated
 
 - Research-loop run (0h step 0a: main not rewound, PRs #101-#105 all reachable from `origin/main`,

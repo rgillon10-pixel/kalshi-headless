@@ -58,6 +58,12 @@ _EMPTY_WEATHER = {"n_captured": 0, "n_expected": 0, "completeness_ok": True}
 # zero-contribution stub for the perp_tape sub-pass (crypto perps, network by default)
 _EMPTY_PERP = {"n_lines": 0, "n_contracts": 0, "completeness_ok": True}
 
+# zero-contribution stub for the Q46 universe_sweep sub-pass (network by default). Fires on
+# {0,6,12,18} UTC — of the existing daily-slot tests, only WEATHER_ACTUALS_UTC_HOUR (12)
+# lands on a sweep hour, so those hour-12 tests inject this stub to stay offline and
+# count-neutral.
+_EMPTY_UNIVERSE = {"n_markets": 0, "n_lines": 0, "completeness_ok": True}
+
 
 def _polymarket_summary(n_matched=3, n_kalshi_markets=3, completeness_ok=True):
     return {
@@ -572,6 +578,7 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     # keep the two DAILY weather-revival legs offline regardless of the wall-clock hour
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
+    monkeypatch.setattr(hp.universe_sweep, "run", lambda **k: {"n_markets": 0, "n_lines": 0, "completeness_ok": True})
 
     rc = hp.main(["--sports-limit", "3", "--crypto-symbols", "BTC"])
 
@@ -605,6 +612,7 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.perp_tape, "run", lambda **k: dict(_EMPTY_PERP))
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
+    monkeypatch.setattr(hp.universe_sweep, "run", lambda **k: {"n_markets": 0, "n_lines": 0, "completeness_ok": True})
 
     assert hp.main([]) == 1
 
@@ -827,6 +835,7 @@ def test_weather_actuals_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 20, "completeness_ok": True},
+                     universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
                      perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is True
@@ -845,6 +854,7 @@ def test_weather_actuals_incomplete_marks_overall_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 18, "completeness_ok": False},
+                     universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
                      perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
@@ -861,6 +871,7 @@ def test_weather_actuals_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_boom,
+                     universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
                      perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
@@ -993,3 +1004,111 @@ def test_settlement_ledger_raising_marks_incomplete_not_crash(tmp_path):
     # sibling sub-passes survive (fault isolation)
     assert summary["sports_pairs"]["status"] == "ok"
     assert summary["crypto_hourly"]["status"] == "ok"
+
+
+# --------------------------------------------------------------------------- #
+# universe_sweep (Q46): 6-hourly cadence — fires only on {0,6,12,18} UTC, folds its counts
+# (FRESH BBOs, same class as sports/crypto/depth) into n_markets/n_lines, incompleteness
+# propagates, and a crash is isolated like every sibling.
+# --------------------------------------------------------------------------- #
+def test_universe_sweep_hours_are_0_6_12_18():
+    assert hp.UNIVERSE_SWEEP_UTC_HOURS == {0, 6, 12, 18}
+
+
+def test_universe_sweep_not_invoked_outside_its_hours(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    calls = []
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     universe_sweep_fn=lambda: calls.append(1),
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert calls == []
+    assert summary["universe_sweep"] is None
+
+
+def test_universe_sweep_fires_on_each_scheduled_hour(tmp_path):
+    for hour in (0, 6, 12, 18):
+        sports = _sports_summary(tmp_path)
+        crypto = _crypto_summary(tmp_path)
+        calls = []
+
+        def _us():
+            calls.append(1)
+            return dict(_EMPTY_UNIVERSE)
+
+        summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                         polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                         polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                         weather_fn=lambda: _EMPTY_WEATHER,
+                         # hour 12 also fires the daily weather_actuals leg -> stub it offline
+                         weather_actuals_fn=lambda: {"n_captured": 0, "completeness_ok": True},
+                         universe_sweep_fn=_us,
+                         perp_fn=lambda: _EMPTY_PERP, now=_ts(hour))
+
+        assert calls == [1], f"sweep did not fire on hour {hour}"
+        assert summary["universe_sweep"]["status"] == "ok"
+
+
+def test_universe_sweep_counts_fold_into_totals(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     universe_sweep_fn=lambda: {"n_markets": 9000, "n_lines": 9000,
+                                               "completeness_ok": True},
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(0))
+
+    assert summary["completeness_ok"] is True
+    # fresh live-market BBOs -> DO fold in (1 game + 1 symbol + 9000 sweep lines)
+    assert summary["n_lines"] == 1 + 1 + 9000
+    assert summary["n_markets"] == 1 * 2 + 1 * 10 + 9000
+    assert summary["universe_sweep"]["result"]["n_markets"] == 9000
+
+
+def test_universe_sweep_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     universe_sweep_fn=lambda: {"n_markets": 5000, "n_lines": 5000,
+                                               "truncated": True, "completeness_ok": False},
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(6))
+
+    assert summary["completeness_ok"] is False
+    # the captured snapshots still fold into totals honestly (truncated is the EXPECTED live
+    # steady state: the open universe is >80k markets, a <=20-call sweep can only cover a slice)
+    assert summary["n_markets"] >= 5000
+
+
+def test_universe_sweep_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated universe_sweep crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER, universe_sweep_fn=_boom,
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(18))
+
+    assert summary["completeness_ok"] is False
+    assert summary["universe_sweep"]["status"] == "error"
+    assert "simulated universe_sweep crash" in summary["universe_sweep"]["error"]
+    # sibling sub-passes survive (fault isolation)
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+    assert summary["n_lines"] == 1 + 1
+    assert summary["n_markets"] == 2 + 10
