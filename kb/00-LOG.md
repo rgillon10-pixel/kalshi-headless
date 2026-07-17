@@ -6,6 +6,40 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-16 21:xx ET — Kalshi crypto PERPS discovered as an unmined venue; collector + funding backfill landed; Q42/Q43 registered
+
+Ryan interactive session ("look at Kalshi perpetual markets on crypto"). Kalshi launched
+**CFTC-regulated crypto perpetual futures 2026-05-29** (BTCPERP live 06-03, ETH 06-04; 13
+active + 3 pending contracts; ~$170M/24h combined BTC+ETH notional; 8h funding; 2–6x
+leverage; zero-fee launch promo). The market-data surface is **public and unauthenticated**
+under a separate `/margin` namespace at `external-api.kalshi.com` — full L2, per-contract
+live funding estimates, and complete finalized funding history. Nobody else archives this
+venue from month one; the L2 and the intra-window funding-estimate path are NOT retrievable
+later (the estimate finalizes — and its path dies — at each 8h boundary).
+
+**Recon anomaly (re-runnable via `collection/perp_tape.py` + the committed backfill):**
+finalized funding prints are **exactly 0 in 62–99% of 8h windows per contract** (BTC 67%
+zero over 130 prints; LINK 99%) — a dead band/clamp — while Hyperliquid's same-window BTC
+funding is never 0 (positive 86% of hours, ~+0.8bps/8h vs Kalshi BTC's ~+0.44bps all-in).
+
+Shipped (offline-tested + live-validated): `collection/perp_tape.py` (4 record types:
+markets / BTC+ETH L2 / funding_estimate for every active contract / funding_rates
+recent+backfill; honest per-section completeness; source tags `real_ask`/`real_bid` for
+quotes, `broker_truth` for the venue-computed mark/funding family) wired into
+`hourly_pass.py` as a fault-isolated sibling; 11 new offline tests (9 `test_perp_tape.py`
++ 2 wiring) and a fix to the two `hp.main()` monkeypatch tests that would otherwise leak a
+real network pass; **1,447-print funding backfill** (2026-06-03→07-16) + day-1 snapshot in
+`tape/perp_tape/dt=2026-07-17.jsonl` (17/17 sections ok). Registered **Q42**
+(funding-clamp characterization + cross-venue basis, L-mech) and **Q43** (same-venue
+binary-vs-perp lead-lag/coherence, L-mech+L-speed — explicitly distinguished from the DEAD
+offshore crypto-latency scout: the hedge leg is now same-venue, near-same-benchmark).
+Perps trading itself is OUTSIDE the current execution lane (leveraged delta-1, would need
+its own client + the full LIVE-AUTH gate); everything here is data + candidate probes.
+
+**Next:** let the forward tape accumulate 7 days → Q42 estimate-path milestone + Q43
+lead-lag join; pin the post-promo perp fee schedule (fee_tiers needs auth) before any
+carry arithmetic is trusted.
+
 ## 2026-07-16 17:xx ET — Q32 prep: sharp-devig-vs-Polymarket join script built + offline-tested; found Q32/Q33 mischaracterized as fully blocked
 
 Research-loop run. Step 0a passed clean (no rewind). Step 0b (own PR #97) swept 1,783 lines

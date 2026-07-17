@@ -53,6 +53,17 @@ from ANOMALY/ECON's 09 so no single hour is overloaded) and, being once-daily fo
 tape rather than fresh Kalshi market BBOs, do NOT contribute to n_markets/n_lines; they fold into
 `completeness_ok` honestly (a fetch exception lowers it, a not-yet-posted source does not).
 
+Crypto perps (2026-07-16, Ryan interactive session — Q42/Q43 prerequisite): also runs one
+`collection.perp_tape` pass every hour — Kalshi's CFTC-regulated crypto perpetual futures
+(launched 2026-05-29, a separate public `/margin` API on a separate host) full contract list,
+BTC/ETH L2 books, per-contract live funding-rate estimates, and a trailing finalized-funding
+window. The L2 book and the intra-window funding estimate are NOT retrievable later (the
+estimate's path is destroyed at each 8h funding boundary), so every skipped hour is perps
+microstructure lost for good; the funding-clamp anomaly (rates print exactly 0 in 62–99% of
+windows) is Q42's thesis and this tape is what that probe reads. Fault-isolated like every
+sibling; its `n_contracts` (underlying perp contracts listed) folds into n_markets and its
+JSONL section-lines into n_lines.
+
 Never fakes success: each sub-pass is invoked independently and its exception (if any) is
 caught and recorded rather than allowed to take the other sub-pass down with it. Overall
 `completeness_ok` is the AND of each sub-pass's own honest completeness signal (already
@@ -81,7 +92,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from collection import (crypto_hourly, econ_prints, forecast_collector, orderbook_depth,
-                        polymarket_pairs, sports_pairs, weather_actuals, weather_books)
+                        perp_tape, polymarket_pairs, sports_pairs, weather_actuals,
+                        weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -239,6 +251,10 @@ def _default_weather_actuals_pass() -> Dict[str, Any]:
     return weather_actuals.run()
 
 
+def _default_perp_pass() -> Dict[str, Any]:
+    return perp_tape.run()
+
+
 # --------------------------------------------------------------------------- #
 # one hourly pass
 # --------------------------------------------------------------------------- #
@@ -253,6 +269,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         weather_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         forecast_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         weather_actuals_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        perp_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
     polymarket_pairs.run_fed_decision (Fed meetings), plus anomaly_sweep, econ_prints, and
@@ -305,6 +322,19 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         n_captured = r.get("n_captured", 0)
         n_lines += n_captured
         n_markets += n_captured
+        completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
+    else:
+        completeness_ok = False
+
+    # crypto perps (Q42/Q43 prereq): full contract list + BTC/ETH L2 + live funding
+    # estimates + trailing finalized funding. Fault-isolated like every sibling; its
+    # section-lines fold into n_lines and its listed perp contracts into n_markets.
+    p_fn = perp_fn or _default_perp_pass
+    perps = _safe_call(p_fn)
+    if perps["status"] == "ok":
+        r = perps["result"]
+        n_lines += r.get("n_lines", 0)
+        n_markets += r.get("n_contracts", 0)
         completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
     else:
         completeness_ok = False
@@ -408,6 +438,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "sports_pairs": sports,
         "crypto_hourly": crypto,
         "orderbook_depth": depth,
+        "perp_tape": perps,
         "weather_books": weather,
         "polymarket_pairs": polymarket,
         "polymarket_macro_pairs": polymarket_macro,

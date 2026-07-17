@@ -55,6 +55,9 @@ _EMPTY_POLYMARKET_MACRO = {"n_matched": 0, "n_kalshi_markets": 0, "completeness_
 # zero-contribution stub for the weather_books sub-pass (own-discovery, network by default)
 _EMPTY_WEATHER = {"n_captured": 0, "n_expected": 0, "completeness_ok": True}
 
+# zero-contribution stub for the perp_tape sub-pass (crypto perps, network by default)
+_EMPTY_PERP = {"n_lines": 0, "n_contracts": 0, "completeness_ok": True}
+
 
 def _polymarket_summary(n_matched=3, n_kalshi_markets=3, completeness_ok=True):
     return {
@@ -88,7 +91,7 @@ def test_run_all_complete_outside_anomaly_hour(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["n_lines"] == 2 + 2
@@ -102,7 +105,7 @@ def test_run_prints_expected_digest_line(tmp_path, capsys):
 
     hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
            polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     out = capsys.readouterr().out
     assert "[hourly_pass] 12 markets, 2 lines, completeness ok" in out
@@ -118,7 +121,7 @@ def test_run_sports_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -130,7 +133,7 @@ def test_run_crypto_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -143,7 +146,7 @@ def test_run_polymarket_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: polymarket,
-        polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["n_lines"] == 2 + 2 + 2
@@ -161,7 +164,7 @@ def test_run_sports_raises_crypto_still_runs(tmp_path):
 
     summary = hp.run(sports_fn=_boom, crypto_fn=lambda: crypto,
                       polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["sports_pairs"]["status"] == "error"
@@ -179,7 +182,7 @@ def test_run_crypto_raises_sports_still_runs(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=_boom,
                       polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["crypto_hourly"]["status"] == "error"
@@ -197,7 +200,7 @@ def test_run_polymarket_raises_others_still_run(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                       polymarket_fn=_boom,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["polymarket_pairs"]["status"] == "error"
@@ -223,7 +226,7 @@ def test_anomaly_sweep_not_invoked_outside_09_utc(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     anomaly_sweep_fn=_sweep, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                     anomaly_sweep_fn=_sweep, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["anomaly_sweep"] is None
@@ -237,7 +240,7 @@ def test_anomaly_sweep_not_built_does_not_fail_completeness(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["anomaly_sweep"]["result"]["status"] == "not_built"
@@ -251,7 +254,7 @@ def test_anomaly_sweep_error_marks_incomplete(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "error", "returncode": 1},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -267,7 +270,7 @@ def test_anomaly_sweep_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=_boom, econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["anomaly_sweep"]["status"] == "error"
@@ -294,7 +297,7 @@ def test_econ_prints_not_invoked_outside_09_utc(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=_econ, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                     econ_prints_fn=_econ, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["econ_prints"] is None
@@ -309,7 +312,7 @@ def test_econ_prints_all_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 5},
-                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["econ_prints"]["result"] == {"n_series": 5, "n_complete": 5}
@@ -324,7 +327,7 @@ def test_econ_prints_partial_marks_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 3},
-                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -340,7 +343,7 @@ def test_econ_prints_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=_boom, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=_boom, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["econ_prints"]["status"] == "error"
@@ -363,7 +366,7 @@ def test_polymarket_cpi_not_invoked_outside_09_utc(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     polymarket_cpi_fn=_cpi, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                     polymarket_cpi_fn=_cpi, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["polymarket_cpi_pairs"] is None
@@ -379,7 +382,7 @@ def test_polymarket_cpi_complete_does_not_fail_completeness(tmp_path):
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
                      polymarket_cpi_fn=lambda: {"n_matched": 4, "completeness_ok": True},
-                     weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["polymarket_cpi_pairs"]["result"]["n_matched"] == 4
@@ -396,7 +399,7 @@ def test_polymarket_cpi_incomplete_marks_overall_incomplete(tmp_path):
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
                      polymarket_cpi_fn=lambda: {"n_matched": 2, "completeness_ok": False},
-                     weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -413,7 +416,7 @@ def test_polymarket_cpi_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     polymarket_cpi_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["polymarket_cpi_pairs"]["status"] == "error"
@@ -437,7 +440,7 @@ def test_depth_counts_fold_into_totals(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     # 1 game line + 1 symbol line + 4 depth lines; markets = 1*2 + 1*10 + 4 depth markets
@@ -456,7 +459,7 @@ def test_depth_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -471,7 +474,7 @@ def test_depth_raising_marks_incomplete_not_crash(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     depth_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+                     depth_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["orderbook_depth"]["status"] == "error"
@@ -504,7 +507,7 @@ def test_depth_receives_this_passes_discovered_tickers(tmp_path):
     hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
            polymarket_fn=lambda: _EMPTY_POLYMARKET,
            polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-           depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, now=_ts(NOT_ANOMALY_HOUR))
+           depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert seen["tickers"] == ["KX-A", "KX-B", "KXBTC-1"]
 
@@ -565,6 +568,7 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
+    monkeypatch.setattr(hp.perp_tape, "run", lambda **k: dict(_EMPTY_PERP))
     # keep the two DAILY weather-revival legs offline regardless of the wall-clock hour
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
@@ -598,6 +602,7 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.polymarket_pairs, "run_fed_decision", fake_polymarket_macro_run)
     monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
+    monkeypatch.setattr(hp.perp_tape, "run", lambda **k: dict(_EMPTY_PERP))
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
 
@@ -621,7 +626,7 @@ def test_weather_counts_fold_into_totals(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _weather_summary(n_captured=6),
-                     now=_ts(NOT_ANOMALY_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     # 1 game + 1 symbol + 6 weather books; markets = 1*2 + 1*10 + 6 weather markets
@@ -639,7 +644,7 @@ def test_weather_incomplete_marks_overall_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _weather_summary(n_captured=4, n_expected=5,
                                                          completeness_ok=False),
-                     now=_ts(NOT_ANOMALY_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     # the captured books still fold into totals honestly
@@ -656,7 +661,7 @@ def test_weather_raising_marks_incomplete_not_crash(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     weather_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+                     weather_fn=_boom, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["weather_books"]["status"] == "error"
@@ -697,7 +702,7 @@ def test_forecast_not_invoked_outside_its_hour(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, forecast_fn=_forecast,
-                     now=_ts(NOT_ANOMALY_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["forecast_collector"] is None
@@ -713,7 +718,7 @@ def test_forecast_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 8},
-                     now=_ts(FORECAST_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["forecast_collector"]["result"]["n_complete"] == 8
@@ -731,7 +736,7 @@ def test_forecast_config_only_zero_expected_pass_is_fine(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 0, "n_complete": 0},
-                     now=_ts(FORECAST_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is True
 
@@ -745,7 +750,7 @@ def test_forecast_partial_drop_marks_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 6},
-                     now=_ts(FORECAST_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -761,7 +766,7 @@ def test_forecast_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, forecast_fn=_boom,
-                     now=_ts(FORECAST_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["forecast_collector"]["status"] == "error"
@@ -787,7 +792,7 @@ def test_weather_actuals_not_invoked_outside_its_hour(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_actuals,
-                     now=_ts(NOT_ANOMALY_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["weather_actuals"] is None
@@ -805,7 +810,7 @@ def test_weather_actuals_not_invoked_on_forecast_hour(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 8},
                      weather_actuals_fn=lambda: calls.append(1),
-                     now=_ts(FORECAST_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert calls == []
     assert summary["weather_actuals"] is None
@@ -822,7 +827,7 @@ def test_weather_actuals_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 20, "completeness_ok": True},
-                     now=_ts(ACTUALS_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["weather_actuals"]["result"]["n_captured"] == 20
@@ -840,7 +845,7 @@ def test_weather_actuals_incomplete_marks_overall_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 18, "completeness_ok": False},
-                     now=_ts(ACTUALS_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -856,9 +861,50 @@ def test_weather_actuals_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_boom,
-                     now=_ts(ACTUALS_HOUR))
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["weather_actuals"]["status"] == "error"
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+
+
+# --------------------------------------------------------------------------- #
+# perp_tape sub-pass (crypto perps, Q42/Q43 prereq): counts fold in, incompleteness
+# propagates, and a crash is isolated like every sibling
+# --------------------------------------------------------------------------- #
+def test_perp_counts_fold_in_and_incompleteness_propagates(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+    perp = {"n_lines": 6, "n_contracts": 16, "completeness_ok": False}
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     perp_fn=lambda: perp, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["n_lines"] == 1 + 1 + 6
+    assert summary["n_markets"] == 1 * 2 + 1 * 10 + 16
+    assert summary["perp_tape"]["status"] == "ok"
+
+
+def test_perp_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated perp_tape crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     perp_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["perp_tape"]["status"] == "error"
+    assert "simulated perp_tape crash" in summary["perp_tape"]["error"]
     assert summary["sports_pairs"]["status"] == "ok"
     assert summary["crypto_hourly"]["status"] == "ok"
