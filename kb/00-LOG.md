@@ -6,6 +6,33 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 xx:xx ET — Q42 part 1 CONFIRMED: the perp funding zero-majority is a GENUINE ±1bp dead-band clamp, not a rounding artifact
+
+Research loop, Q42 characterization sub-milestone (part 1 of 3). Probe
+`scripts/q42_funding_clamp_probe.py` (+ `tests/test_q42_funding_clamp_probe.py`, 15 offline
+tests) reads the committed `record_type=="funding_rates"` / `mode=="backfill"` record in
+`tape/perp_tape/dt=2026-07-17.jsonl` — **1,447 finalized funding prints** (2026-06-03 → 07-16,
+13 contracts, dedup on `(market_ticker, funding_time)`), every number tagged **`broker_truth`**.
+
+**Finding (verifier-CONFIRMED — independent from-scratch recompute off raw tape, then re-ran
+the committed script and it matched exactly):** a **GENUINE ±1 basis-point funding dead-band
+CLAMP on 12 of 13 contracts.** Pooled exact-zero fraction **0.762**; per-contract zero-fraction
+**61.6%–99.1%** (BTC ~66.9%, LINK ~99.1%). Decisive evidence for clamp-not-rounding = a **hard
+gap in `(0, 1e-4)`**: pooled 1,102 exact zeros, **0** nonzeros in `(0, 1e-4)`, 186 in
+`[1e-4, 1.5e-4)`; the surviving nonzeros are **continuous, not lattice-quantized** (per-contract
+smallest nonzero `|rate|` varies, BTC 1.0004e-4 … SUI 1.0560e-4 — a hard floor near ~1e-4, not
+a single shared tick), so the zeros are rates forced to exactly 0 inside a ±1bp band, not a
+symmetric-rounding bucket straddling zero. **KXLINKPERP is undecidable** (1 nonzero print).
+
+**NOT a P&L verdict — no `kb/strategies/00-index.md` change.** This characterizes the clamp
+only; no edge established. Parts (2) Hyperliquid cross-venue funding join and (3) post-promo
+perp fee/carry model remain TODO (need live network / auth). Deliverable stays a verdict +
+sizing memo, never a green light. Lesson **L89** added (clamp-vs-rounding discriminators must
+test the gap relative to the data's own granularity, never an absolute threshold).
+
+Note → `findings/2026-07-17-q42-funding-clamp-characterization.md`. Reproduce:
+`python3 scripts/q42_funding_clamp_probe.py`.
+
 ## 2026-07-16 21:xx ET — Kalshi crypto PERPS discovered as an unmined venue; collector + funding backfill landed; Q42/Q43 registered
 
 Ryan interactive session ("look at Kalshi perpetual markets on crypto"). Kalshi launched
