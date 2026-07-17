@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 02:xx ET — Q42 part 2: cross-venue Kalshi-vs-Hyperliquid funding join, verifier-CONFIRMED; stranded-tape sweep (1,798 lines)
+
+Research-loop run. Step 0a passed (no history rewind); step 0b swept `tape/hourly-20260717T0403Z`
+(1,798 missing lines: orderbook_depth +966, weather_books +530, sports_pairs +268, perp_tape +17,
+polymarket_macro_pairs +15, crypto_hourly +2 — line-set diff, JSON-validated, pure append) as its
+own PR (#102), merged first.
+
+Q42 part (1) (the funding-clamp characterization) was DONE; this run took part (2), the
+cross-venue join, which the queue note had marked "need live network" — confirmed live from this
+sandbox that Hyperliquid's public `/info` API needs no auth and is reachable, so the block didn't
+actually apply. Delegated to `edge-prober`, then an independent `verifier` pass (two-agent rule):
+
+- New collector `collection/hyperliquid_funding.py` (+9 offline tests) backfilled Hyperliquid's
+  hourly funding for BTC+ETH, 2026-06-03→2026-07-17 (1,063 prints/coin, 0 gaps), archived to
+  `tape/hyperliquid_funding/dt=2026-07-17.jsonl`, tagged `broker_truth`.
+- New join script `scripts/q42_crossvenue_funding_join.py` (+8 offline tests) compounds
+  Hyperliquid's 8 matching hourly prints into Kalshi's actual 8h funding windows — Kalshi
+  finalizes at **04:00/12:00/20:00 UTC**, not the naively-assumed 0/8/16 — anchored to each
+  print's real `funding_time`, never zero-filling a partial window. 130 windows/asset joined for
+  both BTC and ETH, 0 partial.
+- Reproduced part 1's BTC zero-fraction exactly (0.6692) as a join-sanity integrity gate.
+- **Differential (Hyperliquid 8h-equivalent − Kalshi print), all `broker_truth`:** BTC mean
+  +0.238bp / median +0.702bp (p10/p90 −1.076/+1.000bp, n=130); ETH mean +0.777bp / median
+  +1.000bp (p10/p90 −0.383/+1.485bp, n=130). The modal window is Kalshi≈0 (clamped) vs
+  Hyperliquid≈+1bp — that recurring +1.000bp is Hyperliquid's own funding-rate floor
+  (0.0000125/hr × 8), **not** a Kalshi artifact (Kalshi's own nonzero prints run continuous to
+  ~9.7bp).
+- **Regime-dependent, not a uniform harvest:** the differential flips negative in BTC's
+  low-|Hyperliquid| tercile (−0.557bp) and in every Hyperliquid-negative window (BTC −1.162bp
+  over 10 windows) — the pair would bleed in those regimes.
+- Verifier independently re-ran the join, hand-recomputed the compounding for 3 windows straight
+  from raw tape (bypassing the script), reran the full test suite and invariants, and confirmed
+  every numbered claim. One non-fatal tone note: the memo's "~+11%/yr gross" framing read a
+  little promissory before any cost model exists — softened to make clear it's a reason to build
+  part 3, not a result — before commit.
+
+Still **NOT a P&L verdict** (no fee/carry model — that's part 3, which stays BLOCKED(needs-auth)
+on Kalshi's authenticated `/margin` fee_tiers endpoint) and **no registry change**. `kb/strategies/
+00-index.md` untouched. See `findings/2026-07-17-q42-crossvenue-funding-join.md`,
+`scripts/q42_crossvenue_funding_join.py`, `collection/hyperliquid_funding.py`.
+
+Step 9: `SHADOW_REGISTRY`=S14 only, `paper_pass.py` idempotent this run (0 newly processed, 252
+deferred-caps, 172 deferred-coverage, 48 already-in-ledger), realized P&L unchanged **+$9.91**
+(`broker_truth`). Gates: `pytest -q` → 1108 passed (17 new), `python scripts/invariants.py --full`
+green (standing non-gating advisories only). Still 0 proven edges.
+
 ## 2026-07-17 00:xx ET — kalshi-edge-hunter nightly: adversarial review of all 4 last-24h numeric findings — ALL REPRODUCE, 0 failures; queue healthy (2 eligible), no idea-gen; no gated probe within 72h
 
 Nightly thinking-seat run. **Step 0a PASS** (`origin/main` HEAD `28c793a` not rewound; merged
