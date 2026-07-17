@@ -6,6 +6,59 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 05:xx ET — Q44: tape gap-detector built; live run finds the collector pipe currently degraded
+
+Built `scripts/tape_gap_monitor.py` (+27 offline tests) — the GOAL.md M1a collector
+reliability monitor. Read-only over committed tape only (no network in the health path).
+Two detectors per family: **STALE** (contiguous silence beyond 2x the family's expected
+interval — catches a fully-dead leg) and **UNDER-CAPTURE** (distinct passes in a 24h window
+below 0.8x the realized healthy count — catches the case where the day still spans start-to-
+end because one of two staggered collectors is alive, but roughly half the passes silently
+dropped). The live pipe runs two staggered collectors (VPS cron :23 UTC, cloud trigger :53
+UTC), so a healthy hourly family lands ~46-48 passes/day; a max-gap detector alone would miss
+one collector dying while the other keeps the day's span intact — this is why both detectors
+are needed, not just one.
+
+The false-positive discriminator: `tape/polymarket_pairs/` has been silent since 2026-07-15
+for a legitimate reason (World Cup champion market resolved, `status=open` discovery
+correctly returns 0 matches, the collector's `if lines:` guard writes no file). Since a
+heartbeat can't be retrofitted onto already-committed historical tape, a small explicit
+`KNOWN_BENIGN_SILENCES` allowlist (one entry, tied to the exact onset day) suppresses the
+*Priority: high* alert for this documented case while still showing it in the health table —
+a genuinely different silence, or the same family dying again later, would NOT be suppressed.
+The durable fix (each collector's zero-match path emitting its own heartbeat line) is named
+in the script's docstring as future work, deliberately not done this milestone.
+
+**All three hard-acceptance checks independently re-verified against real committed tape**
+(not just the building agent's self-report): `--now 2026-07-10T00:05Z` flags all 5 hourly
+families ALERT for the 2026-07-09 systemic outage (age ~37h, 0 passes); `--now
+2026-07-16T00:30Z` flags 4 hourly families `under_capture` 32/48 (ratio 0.67) for the
+2026-07-15 interior drop; `polymarket_pairs` at that same `now` reads `alert:false` via the
+allowlist.
+
+**Where the queue item's own narrative diverged from reality** (documented rather than
+forced): the item assumed several families carry a top-level `completeness_ok` field; in
+fact only `sports_pairs`/`crypto_hourly`/`econ_prints` do — `orderbook_depth`,
+`weather_books`, both `polymarket_*` pairs families, `weather_actuals`, `perp_tape`, and
+`hyperliquid_funding` carry no per-line completeness signal today. The monitor reports
+`no_signal` honestly there rather than fabricating `True`.
+
+**Live finding, not fixed this run:** running the monitor at the real current time shows
+`sports_pairs`/`crypto_hourly`/`orderbook_depth`/`weather_books`/`polymarket_macro_pairs`
+have been running at ~58-62% of expected cadence since 2026-07-15 — the cloud :53 collector
+has been mostly silent for roughly two days, not a one-off blip. This is exactly the class of
+silent pipe leak Q44 exists to catch, and it caught a real, currently-ongoing one on its first
+live run. Flagged for Ryan (diagnosing/restarting the cloud collector trigger is out of this
+milestone's scope); noted in this run's phone digest.
+
+Scheduling this monitor into a cron/GitHub Action/cloud trigger is an explicit Ryan pause
+point (Q44's own wording) — deliberately left undone. `pytest`: 1135 green (1108 prior + 27
+new). `python scripts/invariants.py --full`: green (only pre-existing non-gating L25/L74
+advisories). No strategy claim, no registry change — `kb/strategies/00-index.md` untouched.
+Step 9: `SHADOW_REGISTRY`=S14 only, `paper_pass.py` idempotent this run (0 newly processed),
+realized P&L unchanged +$9.91 (`broker_truth`). See `LOOP-QUEUE.md` Q44 status + this run's
+Log-of-runs line.
+
 ## 2026-07-17 02:xx ET — Q42 part 2: cross-venue Kalshi-vs-Hyperliquid funding join, verifier-CONFIRMED; stranded-tape sweep (1,798 lines)
 
 Research-loop run. Step 0a passed (no history rewind); step 0b swept `tape/hourly-20260717T0403Z`
