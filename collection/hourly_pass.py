@@ -64,6 +64,19 @@ windows) is Q42's thesis and this tape is what that probe reads. Fault-isolated 
 sibling; its `n_contracts` (underlying perp contracts listed) folds into n_markets and its
 JSONL section-lines into n_lines.
 
+LOOP-QUEUE.md Q46 (GOAL.md Phase-1 M2): also runs one `collection.universe_sweep` pass on the
+UNIVERSE_SWEEP_UTC_HOURS = {0, 6, 12, 18} passes — a full-universe top-of-book snapshot of the
+ENTIRE Kalshi open market universe (~10k markets, one JSONL line each with its inline BBO /
+volume / open_interest / last_price, tagged real_ask). Unlike settlement_ledger/econ/weather
+(labels & forecasts, deliberately NOT folded into n_markets/n_lines), this leg captures FRESH
+live-market BBOs — the same class as the sports/crypto/depth legs — so it IS folded in:
+n_lines += markets captured, n_markets += markets captured. This LEGITIMATELY spikes n_markets
+by ~10k on the 0/6/12/18 passes (the whole open universe); that spike is honest, not a bug. It
+fires 4x/day rather than daily because top-of-book moves fast and a coarse-but-regular
+cross-sectional snapshot is the substrate a longshot-fade / stale-quote / overround census
+reads; it is top-of-book ONLY (no per-market /orderbook calls — that would be the unbounded
+expansion lesson L10 warns against). Fault-isolated like every sibling.
+
 Never fakes success: each sub-pass is invoked independently and its exception (if any) is
 caught and recorded rather than allowed to take the other sub-pass down with it. Overall
 `completeness_ok` is the AND of each sub-pass's own honest completeness signal (already
@@ -93,7 +106,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from collection import (crypto_hourly, econ_prints, forecast_collector, orderbook_depth,
                         perp_tape, polymarket_pairs, settlement_ledger, sports_pairs,
-                        weather_actuals, weather_books)
+                        universe_sweep, weather_actuals, weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -111,6 +124,12 @@ WEATHER_ACTUALS_UTC_HOUR = 12      # daily actuals + Kalshi settled-market join 
 # single hour is overloaded). Settled markets purge ~60 days after close (L11) — a daily fold
 # of the most-recently-settled slice, deduped by key, keeps that history before it ages out.
 SETTLEMENT_LEDGER_UTC_HOUR = 10
+# Full-universe top-of-book sweep (Q46): fires 4x/day on {0, 6, 12, 18} UTC — not daily, because
+# top-of-book moves fast and a coarse-but-regular cross-sectional snapshot of the WHOLE open
+# universe (~10k markets, real_ask-tagged inline BBOs) is what a longshot-fade / stale-quote /
+# overround census reads. These BBOs are FRESH live-market data (same class as sports/crypto/
+# depth), so this leg DOES fold into n_markets/n_lines (see the folding block below).
+UNIVERSE_SWEEP_UTC_HOURS = {0, 6, 12, 18}
 
 
 # --------------------------------------------------------------------------- #
@@ -264,6 +283,10 @@ def _default_perp_pass() -> Dict[str, Any]:
     return perp_tape.run()
 
 
+def _default_universe_sweep_pass() -> Dict[str, Any]:
+    return universe_sweep.run()
+
+
 # --------------------------------------------------------------------------- #
 # one hourly pass
 # --------------------------------------------------------------------------- #
@@ -279,6 +302,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         forecast_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         weather_actuals_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         settlement_ledger_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        universe_sweep_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         perp_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
@@ -458,6 +482,26 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         else:
             completeness_ok = completeness_ok and bool(settlement["result"].get("completeness_ok", False))
 
+    # full-universe top-of-book sweep (Q46): fires 4x/day on UNIVERSE_SWEEP_UTC_HOURS. Unlike
+    # settlement_ledger/econ/weather (labels & forecasts, deliberately NOT folded), this leg
+    # captures FRESH live-market BBOs — the same class as the sports/crypto/depth legs — so it
+    # IS folded: n_lines += markets captured, n_markets += markets captured. This legitimately
+    # spikes n_markets by ~10k (the whole open universe) on the 0/6/12/18 passes; that spike is
+    # honest, not a bug. Fault-isolated like every sibling; on status==error -> completeness_ok
+    # False, else fold in the leg's own completeness_ok.
+    universe: Optional[Dict[str, Any]] = None
+    if ts.hour in UNIVERSE_SWEEP_UTC_HOURS:
+        u_fn = universe_sweep_fn or _default_universe_sweep_pass
+        universe = _safe_call(u_fn)
+        if universe["status"] == "error":
+            completeness_ok = False
+        else:
+            r = universe["result"]
+            n_captured = r.get("n_markets", 0)
+            n_lines += n_captured
+            n_markets += n_captured
+            completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
+
     summary = {
         "captured_at": ts.isoformat(),
         "sports_pairs": sports,
@@ -473,6 +517,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "forecast_collector": forecast,
         "weather_actuals": wx_actuals,
         "settlement_ledger": settlement,
+        "universe_sweep": universe,
         "n_markets": n_markets,
         "n_lines": n_lines,
         "completeness_ok": completeness_ok,
