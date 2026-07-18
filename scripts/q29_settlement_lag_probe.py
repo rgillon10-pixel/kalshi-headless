@@ -61,7 +61,6 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import re
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -72,6 +71,7 @@ from core.bootstrap import (block_bootstrap, bootstrap_verdict_admissible,
                             clears_tick_magnitude)
 from core.io import REPO_ROOT
 from core.pricing import TAKER_FEE_RATE, fee_per_contract
+from core.timeutil import is_coarse_close_time, parse_sports_ticker_hhmm_as_utc
 
 # `core` is pip-installed (editable) but `scripts/` is not a declared package; make the repo
 # root importable so the standalone run can reuse the sibling probe's parse helpers verbatim
@@ -104,41 +104,15 @@ CONVERGENCE_ASK = 0.98           # the mechanism's "still offered below ~$0.98" 
 GAME_FLOOR = 10                  # the L41/L55 minimum distinct-GAMES adequacy floor
 
 # sports ticker mid segment: -YYMONDDHHMM<teams>-  e.g. 'KXNPBGAME-26JUL110500YOMYOK-YOK'
-_SPORTS_TICKER_RE = re.compile(r"-(\d{2})([A-Z]{3})(\d{2})(\d{2})(\d{2})[A-Z0-9]+-")
+# parse_sports_ticker_hhmm_as_utc / is_coarse_close_time now live in core.timeutil (kb/lessons
+# L64 escalation — shared home so future post-close-adjacent probes import them instead of
+# re-deriving the tz-ambiguous-ticker discipline per script); re-exported above, zero behavior
+# change (byte-identical regex/logic, this script's own tests still call them as `q29.<name>`).
 
 
 # --------------------------------------------------------------------------- #
 # Pure helpers (offline-testable; no clock, no network)
 # --------------------------------------------------------------------------- #
-def parse_sports_ticker_hhmm_as_utc(ticker: str) -> Optional[datetime]:
-    """Parse a sports ticker's embedded date+HHMM as if it were UTC — the tz-AMBIGUOUS
-    reading Q25 used (L46). Used ONLY to reproduce Q25's post_close count as a descriptive
-    CONTRAST; it is NEVER a trade-decision input (the reliable settlement close_time governs).
-    Returns a tz-aware UTC datetime, or None on a grammar mismatch / out-of-range time."""
-    m = _SPORTS_TICKER_RE.search(ticker or "")
-    if not m:
-        return None
-    yy, mon, dd, hh, mm = m.groups()
-    try:
-        return datetime.strptime(f"{yy}{mon}{dd}{hh}{mm}", "%y%b%d%H%M").replace(
-            tzinfo=timezone.utc)
-    except ValueError:
-        return None
-
-
-def is_coarse_close_time(close_dt: Optional[datetime]) -> bool:
-    """A date-only / coarse-resolution close: a 23:59 or exact-midnight UTC clamp whose
-    intra-day close is unknowable (gate 1 excludes these). None is treated as coarse (can't
-    place the capture relative to close without lookahead)."""
-    if close_dt is None:
-        return True
-    if close_dt.hour == 23 and close_dt.minute == 59:
-        return True
-    if close_dt.hour == 0 and close_dt.minute == 0 and close_dt.second == 0:
-        return True
-    return False
-
-
 def winner_side_ask_depth(settled_yes: int, rec: dict) -> Tuple[str, Optional[float], float]:
     """The winner side's fillable ask and the resting size backing it. Kalshi posts bids-only
     per outcome, so the tradeable YES ask is the complement of the best NO bid and its depth is
