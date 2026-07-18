@@ -6,6 +6,47 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 17:2x ET — Idle-run: stranded-tape sweep (1,898 lines) + weather_books data-quality audit (Q36 gate-at-risk)
+
+Step 0a passed (local `main` reset cleanly to `origin/main` HEAD `0c01a0b`; `kb/00-LOG.md` newest
+entry and newest `tape/*/dt=*` content both 2026-07-18 — no history rewind). Step 0: only open PR is
+#77 (Ryan's stale 2026-07-15 queue-restock, already superseded, left untouched per every prior run's
+flag). Full queue re-scan reconfirmed 0 eligible TODO/IN-PROGRESS items (Q19 time-gated WC final
+Jul-19/FOMC Jul-29, Q32/Q33/Q35-build blocked on Polymarket US creds, Q36 gated ~Jul-22 weather_books
+day-count, Q37 gated ~Aug-05, Q42 part 3 BLOCKED(needs-auth), Q43 gated ~Jul-23/24 perp_tape day-count,
+Q21 idea-gen already completed today) — matches PR #117's scan from earlier today, this is the eighth
+idle run today.
+
+**Step 0b:** comm-based per-family line-set diff (not stat/byte-count) over every recent
+`tape/hourly-*` branch. `tape/hourly-20260718T0059Z`/`0403Z` confirmed already fully swept (0 missing
+lines everywhere). `tape/hourly-20260718T1855Z` carried **1,898 genuinely new lines**: 530
+`weather_books`, 235 `sports_pairs`, 20,000 `universe_sweep`, 1,099 `orderbook_depth`, 17 `perp_tape`,
+15 `polymarket_macro_pairs`, 2 `crypto_hourly`. All JSON-validated, pure append (no reorder).
+
+**Idle-run policy (c): data-quality deep-dive.** Delegated to the `tape-auditor` agent: audited
+`tape/weather_books/` (Q36's prerequisite family, ~4 days from its own ≥7-day gate) plus a
+`weather_actuals` join-ability cross-check. **Verdict: gate-at-risk.** Schema/validity/tags are
+pristine — 31,928/31,928 lines parse, 0 missing/extra fields vs the 24-field `weather_books.v1`
+contract, `price_source_tag=real_ask` on 100% (zero synthetic/untagged), append-only confirmed (0
+removed lines via `git log --numstat`) — but the **entire VPS collector pipeline stalled after
+2026-07-18T08:30:19Z** (all families, not just weather_books — a host-uptime problem, not a
+`weather_books.py` bug), permanently holing 07-18 hours 09–12 and leaving 14–23 near-empty. Only
+**one** fully clean hourly day is banked so far (07-17); 07-16 is an expected day-1 partial; 07-18
+does not currently qualify. The naive 7th-day date (~07-22) slips to **~07-23+ and keeps slipping for
+every additional VPS-down day**. Also flagged: `weather_books/` is already 60 MB at day ~2.5 (past the
+`tape/README.md` 50 MB external-storage trigger — Ryan's call), and a join-gap for Q36's design
+(`weather_actuals` only settles DAILY KXHIGHT*/KXLOWT*, not hourly KXTEMPNYCH — Q36 will need an
+intraday KNYC actual source). New lesson candidate for kb-distiller: gate progress should be measured
+in committed clean capture-days on main, not calendar days elapsed since day-1. Full report:
+`findings/2026-07-18-weather-books-tape-audit.md`. No strategy claim, no registry change — two-agent
+verifier rule does not apply (data-quality audit, not a verdict-class change).
+
+`pytest` green (no new tests — tape + one findings doc), `python scripts/invariants.py --full` green
+(pre-existing non-gating L25/L74 advisories only). Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting}
+only, `paper_pass.py` idempotent this run (0 newly processed), realized P&L unchanged **+$10.23**
+(`broker_truth`). **Ops flag for Ryan (action needed): VPS collector appears down since ~08:30 UTC
+today — restart it to stop losing weather_books/Q36 gate progress and other hourly-family cadence.**
+
 ## 2026-07-18 14:1x ET — Idle-run: shared `member_coord`/`ladder_spacing` bracket-ladder helper (L36→L102, no new stranded tape)
 
 Research-loop cloud run. Step 0a PASS: local `main` reset cleanly to `origin/main` HEAD
