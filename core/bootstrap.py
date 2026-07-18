@@ -236,3 +236,43 @@ def collapse_duration_gated_runs(is_hit: Sequence[bool], seconds: Sequence[float
             and (depths is None or run["min_depth"] >= min_depth)
         )
     return runs
+
+
+def decompose_edge_by_leg_volume(leg_pnls: Sequence[float], leg_volumes: Sequence[float], *,
+                                  thin_volume_threshold: float = 100) -> dict:
+    """The L39 decomposition: when a net edge is a SMALL NET OF TWO LARGE LEGS (income
+    premium collected vs. a near-$1 payout on the rare loss), a candlestick/volume fill
+    proxy that credits the income leg on `high >= ask AND volume > 0` alone is biased
+    UPWARD — a bar only proves the price printed, not that a resting offer ahead of the
+    whole queue would have filled. Before calling such an edge fillable, report what
+    FRACTION of it is carried by the thinnest income legs: S14's own +$0.0925 mean was
+    78% (+$0.072 of +$0.093) attributable to legs with < 100 contracts of proxy volume —
+    the fat nominal overround never underwrote the edge, it was almost entirely thin
+    near-money pass-through.
+
+    `leg_pnls[i]` is the per-leg net contribution to the pooled edge and `leg_volumes[i]`
+    its matching proxy volume (the caller's own fill-proxy volume field — this function
+    does not read tape fields itself, same discipline as `bracket_by_movement`). Raises on
+    a length mismatch rather than silently misaligning the two sequences.
+
+    Returns `total` (sum of all leg pnls), `thin_total` (sum of legs with volume below
+    `thin_volume_threshold`), `thin_fraction` (thin_total / total, None if total is 0 —
+    an honest undefined ratio rather than a divide-by-zero or a fabricated 0.0), `n_legs`,
+    and `n_thin_legs`.
+    """
+    if len(leg_pnls) != len(leg_volumes):
+        raise ValueError(
+            f"leg_pnls and leg_volumes must be the same length "
+            f"(got {len(leg_pnls)} vs {len(leg_volumes)})"
+        )
+    total = sum(leg_pnls)
+    thin_pnls = [p for p, v in zip(leg_pnls, leg_volumes) if v < thin_volume_threshold]
+    thin_total = sum(thin_pnls)
+    return {
+        "total": total,
+        "thin_total": thin_total,
+        "thin_fraction": (thin_total / total) if total != 0 else None,
+        "threshold": thin_volume_threshold,
+        "n_legs": len(leg_pnls),
+        "n_thin_legs": len(thin_pnls),
+    }

@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 02:16 ET — Idle-run: stranded-tape sweep (1,777 lines) + L39→L98 income-leg-decomposition helper
+
+- **kalshi-research-loop cloud run.** Step 0a PASS — local `main` fast-forwarded cleanly to
+  `origin/main` HEAD `efdc5da`; merged PRs #108-#112 all present as ancestors; newest
+  `kb/00-LOG.md` entry and newest `tape/*/dt=*` content both 2026-07-18 — no history rewind.
+  Step 0: only open PR is #77 (Ryan's stale queue-restock, already independently landed by
+  later runs — left untouched, as every prior run has flagged). Full Q0-Q46 re-scan
+  reconfirmed 0 eligible TODO/IN-PROGRESS items: Q19 time-gated (WC final Jul-19, FOMC
+  Jul-29), Q32/Q33/Q35-build blocked on Polymarket US credentials, Q36 gated ~Jul-22
+  (weather_books day-count), Q37 gated ~Aug-05, Q42 part 3 BLOCKED(needs-auth), Q43 gated
+  ~Jul-23/24 (perp_tape day-count), Q21 idea-gen round last completed today by the nightly
+  edge-hunter (PR #112). This is an idle run.
+- **Step 0b: stranded-tape sweep.** Only stranded branch newer than PR #111's prior sweep
+  was `tape/hourly-20260718T0403Z` (>2h old). A full per-family `comm`-based line-set diff
+  (not a stat/byte-count check) found **1,777 lines** `main` was missing: 950
+  `orderbook_depth`, 530 `weather_books`, 263 `sports_pairs`, 17 `perp_tape`, 15
+  `polymarket_macro_pairs`, 2 `crypto_hourly`. All JSON-validated, 0 exact duplicates vs
+  `main`, pure append (no reorder of existing lines).
+- **Idle-run policy (a): L39 → L98.** Converted UNENFORCED lesson L39 (a candlestick/volume
+  fill proxy's income leg is biased upward for a bracket-ladder P&L that is a small net of
+  two large legs — S14's own +$0.0925 mean was 78% attributable to sub-100-contract-volume
+  legs, i.e. the fat nominal overround was almost entirely thin near-money pass-through, not
+  a real underwritten edge) into an importable helper:
+  `core.bootstrap.decompose_edge_by_leg_volume(leg_pnls, leg_volumes,
+  thin_volume_threshold=...)` reports what fraction of a pooled edge is carried by legs
+  below a volume threshold, with an honest `None` (never a fabricated 0.0 or a crash) on a
+  zero-total edge. Added a `.claude/agents/edge-prober.md` house-style paragraph naming it
+  for any future probe evaluating a small-net-of-two-large-legs bracket edge — same
+  importable-helper-plus-signpost pattern as L76→L93 (`collapse_duration_gated_runs`),
+  L59→L94 (`core.reversal.direction_precheck` discoverability), and L47→L95
+  (`normalize_snapshot` docstring). 7 new tests in `tests/test_bootstrap.py` (the S14-shape
+  thin-legs-dominate case, all-thick/all-thin fractions, tunable threshold,
+  zero-total-is-honest-None, empty-input, length-mismatch-raises). New lesson row **L98**
+  supersedes L39's enforcement column (content unchanged, ledger append-only). No retrofit
+  of `scripts/s14_queue_fillsim.py`'s already-run, already-DEAD Q34 verdict — S14 died on
+  the queue-aware CI itself, not on this decomposition; this helper is for the next
+  candle-proxy-adjacent probe.
+- No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent
+  verifier rule does not apply (tape sweep + importable-helper build, same class as the
+  L76→L93/L59→L94/L47→L95 precedent, not a verdict-class change).
+- **Step 9 — paper sub-pass.** `SHADOW_REGISTRY`={s14_ladder_underwriting} only.
+  `paper_pass.py` idempotent this run (0 newly processed, 242 deferred on caps, 216 deferred
+  on coverage, 58 already-in-ledger), realized P&L unchanged **+$10.23** (`broker_truth`).
+- Gates: `pytest` 1192 green (1185 prior + 7 new). `python scripts/invariants.py --full`
+  green (only pre-existing non-gating L25/L74 advisories).
+
 ## 2026-07-18 00:2x ET — Q21 idea-gen round (edge-hunter): S38/S39/S40 all killed at idea stage; adversarial review clean
 
 - **kalshi-edge-hunter nightly run** (the thinking seat). Step 0a PASS — no history rewind: newest
