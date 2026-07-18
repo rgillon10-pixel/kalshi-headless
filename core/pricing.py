@@ -72,6 +72,34 @@ def infer_strike_spacing(strikes: Iterable[float]) -> Optional[float]:
     return (gaps[mid - 1] + gaps[mid]) / 2.0
 
 
+def member_coord(o: dict) -> Optional[float]:
+    """A single strike coordinate for distance-from-spot binning: the midpoint of a
+    `between` band, else whichever boundary strike exists for an edge `less`/`greater`
+    member. None if neither strike is present. (lesson L7/L102 — was independently
+    duplicated byte-for-byte in `scripts/s19_wing_fade_fillsim.py` and
+    `scripts/s20_ladder_overround_anatomy.py`; shared here so a third bracket-ladder probe
+    doesn't re-derive it.)"""
+    st = o.get("strike_type")
+    fs = o.get("floor_strike")
+    cs = o.get("cap_strike")
+    if st == "between" and fs is not None and cs is not None:
+        return (float(fs) + float(cs)) / 2.0
+    if fs is not None:
+        return float(fs)
+    if cs is not None:
+        return float(cs)
+    return None
+
+
+def ladder_spacing(outcomes: Iterable[dict]) -> Optional[float]:
+    """Strike spacing read off the ladder's own `between` floor strikes via
+    `infer_strike_spacing` (lesson L7/L102 — never a hardcoded per-symbol width). Median
+    consecutive gap, robust to one missing/duplicated member."""
+    return infer_strike_spacing(
+        [o["floor_strike"] for o in outcomes
+         if o.get("strike_type") == "between" and o.get("floor_strike") is not None])
+
+
 # ─── Kalshi fee-schedule rates — THE single source of truth (Hard Rule / lesson L5) ──
 # From the published Kalshi fee schedule (https://kalshi.com/docs/kalshi-fee-schedule.pdf,
 # docs.kalshi.com/getting_started/fee_rounding; distilled in kb/kalshi-api/03-fees-and-

@@ -6,6 +6,55 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 14:1x ET — Idle-run: shared `member_coord`/`ladder_spacing` bracket-ladder helper (L36→L102, no new stranded tape)
+
+Research-loop cloud run. Step 0a PASS: local `main` reset cleanly to `origin/main` HEAD
+`81c471c` (PR #116); merged PRs #112-#116 confirmed via GitHub MCP `list_pull_requests`
+(all `merged`); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` content both
+2026-07-18 — no history rewind. Step 0: only open PR is #77 (Ryan's stale 2026-07-15
+queue-restock, already superseded, left untouched per every prior run's flag). Full
+Q0-Q46 re-scan reconfirmed 0 eligible TODO/IN-PROGRESS items — same blockers as PR #116
+(Q19 WC final Jul-19 tomorrow/FOMC Jul-29, Q32/Q33/Q35-build blocked on Polymarket US
+creds, Q36 gated ~Jul-22 [weather_books 3/7 days], Q37 gated ~Aug-05, Q42 part 3
+BLOCKED(needs-auth), Q43 gated ~Jul-23/24 [perp_tape 2/7 days], Q21 completed today).
+This is the seventh idle run of the day.
+
+**Step 0b — stranded-tape sweep:** the `tape/hourly-*`/`tape/burst-*` branch list is
+unchanged from PR #116's check (newest two: `20260718T0059Z`, `20260718T0403Z`, both
+already fully swept). Nothing new.
+
+**Idle-run policy (a):** started by targeting lesson **L7** ("never hardcode a
+bracket/strike width... derive spacing from the ladder itself") as the next
+lowest-numbered `UNENFORCED` row in `kb/lessons/00-lessons.md`. Mid-run discovered this
+was a false read: L7 was already closed by **L36** (2026-07-12), which built
+`core.pricing.infer_strike_spacing`. The ledger's supersession phrasing is inconsistent
+enough across rows ("Supersedes L\<N\>'s enforcement column" vs "generalizes L\<N\>" vs
+"L\<N\>'s own candidate wording... stayed unbuilt") that a naive regex scan for `L7`
+missed L36. Correcting course: found a REAL, still-open duplication one layer up from
+L36's fix — `scripts/s19_wing_fade_fillsim.py` and `scripts/s20_ladder_overround_anatomy.py`
+each independently hand-rolled a byte-identical `member_coord`/`ladder_spacing` pair
+(both correctly call `infer_strike_spacing` underneath, but the wrapper itself was never
+shared — same duplication shape as L90's `_to_float`). Extracted both into
+`core/pricing.py`, re-pointed both scripts to import them — zero behavior change, both
+scripts' existing tests (`tests/test_s20_ladder_overround_anatomy.py`'s direct
+`s20.member_coord`/`s20.ladder_spacing` calls) pass unmodified. 6 new tests in
+`tests/test_substrate_primitives.py`. Extended the existing `.claude/agents/edge-prober.md`
+L36 house-style bullet to also name `member_coord`/`ladder_spacing`. New lesson **L102**
+records both the fix and the ledger-scanning lesson for the next idle run. No strategy
+claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent verifier
+rule does not apply (importable-helper build, same class as the L39→L98/L86→L99/
+L90→L100/L64→L101 precedent, not a verdict-class change).
+
+**Step 9 — paper sub-pass:** `SHADOW_REGISTRY`={s14_ladder_underwriting} only.
+`paper_pass.py` idempotent this run (0 newly processed, 242 deferred(caps), 222
+deferred(coverage), 58 already-in-ledger), realized P&L unchanged **+$10.23**
+(`broker_truth`).
+
+**Gates:** `pytest` → 1222 passed (1216 prior + 6 new). `python scripts/invariants.py
+--full` → green (only the pre-existing non-gating L25/L74 advisories).
+
+See `kb/lessons/00-lessons.md` L102; `core/pricing.py`; `.claude/agents/edge-prober.md`.
+
 ## 2026-07-18 11:1x ET — Idle-run: L64→L101 shared sports post-close-timing helper (no new stranded tape)
 
 - **kalshi-research-loop cloud run.** Step 0a PASS — local `main` matched `origin/main` HEAD
