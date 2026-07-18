@@ -81,6 +81,11 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   on your own `(jump, next_step)` pairs — it reports reversal fraction AND the
   sign-conditioned mean next-step after an up-jump/down-jump as independent
   numbers, and only flags `is_momentum` when both agree.
+- For any probe reading `tape/orderbook_depth/` book-side sizes (`yes_bids`/
+  `no_bids` price+size ladders, from `collection.normalize.normalize_snapshot`),
+  never coerce a level's size to int (L47 — a real observed KXWCGAME best-level
+  size was 91,316.82 contracts; truncating silently corrupts queue-depth reads).
+  Report and compare sizes as floats throughout.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 

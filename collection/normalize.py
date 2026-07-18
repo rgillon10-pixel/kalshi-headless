@@ -17,6 +17,11 @@ def normalize_snapshot(ticker: str, ob: Dict[str, Any]) -> Dict[str, Any]:
 
     Kalshi posts only bids per outcome (yes_dollars / no_dollars). The tradeable ask
     on one side is the complement of the other side's best bid.
+
+    `yes_bids`/`no_bids` sizes (lesson L47) are FLOATS and can be fractional (a real
+    observed KXWCGAME best-level size was 91,316.82 contracts) — never coerce a level's
+    size to int without an explicit, justified rounding rule; doing so silently
+    corrupts queue-depth reads.
     """
     yb = sorted(([float(p), float(sz)] for p, sz in (ob.get("yes_dollars") or [])),
                 key=lambda x: -x[0])
