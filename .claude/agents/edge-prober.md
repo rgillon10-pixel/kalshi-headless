@@ -71,6 +71,16 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   and elapsed-seconds — it reports both n_snaps and wall-clock seconds and
   only marks a run `executable` once the duration (and depth, if given)
   gate clears.
+- For a momentum/reversal precheck (does a price jump continue or reverse?),
+  never classify on reversal FREQUENCY alone (L59 — S24's raw continuation
+  frequency was 0.454, a slight majority that alone reads as momentum, yet the
+  sign-conditioned mean next-step pointed the opposite way because a minority
+  of large reversals carried the mean; frequency-only classification would
+  have mislabeled a DEAD-by-round-trip-cost result as DEAD-by-momentum and
+  skipped the real kill). Call `core.reversal.direction_precheck(jumps_and_next)`
+  on your own `(jump, next_step)` pairs — it reports reversal fraction AND the
+  sign-conditioned mean next-step after an up-jump/down-jump as independent
+  numbers, and only flags `is_momentum` when both agree.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 

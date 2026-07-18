@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 00:2x ET — Stranded-tape sweep (959 lines) + L59→L94 reversal-precheck signpost (idle-run milestone)
+
+- Research-loop run. Step 0a: this session's local `main` was a stale ref carrying a
+  byte-identical-content-but-rewritten-history copy of the repo (50 commits, no merge-base
+  with `origin/main` — same file contents, different SHAs); reset local `main` to
+  `origin/main` HEAD (`56cc03b`) rather than rebase onto a disjoint history. Merged PRs
+  #105-#109 all present as ancestors; `kb/00-LOG.md`/tape dates both 2026-07-17 — no rewind
+  of `origin/main` itself, only a local clone artifact. Step 0: only open PR is #77 (Ryan's
+  stale queue restock, already independently landed by later runs — left untouched, as every
+  prior run has flagged). Queue scan (Q0-Q46) reconfirmed genuinely 0 eligible TODO/IN-PROGRESS
+  milestones: Q19 time-gated (WC final Jul 19 / FOMC Jul 29), Q32/Q33/Q35-build blocked on
+  Polymarket US credentials, Q36 gated to ~Jul-22 (2/7 `weather_books` coverage days), Q37
+  gated to ~Aug-05, Q43 gated to ~Jul-24 (1/7 `perp_tape` coverage days), Q21 idea-gen round
+  last completed 2026-07-16 (nightly edge-hunter's item by default, not re-run here).
+- **Step 0b sweep found REAL unswept content the immediately-prior run's own sweep missed.**
+  That run (PR #109) diffed `tape/hourly-20260717T1600Z` and reported it fully covered by its
+  806-line sweep, but its check only compared 4 families (`crypto_hourly`,
+  `polymarket_macro_pairs`, `sports_pairs`, `weather_books`). A full per-file `comm`-based
+  line-set diff across every `.jsonl` family in that branch (not a partial family list) found
+  942 `orderbook_depth` + 17 `perp_tape` lines still missing from `main` — 959 total, all
+  JSON-valid, 0 exact duplicates, unique `capture_id`s (`20260717T1555Z`/`20260717T1600Z`).
+  Union-appended, pure append (no reorder). Also re-verified `tape/hourly-20260717T1556Z`/
+  `T0403Z` and six other 2026-07-16/17 branches — all fully covered, nothing else missing.
+- **Idle-run policy order (a):** converted lesson **L59** (UNENFORCED — a momentum/reversal
+  precheck must report reversal FREQUENCY and the sign-conditioned mean next-step as two
+  independent numbers, never classify on frequency alone; S24's raw continuation frequency
+  0.454 alone reads as momentum but the sign-conditioned mean pointed the opposite way).
+  Found the helper L59 called for already existed — `core.reversal.direction_precheck` +
+  `tests/test_reversal.py`, already `test`-tier per lesson L72 — but was undiscoverable: no
+  `.claude/agents/edge-prober.md` house-style line named it, and nothing outside its own test
+  file imported it. Added a house-style paragraph naming it for any future momentum/reversal
+  precheck, same signpost pattern as L45's `core.timeutil` entry and L76→L93's
+  `core.bootstrap` entry. No code change to `core/reversal.py` — its 11 existing tests still
+  green. New lesson row L94 supersedes L59's enforcement column (content unchanged,
+  ledger append-only).
+- Gates: `pytest -q` green (1185 — unchanged, no new tests this run, pure signpost + ledger
+  work), `python scripts/invariants.py --full` green (only the pre-existing non-gating
+  L25/L74 advisories).
+- No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent
+  verifier rule does not apply (tape sweep + house-style discoverability fix, same class as
+  the Q44/Q45/Q46/L76→L93 precedent, not a verdict-class change).
+- Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} only, `paper_pass.py` processed 10
+  newly-eligible fills this run (242 deferred on caps, 204 deferred on coverage, 48
+  already-in-ledger), realized P&L +$9.91→**+$10.23** (`broker_truth`).
+
+**Next:** the lessons ledger's remaining thin UNENFORCED rows (L47/L51/L68 — mostly
+proposal-time/docstring-class disciplines with weaker code-helper candidates than L59/L76
+had) stay the standing queue for the next idle run; separately, L45's own row still reads
+raw UNENFORCED despite `core.timeutil.parse_crypto_hour_token_close_utc` already being
+house-style-encoded in `edge-prober.md` — a stale-row fix like this run's L59, flagged but
+not done here (scope: one milestone). Q19/Q36/Q37/Q43 open on their own schedule (WC final
+Jul 19, FOMC Jul 29, weather/perp day-counts through late July/early August).
+
+---
+
 ## 2026-07-17 21:1x ET — Stranded-tape sweep (806 lines) + L76→L93 duration-gate helper (idle-run milestone)
 
 - Research-loop run. Step 0a: no history rewind (`origin/main` HEAD matches local, merged
