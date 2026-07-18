@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-17 23:1x ET — Stranded-tape sweep (21,844 lines) + L47→L95 book-depth-float signpost (idle-run milestone)
+
+- Research-loop cloud run. Step 0a: local `main` fast-forwarded cleanly to `origin/main` HEAD
+  (`3bbd48b`); merged PRs #101-#110 all present as ancestors; `kb/00-LOG.md` newest entry and
+  newest `tape/*/dt=*` content both 2026-07-18 — no history rewind. Step 0: only open PR is
+  #77 (Ryan's stale queue-restock, already independently landed by later runs — left untouched,
+  as every prior run has flagged; not claimed work per its title). Queue scan (Q0-Q46)
+  reconfirmed 0 eligible TODO/IN-PROGRESS items: Q19 time-gated (WC final Jul-19, FOMC Jul-29),
+  Q32/Q33/Q35-build blocked on Polymarket US credentials, Q36 gated to ~Jul-22 (weather_books
+  day-count), Q37 gated to ~Aug-05, Q42 part 3 BLOCKED(needs-auth), Q43 gated to ~Jul-24
+  (perp_tape day-count), Q21 idea-gen round last completed 2026-07-16 (nightly edge-hunter's
+  item by default, not re-run here). This is an idle run.
+- **Step 0b sweep found a large real gap.** The only stranded branch newer than PR #110's own
+  sweep is `tape/hourly-20260718T0059Z` (>30min old). A full per-family `comm`-based line-set
+  diff (not a stat/byte-count check) found **21,844 lines** `main` was missing: 20,000
+  `universe_sweep` (a full fresh Q46 BBO census pass — this family is intentionally NOT deduped
+  across passes, so this is a legitimate second snapshot, not a duplicate), 998
+  `orderbook_depth`, 530 `weather_books`, 282 `sports_pairs`, 17 `perp_tape`, 15
+  `polymarket_macro_pairs`, 2 `crypto_hourly`. All lines JSON-validated, 0 exact duplicates vs.
+  `main` or within the missing set, pure append (no reorder of existing lines). Also re-checked
+  `tape/burst-20260714T120659Z` (the one stale burst branch) — still fully covered, nothing to
+  sweep there.
+- **Idle-run policy order (a):** converted lesson **L47** (UNENFORCED — `orderbook_depth`'s
+  persisted book-side sizes are floats and can be fractional, e.g. a real observed KXWCGAME
+  best-level size of 91,316.82 contracts; a consumer coercing to int silently corrupts
+  queue-depth reads) into a documented fact at its source: `collection.normalize.
+  normalize_snapshot`'s docstring now states the float/fractional property directly (the single
+  shared function every book-side-size consumer already reuses, per `orderbook_depth.py`'s own
+  "Reuse" section), plus a `.claude/agents/edge-prober.md` house-style paragraph naming the
+  discipline for any future probe reading `tape/orderbook_depth/`. No behavior change —
+  `normalize_snapshot` already cast sizes via `float()`; this closes the discoverability gap
+  L47 actually named (same pattern as L45→L49, L76→L93, L59→L94). Also confirmed L45's own row
+  is NOT stale as the prior run's "Next" note worried — L49 (2026-07-14) already superseded it
+  with an importable `core.timeutil.parse_crypto_hour_token_close_utc` helper and a house-style
+  signpost; append-only means L45's own row stays raw UNENFORCED forever by design, L49 is the
+  live state. New lesson row L95 supersedes L47's enforcement column (content unchanged,
+  ledger append-only).
+- Gates: `pytest -q` green (1185 — unchanged, no new tests this run, pure docstring + signpost
+  + ledger work), `python scripts/invariants.py --full` green (only the pre-existing non-gating
+  L25/L74 advisories).
+- No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent
+  verifier rule does not apply (tape sweep + house-style discoverability fix, same class as the
+  Q44/Q45/Q46/L76→L93/L59→L94 precedent, not a verdict-class change).
+- Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} only, `paper_pass.py` idempotent this run
+  (0 newly processed, 242 deferred on caps, 210 deferred on coverage, 58 already-in-ledger),
+  realized P&L unchanged +$10.23 (`broker_truth`).
+
+**Next:** the lessons ledger's remaining thin UNENFORCED rows (L51, L68 — house-style-only
+candidates for `.claude/agents/edge-prober.md`, weaker than L47/L59/L76 had since neither names
+a concrete importable helper) stay the standing queue for the next idle run. Q19/Q36/Q37/Q42
+part 3/Q43 open on their own schedule (WC final Jul-19, FOMC Jul-29, weather/perp day-counts
+through late July/early August, and Q42 part 3 whenever Ryan-side `/margin` auth exists).
+
+---
+
 ## 2026-07-18 00:2x ET — Stranded-tape sweep (959 lines) + L59→L94 reversal-precheck signpost (idle-run milestone)
 
 - Research-loop run. Step 0a: this session's local `main` was a stale ref carrying a
