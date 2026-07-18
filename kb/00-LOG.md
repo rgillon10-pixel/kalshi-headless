@@ -6,6 +6,66 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 00:2x ET — Q21 idea-gen round (edge-hunter): S38/S39/S40 all killed at idea stage; adversarial review clean
+
+- **kalshi-edge-hunter nightly run** (the thinking seat). Step 0a PASS — no history rewind: newest
+  `kb/00-LOG.md` entry and newest `tape/*/dt=*` content both 2026-07-18; recent merged PRs #105-#111
+  all present as ancestors of `origin/main`. Step 0: only open PR is #77 (Ryan's stale queue-restock,
+  3 days old — under the 5-day Ryan-side threshold and already flagged many times, so NOT re-flagged,
+  per the "don't re-flag with no new info" discipline). Step 0b: 157 stranded `tape/hourly-*` + 1
+  `tape/burst-*` branch reported (the union-append sweep is the 3h research loop's recurring job).
+- **Unit 1 — adversarial review of the last-24h findings (the two Q42 findings), both PASS.** Re-ran
+  one load-bearing number per finding from raw tape: (a) the funding-clamp pooled exact-zero fraction
+  reproduced independently at **0.7672** (the finding's 0.762 + one extra 07-18 day of prints) with
+  **0 nonzeros in (0,1e-4)** exactly as claimed and per-contract BTC 0.677 / LINK 0.991 reproducing;
+  (b) the cross-venue funding join's Hyperliquid leg is tagged `broker_truth` with `raw_sha256`, and
+  the finding honestly states "NOT a P&L verdict — no fee/carry model," so no fee was misapplied to
+  the differential. Nothing failed the re-check → no `review:` GitHub issue opened.
+- **Unit 2 — Q21 replenishment round (0 eligible items).** Verified 0 eligible by FILE SHAPE (L25):
+  Q19 remaining legs are future events (WC final Jul-19, FOMC Jul-29, no burst tape yet), Q36 gated
+  ~Jul-22 (`tape/weather_books/` 3/7 daily days), Q37 ~Aug-05, Q43 gated ~Jul-23 (`tape/perp_tape/`
+  2/7 days), Q32/Q33/Q35-build blocked on Polymarket creds, Q42 part 3 BLOCKED(needs-auth). Proposed
+  **3 new candidates (S38/S39/S40), all KILLED at idea stage by independent `verifier` attack that
+  re-ran the actual committed tape → 0 registered** (two-agent rule; register survivors, never pad —
+  same clean sweep as the 07-15 S25/26/27 and 07-16 S35/36/37 rounds). **S38** (full-universe
+  cross-category calibration census): the "category gradient" that was the whole escape from
+  S1/S7/S23 doesn't exist — the census is 99.6% two auto-generated combo series (no category field),
+  the depth-gated fillable population is 557/100k rows (0.56%), 99.4% those combos, longshot-skewed →
+  the dead favorite-longshot factor slot; mispriced tail is the unfillable 96%; a ~100-cell search
+  has no BH-FDR control (S20/L41 luckiest-cell trap). **S39** (attention-shock fade, Barber–Odean):
+  uncomputable — `volume_24h` is identically 0.0 on all 100k `universe_sweep` rows AND the 5 sweeps
+  are disjoint slices (0 cross-capture ticker overlap, so no per-market delta exists); and the fade
+  reduces to the dead S24 taker round-trip. **S40** (LIP-window fresh-listing maker): the load-bearing
+  "50% maker-fee discount" fact is UNVERIFIED — `kb/kalshi-api/03-fees-and-breakeven.md` explicitly
+  refuses that reading of `discount_factor_bps`, which may be a reward-pool weight; also duplicates
+  Q37, short-queue escape tape-refuted (median 4206 resting contracts/market), no signal (S1), fill
+  unmeasurable at hourly cadence. New lessons **L96** (verify a `universe_sweep` signal field is
+  non-zero AND cross-capture overlap>0 before proposing any per-market delta — a mid-cursor-capped
+  census is not a panel; `volume_24h=0` is a collector-bug candidate) and **L97** (an incentive-program
+  bps parameter is `synthetic` until its mechanism is pinned — the pt1 plausible-unattacked-number
+  bar). Still **0 proven edges**; S38/S39/S40 consumed → next free = **S41**. See
+  `findings/2026-07-18-q21-idea-gen-round.md`.
+- **Unit 3 — probe-prep: no target.** No time-gated item unblocks within ~72h (Q36 ~Jul-22 and Q43
+  ~Jul-23 are both just outside the ~Jul-21 cutoff; Q19's WC-final probe script already exists from
+  the WC-semi2 leg). Nothing to build.
+- **Housekeeping.** 3 `kalshi-burst-*` triggers whose event date has passed and rolled to 2027 named
+  for deletion: `kalshi-burst-cpi-0714`, `kalshi-burst-wcsemi1-0714`, `kalshi-burst-wcsemi2-0715`
+  (WC semis don't recur annually; the CPI burst was a one-off). The two live ones (`wcfinal-0719`,
+  `fomc-0729`) are upcoming — kept. **Data-quality flag for a future collector run:**
+  `collection/universe_sweep.py` persists `volume_24h=0` on 100% of rows (likely a `volume_24h_fp`
+  field-name bug) and its 20k-call cap paginates a disjoint slice each pass (no per-market panel) —
+  beyond PR #107's already-escalated cap/storage design calls.
+- Gates: `pytest` + `python scripts/invariants.py --full` green (docs-only diff — findings/,
+  kb/00-LOG.md, kb/lessons/, LOOP-QUEUE.md). No registry change (`kb/strategies/00-index.md`
+  untouched), no strategy claim, so the two-agent verdict rule is satisfied by the per-candidate
+  verifier kills (nothing registered). Step 9 paper sub-pass: `SHADOW_REGISTRY`={s14_ladder_underwriting}
+  only, `paper_pass.py` idempotent this run (0 newly processed, 242 deferred-caps, 212 deferred-
+  coverage, 58 already-in-ledger), realized P&L unchanged **+$10.23** (`broker_truth`) — reminder that
+  s14 is DEAD-at-real-fills (Q34), so this is candle-proxy paper P&L, not an edge; deregistering the
+  shadow stays a Ryan judgment call.
+
+---
+
 ## 2026-07-17 23:1x ET — Stranded-tape sweep (21,844 lines) + L47→L95 book-depth-float signpost (idle-run milestone)
 
 - Research-loop cloud run. Step 0a: local `main` fast-forwarded cleanly to `origin/main` HEAD
