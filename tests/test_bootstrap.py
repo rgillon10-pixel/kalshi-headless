@@ -9,6 +9,7 @@ from core.bootstrap import (
     bracket_by_movement,
     clears_tick_magnitude,
     collapse_duration_gated_runs,
+    decompose_edge_by_leg_volume,
     floor_pinned_fraction,
 )
 
@@ -240,6 +241,60 @@ def test_collapse_duration_gated_runs_depths_length_mismatch_raises():
         collapse_duration_gated_runs(
             [True, True], [1.0, 1.0], [5.0], min_duration_seconds=1.0
         )
+
+
+# ─── decompose_edge_by_leg_volume (L39) ─────────────────────────────────────
+
+def test_decompose_edge_by_leg_volume_the_s14_shape_thin_legs_dominate():
+    # S14's own headline: +$0.0925 mean, 78% (+$0.072 of +$0.093) from sub-100-volume
+    # legs. Approximate that shape: a few thick legs carry a small slice of the edge, many
+    # thin legs (volume < 100) carry most of it.
+    leg_pnls = [0.010, 0.011, 0.072]
+    leg_volumes = [40, 60, 500]  # first two thin, third thick
+    report = decompose_edge_by_leg_volume(leg_pnls, leg_volumes)
+    assert report["total"] == pytest.approx(0.093)
+    assert report["thin_total"] == pytest.approx(0.021)
+    assert report["thin_fraction"] == pytest.approx(0.021 / 0.093)
+    assert report["n_legs"] == 3
+    assert report["n_thin_legs"] == 2
+
+
+def test_decompose_edge_by_leg_volume_all_thick_legs_zero_thin_fraction():
+    report = decompose_edge_by_leg_volume([0.05, 0.05], [500, 600])
+    assert report["thin_total"] == 0.0
+    assert report["thin_fraction"] == 0.0
+    assert report["n_thin_legs"] == 0
+
+
+def test_decompose_edge_by_leg_volume_all_thin_legs_full_thin_fraction():
+    report = decompose_edge_by_leg_volume([0.02, 0.03], [10, 20])
+    assert report["thin_fraction"] == pytest.approx(1.0)
+    assert report["n_thin_legs"] == 2
+
+
+def test_decompose_edge_by_leg_volume_threshold_is_tunable():
+    report = decompose_edge_by_leg_volume([0.02, 0.03], [10, 20], thin_volume_threshold=15)
+    assert report["n_thin_legs"] == 1
+    assert report["thin_total"] == pytest.approx(0.02)
+
+
+def test_decompose_edge_by_leg_volume_zero_total_is_honest_none_not_a_crash():
+    report = decompose_edge_by_leg_volume([0.05, -0.05], [10, 500])
+    assert report["total"] == 0.0
+    assert report["thin_fraction"] is None
+
+
+def test_decompose_edge_by_leg_volume_empty_input_is_honest_not_a_crash():
+    report = decompose_edge_by_leg_volume([], [])
+    assert report["total"] == 0
+    assert report["thin_fraction"] is None
+    assert report["n_legs"] == 0
+    assert report["n_thin_legs"] == 0
+
+
+def test_decompose_edge_by_leg_volume_length_mismatch_raises():
+    with pytest.raises(ValueError):
+        decompose_edge_by_leg_volume([0.01, 0.02], [10])
 
 
 # ─── bootstrap_verdict_admissible (L41) ─────────────────────────────────────

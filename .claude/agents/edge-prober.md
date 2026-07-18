@@ -86,6 +86,18 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   never coerce a level's size to int (L47 — a real observed KXWCGAME best-level
   size was 91,316.82 contracts; truncating silently corrupts queue-depth reads).
   Report and compare sizes as floats throughout.
+- Before calling a bracket-ladder edge fillable when it is a SMALL NET OF TWO
+  LARGE LEGS (collected premium vs. a near-$1 payout on the rare loss), never
+  trust a candlestick/volume fill proxy's income leg at face value (L39 — a
+  `high >= ask AND volume > 0` bar only proves the price printed, not that a
+  resting offer ahead of the whole queue would have filled; S14's own
+  +$0.0925 mean was 78% attributable to sub-100-contract-volume legs — the fat
+  nominal overround never underwrote the edge). Call
+  `core.bootstrap.decompose_edge_by_leg_volume(leg_pnls, leg_volumes,
+  thin_volume_threshold=...)` on your own per-leg net contributions and proxy
+  volumes — it reports what fraction of the total edge is carried by legs
+  below the threshold, so a "mostly thin near-money pass-through" edge is
+  visible before it is called fillable.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 
