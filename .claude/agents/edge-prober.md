@@ -98,6 +98,21 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   volumes — it reports what fraction of the total edge is carried by legs
   below the threshold, so a "mostly thin near-money pass-through" edge is
   visible before it is called fillable.
+- When a probe's P&L carries a large, low-frequency CATASTROPHIC leg (a binary
+  payout on the rare adverse outcome — e.g. a bracket-ladder winner's near-$1
+  payout) and some units get DROPPED because that leg's measurability can't be
+  resolved from the tape (not because of their outcome), never zero the
+  dropped leg instead of dropping the unit (L86 — zeroing an unmeasurable LOSS
+  fabricates a free win and biases the mean POSITIVE). Drop the unit, then run
+  `core.bootstrap.catastrophic_leg_drop_stress_check(retained_pnls, n_dropped,
+  generous_replacement_value=...)` on your own retained per-unit P&L and drop
+  count — it recomputes the mean crediting the dropped units with the most
+  generous counterfactual toward your verdict and reports whether the sign
+  still holds (`sign_preserved`). S14's Q34 verdict is the precedent: crediting
+  290 winner-leg-unmeasurable event-hours with payout=0 moved the mean from
+  -0.0453 to -0.0152 — same sign, confirming the drop wasn't a thumb on the
+  scale. A `sign_preserved=False` result means the verdict may be an artifact
+  of the drop, not a real edge — investigate before reporting it.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 
