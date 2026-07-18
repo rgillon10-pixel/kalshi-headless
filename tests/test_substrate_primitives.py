@@ -7,8 +7,8 @@ import pytest
 
 from collection.normalize import normalize_snapshot
 from core.pricing import (bracket_sum, fee_per_contract, infer_strike_spacing,
-                          monotonicity_crossing_edge, normalized_ask, overround,
-                          true_arb_edge, yes_implied_prob)
+                          ladder_spacing, member_coord, monotonicity_crossing_edge,
+                          normalized_ask, overround, true_arb_edge, yes_implied_prob)
 from core.source_tag import (DEFAULT_TAG, FILLABLE_TAGS, VALID_SOURCE_TAGS,
                              is_fillable, require_fillable, tag_or_synthetic)
 from core.stats import MIN_MEMBERS, safe_pstdev
@@ -103,6 +103,42 @@ def test_infer_strike_spacing_none_below_two_distinct_strikes():
     assert infer_strike_spacing([]) is None
     assert infer_strike_spacing([100.0]) is None
     assert infer_strike_spacing([100.0, 100.0]) is None
+
+
+# ─── member_coord / ladder_spacing (lesson L7/L102): shared bracket-ladder geometry,
+# was independently duplicated byte-for-byte in s19 and s20 before this extraction ────
+
+def test_member_coord_between_is_midpoint():
+    o = {"strike_type": "between", "floor_strike": 63700, "cap_strike": 63799.99}
+    assert member_coord(o) == pytest.approx((63700 + 63799.99) / 2.0)
+
+
+def test_member_coord_edge_uses_available_boundary():
+    assert member_coord({"strike_type": "greater", "floor_strike": 73000,
+                         "cap_strike": None}) == pytest.approx(73000.0)
+    assert member_coord({"strike_type": "less", "floor_strike": None,
+                         "cap_strike": 50000}) == pytest.approx(50000.0)
+
+
+def test_member_coord_none_when_no_strike():
+    assert member_coord({"strike_type": "between", "floor_strike": None,
+                         "cap_strike": None}) is None
+
+
+def test_ladder_spacing_from_between_floors():
+    outs = [{"strike_type": "between", "floor_strike": 100 + 100 * i} for i in range(4)]
+    assert ladder_spacing(outs) == pytest.approx(100.0)
+
+
+def test_ladder_spacing_none_below_two_strikes():
+    assert ladder_spacing([{"strike_type": "between", "floor_strike": 100}]) is None
+
+
+def test_ladder_spacing_ignores_non_between_members():
+    outs = [{"strike_type": "between", "floor_strike": 100},
+            {"strike_type": "between", "floor_strike": 200},
+            {"strike_type": "greater", "floor_strike": 9999}]
+    assert ladder_spacing(outs) == pytest.approx(100.0)
 
 
 # ─── source_tag (trust=FALSE default + Rule #4) ────────────────────────────────

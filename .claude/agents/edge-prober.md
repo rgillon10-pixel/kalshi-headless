@@ -52,7 +52,15 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   still a guess rather than a value read off the data). Call
   `core.pricing.infer_strike_spacing(strikes)` on the ladder's own strikes
   instead — it returns the median consecutive gap, robust to one missing or
-  duplicated member.
+  duplicated member. For a full snapshot's `outcomes` list, don't re-derive
+  the per-member strike coordinate or the ladder-wide spacing by hand either
+  (L36/L102 — `member_coord`/`ladder_spacing` were independently duplicated
+  byte-for-byte across `scripts/s19_wing_fade_fillsim.py` and
+  `scripts/s20_ladder_overround_anatomy.py` before this was noticed). Call
+  `core.pricing.member_coord(outcome)` (midpoint of a `between` band, else
+  the available boundary strike, `None` if neither) and
+  `core.pricing.ladder_spacing(outcomes)` (wraps `infer_strike_spacing` over
+  the ladder's own `between` floor strikes) instead of writing a third copy.
 - Distinguish three outcomes explicitly: CI > 0 AND clears the tick-magnitude
   gate (alive), CI ≤ 0 or fails the magnitude gate (dead, falsified),
   data-adequacy dead (untestable as collected — say why).

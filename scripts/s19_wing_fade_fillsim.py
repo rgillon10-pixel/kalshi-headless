@@ -88,6 +88,8 @@ from core.pricing import (  # noqa: E402
     MAKER_FEE_RATE,
     fee_per_contract,
     infer_strike_spacing,
+    ladder_spacing,
+    member_coord,
 )
 
 CRYPTO_DIR = REPO_ROOT / "tape" / "crypto_hourly"
@@ -224,30 +226,6 @@ def load_candle_cache(cache_dir: Path = CANDLE_CACHE_DIR) -> Dict[str, Dict[str,
 # --------------------------------------------------------------------------- #
 # pure geometry / selection / fill-sim (unit-tested offline)
 # --------------------------------------------------------------------------- #
-def member_coord(o: Dict[str, Any]) -> Optional[float]:
-    """A single strike coordinate for distance-from-spot binning: the midpoint of a
-    `between` band, else whichever boundary strike exists for an edge member. None if
-    neither is present."""
-    st = o.get("strike_type")
-    fs = o.get("floor_strike")
-    cs = o.get("cap_strike")
-    if st == "between" and fs is not None and cs is not None:
-        return (float(fs) + float(cs)) / 2.0
-    if fs is not None:
-        return float(fs)
-    if cs is not None:
-        return float(cs)
-    return None
-
-
-def ladder_spacing(outcomes: List[Dict[str, Any]]) -> Optional[float]:
-    """Strike spacing read off the ladder's own between-band floor strikes (L36 — never a
-    hardcoded per-symbol width). Median consecutive gap."""
-    return infer_strike_spacing(
-        [o["floor_strike"] for o in outcomes
-         if o.get("strike_type") == "between" and o.get("floor_strike") is not None])
-
-
 def is_wing_elevated(o: Dict[str, Any], spot: float, spacing: Optional[float],
                      band_steps: int = BAND_STEPS, floor: float = FLOOR_ASK,
                      ask_lo: float = WING_ASK_LO, ask_hi: float = WING_ASK_HI) -> bool:
