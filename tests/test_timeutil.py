@@ -5,7 +5,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from core.timeutil import parse_crypto_hour_token_close_utc
+from core.timeutil import (is_coarse_close_time, is_genuine_post_close,
+                           parse_crypto_hour_token_close_utc,
+                           parse_sports_ticker_hhmm_as_utc)
 
 UTC = timezone.utc
 
@@ -61,3 +63,73 @@ def test_wrong_length_returns_none():
 
 def test_non_numeric_date_fields_return_none():
     assert parse_crypto_hour_token_close_utc("XXJULXX21") is None
+
+
+# --------------------------------------------------------------------------- #
+# kb/lessons L64 escalation: shared sports-ticker post-close discipline (moved
+# byte-identical from scripts/q29_settlement_lag_probe.py so future post-close-adjacent
+# probes import it instead of re-deriving the tz-ambiguous-ticker trap per script).
+# --------------------------------------------------------------------------- #
+def test_parse_sports_ticker_hhmm_as_utc_basic():
+    dt = parse_sports_ticker_hhmm_as_utc("KXNPBGAME-26JUL110500YOMYOK-YOK")
+    assert dt == datetime(2026, 7, 11, 5, 0, tzinfo=UTC)
+
+
+def test_parse_sports_ticker_hhmm_as_utc_bad_grammar_is_none():
+    assert parse_sports_ticker_hhmm_as_utc("KXBTC-26JUL0621-T69300") is None
+    assert parse_sports_ticker_hhmm_as_utc("") is None
+    assert parse_sports_ticker_hhmm_as_utc("no-dashes-here") is None
+
+
+def test_parse_sports_ticker_hhmm_as_utc_out_of_range_is_none():
+    assert parse_sports_ticker_hhmm_as_utc("KXMLBGAME-26JUL112599ABCDEF-ABC") is None
+
+
+def test_is_coarse_close_time_2359_clamp():
+    assert is_coarse_close_time(datetime(2026, 7, 11, 23, 59, 0, tzinfo=UTC))
+    assert is_coarse_close_time(datetime(2026, 7, 11, 23, 59, 59, tzinfo=UTC))
+
+
+def test_is_coarse_close_time_exact_midnight_clamp():
+    assert is_coarse_close_time(datetime(2026, 7, 11, 0, 0, 0, tzinfo=UTC))
+
+
+def test_is_coarse_close_time_none_is_coarse():
+    assert is_coarse_close_time(None)
+
+
+def test_is_coarse_close_time_real_intraday_is_fine():
+    assert not is_coarse_close_time(datetime(2026, 7, 11, 12, 54, 32, tzinfo=UTC))
+    assert not is_coarse_close_time(datetime(2026, 7, 11, 0, 0, 30, tzinfo=UTC))
+
+
+def test_is_genuine_post_close_none_on_coarse_close():
+    assert is_genuine_post_close(
+        datetime(2026, 7, 12, 12, 0, tzinfo=UTC),
+        datetime(2026, 7, 11, 23, 59, tzinfo=UTC)) is None
+    assert is_genuine_post_close(datetime(2026, 7, 12, 12, 0, tzinfo=UTC), None) is None
+
+
+def test_is_genuine_post_close_true_past_conservative_margin():
+    close = datetime(2026, 7, 11, 5, 0, tzinfo=UTC)
+    # 20h past close clears the default 13h tz-uncertainty + 6h game-duration margin (19h)
+    captured = datetime(2026, 7, 12, 1, 0, tzinfo=UTC)
+    assert is_genuine_post_close(captured, close) is True
+
+
+def test_is_genuine_post_close_false_within_conservative_margin():
+    close = datetime(2026, 7, 11, 5, 0, tzinfo=UTC)
+    # ticker-HHMM-as-UTC would call this "post_close" (5h past the naive close reading),
+    # but it is well inside the conservative 19h margin — genuinely still ambiguous/pre-close
+    # under the worst-case tz mis-statement (the exact L64 mislabeling trap).
+    captured = datetime(2026, 7, 11, 10, 0, tzinfo=UTC)
+    assert is_genuine_post_close(captured, close) is False
+
+
+def test_is_genuine_post_close_custom_margins():
+    close = datetime(2026, 7, 11, 5, 0, tzinfo=UTC)
+    captured = datetime(2026, 7, 11, 8, 0, tzinfo=UTC)  # 3h past close
+    assert is_genuine_post_close(captured, close, tz_uncertainty_hours=1.0,
+                                 max_game_duration_hours=1.0) is True
+    assert is_genuine_post_close(captured, close, tz_uncertainty_hours=13.0,
+                                 max_game_duration_hours=6.0) is False

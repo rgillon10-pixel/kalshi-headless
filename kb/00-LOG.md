@@ -6,6 +6,53 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 11:1x ET — Idle-run: L64→L101 shared sports post-close-timing helper (no new stranded tape)
+
+- **kalshi-research-loop cloud run.** Step 0a PASS — local `main` matched `origin/main` HEAD
+  `77ff3b4`; merged PRs #111-#115 all present as ancestors (confirmed by
+  `git merge-base --is-ancestor`); `kb/00-LOG.md` newest entry and newest `tape/*/dt=*`
+  content both 2026-07-18 — no history rewind.
+- **Step 0 claim-check:** only open PR is #77 (Ryan's stale 2026-07-15 queue-restock, its
+  Q29-Q32 content long since superseded by different numbered items on `main` — left
+  untouched, flagged by every prior run today).
+- **Full Q0-Q46 re-scan: 0 eligible TODO/IN-PROGRESS items.** Q19's remaining per-event legs
+  are future events (WC final Jul-19 tomorrow, no burst tape yet; FOMC Jul-29); Q32/Q33/
+  Q35-build blocked on Polymarket US credentials; Q36 gated ~Jul-22 (`tape/weather_books/`
+  3/7 days); Q37 gated ~Aug-05; Q42 part 3 BLOCKED(needs-auth); Q43 gated ~Jul-23/24
+  (`tape/perp_tape/` 2/7 days); Q21 idea-gen round already completed today. This is the
+  sixth idle run of the day.
+- **Step 0b stranded-tape sweep:** the two newest `tape/hourly-*` branches
+  (`20260718T0059Z`, `20260718T0403Z`) are unchanged from PR #115's check and were already
+  fully swept (PR #111/#113/#114 chain) — nothing new.
+- **Idle-run policy (a):** converted UNENFORCED lesson **L64** (a "post-close" population
+  keyed off a sports ticker's embedded HHMM token read as UTC silently mislabels most of the
+  population as post-close when it's actually pre-close — Q25's `post_close` bucket was
+  99.86% mislabeled this way, understated by up to +24.33h) into an importable helper. L64's
+  own candidate wording asked for exactly this: "a `core/`-level close-time helper so future
+  probes don't reach for the ticker token by reflex." Extracted `scripts/
+  q29_settlement_lag_probe.py`'s own `parse_sports_ticker_hhmm_as_utc`/`is_coarse_close_time`
+  (byte-identical logic) into `core/timeutil.py` and re-pointed the script to import them —
+  zero behavior change, its own `tests/test_q29_settlement_lag_probe.py` (which calls these
+  as `q29.<name>`) passes unmodified. Added `core.timeutil.is_genuine_post_close(captured_at,
+  close_dt, tz_uncertainty_hours=13.0, max_game_duration_hours=6.0)`, encoding the actual
+  discipline (gate on the `broker_truth` settlement `close_time` plus a conservative
+  tz-uncertainty-plus-game-duration margin; `None` on a coarse/date-only close) as one
+  importable call, plus a `.claude/agents/edge-prober.md` house-style paragraph naming it for
+  any future post-close/settlement-lag-adjacent probe (S28-adjacent family) — same signpost
+  pattern as L45→L49, L59→L94, L76→L93, L47→L95, L39→L98, L86→L99, L90→L100. New lesson row
+  **L101** supersedes L64's enforcement column (content unchanged, ledger append-only). No
+  retrofit of Q29's already-run, already-DEAD verdict.
+- No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent
+  verifier rule does not apply (importable-helper build, same class as the L39→L98/L86→L99/
+  L90→L100 precedent, not a verdict-class change).
+- **Step 9 paper sub-pass:** `SHADOW_REGISTRY`={s14_ladder_underwriting} only. `paper_pass.py`
+  idempotent this run (0 newly processed, 242 deferred(caps), 222 deferred(coverage), 58
+  already-in-ledger), realized P&L unchanged **+$10.23** (`broker_truth`).
+- **Gates:** `pytest -q` → 1216 passed (1205 prior + 11 new). `python scripts/invariants.py
+  --full` → green (only the pre-existing non-gating L25/L74 advisories).
+- See `tests/test_timeutil.py`, `core/timeutil.py`, `.claude/agents/edge-prober.md`,
+  `kb/lessons/00-lessons.md` L101.
+
 ## 2026-07-18 12:1x ET — Idle-run: L90→L100 shared Kalshi `_dollars`/`_fp` field parser (no new stranded tape)
 
 - **kalshi-research-loop cloud run.** Step 0a PASS — local `main` matched `origin/main` HEAD

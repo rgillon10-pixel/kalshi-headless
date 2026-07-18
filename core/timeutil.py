@@ -84,6 +84,7 @@ def parse_kalshi_ts(value) -> Tuple[datetime, str]:
 
 _CRYPTO_HOUR_TOKEN_RE = re.compile(r"^\d{2}[A-Za-z]{3}\d{2}\d{2}$")
 _ET_ZONE = ZoneInfo("America/New_York")
+_SPORTS_TICKER_HHMM_RE = re.compile(r"-(\d{2})([A-Z]{3})(\d{2})(\d{2})(\d{2})[A-Z0-9]+-")
 
 
 def parse_crypto_hour_token_close_utc(token: str):
@@ -104,3 +105,60 @@ def parse_crypto_hour_token_close_utc(token: str):
         return None
     local = naive.replace(tzinfo=_ET_ZONE)
     return local.astimezone(UTC)
+
+
+def parse_sports_ticker_hhmm_as_utc(ticker: str):
+    """Parse a sports ticker's embedded date+HHMM token (e.g. the mid segment of
+    'KXNPBGAME-26JUL110500YOMYOK-YOK') AS IF it were UTC.
+
+    This reading is tz-AMBIGUOUS (kb/lessons L46 — league-local, not independently
+    verifiable, up to ~13h off) and must NEVER drive a trade decision or a "post-close"
+    population definition on its own (kb/lessons L64: Q25's ticker-HHMM-as-UTC `post_close`
+    sports-depth bucket was 99.86% mislabeled — actually still pre-close under the real
+    settlement `close_time`, median understatement +7.07h, max +24.33h). Use it only as a
+    descriptive contrast; see `is_genuine_post_close` for the real gate. Returns a tz-aware
+    UTC datetime, or None on a grammar mismatch / out-of-range time.
+    """
+    m = _SPORTS_TICKER_HHMM_RE.search(ticker or "")
+    if not m:
+        return None
+    yy, mon, dd, hh, mm = m.groups()
+    try:
+        return datetime.strptime(f"{yy}{mon}{dd}{hh}{mm}", "%y%b%d%H%M").replace(tzinfo=UTC)
+    except ValueError:
+        return None
+
+
+def is_coarse_close_time(close_dt) -> bool:
+    """A date-only / coarse-resolution close: a 23:59 or exact-midnight UTC clamp whose
+    intra-day close is unknowable. `None` is treated as coarse (can't place a capture
+    relative to close without lookahead). Gate 1 of the L64 post-close discipline."""
+    if close_dt is None:
+        return True
+    if close_dt.hour == 23 and close_dt.minute == 59:
+        return True
+    if close_dt.hour == 0 and close_dt.minute == 0 and close_dt.second == 0:
+        return True
+    return False
+
+
+def is_genuine_post_close(captured_at, close_dt, tz_uncertainty_hours: float = 13.0,
+                          max_game_duration_hours: float = 6.0):
+    """Whether `captured_at` is conservatively, lookahead-safely past a sports market's REAL
+    close (kb/lessons L64/L65).
+
+    Never derive "post-close" from a ticker's embedded HHMM token alone — it is
+    tz-ambiguous (league-local, up to ~13h off; see `parse_sports_ticker_hhmm_as_utc`) and
+    using it as-UTC silently mislabels the majority of a population as post-close when it is
+    actually still pre-close (L64: 99.86% of one such bucket, understated by up to +24.33h).
+    The reliable anchor is the market's `broker_truth` settlement `close_time`; even that
+    needs a conservative margin (tz uncertainty + a generous max game duration) so the
+    determination holds under the worst-case tz mis-statement.
+
+    Returns None if `close_dt` is missing or coarse (date-only / midnight-clamped — intra-day
+    close unknowable; see `is_coarse_close_time`), True/False otherwise.
+    """
+    if is_coarse_close_time(close_dt):
+        return None
+    hours_past_close = (captured_at - close_dt).total_seconds() / 3600.0
+    return hours_past_close >= (tz_uncertainty_hours + max_game_duration_hours)

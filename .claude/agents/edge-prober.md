@@ -113,6 +113,16 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   -0.0453 to -0.0152 — same sign, confirming the drop wasn't a thumb on the
   scale. A `sign_preserved=False` result means the verdict may be an artifact
   of the drop, not a real edge — investigate before reporting it.
+- Never derive a "post-close" / settlement-lag population from a sports
+  ticker's embedded HHMM token read as UTC (L64 — it is league-local and
+  tz-ambiguous by up to ~13h; Q25's ticker-HHMM-as-UTC `post_close` bucket was
+  99.86% mislabeled, actually still pre-close, understated by up to +24.33h).
+  Use `core.timeutil.is_genuine_post_close(captured_at, close_dt,
+  tz_uncertainty_hours=..., max_game_duration_hours=...)`, which gates on the
+  `broker_truth` settlement `close_time` plus a conservative margin (returns
+  `None` on a coarse/date-only close, per `is_coarse_close_time` — intra-day
+  close unknowable, exclude it rather than guess). `parse_sports_ticker_hhmm_as_utc`
+  is still there for a labeled descriptive CONTRAST only, never as the gate itself.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 
