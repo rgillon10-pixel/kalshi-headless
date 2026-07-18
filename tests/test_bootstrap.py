@@ -7,6 +7,7 @@ from core.bootstrap import (
     block_bootstrap,
     bootstrap_verdict_admissible,
     bracket_by_movement,
+    catastrophic_leg_drop_stress_check,
     clears_tick_magnitude,
     collapse_duration_gated_runs,
     decompose_edge_by_leg_volume,
@@ -295,6 +296,75 @@ def test_decompose_edge_by_leg_volume_empty_input_is_honest_not_a_crash():
 def test_decompose_edge_by_leg_volume_length_mismatch_raises():
     with pytest.raises(ValueError):
         decompose_edge_by_leg_volume([0.01, 0.02], [10])
+
+
+# ─── catastrophic_leg_drop_stress_check (L86) ───────────────────────────────
+
+def test_catastrophic_leg_drop_stress_check_the_s14_shape_sign_preserved():
+    # S14's Q34 verdict: 146 measurable event-hours mean -0.0453; crediting the 290
+    # winner-leg-unmeasurable event-hours with payout=0 (the most generous counterfactual)
+    # still moved the mean to -0.0152 — same sign. Approximate the shape at small n.
+    retained = [-0.0453] * 146
+    report = catastrophic_leg_drop_stress_check(retained, 290, generous_replacement_value=0.0)
+    assert report["reported_mean"] == pytest.approx(-0.0453)
+    assert report["stress_mean"] == pytest.approx(-0.0152, abs=1e-4)
+    assert report["n_retained"] == 146
+    assert report["n_dropped"] == 290
+    assert report["sign_preserved"] is True
+
+
+def test_catastrophic_leg_drop_stress_check_sign_flip_is_a_red_flag():
+    # A reported negative mean that flips positive once the dropped units are credited
+    # generously means the "drop" was doing the work, not the edge — sign_preserved must
+    # come back False, not silently pass.
+    retained = [-0.01, -0.01]
+    report = catastrophic_leg_drop_stress_check(retained, 8, generous_replacement_value=1.0)
+    assert report["reported_mean"] < 0
+    assert report["stress_mean"] > 0
+    assert report["sign_preserved"] is False
+
+
+def test_catastrophic_leg_drop_stress_check_zero_dropped_is_a_noop():
+    retained = [0.02, -0.01, 0.03]
+    report = catastrophic_leg_drop_stress_check(retained, 0)
+    assert report["stress_mean"] == pytest.approx(report["reported_mean"])
+    assert report["sign_preserved"] is True
+
+
+def test_catastrophic_leg_drop_stress_check_both_exact_zero_preserves():
+    report = catastrophic_leg_drop_stress_check([0.0, 0.0], 3, generous_replacement_value=0.0)
+    assert report["reported_mean"] == 0.0
+    assert report["stress_mean"] == 0.0
+    assert report["sign_preserved"] is True
+
+
+def test_catastrophic_leg_drop_stress_check_zero_vs_nonzero_does_not_preserve():
+    # reported_mean is exactly 0 (retained legs cancel) but crediting the dropped units at
+    # a nonzero value moves the stress mean off zero — signs differ, must not silently pass.
+    report = catastrophic_leg_drop_stress_check([0.05, -0.05], 2, generous_replacement_value=0.02)
+    assert report["reported_mean"] == 0.0
+    assert report["stress_mean"] != 0.0
+    assert report["sign_preserved"] is False
+
+
+def test_catastrophic_leg_drop_stress_check_empty_input_is_honest_none_not_a_crash():
+    report = catastrophic_leg_drop_stress_check([], 0)
+    assert report["reported_mean"] is None
+    assert report["stress_mean"] is None
+    assert report["sign_preserved"] is None
+    assert report["n_retained"] == 0
+    assert report["n_dropped"] == 0
+
+
+def test_catastrophic_leg_drop_stress_check_all_retained_dropped_none_still_defined():
+    # n_dropped=0 with a nonempty retained list must not return an undefined stress_mean.
+    report = catastrophic_leg_drop_stress_check([0.01], 0)
+    assert report["stress_mean"] == pytest.approx(0.01)
+
+
+def test_catastrophic_leg_drop_stress_check_negative_n_dropped_raises():
+    with pytest.raises(ValueError):
+        catastrophic_leg_drop_stress_check([0.01], -1)
 
 
 # ─── bootstrap_verdict_admissible (L41) ─────────────────────────────────────

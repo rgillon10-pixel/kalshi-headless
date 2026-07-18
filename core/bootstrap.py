@@ -276,3 +276,58 @@ def decompose_edge_by_leg_volume(leg_pnls: Sequence[float], leg_volumes: Sequenc
         "n_legs": len(leg_pnls),
         "n_thin_legs": len(thin_pnls),
     }
+
+
+def _sign(x: float) -> int:
+    return 0 if x == 0 else (1 if x > 0 else -1)
+
+
+def catastrophic_leg_drop_stress_check(retained_pnls: Sequence[float], n_dropped: int, *,
+                                        generous_replacement_value: float = 0.0) -> dict:
+    """The L86 stress-check: when a per-unit P&L carries a large, low-frequency
+    catastrophic leg (e.g. a binary payout on the rare adverse outcome) and some units
+    are DROPPED because that leg's measurability could not be resolved from the tape
+    (not because of their outcome), the drop is asymmetric — silently crediting an
+    unmeasurable LOSS with payout=0 fabricates a free win and biases the reported mean
+    upward. The honest move is to drop the unit entirely, then verify the drop pushed
+    the verdict in the CONSERVATIVE direction, never a favorable one. S14's Q34 verdict
+    ran exactly this check: crediting the 290 winner-leg-unmeasurable event-hours with
+    the most GENEROUS counterfactual toward the verdict (payout = 0, as if the
+    catastrophic leg never fired) still moved the mean from -0.0453 to -0.0152 — same
+    sign, confirming the drop was not a thumb on the scale.
+
+    `retained_pnls` is the caller's own per-unit net P&L for units where the
+    catastrophic leg was measurable (this function computes no P&L itself, same
+    discipline as `decompose_edge_by_leg_volume`). `n_dropped` is how many units were
+    excluded on that leg's measurability. `generous_replacement_value` is the
+    counterfactual value assigned to each dropped unit for the stress test (0.0 by
+    default — "the catastrophic leg never fired" is usually the most generous
+    assumption available; pass whatever your probe's actual most-favorable-to-the-
+    verdict counterfactual is).
+
+    Returns `reported_mean` (mean of `retained_pnls` alone, None if empty),
+    `stress_mean` (mean including the dropped units at `generous_replacement_value`,
+    None if there are no units at all), `n_retained`, `n_dropped`, and
+    `sign_preserved` (True iff both means are defined and share a sign — 0 counts as
+    its own sign, so two exact zeros preserve; None if either mean is undefined, an
+    honest unknown rather than a fabricated True/False).
+    """
+    if n_dropped < 0:
+        raise ValueError(f"n_dropped must be >= 0 (got {n_dropped})")
+    n_retained = len(retained_pnls)
+    reported_mean = (sum(retained_pnls) / n_retained) if n_retained else None
+    total_n = n_retained + n_dropped
+    stress_mean = (
+        (sum(retained_pnls) + generous_replacement_value * n_dropped) / total_n
+    ) if total_n else None
+    sign_preserved = (
+        _sign(reported_mean) == _sign(stress_mean)
+        if reported_mean is not None and stress_mean is not None else None
+    )
+    return {
+        "reported_mean": reported_mean,
+        "stress_mean": stress_mean,
+        "n_retained": n_retained,
+        "n_dropped": n_dropped,
+        "sign_preserved": sign_preserved,
+    }

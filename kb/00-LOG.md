@@ -6,6 +6,63 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 09:1x ET — Idle-run: L86→L99 catastrophic-leg-drop stress-check helper (no new stranded tape)
+
+- **kalshi-research-loop cloud run.** Step 0a PASS — local `main` reset cleanly to
+  `origin/main` HEAD `2c5a0c2` (session started HEAD-detached at the same commit, moved onto
+  a tracking `main`); merged PRs #109-#113 all present as ancestors (confirmed by commit
+  message/PR-number correlation in `git log`); newest `kb/00-LOG.md` entry (02:16 ET) and
+  newest `tape/*/dt=*` content both 2026-07-18 — no history rewind. Step 0: only open PR is
+  #77 (Ryan's stale queue-restock from 2026-07-15, already independently landed by later
+  runs — left untouched, as every prior run has flagged). Full Q0-Q46 re-scan reconfirmed 0
+  eligible TODO/IN-PROGRESS items: Q19 time-gated (WC final Jul-19 — tomorrow — burst tape
+  not yet captured; FOMC Jul-29), Q32/Q33/Q35-build blocked on Polymarket US credentials,
+  Q36 gated ~Jul-22 (`tape/weather_books/` 3/7 days), Q37 gated ~Aug-05, Q42 part 3
+  BLOCKED(needs-auth), Q43 gated ~Jul-23/24 (`tape/perp_tape/` 2/7 days), Q21 idea-gen round
+  last completed today 02:16 ET by the nightly edge-hunter (0 registered, S38/S39/S40 all
+  killed at idea stage). This is an idle run.
+- **Step 0b: stranded-tape sweep — nothing new.** The two `tape/hourly-2026071*` branches
+  still on the remote (`T0059Z`, `T0403Z`) were both already fully swept by the prior two
+  idle runs (PR #111, PR #113); a fresh per-family `comm`-based line-set diff against
+  current `main` for both branches found **0 missing lines** in any family. The 04:31/05:31/
+  06:30/07:30/08:30 UTC hourly passes all landed directly on `main` (visible in `git log`),
+  so no new branch was created since `T0403Z`.
+- **Idle-run policy (a): L86 → L99.** Converted UNENFORCED lesson L86 (the winner/
+  catastrophic-leg measurability asymmetry — when a per-unit P&L carries a large FIXED-LOSS
+  leg and some units are dropped on that leg's measurability, zeroing the dropped leg instead
+  of dropping the unit fabricates a free win and biases the mean positive; S14's own
+  verifier check credited the 290 winner-leg-unmeasurable event-hours with payout=0 and
+  confirmed the mean stayed negative, -0.0453 → -0.0152) into an importable helper:
+  `core.bootstrap.catastrophic_leg_drop_stress_check(retained_pnls, n_dropped,
+  generous_replacement_value=...)` recomputes the mean crediting the dropped units at the
+  caller's chosen generous counterfactual and reports `sign_preserved` (True iff the
+  reported and stress means share a sign; `None` if either is undefined — an honest unknown,
+  never a fabricated bool), reproducing S14's own one-off verifier arithmetic as a reusable
+  function. Added a `.claude/agents/edge-prober.md` house-style paragraph naming it for any
+  future probe whose P&L carries a fixed catastrophic leg — same importable-helper-plus-
+  signpost pattern as L39→L98 (`decompose_edge_by_leg_volume`), L76→L93
+  (`collapse_duration_gated_runs`), L59→L94 (`core.reversal.direction_precheck`
+  discoverability), and L47→L95 (`normalize_snapshot` docstring). 8 new tests in
+  `tests/test_bootstrap.py` (the S14-shape sign-preserved case, a sign-flip red-flag case,
+  zero-dropped no-op, both-exact-zero preserves, zero-vs-nonzero does-not-preserve,
+  empty-input honest-None, nonempty-retained-zero-dropped stays defined, negative-n_dropped
+  raises). New lesson row **L99** supersedes L86's enforcement column (content unchanged,
+  ledger append-only). No retrofit of `scripts/s14_queue_fillsim.py`'s already-run,
+  already-DEAD Q34 verdict — this helper is for the next probe with a fixed-catastrophic-leg
+  P&L.
+- No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent
+  verifier rule does not apply (importable-helper build, same class as the
+  L39→L98/L76→L93/L59→L94/L47→L95 precedent, not a verdict-class change).
+- **Step 9 — paper sub-pass.** `SHADOW_REGISTRY`={s14_ladder_underwriting} only.
+  `paper_pass.py` idempotent this run (0 newly processed, 242 deferred on caps, 222 deferred
+  on coverage, 58 already-in-ledger), realized P&L unchanged **+$10.23** (`broker_truth`).
+- Gates: `pytest` 1200 green (1192 prior + 8 new). `python scripts/invariants.py --full`
+  green (only pre-existing non-gating L25/L74 advisories, plus the two local
+  `tape/hourly-20260718T0059Z`/`T0403Z` refs noted above — both fully reconciled, no
+  action needed).
+
+---
+
 ## 2026-07-18 02:16 ET — Idle-run: stranded-tape sweep (1,777 lines) + L39→L98 income-leg-decomposition helper
 
 - **kalshi-research-loop cloud run.** Step 0a PASS — local `main` fast-forwarded cleanly to
