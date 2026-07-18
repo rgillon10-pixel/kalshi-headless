@@ -73,6 +73,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
+from core.kalshi_fields import parse_kalshi_numeric as _to_float
 
 TAPE = REPO_ROOT / "tape" / "settlement_ledger"
 
@@ -95,23 +96,9 @@ LEGACY_CACHE_PATHS = [
 SettleKey = Tuple[Optional[str], Optional[str], Optional[str], Optional[float]]
 
 
-# --------------------------------------------------------------------------- #
-# field parsing — Kalshi's settled /markets object uses `_fp` / `_dollars` string suffixes
-# --------------------------------------------------------------------------- #
-def _to_float(val: Any) -> Optional[float]:
-    """Parse a Kalshi `_fp` / `_dollars` string field to float; '', None, or unparseable -> None
-    (an absent number is honestly None, never a fabricated 0)."""
-    if val is None:
-        return None
-    if isinstance(val, (int, float)):
-        return float(val)
-    s = str(val).strip()
-    if not s:
-        return None
-    try:
-        return float(s)
-    except ValueError:
-        return None
+# field parsing (`_to_float`) — Kalshi's settled /markets object uses `_fp` / `_dollars`
+# string suffixes; the shared parser lives in `core/kalshi_fields.py` (L90/L100), imported
+# above under this module's existing internal name so callers/tests are unaffected.
 
 
 def _series_of(ticker: str, event_ticker: str) -> Optional[str]:

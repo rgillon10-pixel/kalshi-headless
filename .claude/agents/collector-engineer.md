@@ -37,6 +37,13 @@ you are extending. The house discipline (precedents:
   network in tests. Match the existing test style in `tests/`.
 - **Memory caps**: Kalshi's open-market universe is 10k+; unbounded pulls have
   blown 3GB RSS before. Cap and carry an honest truncation flag.
+- **Numeric field parsing**: Kalshi's `/markets` objects (open and settled)
+  carry prices/sizes as `_dollars`/`_fp`-suffixed STRINGS, not the bare key
+  names (`yes_ask_dollars`, `volume_fp`, `settlement_value_dollars`, ...) —
+  reading the bare key silently returns `None` for every row (L90). Parse via
+  `core.kalshi_fields.parse_kalshi_numeric` — don't re-derive `_to_float` per
+  collector, the exact duplication L100 collapsed out of
+  `settlement_ledger.py`/`universe_sweep.py`.
 
 Deliverables: the module + tests, one live smoke pass appended to tape (state
 its completeness line), and lesson candidates at the end of your final message

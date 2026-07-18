@@ -6,6 +6,55 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-18 12:1x ET — Idle-run: L90→L100 shared Kalshi `_dollars`/`_fp` field parser (no new stranded tape)
+
+- **kalshi-research-loop cloud run.** Step 0a PASS — local `main` matched `origin/main` HEAD
+  `1796bb9`; merged PRs #109-#114 all present as ancestors (confirmed by commit
+  message/PR-number correlation in `git log`, since squash-merge SHAs differ from each PR's
+  head branch commit); newest `kb/00-LOG.md` entry (09:1x ET) and newest `tape/*/dt=*` content
+  both 2026-07-18 — no history rewind. Step 0: only open PR is #77 (Ryan's stale
+  queue-restock from 2026-07-15, already independently landed by later runs — left untouched,
+  as every prior run has flagged). Full Q0-Q46 re-scan reconfirmed 0 eligible TODO/IN-PROGRESS
+  items: Q19 time-gated (WC final Jul-19 — tomorrow — burst tape not yet captured; FOMC
+  Jul-29), Q32/Q33/Q35-build blocked on Polymarket US credentials, Q36 gated ~Jul-22
+  (`tape/weather_books/` 3/7 days), Q37 gated ~Aug-05, Q42 part 3 BLOCKED(needs-auth), Q43
+  gated ~Jul-23/24 (`tape/perp_tape/` 2/7 days), Q21 idea-gen round last completed today
+  (2026-07-18) by the nightly edge-hunter (0 registered, S38/S39/S40 killed at idea stage).
+  This is an idle run.
+- **Step 0b: stranded-tape sweep — nothing new.** The two `tape/hourly-2026071*` branches
+  still on the remote (`T0059Z`, `T0403Z`) were both already fully swept by prior idle runs
+  (PR #111, #113, reconfirmed by PR #114); a fresh per-family `comm`-based line-set diff
+  against current `main` for both branches found **0 missing lines** in any family.
+- **Idle-run policy (a): L90 → L100.** Converted UNENFORCED lesson L90 (Kalshi's `/markets`
+  objects carry settlement/BBO numeric fields under `_dollars`/`_fp`-suffixed string keys, not
+  the bare names — a collector reading the bare key silently gets `None` for every row instead
+  of erroring) into an importable shared helper. Found the exact duplication L90's own wording
+  anticipated had already happened in production code: `collection/settlement_ledger.py` and
+  `collection/universe_sweep.py` each independently hand-rolled a byte-identical `_to_float`
+  (same body, near-identical docstring). Extracted `core/kalshi_fields.py`
+  (`parse_kalshi_numeric`) and re-pointed both collectors to import it under their existing
+  internal `_to_float` name — zero behavior change, both modules' own test suites (including
+  `test_settlement_ledger.py`'s direct `sl._to_float(...)` calls) pass unmodified. 5 new tests
+  in `tests/test_kalshi_fields.py` pin the shared implementation directly. Added a
+  `.claude/agents/collector-engineer.md` house-style bullet naming it for the next new
+  collector — same importable-helper-plus-signpost pattern as L39→L98
+  (`decompose_edge_by_leg_volume`), L76→L93 (`collapse_duration_gated_runs`), L59→L94
+  (`core.reversal.direction_precheck` discoverability), L47→L95 (`normalize_snapshot`
+  docstring), and L86→L99 (`catastrophic_leg_drop_stress_check`). New lesson row **L100**
+  supersedes L90's enforcement column (content unchanged, ledger append-only).
+- No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent
+  verifier rule does not apply (importable-helper build, same class as the
+  L39→L98/L76→L93/L59→L94/L47→L95/L86→L99 precedent, not a verdict-class change).
+- **Step 9 — paper sub-pass.** `SHADOW_REGISTRY`={s14_ladder_underwriting} only.
+  `paper_pass.py` idempotent this run (0 newly processed, 242 deferred on caps, 222 deferred
+  on coverage, 58 already-in-ledger), realized P&L unchanged **+$10.23** (`broker_truth`).
+- Gates: `pytest` 1205 green (1200 prior + 5 new). `python scripts/invariants.py --full`
+  green (only pre-existing non-gating L25/L74 advisories, plus the same two local
+  `tape/hourly-20260718T0059Z`/`T0403Z` refs noted by the prior run — both fully reconciled,
+  no action needed).
+
+---
+
 ## 2026-07-18 09:1x ET — Idle-run: L86→L99 catastrophic-leg-drop stress-check helper (no new stranded tape)
 
 - **kalshi-research-loop cloud run.** Step 0a PASS — local `main` reset cleanly to
