@@ -64,6 +64,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
+from core.kalshi_fields import parse_kalshi_numeric as _to_float
 
 TAPE = REPO_ROOT / "tape" / "universe_sweep"
 
@@ -74,23 +75,9 @@ MAX_CALLS = 20
 PAGE_LIMIT = 1000
 
 
-# --------------------------------------------------------------------------- #
-# field parsing — Kalshi's open /markets object uses `_dollars` / `_fp` string suffixes (L90)
-# --------------------------------------------------------------------------- #
-def _to_float(val: Any) -> Optional[float]:
-    """Parse a Kalshi `_dollars` / `_fp` string field to float; '', None, or unparseable -> None
-    (an absent number is honestly None, never a fabricated 0)."""
-    if val is None:
-        return None
-    if isinstance(val, (int, float)):
-        return float(val)
-    s = str(val).strip()
-    if not s:
-        return None
-    try:
-        return float(s)
-    except ValueError:
-        return None
+# field parsing (`_to_float`) — Kalshi's open /markets object uses `_dollars` / `_fp` string
+# suffixes (L90); the shared parser lives in `core/kalshi_fields.py` (L100), imported above
+# under this module's existing internal name so callers/tests are unaffected.
 
 
 def _series_of(ticker: str, event_ticker: str) -> Optional[str]:
