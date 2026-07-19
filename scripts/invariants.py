@@ -466,6 +466,84 @@ def tape_dir_shape_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Orphaned dir-shape GC classification (L109: non-gating, offline-safe advisory) ──
+
+def _tape_dir_shape_orphan_classification(tape_root: Path = ROOT / "tape") -> List[Tuple[str, str]]:
+    """For each directory-shaped `dt=<date>` entry (L25), classify it for GC dispatch —
+    L25's assert stops at "this is the wrong shape" and never says what to DO about one
+    (lesson L109: 3 such directories sat in `tape/sports_pairs/` for 9+ days after L25's
+    forward-collection fix, undetected because no check distinguished "safe to delete" from
+    "needs a human"). Two classes, both best-effort/offline (any exception on one entry is
+    swallowed and that entry is skipped, never poisoning the others):
+
+    - "superseded": a canonical `dt=<date>.jsonl` file for the SAME date already exists
+      alongside the directory -> the directory is pure post-fix debris, safe to delete.
+    - "unrecoverable": no canonical file for that date exists, and the family has at least
+      one canonical `.jsonl` day STRICTLY AFTER it -> forward collection has already moved
+      on, so this day will never self-heal via normal cadence; it is a permanently missing
+      day, not a pending one, and needs a human decision (backfill or accept the gap).
+
+    A directory whose date is >= the family's latest canonical day is deliberately left
+    unclassified (returned as neither) — collection may still be catching up to it, so
+    flagging it for GC/backfill would be premature. Returns sorted (label, classification)
+    pairs."""
+    out: List[Tuple[str, str]] = []
+    try:
+        if not tape_root.is_dir():
+            return out
+        for family_dir in sorted(p for p in tape_root.iterdir() if p.is_dir()):
+            try:
+                canonical_days = sorted(
+                    date.fromisoformat(p.name[len("dt="):-len(".jsonl")])
+                    for p in family_dir.glob("dt=*.jsonl")
+                    if p.is_file()
+                )
+            except Exception:
+                canonical_days = []
+            latest_canonical = canonical_days[-1] if canonical_days else None
+            canonical_set = set(canonical_days)
+            for entry in sorted(family_dir.glob("dt=*")):
+                if not entry.is_dir():
+                    continue
+                label = f"{family_dir.name}/{entry.name}"
+                try:
+                    entry_date = date.fromisoformat(entry.name[len("dt="):])
+                except Exception:
+                    continue
+                if entry_date in canonical_set:
+                    out.append((label, "superseded"))
+                elif latest_canonical is not None and entry_date < latest_canonical:
+                    out.append((label, "unrecoverable"))
+                # else: at/after the family's latest day — collection may still be
+                # catching up, deliberately left unclassified (L109 scope).
+        return out
+    except Exception:
+        return []
+
+
+def tape_dir_shape_orphan_warning(classified: List[Tuple[str, str]]) -> Optional[str]:
+    """A non-gating advisory summarizing GC-actionable directory-shaped `dt=<date>` orphans,
+    else None. Pure."""
+    if not classified:
+        return None
+    superseded = [label for label, cls in classified if cls == "superseded"]
+    unrecoverable = [label for label, cls in classified if cls == "unrecoverable"]
+    parts = []
+    if superseded:
+        ex = ", ".join(superseded[:3]) + (", ..." if len(superseded) > 3 else "")
+        parts.append(f"{len(superseded)} SUPERSEDED (safe to delete: canonical .jsonl already exists — e.g. {ex})")
+    if unrecoverable:
+        ex = ", ".join(unrecoverable[:3]) + (", ..." if len(unrecoverable) > 3 else "")
+        parts.append(f"{len(unrecoverable)} UNRECOVERABLE (collection has moved past this day, permanently missing — e.g. {ex})")
+    if not parts:
+        return None
+    return (
+        "warning (non-gating): GC dispatch for directory-shaped tape/<family>/dt=<date> "
+        "orphans (L25 flags the wrong shape; this classifies what to do about it): "
+        + "; ".join(parts) + ". See kb/lessons/00-lessons.md L109."
+    )
+
+
 # ─── Daily-cadence family gap warning (L74: non-gating, offline-safe advisory) ────
 
 # The 3 tape families `collection/hourly_pass.py` gates to a single `now.hour == 9` UTC
@@ -598,6 +676,11 @@ def main() -> int:
         shape_warning = tape_dir_shape_warning(_tape_dir_shape_issues())
         if shape_warning:
             sys.stderr.write(shape_warning + "\n")
+        # L109 advisory: classify directory-shaped dt=<date> orphans for GC dispatch
+        # (superseded-by-canonical-file vs permanently-unrecoverable). Non-gating.
+        orphan_warning = tape_dir_shape_orphan_warning(_tape_dir_shape_orphan_classification())
+        if orphan_warning:
+            sys.stderr.write(orphan_warning + "\n")
         # L74 advisory: surface missing calendar days in the single-hour-gated daily-cadence
         # families. Non-gating — printed to stderr only.
         gap_warning = daily_family_gap_warning(_daily_family_gap_issues())

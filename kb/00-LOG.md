@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 17:15 ET — Idle-run (option a): L109→L110 dir-shape orphan GC classification + 21,900-line stranded-tape sweep
+
+Idle-run per protocol v3: full Q0-Q46 re-scan found 0 eligible TODO/IN-PROGRESS items. Q19's
+WC-final burst-capture window (`kalshi-burst-wcfinal-0719`, 20:10→22:45Z) was still OPEN at this
+run's start (21:09Z) — the per-event analysis fires the run AFTER the burst lands, not mid-window,
+so it stays not-yet-eligible this cycle; everything else remains date-gated/blocked as before.
+
+**Step 0b — stranded-tape sweep.** `tape/hourly-20260719T1856Z` (pushed 19:04Z) carried 21,900
+genuinely-missing lines (comm -13 set-diff, zero reverse-direction — pure append): 20,000
+`universe_sweep`, 1,089 `orderbook_depth`, 530 `weather_books`, 232 `sports_pairs`, 17 `perp_tape`,
+15 `polymarket_macro_pairs`, 2 `crypto_hourly`. All JSON-validated.
+
+**Idle-policy (a) — L109→L110.** The prior run (PR #129) deliberately left its new lesson L109
+`UNENFORCED`/PROVISIONAL — an audit/invariant for orphaned directory-shaped `dt=` days beyond
+L25's plain shape-check. Built that: `scripts/invariants.py::_tape_dir_shape_orphan_classification()`
+/ `tape_dir_shape_orphan_warning()` (same non-gating stderr-advisory pattern as L25/L75) classifies
+each directory-shaped `dt=<date>` entry as **superseded** (a canonical `.jsonl` for the same date
+already coexists → pure post-fix debris, safe to delete) or **unrecoverable** (no canonical file
+for that date, and the family has captured a later day → forward collection has moved on, this
+day can never self-heal, needs a human) — a directory at/after the family's newest canonical day
+is deliberately left unclassified since collection may still be mid-write. 9 new tests, including
+a ground-truth regression against the real tree. Live result matches L109's finding exactly:
+`crypto_hourly/dt=2026-07-10` + `sports_pairs/dt=2026-07-10` → superseded (2, safe to delete);
+`sports_pairs/dt=2026-07-02` + `dt=2026-07-09` → unrecoverable (2, permanently lost, `orderbook_depth`
+also missing 07-09). New lesson **L110** supersedes L109 (`UNENFORCED` → `invariant (non-gating
+advisory)`). **Judgment call flagged for Ryan, not acted on:** the 2 `superseded` directories are
+now confirmed safe to delete but this run did NOT delete them — detection/dispatch only, same
+posture as L75 not backfilling the gaps it detects.
+
+No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent verdict
+rule does not apply (non-gating advisory/detection code, not a verdict-class change).
+
+`pytest -q` 1253 green (1244 prior + 9 new). `python scripts/invariants.py --full` green (only
+pre-existing non-gating L17/L25/L74 advisories plus the new L109-classification advisory itself,
+which is non-gating and simply confirms its own live counts). Step 9 paper sub-pass idempotent
+even against the freshly-appended tape (0 newly processed), realized P&L unchanged **+$11.65**
+(`broker_truth`; s14 stays DEAD-at-real-fills per Q34 — proxy P&L, not a proven edge).
+
+Finding/lesson: `kb/lessons/00-lessons.md` L110. git/PR is the coordinator's to finish.
+
+---
+
 ## 2026-07-19 14:18 ET — Idle-run (option c): sports_pairs data-quality + join-adequacy deep-dive
 
 Idle-run per protocol v3: queue fully DONE/BLOCKED/date-gated, and today's three (a) picks

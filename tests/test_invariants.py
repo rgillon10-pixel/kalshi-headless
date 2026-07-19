@@ -195,6 +195,89 @@ def test_tape_dir_shape_warning_never_gates_exit_code(monkeypatch, capsys):
     assert "invariants: all green" in captured.out
 
 
+# ─── dir-shape orphan GC classification (L109: non-gating advisory) ───────────
+
+def test_orphan_classification_superseded_when_canonical_file_coexists(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "sports_pairs"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-10").mkdir()
+    (fam / "dt=2026-07-10.jsonl").write_text("{}\n")
+    (fam / "dt=2026-07-11.jsonl").write_text("{}\n")
+    out = inv._tape_dir_shape_orphan_classification(tape_root)
+    assert out == [("sports_pairs/dt=2026-07-10", "superseded")]
+
+
+def test_orphan_classification_unrecoverable_when_no_canonical_file_and_collection_moved_on(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "sports_pairs"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-09").mkdir()
+    (fam / "dt=2026-07-11.jsonl").write_text("{}\n")
+    out = inv._tape_dir_shape_orphan_classification(tape_root)
+    assert out == [("sports_pairs/dt=2026-07-09", "unrecoverable")]
+
+
+def test_orphan_classification_unclassified_when_directory_is_the_newest_day(tmp_path):
+    # Collection may still be mid-write for the newest day — never flag it for GC/backfill.
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "sports_pairs"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-11.jsonl").write_text("{}\n")
+    (fam / "dt=2026-07-12").mkdir()
+    out = inv._tape_dir_shape_orphan_classification(tape_root)
+    assert out == []
+
+
+def test_orphan_classification_clean_tree_is_empty(tmp_path):
+    tape_root = tmp_path / "tape"
+    (tape_root / "crypto_hourly").mkdir(parents=True)
+    (tape_root / "crypto_hourly" / "dt=2026-07-03.jsonl").write_text("{}\n")
+    assert inv._tape_dir_shape_orphan_classification(tape_root) == []
+
+
+def test_orphan_classification_missing_tape_root_is_empty(tmp_path):
+    assert inv._tape_dir_shape_orphan_classification(tmp_path / "does-not-exist") == []
+
+
+def test_orphan_warning_none_when_empty():
+    assert inv.tape_dir_shape_orphan_warning([]) is None
+
+
+def test_orphan_warning_message_content():
+    msg = inv.tape_dir_shape_orphan_warning([
+        ("sports_pairs/dt=2026-07-10", "superseded"),
+        ("sports_pairs/dt=2026-07-09", "unrecoverable"),
+    ])
+    assert msg is not None
+    assert "SUPERSEDED" in msg
+    assert "UNRECOVERABLE" in msg
+    assert "sports_pairs/dt=2026-07-10" in msg
+    assert "sports_pairs/dt=2026-07-09" in msg
+    assert "L109" in msg
+
+
+def test_orphan_warning_never_gates_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(inv, "_tape_dir_shape_orphan_classification",
+                         lambda: [("fake_family/dt=2026-01-01", "unrecoverable")])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "UNRECOVERABLE" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_orphan_classification_matches_real_committed_tree():
+    # Ground-truth regression for the exact L109 finding: sports_pairs' dt=2026-07-10
+    # directory coexists with a canonical file (superseded); dt=2026-07-02/07-09 have none
+    # and collection has since moved on (unrecoverable).
+    out = dict(inv._tape_dir_shape_orphan_classification())
+    assert out.get("sports_pairs/dt=2026-07-10") == "superseded"
+    assert out.get("sports_pairs/dt=2026-07-02") == "unrecoverable"
+    assert out.get("sports_pairs/dt=2026-07-09") == "unrecoverable"
+
+
 # ─── daily-cadence family gap warning (L74: non-gating advisory) ──────────────
 
 def test_daily_family_gap_warning_none_when_empty():
