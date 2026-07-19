@@ -6,6 +6,40 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 05:40 ET — Idle-run (policy a): L68→L106 maker-spread-over-depth-only idea-stage-kill guardrail encoded
+
+Idle research-loop run, sub-policy (a): convert the true lowest-numbered still-open UNENFORCED
+lesson into its sanctioned enforcement shape. Independently re-ran the L102/L104 whole-file
+whole-word grep discipline over every `UNENFORCED`-bearing ledger row: L5/L7/L22/L25/L39/L45/L47/
+L51/L59/L64/L65/L74/L76/L86/L90 are all genuinely closed by later rows; L27/L28/L32 are
+helper-built AND charter-named. L52/L92's remaining "escalate to a static invariant" thread was
+inspected and recorded as a **false start** — `result == "yes"/"no"` is read without an adjacent
+scalar guard in 9 legacy/verdicted scripts, so a gating scanner would false-gate frozen historical
+code and an allowlist of all of them is the L30/L19 dishonest-theater anti-pattern; L52 stays
+honestly terminal (test-pinned at L92) and is skipped, documented in L106 so the next idle run does
+not re-attempt it. That left **L68** as the true lowest genuinely-open, cleanly-convertible row
+(its L88/L96 mentions are sibling citations, not supersessions; it was absent from the charter).
+Encoded L68 as a `.claude/agents/edge-prober.md` house-style idea-stage-kill bullet in the
+L65/L104 cluster: a maker-spread / spread-capture candidate whose only data leg is
+`tape/orderbook_depth/` is toxicity-untestable by construction (resting-depth snapshots only, no
+trade/volume/last-price fields → the L41 adverse-selection CI is unconstructible), so reject it at
+the IDEA stage rather than register it as untestable (which burns a research-loop probe); the
+bullet cross-references `core.depth.capturable_depth` (L67, L44) for the sibling
+two-sided-depth-illusion check. Appended lessons row **L106** (supersedes L68's enforcement column,
+**protocol, encoded**). No strategy claim, no registry flip — `kb/strategies/00-index.md` untouched;
+two-agent verdict rule N/A (doc-tier encoding, not a verdict-class change). Gates independently
+re-verified by the research-loop main session (not just agent-reported): `pytest -q` **1228 passed**
+(unchanged — docs-only), `python scripts/invariants.py --full` exit 0 (only the pre-existing
+non-gating stranded-tape / tape-dir-shape / daily-family advisories on stderr). Step 9 paper
+sub-pass: `SHADOW_REGISTRY`={s14_ladder_underwriting} only, idempotent (0 processed, 233
+deferred-caps, 222 deferred-coverage, 67 already-in-ledger), realized P&L unchanged **+$11.65**
+(`broker_truth`; s14 stays DEAD-at-real-fills per Q34 — proxy P&L, not an edge). Step 0b: fetched
+every `tape/hourly-*`/`tape/burst-*` branch and line-set-diffed the four still-recent ones against
+current `main` — zero genuinely-missing lines, nothing to sweep this run (already absorbed by PRs
+#120/#121).
+
+---
+
 ## 2026-07-19 04:15 ET — kalshi-edge-hunter (nightly): adversarial review (2 findings, both CONFIRMED) + Q21 round (S41/S42 killed, 0 registered, L105) + 1,663-line tape sweep
 
 Step 0a PASS: recent merged-PR commits (`c635ae4`/`428a4d6`/`abb7c8f`/`46519a7`/`0c01a0b`) are all
