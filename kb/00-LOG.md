@@ -6,6 +6,80 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 04:15 ET — kalshi-edge-hunter (nightly): adversarial review (2 findings, both CONFIRMED) + Q21 round (S41/S42 killed, 0 registered, L105) + 1,663-line tape sweep
+
+Step 0a PASS: recent merged-PR commits (`c635ae4`/`428a4d6`/`abb7c8f`/`46519a7`/`0c01a0b`) are all
+ancestors of `origin/main`; newest `kb/00-LOG.md` entry and newest `tape/*/dt=*` content both
+2026-07-19 (0-day gap). The fresh clone's stale `69a3d3f` base fast-forwarding to HEAD `c635ae4` is
+the normal clone-base gap, not a rewind. Step 0: only open PR is #77 (Ryan's stale 2026-07-15
+queue-restock, 4 days old — under the 5-day threshold and flagged by every prior run, so NOT
+re-flagged).
+
+**Unit 1 — adversarial review (re-check one load-bearing number per last-24h finding).** Two
+number-bearing findings fell in the window, both re-checked against the actual committed tape:
+- `findings/2026-07-18-q21-idea-gen-round.md`'s load-bearing S39 kill / L96 collector-bug claim
+  ("`volume_24h` ≡ 0 on all census rows"): reproduced over the now-180,000-row `universe_sweep`
+  census — `volume_24h` is nonzero on exactly **1/180,000** (all-zero over the original 100k the
+  finding measured), while `volume`/`open_interest` ARE populated on ~20k rows. **CONFIRMED** — the
+  S39 kill holds and the collector bug (wrong source-field mapping) is real.
+- `findings/2026-07-18-weather-books-tape-audit.md`'s load-bearing clean-day count (gates Q36/Q37):
+  reproduced by FILE SHAPE (L25) — **07-17 is the only clean hourly day** (UTC hours 00–23, no
+  intra-span gaps), 07-18 is broken (gaps at hours 09–12/14–18/20–21, VPS stall), 07-16 day-1
+  partial, 07-19 in progress (1 pass at capture time, degraded pipe). **CONFIRMED.**
+
+Both re-checks PASS — no GitHub issue opened.
+
+**Unit 2 — Q21 replenishment.** Eligible (TODO/unclaimed/**gate-open**) research items = 0
+(FILE-SHAPE-verified: Q19 burst tape not yet captured, Q36/Q37/Q43 time-gated, Q32/Q33/Q35-build/
+Q42-part3 credential/auth-blocked, all Sx probes DONE-DEAD). Proposed 2 candidates, both KILLED at
+idea stage by an independent `verifier`:
+- **S41** (full-universe SIMULTANEOUS within-event overround-underflow arb scan over
+  `tape/universe_sweep/`): `universe_sweep.v1` lacks strike-ladder fields
+  (`strike_type`/`floor_strike`/`cap_strike`/`yes_ask_dollars`), so `anomaly_sweep.check_bracket_arb`
+  cannot run on it; and its sub-$1 Σ`yes_ask` groups are no-offer artifacts — over `dt=2026-07-19`
+  (20k rows, 1 `capture_id`) 1,565/2,441 multi-market groups sum below $1 but **0/1,565 are fillable,
+  1,537 are all-zeros** (the L96/S38 illiquidity floor restated for the full-universe census).
+- **S42** (perp funding-clamp reversion carry): the ±1bp funding dead-band is a persistent/
+  near-absorbing state, not a coiled spring — after a zero print the next is zero again BTC 85% /
+  ETH 87% / SOL 95%, no reversion signal; plus it needs holding a leveraged perp outside the binary/
+  `real_ask` fill discipline (no fill model, L58) and duplicates Q43.
+
+0 registered (the 5th round in a week, 4 registering 0 — no new tape surface since the 07-18 round;
+never pad to quota). S41/S42 consumed → next free = S43. New lesson **L105** (generalizes L96: the
+census can't feed the bracket-arb check; its sub-$1 sums are no-offer artifacts). Recorded at the
+documentation tier — the edge-hunter leaves `.claude/agents` for Ryan-review, so the edge-prober.md
+house-style bullet is left for a future research-loop idle run. See
+`findings/2026-07-19-q21-idea-gen-round.md`.
+
+**Unit 3 — probe-prep.** Nearest time-gate is Q19 (WC final tonight ~19:00Z); its burst harness
+(`scripts/s17_leadlag_probe.py`, `scripts/s9_shock_eventstudy.py`) is already built, so tonight's
+per-event run only executes. Q36 unblocks ~Jul-22 (naive) but is design-blocked on an intraday-KNYC
+actuals source the daily `weather_actuals` feed lacks; Q43 ~Jul-23/24 is outside 72h. No new build
+needed this run.
+
+**Step 0b — stranded-tape sweep.** The three fresh 07-19 branches were <30min at first check;
+`tape/hourly-202607190403Z` (a strict superset of 0356/0400Z) crossed the 30-min rule and a
+line-level set-diff (not a byte/stat count) found **1,663 genuinely-missing lines** `main` lacked:
+1,116 `orderbook_depth`, 530 `weather_books` (a second 07-19 hourly pass), 17 `perp_tape`
+(crypto_hourly/polymarket_macro_pairs/sports_pairs were already fully in `main`). All JSON-validated
+(0 parse failures), pure append, no reorder.
+
+**Housekeeping.** 3 passed-event burst triggers (`kalshi-burst-cpi-0714`/`wcsemi1-0714`/
+`wcsemi2-0715`) are still present — an agent cannot delete http_api-created routines (only Ryan can),
+so named for his manual deletion; `wcsemi2` is still ENABLED and would misfire 2027-07-15.
+`kalshi-burst-wcfinal-0719` (tonight) and `-fomc-0729` (future) stay. 164 stranded `tape/hourly-*` +
+1 `tape/burst-*` ref-branches remain (their data is already in `main` — empty content diffs; the refs
+are undeletable from a cloud session).
+
+Gates: `pytest` **1228 passed** (rc=0), `python scripts/invariants.py --full` green (only pre-existing
+non-gating advisories). No registry change, `kb/strategies/00-index.md` untouched — two-agent verdict
+rule N/A (idea-stage kills + tape sweep + doc-tier lesson, not a verdict-class change). Step 9:
+`SHADOW_REGISTRY`={s14_ladder_underwriting} only; `paper_pass.py` idempotent (0 newly processed),
+realized P&L unchanged **+$11.65** (`broker_truth`; s14 is DEAD-at-real-fills per Q34 — proxy P&L,
+not an edge).
+
+---
+
 ## 2026-07-19 03:2x ET — Idle-run: stranded-tape sweep (22,019 lines, first 07-19 tape) + L65->L104 post-close-pickoff idea-stage-kill guardrail
 
 Step 0a PASS: the sandbox's local `main` ref was stale (`69a3d3f`, dated 2026-07-16); `git fetch
