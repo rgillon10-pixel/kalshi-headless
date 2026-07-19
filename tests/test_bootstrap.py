@@ -11,6 +11,7 @@ from core.bootstrap import (
     clears_tick_magnitude,
     collapse_duration_gated_runs,
     decompose_edge_by_leg_volume,
+    disagreement_subset_calibration,
     floor_pinned_fraction,
 )
 
@@ -443,3 +444,67 @@ def test_admissible_zero_mean_unit_is_not_a_losing_cluster():
     assert report["admissible"] is False
     assert report["reasons"] == ["no_opposing_unit"]
     assert report["n_opposing_units"] == 0
+
+
+# ─── disagreement_subset_calibration (L51) ──────────────────────────────────
+
+def test_disagreement_complementarity_identity_holds_on_strict_subset():
+    # L51 headline: on a strict two-way disagreement subset the two accuracies are
+    # mechanically complementary — signal_accuracy == 1 - mid_accuracy, exactly.
+    hit_mid = [True, True, True, False, False]
+    hit_signal = [not m for m in hit_mid]
+    report = disagreement_subset_calibration(hit_signal, hit_mid)
+    assert report["is_strict_two_way"] is True
+    assert report["signal_accuracy"] == pytest.approx(1 - report["mid_accuracy"])
+    assert report["mid_accuracy"] + report["signal_accuracy"] == pytest.approx(1.0)
+
+
+def test_disagreement_rows_are_pointwise_negations_on_strict_subset():
+    # (b) the per-row invariant hit_signal[i] == (not hit_mid[i]) that makes the
+    # complementarity mechanical, not statistical.
+    hit_mid = [True, False, True, False, True, True]
+    hit_signal = [not m for m in hit_mid]
+    report = disagreement_subset_calibration(hit_signal, hit_mid)
+    assert report["violating_indices"] == []
+    for s, m in zip(hit_signal, hit_mid):
+        assert bool(s) == (not bool(m))
+
+
+def test_disagreement_regression_reproduces_q26_s22_numbers():
+    # (c) Q26/S22's cited disagreement-subset numbers: mid 72.1% vs signal 27.9%.
+    # Construct a strict two-way subset with 721 mid-wins and 279 signal-wins.
+    hit_mid = [True] * 721 + [False] * 279
+    hit_signal = [not m for m in hit_mid]
+    report = disagreement_subset_calibration(hit_signal, hit_mid)
+    assert report["mid_accuracy"] == pytest.approx(0.721)
+    assert report["signal_accuracy"] == pytest.approx(0.279)
+    # The illusion L51 warns against: treating 0.721 and 0.279 as two independent
+    # measurements. They are one number — they sum to exactly 1.0 by construction.
+    assert report["mid_accuracy"] + report["signal_accuracy"] == pytest.approx(1.0)
+    assert report["is_strict_two_way"] is True
+
+
+def test_disagreement_violating_indices_catches_non_strict_row():
+    # (d) a row where BOTH are True cannot come from a strict directional two-way
+    # partition — it proves the "disagreement subset" leaked a non-two-way / non-
+    # directional observation. Report it, do not raise.
+    hit_mid = [True, False, True]
+    hit_signal = [False, True, True]  # index 2 violates (both True)
+    report = disagreement_subset_calibration(hit_signal, hit_mid)
+    assert report["is_strict_two_way"] is False
+    assert report["violating_indices"] == [2]
+    # accuracies are still reported honestly over all rows
+    assert report["n"] == 3
+
+
+def test_disagreement_empty_input_is_honest_not_crashing():
+    # (e) empty input → honest empty report, matching the sibling helpers' discipline.
+    report = disagreement_subset_calibration([], [])
+    assert report == {"n": 0, "mid_accuracy": None, "signal_accuracy": None,
+                      "is_strict_two_way": True, "violating_indices": []}
+
+
+def test_disagreement_length_mismatch_raises():
+    # (f) a length mismatch is a caller bug, not silent misalignment.
+    with pytest.raises(ValueError):
+        disagreement_subset_calibration([True, False], [True])

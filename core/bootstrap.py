@@ -1,4 +1,4 @@
-"""Shared block-bootstrap + verdict-gate helpers — compounding L6/L27/L28/L32/L41 into code.
+"""Shared block-bootstrap + verdict-gate helpers — compounding L6/L27/L28/L32/L41/L51 into code.
 
 Every probe so far (`s6_maker_firstcut.py`, `s10_reachability_probe.py`,
 `s7c_sports_clv_bootstrap.py`, ...) has hand-rolled its own block bootstrap. That
@@ -275,6 +275,65 @@ def decompose_edge_by_leg_volume(leg_pnls: Sequence[float], leg_volumes: Sequenc
         "threshold": thin_volume_threshold,
         "n_legs": len(leg_pnls),
         "n_thin_legs": len(thin_pnls),
+    }
+
+
+def disagreement_subset_calibration(hit_signal: Sequence[bool], hit_mid: Sequence[bool], *,
+                                    tol: float = 1e-9) -> dict:
+    """The L51 framing guardrail: a "does signal X beat the mid" calibration precheck run
+    on a DISAGREEMENT subset (both directional, X's call != the mid's call) produces two
+    hit rates that are mechanically COMPLEMENTARY on a strict two-way market — `hit_signal[i]
+    == (not hit_mid[i])` for every row, so `signal_accuracy == 1 - mid_accuracy` and the two
+    numbers sum to exactly 1.0. They are NOT two independent measurements. Q26/S22's
+    disagreement-subset numbers (signal 27.9% vs mid 72.1%) looked like a hidden contrarian
+    edge until the verifier confirmed the arithmetic identity: X can only "beat the mid" here
+    if the mid is <50% accurate exactly where they disagree — a bar a liquid, calibrated
+    2-way market essentially never fails, and sign-flipping X on this subset just reproduces
+    betting the mid (zero independent edge either direction).
+
+    Headline guidance (report it this way, per L51): report the single statistic
+    "mid accuracy where they disagree = X%", NOT two independent hit rates — quoting both
+    `mid_accuracy` and `signal_accuracy` as if they were separate evidence manufactures the
+    illusion of an extra data point.
+
+    This is a framing/interpretation guardrail, NOT a bootstrap — it computes no CI and makes
+    no verdict; it just exposes the complementarity so a report cannot double-count it.
+
+    Both sequences cover the DISAGREEMENT subset only: `hit_signal[i]` = did signal X's
+    directional call win at settlement, `hit_mid[i]` = did the mid's directional call win, for
+    observations where X's call != the mid's call. `is_strict_two_way` is True iff every row
+    obeys `hit_signal[i] == (not hit_mid[i])`; `violating_indices` lists any rows that don't —
+    which PROVE the caller's "disagreement subset" was not a strict directional two-way
+    partition (e.g. a 3-way market or a non-directional row leaked in, the per-design caveat
+    L51 flags). Violations are reported, never raised on, so the helper never masks a real
+    design bug.
+
+    Returns `{"n", "mid_accuracy", "signal_accuracy", "is_strict_two_way",
+    "violating_indices"}`. Raises `ValueError` on a length mismatch. On empty input returns an
+    honest empty report (`n=0`, accuracies `None`, `is_strict_two_way=True`,
+    `violating_indices=[]`) rather than crashing, matching the empty-input discipline of the
+    sibling helpers in this file.
+    """
+    if len(hit_signal) != len(hit_mid):
+        raise ValueError(
+            f"hit_signal and hit_mid must be the same length "
+            f"(got {len(hit_signal)} vs {len(hit_mid)})"
+        )
+    n = len(hit_signal)
+    if n == 0:
+        return {"n": 0, "mid_accuracy": None, "signal_accuracy": None,
+                "is_strict_two_way": True, "violating_indices": []}
+    mid_accuracy = sum(1 for h in hit_mid if h) / n
+    signal_accuracy = sum(1 for h in hit_signal if h) / n
+    violating_indices = [
+        i for i, (s, m) in enumerate(zip(hit_signal, hit_mid)) if bool(s) == bool(m)
+    ]
+    return {
+        "n": n,
+        "mid_accuracy": mid_accuracy,
+        "signal_accuracy": signal_accuracy,
+        "is_strict_two_way": not violating_indices,
+        "violating_indices": violating_indices,
     }
 
 
