@@ -6,6 +6,33 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 00:2x ET — Idle-run: L51->L103 importable disagreement-subset calibration-framing helper
+
+Queue re-scan reconfirmed 0 eligible TODO/IN-PROGRESS items: Q19 (WC-final burst tape) is ~19h out
+from its own trigger; Q36 (`weather_books`) sits at 3 days including the stalled-VPS 07-18 gap, short
+of its >=7-day gate; Q43 (`perp_tape`) sits at 2 days, also short of >=7 days. Idle-run policy order
+(a) fired against the lessons ledger's own standing UNENFORCED queue. L51 was the true lowest
+genuinely-open UNENFORCED row — every candidate below it was already superseded (L27/L28->L33/L34,
+L32->L35, L45->L49, L74->L75), and this run's own scan confirmed no other row was missed.
+
+**What was built:** `core.bootstrap.disagreement_subset_calibration(hit_signal, hit_mid, tol=1e-9)` —
+the L51 framing guardrail for a "does feature X beat the mid" calibration precheck on a two-way
+market's disagreement subset. Returns `{"n", "mid_accuracy", "signal_accuracy", "is_strict_two_way",
+"violating_indices"}`: the two accuracies are mechanically complementary
+(`hit_signal[i] == not hit_mid[i]` on every row) rather than independent measurements, so the honest
+report is the single "mid accuracy where they disagree = X%" statistic — exactly the framing that
+would have kept Q26/S22's 27.9%/72.1% split from reading as a hidden contrarian edge. A non-empty
+`violating_indices` PROVES the caller's "disagreement subset" wasn't a strict two-way partition rather
+than masking the design bug. Pinned by new tests in `tests/test_bootstrap.py` (including the Q26/S22
+27.9%/72.1% regression fixture), with a `.claude/agents/edge-prober.md` house-style note naming the
+helper for any future calibration-precheck milestone. Ledger row: `kb/lessons/00-lessons.md` L103,
+superseding L51's enforcement column (lesson content unchanged).
+
+The two-agent verifier confirmation of this milestone is being run separately by the research-lead;
+not duplicated here.
+
+---
+
 ## 2026-07-18 17:2x ET — Idle-run: stranded-tape sweep (1,898 lines) + weather_books data-quality audit (Q36 gate-at-risk)
 
 Step 0a passed (local `main` reset cleanly to `origin/main` HEAD `0c01a0b`; `kb/00-LOG.md` newest

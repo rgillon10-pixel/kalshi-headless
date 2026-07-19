@@ -131,6 +131,22 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   `None` on a coarse/date-only close, per `is_coarse_close_time` — intra-day
   close unknowable, exclude it rather than guess). `parse_sports_ticker_hhmm_as_utc`
   is still there for a labeled descriptive CONTRAST only, never as the gate itself.
+- For a calibration precheck / "does feature X beat the mid" milestone on a
+  two-way market, never report the DISAGREEMENT subset (both directional, X's
+  call != the mid's call) as two independent hit rates (L51/L103 — on a strict
+  two-way market `hit_X ≡ NOT hit_mid`, so the two rates are mechanically
+  complementary and sum to exactly 1.0; Q26/S22's "signal 27.9% vs mid 72.1%"
+  looked like a hidden contrarian edge until the verifier confirmed it was one
+  number, not two independent measurements — X can only "beat the mid" here if
+  the mid is <50% accurate exactly where they disagree, a bar a liquid calibrated
+  market never fails). Call `core.bootstrap.disagreement_subset_calibration(
+  hit_signal, hit_mid)` on your own per-observation directional-win flags — it
+  returns the single "mid accuracy where they disagree" statistic plus
+  `is_strict_two_way` / `violating_indices` (any row where the two flags are NOT
+  negations proves your "disagreement subset" leaked a non-two-way /
+  non-directional observation; it is reported, never raised on). Report the one
+  "mid accuracy where they disagree = X%" number, never two hit rates, to avoid
+  the illusion of an extra data point.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
 
