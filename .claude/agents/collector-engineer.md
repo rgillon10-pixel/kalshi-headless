@@ -44,6 +44,14 @@ you are extending. The house discipline (precedents:
   `core.kalshi_fields.parse_kalshi_numeric` — don't re-derive `_to_float` per
   collector, the exact duplication L100 collapsed out of
   `settlement_ledger.py`/`universe_sweep.py`.
+- **Empty ladder is data, not a drop**: a one-sided or fully empty
+  `yes_bids`/`no_bids` book is a normal far-from-strike/thin market shape, not
+  a capture failure (L23) — never let it count against `completeness_ok`. This
+  is already generalized, not per-collector logic: any collector that builds
+  its depth snapshot from `collection.normalize.normalize_snapshot` (shared by
+  `orderbook_depth.py` and `weather_books.py`) inherits the distinction for
+  free, since an empty side there is just `[]`/`None`, never an exception.
+  Only a genuine fetch/parse exception is a drop.
 
 Deliverables: the module + tests, one live smoke pass appended to tape (state
 its completeness line), and lesson candidates at the end of your final message

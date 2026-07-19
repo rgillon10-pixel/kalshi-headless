@@ -6,6 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 08:10 ET — Idle-run (policy a): L23→L108 empty-ladder-normalization guardrail encoded; caught a stale-main-ref near-miss
+
+Idle research-loop run, sub-policy (a), wall-clock ~12:1x UTC. Step 0a PASS: origin/main
+HEAD `3593ae3` (PR #124, tape additional collections); merged PRs #120-#124 all confirmed
+ancestors; `kb/00-LOG.md`/tape both 2026-07-19, no rewind. Mid-run, this session itself hit
+the exact L14 trap (stale local `main` ref briefly showing a 3-day-old tree) before a
+`git fetch origin main` corrected it — recorded as a live instance of L14/retro-amendment-#1,
+not just a historical anecdote.
+
+Step 0: only open PR is #77 (stale, flagged every prior run, left untouched). Full Q0-Q46
+re-scan: 0 eligible TODO/IN-PROGRESS items (Q19 WC-final burst window opens 20:10Z tonight;
+Q36/Q37/Q43 gated; Q42 part 3 blocked on auth; Q21 idea-gen already run today; Q32/Q33/Q35-build
+blocked on Polymarket creds). Idle run.
+
+Step 0b: swept `tape/hourly-202607190956Z` (10:02Z pass, >30min old, merge-base exactly
+`origin/main` HEAD — a clean fast-forward, per-file prefix-verified before union) —
+5,936 genuinely-missing lines across 9 families, JSON-validated, pure append.
+
+Idle-policy (a): rather than trust L106/L107's own stated "lowest genuinely-open row" claims,
+did a direct enumeration of every `UNENFORCED`-bearing lesson row and found both of those runs
+had missed **L23** (2026-07-07) — the empty-orderbook-ladder-is-not-a-drop lesson, older than
+L66/L69 (the only other rows their closure maps didn't cover). L23's own residual candidate
+("generalize the empty≠drop discipline beyond one collector") turned out to already be true at
+the code level: `collection/orderbook_depth.py` and `collection/weather_books.py` both build
+their depth snapshot through the same `collection.normalize.normalize_snapshot` (a third
+module, `capture_orderbooks.py`, also calls it), which already treats a missing side as
+`[]`/`None`, never an exception — so no per-collector duplication exists to regress. Added a
+`.claude/agents/collector-engineer.md` house-style bullet naming the shared function so a
+future ladder-collector reuses it by default. New lesson **L108** supersedes L23's enforcement
+column (content unchanged, ledger append-only).
+
+Two-agent verdict rule: an independent `verifier` agent ran four attacks against the draft
+closure and CONFIRMED L23 was genuinely open and the true lowest such row — but also caught a
+factual slip in the draft's own narrative (it had blamed both L104 *and* L106 for the naive-scan
+miss; only L104 ever mentioned L23, L106/L107 omitted it entirely, a distinct lapse in their own
+"strict-lowest-first" claim). Corrected before commit; L108's text now flags the L106/L107 gap
+explicitly for the next idle run, since two consecutive runs trusting a prior row's closure map
+instead of re-deriving it is itself worth a standing caution.
+
+No strategy claim, no registry change (`kb/strategies/00-index.md` untouched). `pytest`: 1228
+green (unchanged — docs/tape only). `python scripts/invariants.py --full`: green (only
+pre-existing non-gating L20/L25/L74 advisories).
+
+Step 9 (paper sub-pass): `SHADOW_REGISTRY`={s14_ladder_underwriting} only. `paper_pass.py`
+idempotent (0 newly processed — the new tape added no newly-eligible S14 fills this pass; 233
+deferred-caps, 222 deferred-coverage, 67 already-in-ledger). Realized P&L unchanged **+$11.65**
+(`broker_truth`; s14 stays DEAD-at-real-fills per Q34 — proxy P&L, not a proven edge).
+
+See `LOOP-QUEUE.md` Log of runs (2026-07-19T12:1xZ entry) and `kb/lessons/00-lessons.md` L108.
+
+---
+
 ## 2026-07-19 05:55 ET — Idle-run (policy a): L105→L107 universe_sweep bracket-arb idea-stage-kill guardrail encoded
 
 Idle research-loop run (eleventh in this stretch), sub-policy (a), wall-clock ~09:2x UTC.
