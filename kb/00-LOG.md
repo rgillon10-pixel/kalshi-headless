@@ -6,14 +6,26 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
-## 2026-07-19 00:2x ET — Idle-run: L51->L103 importable disagreement-subset calibration-framing helper
+## 2026-07-19 00:2x ET — Idle-run: stranded-tape sweep (1,850 lines) + L51->L103 importable disagreement-subset calibration-framing helper
+
+Step 0a PASS: `origin/main` HEAD matched the last merged PR (#118); `kb/00-LOG.md` newest entry and
+newest `tape/*/dt=*` content both 2026-07-18 — no history rewind. Step 0: only open PR is #77 (Ryan's
+stale 2026-07-15 queue-restock, already superseded, left untouched per every prior run's flag).
+
+**Step 0b (stranded-tape sweep):** `tape/hourly-20260718T2206Z` was the only unswept branch. A
+comm-based per-family line-set diff (not stat/byte-count) found **1,850 lines** `main` was missing:
+530 `weather_books`, 222 `sports_pairs`, 1,064 `orderbook_depth`, 17 `perp_tape`, 15
+`polymarket_macro_pairs`, 2 `crypto_hourly`. All JSON-validated, 0 exact duplicates vs `main`, pure
+append (no reorder of existing lines).
 
 Queue re-scan reconfirmed 0 eligible TODO/IN-PROGRESS items: Q19 (WC-final burst tape) is ~19h out
 from its own trigger; Q36 (`weather_books`) sits at 3 days including the stalled-VPS 07-18 gap, short
 of its >=7-day gate; Q43 (`perp_tape`) sits at 2 days, also short of >=7 days. Idle-run policy order
 (a) fired against the lessons ledger's own standing UNENFORCED queue. L51 was the true lowest
-genuinely-open UNENFORCED row — every candidate below it was already superseded (L27/L28->L33/L34,
-L32->L35, L45->L49, L74->L75), and this run's own scan confirmed no other row was missed.
+genuinely-open UNENFORCED row — every candidate below it was already superseded (L22->L24, L25->L29,
+L27->L33, L28->L33, L32->L35, L39->L73/L98, L45->L49, L47->L95, L74->L75); the independent verifier
+pass (below) re-checked this claim from scratch against the whole L1-L102 range and confirmed it,
+noting the research-lead's own stated chain omitted L22/L25/L39/L47 (conclusion held regardless).
 
 **What was built:** `core.bootstrap.disagreement_subset_calibration(hit_signal, hit_mid, tol=1e-9)` —
 the L51 framing guardrail for a "does feature X beat the mid" calibration precheck on a two-way
@@ -28,8 +40,20 @@ than masking the design bug. Pinned by new tests in `tests/test_bootstrap.py` (i
 helper for any future calibration-precheck milestone. Ledger row: `kb/lessons/00-lessons.md` L103,
 superseding L51's enforcement column (lesson content unchanged).
 
-The two-agent verifier confirmation of this milestone is being run separately by the research-lead;
-not duplicated here.
+**Two-agent verifier confirmation: CONFIRMED.** Independent `verifier` agent re-derived L51's
+lowest-open-row claim from the raw ledger (found and closed the same gap noted above), exercised
+`disagreement_subset_calibration` directly (hand-checked 0.25/0.75 split, complementarity, the
+violating-row flag, empty-input and length-mismatch behavior), cross-checked the Q26/S22 regression
+fixture against `findings/2026-07-14-ofi-depth-imbalance-s22-verdict.md`'s real numbers (0.2791/0.7209,
+n=86, sum 1.0 to full float precision), confirmed the ledger commit is a singular append (no deletions,
+no L104+), and independently re-ran both gates. Verdict: **CONFIRMED**, no refutation.
+
+Gates (re-run independently by both the building agent and the verifier): `pytest` — **1228 passed**
+(rc=0); `python scripts/invariants.py --full` — **exit 0** ("invariants: all green"), only the
+pre-existing non-gating advisories (1 stranded `tape/hourly-*` ref, 4 dir-shaped `dt=` paths, 6
+daily-cadence missing days). Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} only, realized P&L
+unchanged **+$10.23** (`broker_truth`) — s14 is DEAD-at-real-fills per Q34, proxy P&L not an edge.
+No strategy claim, no registry change (`kb/strategies/00-index.md` untouched).
 
 ---
 
