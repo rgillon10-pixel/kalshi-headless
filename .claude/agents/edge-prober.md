@@ -163,6 +163,27 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   related two-sided-depth-illusion check (is a wide two-sided spread backed by
   real top-of-book size or a deep-OTM lottery tail?), reach for
   `core.depth.capturable_depth` (L67).
+- Never register (or point `scripts/anomaly_sweep.py::check_bracket_arb` /
+  any within-event overround-underflow complete-set "free-money" scan) at
+  `tape/universe_sweep/` (L105/L107 — a clean IDEA-stage kill). The
+  `universe_sweep.v1` schema is a TOP-OF-BOOK census that does NOT persist
+  the strike-ladder fields the check needs — `strike_type` / `floor_strike`
+  / `cap_strike` / `yes_ask_dollars` are all ABSENT (see
+  `collection/universe_sweep.py`, which stores only a top-of-book
+  `yes_ask`), so `_segment_bounds()`'s exhaustiveness proof cannot run over
+  it at all. Worse, its sub-$1 Σ`yes_ask` groups are ~98% all-zero
+  NO-OFFER artifacts: over `dt=2026-07-19` (20,000 rows, single
+  `capture_id`) 1,565/2,441 multi-market groups sum below $1 but 0/1,565 are
+  fillable (every leg `yes_ask_size >= 1 and yes_ask > 0`), and 1,537 are
+  all-zeros — a `yes_ask=0.0` no-offer leg is the ABSENCE of a resting
+  offer, not a $0.00 buyable fill, and treating it as one is the pt1 /
+  prime-directive violation (a nominal price is never a fill). The 20k-market
+  cap over an >80k universe (L96) also splits any straddling bracket set
+  mid-event, so exhaustiveness is unprovable in principle. This restates the
+  L96/S38 illiquidity floor for the full-universe simultaneous census — a
+  crossable complete-set book never appears there; reject before registration
+  rather than burning a probe. For the sibling nominal-vs-fillable depth
+  distinction reach for `core.depth.capturable_depth` (L67).
 - For a calibration precheck / "does feature X beat the mid" milestone on a
   two-way market, never report the DISAGREEMENT subset (both directional, X's
   call != the mid's call) as two independent hit rates (L51/L103 — on a strict
