@@ -6,6 +6,65 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 11:3x ET — Idle-run (policy b): Q36 settlement-basis probe prepped + 3,095-line stranded-tape sweep
+
+Step 0a passed: `git fetch origin main` was required first — the container's local `main`
+branch pointer was a stale ref from a different, unrelated lineage (no merge-base with
+`origin/main` at all), reset via `git checkout -B main origin/main` (no local work lost;
+working tree was clean). Current `origin/main` tip `2e83f94` (PR #126) confirmed reachable;
+`kb/00-LOG.md` newest entry and newest `tape/*/dt=*` both 2026-07-19 — no rewind.
+
+Step 0 (claim-check): two open PRs. #125 (weekly-retro proposals) is explicitly marked "leave
+open for Ryan" — untouched. #77 (2026-07-15 queue-restock) is now ~50 commits behind current
+`main` and already superseded piecemeal by later numbered items — flagged stale again, still
+untouched (not this run's call to close).
+
+Step 0b (stranded-tape sweep): `git ls-remote` found 165 stranded `tape/hourly-*`/`tape/burst-*`
+branches (a growing backlog several recent runs have only partially chipped at). Rather than
+re-sweep just the newest branch, ran a bulk per-branch line-set dedupe (each branch's own commit
+diffed against its parent, then that content checked against current `main`): **152 branches
+are fully redundant** (their content already landed via earlier sweeps — safe to delete, no
+append needed, though this session's GitHub token lacks branch-delete scope, same limitation
+prior runs have flagged), **1** (`tape/hourly-20260716T1856Z`) turned out to carry a STALE,
+since-superseded draft of `tape/cloud-env-check.md` — a documentation edit, not lost tape data,
+correctly excluded from the sweep, and **7 branches genuinely carried missing data**: hourly
+captures at 06:55/09:55/10:54/11:55/12:54/15:56/16:56Z on 2026-07-10 that never reached `main`.
+Each contributed exactly one new `capture-<ts>` directory per family (`crypto_hourly`,
+`sports_pairs`) on top of captures already present in `main`'s existing (pre-established)
+directory-format tape for that date — pulled in via targeted `git checkout <branch> -- <path>`,
+3,095 files / lines, all JSON-validated, pure append.
+
+Idle-run policy (b): queue re-scan reconfirmed 0 eligible TODO/IN-PROGRESS items (Q19 WC-final
+burst window passed without a burst leg firing — out of scope to fix here; Q32/Q33/Q35-build
+blocked on Polymarket creds; Q36 gated ~2026-07-22 [`weather_books` 4/7 days]; Q37 gated
+~2026-08-05; Q42 part 3 BLOCKED[needs-auth]; Q43 gated ~2026-07-23/24 [`perp_tape` 3/7 days];
+Q21 idea-gen round completed 2026-07-19 by the nightly edge-hunter). Rather than continue the
+lessons-ledger L-number archaeology (L108 itself flagged that discipline has now mis-fired
+twice in a row — diminishing returns), picked policy-(b): prepped the probe for Q36's nearest
+time-gate. Built `scripts/q36_kxtempnych_settlement_basis_probe.py` (+16 offline tests) —
+joins settled KXTEMPNYCH events' `expiration_value` (The Weather Company's own settlement
+number, already flowing via `tape/settlement_ledger/`, a DIFFERENT tape family than the gated
+`weather_books`) to the nearest independent KNYC ASOS observation (IEM `obhistory.json`) and
+quantifies bias/rounding/lag/disagreement-rate, mirroring `validation/v1_actuals.py`'s
+CLI-vs-METAR reconciliation. Self-activating (`INSUFFICIENT DATA` below `min_events=10`) and
+descriptive-only — no bootstrap, no CI, no registry touch, two-agent rule N/A. **Live smoke
+test against real committed tape**: `tape/settlement_ledger/` currently holds exactly 1 unique
+settled KXTEMPNYCH event (the 10 lines seen at first glance all share one `event_ticker` —
+correctly deduped) — script printed `INSUFFICIENT DATA, n_settled_events=1` rather than
+fabricating a mapping, confirming the gate logic works both offline and live. Part 2
+(microstructure) needs the gated `weather_books` depth history directly and was NOT built —
+nothing safe to prep against fixtures alone.
+
+`pytest` 1244 green (1228 prior + 16 new). `python scripts/invariants.py --full` green (only
+pre-existing non-gating L25/L74 advisories — the L20 stranded-tape warning still shows all 165
+local refs, since this run merged 7 branches' MISSING CONTENT but could not delete any remote
+branch, per the branch-delete-scope limitation prior runs have already flagged for Ryan).
+
+Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} only. `paper_pass.py` idempotent (0 newly
+processed — the swept 07-10 tape didn't add any newly-eligible S14 fills), realized P&L
+unchanged **+$11.65** (`broker_truth`; s14 stays DEAD-at-real-fills per Q34, proxy P&L not an
+edge).
+
 ## 2026-07-19 08:10 ET — Idle-run (policy a): L23→L108 empty-ladder-normalization guardrail encoded; caught a stale-main-ref near-miss
 
 Idle research-loop run, sub-policy (a), wall-clock ~12:1x UTC. Step 0a PASS: origin/main
