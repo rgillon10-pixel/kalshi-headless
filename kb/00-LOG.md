@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 03:2x ET — Idle-run: stranded-tape sweep (22,019 lines, first 07-19 tape) + L65->L104 post-close-pickoff idea-stage-kill guardrail
+
+Step 0a PASS: the sandbox's local `main` ref was stale (`69a3d3f`, dated 2026-07-16); `git fetch
+origin main` + `git reset --hard origin/main` caught it up to the real HEAD `abb7c8f` (PR #119).
+`kb/00-LOG.md` newest entry and newest `tape/*/dt=*` content both 2026-07-18/19 — no history rewind.
+Step 0: only open PR is #77 (Ryan's stale 2026-07-15 queue-restock, already superseded, left untouched
+per every prior run's flag).
+
+**Step 0b (stranded-tape sweep):** `tape/hourly-20260719T0056Z` was the only unswept branch, and it
+carried the entire FIRST 2026-07-19 tape day — `main` had zero `dt=2026-07-19.jsonl` files in any
+family before this run. **22,019 lines**: 20,000 `universe_sweep`, 1,156 `orderbook_depth`, 530
+`weather_books` (+45 `weather_books/meta`), 254 `sports_pairs`, 17 `perp_tape`, 15
+`polymarket_macro_pairs`, 2 `crypto_hourly`. All JSON-validated (0 parse failures), pure addition —
+no existing file was touched.
+
+Queue re-scan reconfirmed 0 eligible TODO/IN-PROGRESS items: Q19 (WC-final burst window) hasn't
+opened yet — kickoff is tonight 19:00Z, burst tape not yet captured; Q36 (`weather_books`) now sits at
+4/7 days after this run's sweep, still short of its gate (~Jul-22/23); Q43 (`perp_tape`) sits at 3/7
+days (~Jul-23/24); Q32/Q33/Q35-build stay blocked on Polymarket US credentials; Q42 part 3 stays
+BLOCKED(needs-auth); Q21 idea-gen last completed 2026-07-18 by the nightly edge-hunter (0 registered
+that round). This is an idle run.
+
+**Idle-run policy order (a):** a naive "row contains the substring UNENFORCED" grep over
+`kb/lessons/00-lessons.md` returns false positives (several rows just quote another row's status
+inline) — per L102's own caught failure mode, cross-checked every UNENFORCED-tagged row's number
+against every LATER row's text for an actual supersession claim (`supersedes`/`generalizes`/
+`escalates`/`closes`). L65 (2026-07-15) came back as the true lowest-numbered still-open row: **Kalshi
+empties and settles a sports order book AT close** — the maximum observed capture-to-settlement gap
+across the entire committed `tape/orderbook_depth/` history is 0.024h (~1.4min), and every
+genuinely-post-close capture found (L64's population) has a FULLY EMPTY book on both sides. There is
+no post-close resting-quote window to pick off, on ANY timing definition — not just the mis-timed
+ticker-HHMM-as-UTC one L64/L101 already fixed the parsing for.
+
+**What was built:** a `.claude/agents/edge-prober.md` house-style bullet stating the L65 fact
+directly, placed immediately before the existing L64/L101 `is_genuine_post_close` bullet — the point
+is to reject a "post-close stale-quote pickoff" / settlement-lag proposal on sports tape (S28 family,
+and any "buy the ex-post known winner" L66 variant) at the IDEA stage, before a fill-sim gets built at
+all, rather than only after its close-time population is correctly parsed. No code change — L65 is a
+market-structure fact about the venue, not a computation, so (unlike L90/L100, L64/L101, L51/L103)
+there is no importable helper to write; this closes at the documentation/discoverability tier, the
+same class as L94/L95's signposts. Ledger row: `kb/lessons/00-lessons.md` L104, superseding L65's
+enforcement column (lesson content unchanged, ledger append-only).
+
+No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent verifier
+rule does not apply (tape sweep + documentation signpost, not a registry flip / bootstrap CI /
+kill decision; matches the L93/L94/L95/L98/L99/L100/L101/L102 precedent of single-agent protocol-tier
+lesson closures, not the L103 run's extra verifier pass).
+
+Gates: `pytest` — **1228 passed** (rc=0, unchanged — no new tests, pure signpost + tape + ledger);
+`python scripts/invariants.py --full` — exit 0 ("invariants: all green"), only pre-existing
+non-gating advisories (this run's own now-swept stranded-ref warning, 4 dir-shaped `dt=` paths, 6
+daily-cadence missing days). Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} only; `paper_pass.py`
+processed 9 newly-eligible fills off the new tape (233 deferred-caps, 222 deferred-coverage, 58
+already-in-ledger), realized P&L **+$10.23 -> +$11.65** (`broker_truth`; s14 is DEAD-at-real-fills
+per Q34, proxy P&L, not an edge) — ledger line appended to `paper/ledger/dt=2026-07-19.jsonl`.
+
+---
+
 ## 2026-07-19 00:2x ET — Idle-run: stranded-tape sweep (1,850 lines) + L51->L103 importable disagreement-subset calibration-framing helper
 
 Step 0a PASS: `origin/main` HEAD matched the last merged PR (#118); `kb/00-LOG.md` newest entry and

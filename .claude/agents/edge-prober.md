@@ -131,6 +131,19 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   `None` on a coarse/date-only close, per `is_coarse_close_time` — intra-day
   close unknowable, exclude it rather than guess). `parse_sports_ticker_hhmm_as_utc`
   is still there for a labeled descriptive CONTRAST only, never as the gate itself.
+- Never build a "post-close stale-quote pickoff" / settlement-lag probe on
+  Kalshi sports order-book tape at all, regardless of how the post-close
+  population is defined (L65 — a market-structure fact, not a parsing bug:
+  across the entire committed `tape/orderbook_depth/` history the maximum
+  observed gap between a capture and a market's real settlement `close_time`
+  is 0.024h [~1.4min], and every genuinely-post-close capture found has a
+  FULLY EMPTY book on both sides. Kalshi empties and settles a sports book AT
+  close, not by leaving a stale winner-side ask sitting near $1 — there is no
+  resting-quote window to pick off, on any timing definition). This kills the
+  S28 family (and any "buy the ex-post known winner" variant, L66) at the
+  IDEA stage, before `is_genuine_post_close` (L64/L101) is even reached — if
+  a milestone reaches you framed this way, flag it back rather than building
+  the fill-sim.
 - For a calibration precheck / "does feature X beat the mid" milestone on a
   two-way market, never report the DISAGREEMENT subset (both directional, X's
   call != the mid's call) as two independent hit rates (L51/L103 — on a strict
