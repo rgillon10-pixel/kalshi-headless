@@ -144,6 +144,25 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   IDEA stage, before `is_genuine_post_close` (L64/L101) is even reached — if
   a milestone reaches you framed this way, flag it back rather than building
   the fill-sim.
+- Never register a maker-spread / spread-capture candidate whose only data leg
+  is `tape/orderbook_depth/` — it is **toxicity-untestable by construction**, a
+  clean IDEA-stage kill, not a data-collecting/untestable registration (L68 —
+  registering it burns a research-loop probe on a hypothesis the tape can never
+  adjudicate). The depth tape carries resting-depth snapshots only
+  (`best_*_bid/ask`, `yes_bids`, `no_bids`) — NO trade / volume / last-price
+  fields — so whether a resting offer is adversely selected (does size get
+  lifted disproportionately on the side that then loses?) cannot be measured,
+  and the adverse-selection-modeled block-bootstrap CI that is the admissibility
+  bar (L41) is therefore unconstructible. A wide spread on a thin book is
+  equally consistent with "absent competition" (good) and "adverse-selection
+  compensation" (fatal), and the depth tape cannot tell them apart. The only
+  sports executed-volume tape anywhere is
+  `tape/sports_history_s7/worldcup2026.jsonl` (WC-only, L44), so a maker-spread
+  candidate must NAME its trade/toxicity data leg at proposal time — absent one,
+  reject before registration rather than registering it as untestable. For the
+  related two-sided-depth-illusion check (is a wide two-sided spread backed by
+  real top-of-book size or a deep-OTM lottery tail?), reach for
+  `core.depth.capturable_depth` (L67).
 - For a calibration precheck / "does feature X beat the mid" milestone on a
   two-way market, never report the DISAGREEMENT subset (both directional, X's
   call != the mid's call) as two independent hit rates (L51/L103 — on a strict
