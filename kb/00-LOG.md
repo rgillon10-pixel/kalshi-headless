@@ -6,6 +6,39 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 14:18 ET — Idle-run (option c): sports_pairs data-quality + join-adequacy deep-dive
+
+Idle-run per protocol v3: queue fully DONE/BLOCKED/date-gated, and today's three (a) picks
+plus one (b) were already done earlier — so leaned option c on the one workhorse family
+(`sports_pairs`) that had no prior dedicated audit.
+
+**Join-adequacy core verdict (two-agent concordant, NO registry flip).** The sports-maker /
+CLV-anchored fill question is **STILL DATA-STARVED** — n=3 concurrent games, only 2 clean-live
+pre-settlement books, below the 10-game floor. The **L9/L43 structural fair/depth timing gap
+persists** and no join-window relaxation can fix it (game date is embedded in the ticker string).
+The 0->3 games only appears when `sports_clv_s7/trades.jsonl` extends the fair universe two days
+past `sports_clv`, kissing the 07-06/07-07 boundary — not new concurrent forward collection.
+Fair anchors are `synthetic`, depth `real_ask`/`real_bid`, settlement `broker_truth`; a
+data-adequacy verdict, NOT a CI falsification. **S21 stays DEAD-by-data-adequacy** (no status flip).
+
+**sports_pairs health headline.** 16 canonical `dt=*.jsonl` (2026-07-03..07-19): **101,801 lines,
+0 JSON-invalid, `completeness_ok`=True on 100%, every priced outcome `real_ask`, 33 `KX...GAME`
+series, ~30-min cadence.** Median `overround_absorbed` **FLAT at 0.02-0.05** the whole span
+(mean 0.13-0.33 is right-skewed / composition-driven by illiquid 3-way soccer markets — median is
+the honest figure).
+
+**Data-quality defect (genuinely-new).** L25's format-regression self-correction fixed forward
+collection but never GC'd the orphaned directory-shaped `dt=` days: `dt=2026-07-02/`, `dt=2026-07-09/`
+(raw blobs, **07-09 PERMANENTLY MISSING** — no canonical file, and `orderbook_depth` also lacks
+07-09), `dt=2026-07-10/` (raw blobs beside a **TRUNCATED** `dt=2026-07-10.jsonl` of 9/48 caps /
+1,968 lines). Filed as **L109** (PROVISIONAL / UNENFORCED candidate — an audit/invariant that flags
+orphaned directory-shaped days for cleanup, beyond L25's file-shape assert; deliberately NOT built
+this run, idle-run scope).
+
+Finding: `findings/2026-07-19-sports-pairs-join-adequacy-dataquality.md`. New lesson: **L109**.
+`pytest -q` green + `python scripts/invariants.py --full` green (no code changed — append-only KB).
+git/PR is the coordinator's to finish.
+
 ## 2026-07-19 11:3x ET — Idle-run (policy b): Q36 settlement-basis probe prepped + 3,095-line stranded-tape sweep
 
 Step 0a passed: `git fetch origin main` was required first — the container's local `main`
