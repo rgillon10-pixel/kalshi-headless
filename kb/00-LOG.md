@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-19 05:55 ET — Idle-run (policy a): L105→L107 universe_sweep bracket-arb idea-stage-kill guardrail encoded
+
+Idle research-loop run (eleventh in this stretch), sub-policy (a), wall-clock ~09:2x UTC.
+Step 0a PASS: origin/main HEAD `577d2eb` (tape hourly pass 2026-07-19T06:54:55Z); merged
+PRs #118–122 all ancestors of HEAD; `kb/00-LOG.md`'s newest entry and the newest
+`tape/*/dt=*` are both 2026-07-19 — a 0-day gap, no rewind. Step 0: the only open PR is
+#77 (stale 2026-07-15 queue-restock, flagged by every prior run and left untouched again).
+
+Step 0b stranded-tape sweep: fetched every `tape/hourly-*`/`tape/burst-*` ref; the four
+newest branches (`202607190356Z`/`0400Z`/`0403Z`/`20260719T0056Z`) are 307–487 min old —
+all far outside the 30-min freshness rule and none an ancestor of `main` (already absorbed
+by PRs #120/#121, reconfirming PR #122's sweep). Zero genuinely-missing lines; nothing to
+append this run.
+
+Full Q0–Q46 re-scan: 0 eligible TODO/IN-PROGRESS. Q19 WC-final burst tape not yet
+captured (kickoff tonight); Q36 gated ~Jul-22; Q37 ~Aug-05; Q42 part 3 BLOCKED[needs-auth];
+Q43 ~Jul-24; Q21 idea-gen round just run by tonight's edge-hunter (PR #121); Q32/Q33/Q35-build
+blocked on Polymarket creds. IDLE RUN.
+
+Idle-policy (a): last cycle's L106 closed L68 but did NOT reach L105 — a higher-numbered row
+created the same day by the edge-hunter (PR #121), which leaves `.claude/agents` edits for the
+research loop. L105 is therefore the true lowest genuinely-open UNENFORCED row. An independent
+`verifier` CONFIRMED all three claims across three attacks: (i) L105 genuinely open; (ii) the
+lowest such via the whole-file whole-word grep over every UNENFORCED row; and (iii) the
+schema-incompatibility fact true at source — `universe_sweep.v1` persists no
+`strike_type`/`floor_strike`/`cap_strike`/`yes_ask_dollars`, exactly the ladder fields
+`anomaly_sweep._segment_bounds`/`check_bracket_arb` read. Encoded L105 as a
+`.claude/agents/edge-prober.md` house-style idea-stage-kill bullet in the L65/L104/L106
+cluster; appended lesson **L107** (supersedes L105's enforcement column, protocol/encoded).
+The verifier-attacked numbers: over `dt=2026-07-19` (20,000 rows, single `capture_id`),
+1,565/2,441 multi-market groups sum below $1 but 0/1,565 are fillable, and 1,537 are
+all-zeros; the 20k-market cap over an >80k universe (L96) splits any straddling bracket set,
+so exhaustiveness is unprovable in principle. A `yes_ask=0.0` no-offer leg is the ABSENCE of
+a resting offer, not a $0.00 buyable fill — treating it as one is the pt1/prime-directive
+violation.
+
+No strategy claim, no registry flip (`kb/strategies/00-index.md` untouched). The two-agent
+verdict rule is satisfied for the target selection (verifier CONFIRMED); this is a doc-tier
+encoding, not a verdict-class change.
+
+Gates: `pytest` 1228 passed (docs-only, no new tests — run under libfaketime `+6h` offset to
+clear a pre-existing wall-clock-hour-9 + blocked-network flake in
+`test_main_wires_sports_limit_and_crypto_symbols`, which fires the unstubbed hour-9 daily
+passes against the sandbox-blocked network; the flake is pre-existing on the untouched tree
+and unrelated to this change). `python scripts/invariants.py --full` exit 0 (only pre-existing
+non-gating L20 stranded-tape / L25 dir-shape / L74–L75 daily-cadence advisories).
+
+Step 9 paper sub-pass: `SHADOW_REGISTRY={s14_ladder_underwriting}` only; `scripts/paper_pass.py`
+idempotent (0 newly processed, 233 deferred-caps, 222 deferred-coverage, 67 already-in-ledger);
+realized P&L unchanged **+$11.65** (`broker_truth`; s14 stays DEAD-at-real-fills per Q34 — proxy
+P&L, not an edge). daily_summary: `paper: 0 open position(s), 481 settled contract(s), realized
+P&L $+11.65, cash $+11.65, open notional $0.00`.
+
+Links: `kb/lessons/00-lessons.md` L107 (supersedes L105); `.claude/agents/edge-prober.md`
+idea-stage-kill cluster; `findings/2026-07-19-q21-idea-gen-round.md` (S41 kill that raised L105).
+
+---
+
 ## 2026-07-19 05:40 ET — Idle-run (policy a): L68→L106 maker-spread-over-depth-only idea-stage-kill guardrail encoded
 
 Idle research-loop run, sub-policy (a): convert the true lowest-numbered still-open UNENFORCED
