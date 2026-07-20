@@ -77,6 +77,14 @@ cross-sectional snapshot is the substrate a longshot-fade / stale-quote / overro
 reads; it is top-of-book ONLY (no per-market /orderbook calls — that would be the unbounded
 expansion lesson L10 warns against). Fault-isolated like every sibling.
 
+LOOP-QUEUE.md Q33: also runs one `collection.polymarket_us_pairs` pass every hour — a
+credential-gated Polymarket-US (QCEX) book-capture leg. It is a no-op `{"status":
+"blocked_key"}` (NO network, NO file) unless `POLYMARKET_US_API_KEY` is present, so a cloud
+pass never touches it; self-activating the moment the credential lands (like the odds leg on
+`ODDS_API_KEY`). Its blocked_key/absent state does NOT lower overall completeness or counts;
+only a genuine credentialed run folds its captured US-book lines (fresh `real_ask` BBOs) and
+its own completeness_ok in. Fault-isolated like every sibling.
+
 Never fakes success: each sub-pass is invoked independently and its exception (if any) is
 caught and recorded rather than allowed to take the other sub-pass down with it. Overall
 `completeness_ok` is the AND of each sub-pass's own honest completeness signal (already
@@ -105,8 +113,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from collection import (crypto_hourly, econ_prints, forecast_collector, orderbook_depth,
-                        perp_tape, polymarket_pairs, settlement_ledger, sports_pairs,
-                        universe_sweep, weather_actuals, weather_books)
+                        perp_tape, polymarket_pairs, polymarket_us_pairs, settlement_ledger,
+                        sports_pairs, universe_sweep, weather_actuals, weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -149,6 +157,14 @@ def _default_polymarket_pass() -> Dict[str, Any]:
 
 def _default_polymarket_macro_pass() -> Dict[str, Any]:
     return polymarket_pairs.run_fed_decision()
+
+
+def _default_polymarket_us_pass() -> Dict[str, Any]:
+    """Q33: credential-gated Polymarket-US book capture. Resolves the env credential and, when
+    ABSENT (the only state a cloud pass ever sees), the collector returns `blocked_key` with NO
+    network call and NO file written — self-activating the moment `POLYMARKET_US_API_KEY`
+    lands, exactly like the odds leg on `ODDS_API_KEY`."""
+    return polymarket_us_pairs.run(api_key=os.environ.get(polymarket_us_pairs.CREDENTIAL_ENV_VAR))
 
 
 def _default_econ_prints_pass() -> Dict[str, Any]:
@@ -294,6 +310,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         crypto_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         polymarket_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         polymarket_macro_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        polymarket_us_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         anomaly_sweep_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         econ_prints_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         polymarket_cpi_fn: Optional[Callable[[], Dict[str, Any]]] = None,
@@ -404,6 +421,25 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     else:
         completeness_ok = False
 
+    # Polymarket-US book capture (Q33): an OPTIONAL, credential-gated leg. Its blocked_key/
+    # absent state — the only state a cloud pass ever sees — does NOT lower overall
+    # completeness or counts (same posture as the odds leg's absence and the label-only
+    # legs). Only when the credential is present AND the pass genuinely ran does it fold in
+    # honestly: its captured US-book lines are FRESH live-market BBOs, so they count, and its
+    # own completeness_ok folds in; a hard exception (only reachable on the credentialed VPS
+    # path) is fault-isolated like every sibling and lowers completeness.
+    polymarket_us_fn = polymarket_us_fn or _default_polymarket_us_pass
+    polymarket_us = _safe_call(polymarket_us_fn)
+    if polymarket_us["status"] == "ok":
+        r = polymarket_us["result"]
+        if r.get("status") != "blocked_key":
+            n_captured = r.get("n_captured", 0)
+            n_lines += n_captured
+            n_markets += n_captured
+            completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
+    else:
+        completeness_ok = False
+
     anomaly: Optional[Dict[str, Any]] = None
     if ts.hour == ANOMALY_SWEEP_UTC_HOUR:
         sweep_fn = anomaly_sweep_fn or _run_anomaly_sweep_subprocess
@@ -511,6 +547,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "weather_books": weather,
         "polymarket_pairs": polymarket,
         "polymarket_macro_pairs": polymarket_macro,
+        "polymarket_us_pairs": polymarket_us,
         "anomaly_sweep": anomaly,
         "econ_prints": econ,
         "polymarket_cpi_pairs": polymarket_cpi,
