@@ -106,6 +106,20 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   volumes — it reports what fraction of the total edge is carried by legs
   below the threshold, so a "mostly thin near-money pass-through" edge is
   visible before it is called fillable.
+- For any queue-aware maker fill-sim that can rest at the EARLIEST pre-close
+  snapshot (the Q27/Q30-style template), compute the FILLABLE-ENTRY-RESTRICTED
+  population — a genuinely two-sided book (spread <= ~10c) and/or near-close
+  (ttc <= 24h) — as the PRIMARY verdict BY DEFAULT, with the unrestricted
+  earliest-entry population as a labeled diagnostic only, never the headline
+  (L69). An earliest-entry population systematically rests on thin, often
+  one-sided early books: S29/Q30's spec population cleared every binding gate
+  (+9.03c) purely on nickel bids against 87-94c asks days before kickoff —
+  nominal lottery-ticket placeholders the generous fill-sim (L48) still marks
+  FILLED — yet BOTH honest fillable-entry cuts failed to reproduce it and the
+  near-close cut went negative. This is the pt1 synthetic-price-as-fillable
+  mistake one abstraction up (a nominal ONE-SIDED quote, not a synthetic
+  midpoint); making the restricted population a robustness footnote applied
+  AFTER a positive headline is how a dead strategy reads as alive.
 - When a probe's P&L carries a large, low-frequency CATASTROPHIC leg (a binary
   payout on the rare adverse outcome — e.g. a bracket-ladder winner's near-$1
   payout) and some units get DROPPED because that leg's measurability can't be
