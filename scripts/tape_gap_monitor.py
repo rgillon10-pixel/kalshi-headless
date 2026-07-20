@@ -96,6 +96,25 @@ tests never touch the network.
 Scheduling is a **Ryan pause point** (Q44 wording): wiring this into a cron /
 GitHub Action / cloud trigger is a manual checklist item, intentionally NOT done
 by the autonomous build.
+
+Collector attribution (L117, 2026-07-20)
+-----------------------------------------
+The aggregate UNDER-CAPTURE ratio above answers "did passes drop?" but not
+"which of the two staggered collectors died?" — the 2026-07-19/20 VPS-cron
+outage (``findings/2026-07-20-tape-cadence-decline-vps-collector-down.md``)
+was diagnosed by hand, bucketing each line's ``captured_at`` minute into the
+VPS cron's signature (``:23``, i.e. minute-of-hour 20-29, ``ops/ROUTINES.md``)
+vs the cloud routine's (``:53``, minute-of-hour 50-59). For ``hourly-dual``
+kind families only (the two families' cadence assumption this split relies
+on), each health record now also carries a ``collectors`` breakdown:
+``vps``/``cloud``/``other`` pass counts and newest ``captured_at`` in the
+window. ``other`` is not fabricated into either bucket — ad-hoc live-pass
+smoke tests and one-off runs land there honestly, same discipline as
+``no_signal`` for completeness. When a family alerts (STALE or UNDER-CAPTURE)
+and exactly one of vps/cloud has zero passes in the window while the other is
+non-zero, the alert reason is extended with which collector looks dead
+(``collector_diagnosis``) — a genuine attribution, never a guess when both
+sides are non-zero or both are zero (ambiguous cases stay unattributed).
 """
 from __future__ import annotations
 
@@ -143,6 +162,16 @@ STALE_INTERVAL_MULTIPLE = 2.0   # STALE alert when age_hours > this * interval_h
 UNDER_CAPTURE_FLOOR = 0.8       # UNDER-CAPTURE alert when captured/expected < this
 UNDER_CAPTURE_MIN_PPD = 6       # ratio detector only runs for families this dense
 
+# Minute-of-hour signature of the two staggered collectors (ops/ROUTINES.md:
+# VPS cron :23, cloud trigger :53). Bucketed by ten-minute decile so ordinary
+# start-up jitter (observed: VPS lands 20-28, cloud lands 50-59) still
+# attributes correctly; anything else is honestly "other", never forced into
+# a bucket (L117).
+COLLECTOR_MINUTE_BUCKETS: Dict[str, range] = {
+    "vps": range(20, 30),
+    "cloud": range(50, 60),
+}
+
 # The one benign-silence allowlist entry (see module docstring for full rationale).
 KNOWN_BENIGN_SILENCES: List[Dict[str, str]] = [
     {
@@ -172,6 +201,18 @@ def _parse_iso(ts: Optional[str]) -> Optional[datetime]:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def collector_bucket(dt: datetime) -> str:
+    """Attribute a capture timestamp to "vps" / "cloud" / "other" by its
+    minute-of-hour, per ``COLLECTOR_MINUTE_BUCKETS``. Never guesses: a minute
+    outside both windows (an ad-hoc live-pass smoke test, a one-off run) is
+    honestly "other", not forced into whichever bucket is closer."""
+    minute = dt.minute
+    for name, bucket in COLLECTOR_MINUTE_BUCKETS.items():
+        if minute in bucket:
+            return name
+    return "other"
 
 
 def _parse_day_from_filename(path: Path) -> Optional[date]:
@@ -261,6 +302,10 @@ class FamilyAggregate:
         self.newest_captured_at: Optional[datetime] = None
         # Distinct passes within the lookback window: capture_id -> earliest ts.
         self._window_passes: Dict[str, datetime] = {}
+        # Same, split by collector-minute bucket (vps/cloud/other) — L117.
+        self._window_passes_by_bucket: Dict[str, Dict[str, datetime]] = {
+            "vps": {}, "cloud": {}, "other": {}
+        }
         self.n_complete = 0
         self.n_incomplete = 0
         self.n_no_signal = 0
@@ -275,6 +320,11 @@ class FamilyAggregate:
         prev = self._window_passes.get(key)
         if prev is None or ca < prev:
             self._window_passes[key] = ca
+        bucket = collector_bucket(ca)
+        bucket_passes = self._window_passes_by_bucket[bucket]
+        bprev = bucket_passes.get(key)
+        if bprev is None or ca < bprev:
+            bucket_passes[key] = ca
         comp = extract_completeness(rec)
         if comp is True:
             self.n_complete += 1
@@ -282,6 +332,21 @@ class FamilyAggregate:
             self.n_incomplete += 1
         else:
             self.n_no_signal += 1
+
+    def collector_summary(self) -> Dict[str, Dict[str, Any]]:
+        """Per-bucket (vps/cloud/other) window pass count + newest capture in
+        that bucket. Read-only summary of ``_window_passes_by_bucket`` — does
+        not affect the aggregate STALE/UNDER-CAPTURE detectors, which stay
+        collector-agnostic (a family is healthy if EITHER collector covers
+        it)."""
+        out: Dict[str, Dict[str, Any]] = {}
+        for bucket, passes in self._window_passes_by_bucket.items():
+            newest = max(passes.values()) if passes else None
+            out[bucket] = {
+                "passes": len(passes),
+                "newest_captured_at": newest.isoformat() if newest is not None else None,
+            }
+        return out
 
 
 def aggregate_family(tape_root: Path, family: str, now: datetime,
@@ -420,6 +485,24 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
     missed_passes_estimate = round(max(stale_missed, shortfall), 1)
     would_alert = bool(reasons)
 
+    # Collector attribution (L117) — only meaningful for the two-collector
+    # families; other kinds don't have a VPS/cloud split to attribute to.
+    collectors: Optional[Dict[str, Dict[str, Any]]] = None
+    collector_diagnosis: Optional[str] = None
+    if cfg["kind"] == "hourly-dual":
+        collectors = agg.collector_summary()
+        vps_n = collectors["vps"]["passes"]
+        cloud_n = collectors["cloud"]["passes"]
+        # Attribute only the unambiguous case: exactly one side is silent
+        # while the other is still producing passes. Both-zero (fully dark,
+        # already covered by STALE) and both-nonzero (no single collector to
+        # blame) are left unattributed rather than guessed at.
+        if would_alert:
+            if vps_n == 0 and cloud_n > 0:
+                collector_diagnosis = "vps_dead: 0 passes in window, cloud collector still producing"
+            elif cloud_n == 0 and vps_n > 0:
+                collector_diagnosis = "cloud_dead: 0 passes in window, vps collector still producing"
+
     benign = _benign_match(agg.family, newest) if would_alert else None
     if would_alert and benign is not None:
         alert = False
@@ -427,6 +510,8 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
     elif would_alert:
         alert = True
         alert_reason = "; ".join(reasons)
+        if collector_diagnosis is not None:
+            alert_reason = f"{alert_reason}; {collector_diagnosis}"
     elif dark:
         alert = False
         alert_reason = "dark: no capture at or before now (not-yet-active / never ran — shown, not paged)"
@@ -451,6 +536,8 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
         "missed_passes_estimate": missed_passes_estimate,
         "alert": alert,
         "alert_reason": alert_reason,
+        "collectors": collectors,
+        "collector_diagnosis": collector_diagnosis,
     }
 
 
@@ -515,6 +602,18 @@ def format_table(report: Dict[str, Dict[str, Any]], now: datetime) -> str:
             lines.append(f"  ALERT  {fam}: {rec['alert_reason']}")
         elif rec["alert_reason"].startswith("known_benign_silence"):
             lines.append(f"  benign {fam}: {rec['alert_reason']}")
+    return "\n".join(lines)
+
+
+def format_collector_diagnoses(report: Dict[str, Dict[str, Any]]) -> str:
+    """One line per alerting hourly-dual family that has an unambiguous
+    collector attribution (L117) — empty string if none. Kept separate from
+    ``format_table`` so a caller that only wants the diagnosis (e.g. an idle
+    run's own digest) doesn't have to re-parse the full table."""
+    lines: List[str] = []
+    for fam, rec in report.items():
+        if rec["alert"] and rec.get("collector_diagnosis"):
+            lines.append(f"{fam}: {rec['collector_diagnosis']}")
     return "\n".join(lines)
 
 

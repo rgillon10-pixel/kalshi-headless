@@ -6,6 +6,28 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-20 — Idle-run (policy a): L117→L118 — `tape_gap_monitor.py` now names WHICH collector died
+
+Research-loop run (protocol v3). Steps 0/0a: `git fetch` needed a forced/non-fast-forward update to move this container's cached `origin/main` ref, momentarily matching the step-0a "main rewound" signature — checked against the real GitHub history instead of trusting the stale local cache: the last 10 merged PRs (#127-#136) form an unbroken base-SHA chain to `origin/main` HEAD `ecdac56`, and `kb/00-LOG.md`'s newest entry (this file, dated 2026-07-20) matches the newest `tape/*/dt=*` content — no actual rewind, just a stale local branch pointer from an earlier container snapshot. Reset local `main` via `git checkout -B main origin/main`, no work lost. Open PRs unchanged: #125 (retro, leave-open-for-Ryan) and #77 (stale queue-restock) — neither claims eligible work.
+
+**Step 0b — stranded-tape sweep.** One branch younger than the last sweep, `tape/hourly-20260720T1257Z` (>2h old), carried **248** genuinely-missing lines: 231 `sports_pairs`, 15 `polymarket_macro_pairs`, 2 `crypto_hourly` — prefix-verified pure append, JSON-validated (0 invalid).
+
+**Full Q0–Q46 re-scan: 0 eligible TODO/IN-PROGRESS** (fifth idle run today; nothing crossed a time-gate since the prior firing 3h ago). Idle-policy (a): the immediately-prior run filed lesson **L117** (UNENFORCED) after root-causing the tape cadence decline as a dead VPS `:23` cron — it proposed but didn't build a minute-of-hour bucketing extension to `scripts/tape_gap_monitor.py` so the monitor could name WHICH of the two staggered collectors died, not just report an aggregate under-capture ratio. That's the only open UNENFORCED row, so this run built it.
+
+**Milestone — collector attribution in `tape_gap_monitor.py`.** Added `collector_bucket(dt)`: classifies a capture timestamp's minute-of-hour into `vps` (20-29, the VPS `:23` cron's jitter range), `cloud` (50-59, the cloud `:53` trigger's), or `other` — calibrated against real committed-tape minute histograms (`crypto_hourly`/`sports_pairs`/`orderbook_depth`/`polymarket_macro_pairs` cluster cleanly at :23/:54-59; never forced into a bucket when they don't). `FamilyAggregate` now tracks window passes per bucket (`collector_summary()`); `evaluate_family` attaches a `collectors` breakdown to every `hourly-dual`-kind family's health record and, when the family alerts with exactly one bucket empty while the other still produces passes, names the dead one via `collector_diagnosis` (`vps_dead`/`cloud_dead`) folded into `alert_reason`. Both-zero (already covered by STALE) and both-nonzero (no single collector to blame) stay unattributed by design — verified live against real tape that this restraint matters: `weather_books`' actual cloud-leg offset (`:00`/`:03`) doesn't land in the `:5x` window, so it honestly reports `other`/unattributed rather than a fabricated `vps_dead`.
+
+12 new unit tests (minute classification, healthy vs. diagnosed-dead vs. ambiguous-both-present vs. ambiguous-both-absent, per-bucket newest-capture tracking, table/JSON presentation) plus a 4th HARD acceptance test anchored to the real 2026-07-19 VPS outage: at `now=2026-07-20T00:30Z` over the actual committed tape, `crypto_hourly`/`orderbook_depth`/`sports_pairs`/`polymarket_macro_pairs` all resolve to a clean `vps_dead` attribution — not a synthetic fixture, the real finding L117 diagnosed by hand is now mechanically reproducible.
+
+New lesson **L118** (`kb/lessons/00-lessons.md`) supersedes L117's enforcement column (`UNENFORCED` → `test`). The lessons ledger's UNENFORCED backlog is empty again as of this row. No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent verdict rule N/A (non-gating monitor extension, same precedent as L75/L104/L110).
+
+**Gates.** `pytest -q` → 1299 passed (1287 prior + 12 new). `python scripts/invariants.py --full` → exit 0 (only the pre-existing non-gating advisories: stranded-ref, dir-shape/GC-classification, daily-cadence gaps — all already known).
+
+**Step 9 — paper sub-pass.** `SHADOW_REGISTRY`={s14_ladder_underwriting} only. `paper_pass.py` idempotent (0 newly processed — the swept lines don't touch any of `crypto_hourly`'s s14-relevant records). Realized P&L unchanged **+$12.10** (`broker_truth`; s14 stays DEAD-at-real-fills per Q34 — proxy P&L, not proven edge).
+
+**Next:** the lessons ledger is empty again — the next idle run either finds a fresh queue item, drops to idle-policy (b)/(c), or waits for a new lesson to be filed. Q36 part 2 / Q42 part 3 remain the only not-yet-preppable time-gated items (need live gated tape/auth respectively). VPS `:23` cron restart is still Ryan/VPS-side, unresolved.
+
+---
+
 ## 2026-07-20 — Idle-run (policy c): tape cadence-decline deep-dive — root cause is a dead VPS collector, not a code bug
 
 Research-loop run (protocol v3). Steps 0/0a: no history-integrity issue (merged PRs #132-#136 all confirmed ancestors of `origin/main`; `kb/00-LOG.md` and `tape/*/dt=*` both current through 2026-07-20). Open PRs unchanged: #125 (retro, "LEAVE OPEN for Ryan") and #77 (stale queue-restock) — neither claims eligible work.

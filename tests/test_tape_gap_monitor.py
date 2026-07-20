@@ -117,6 +117,131 @@ def test_healthy_hourly_no_alert(tmp_path):
     assert rec["capture_ratio"] is not None and rec["capture_ratio"] >= 0.9
 
 
+# --------------------------------------------------------------------------- #
+# Collector attribution (L117): minute-of-hour VPS(:2x)/cloud(:5x)/other split
+# --------------------------------------------------------------------------- #
+def test_collector_bucket_classification():
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 23)) == "vps"
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 20)) == "vps"
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 29)) == "vps"
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 53)) == "cloud"
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 50)) == "cloud"
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 59)) == "cloud"
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 0)) == "other"
+    assert tgm.collector_bucket(_dt(2026, 7, 19, 3, 45)) == "other"
+
+
+def test_collectors_present_for_hourly_dual_kind(tmp_path):
+    now = _dt(2026, 7, 15, 12, 0)
+    for day, hrs in (("2026-07-14", range(12, 24)), ("2026-07-15", range(0, 12))):
+        _hourly_day(tmp_path, "sports_pairs", day, hrs, minute=23, complete=True)
+        _hourly_day(tmp_path, "sports_pairs", day, hrs, minute=53, complete=True)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "sports_pairs", now), now)
+    assert rec["collectors"] is not None
+    assert rec["collectors"]["vps"]["passes"] == 24
+    assert rec["collectors"]["cloud"]["passes"] == 24
+    assert rec["collectors"]["other"]["passes"] == 0
+    assert rec["collector_diagnosis"] is None  # healthy -> nothing to diagnose
+
+
+def test_collectors_none_for_non_hourly_dual_kind(tmp_path):
+    # econ_prints is a daily-econ-slot family, not a two-collector split.
+    _write_lines(tmp_path, "econ_prints", "2026-07-13",
+                 [_pass("c1", "2026-07-13T09:30:00+00:00", pass_complete=True)])
+    now = _dt(2026, 7, 13, 10, 0)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "econ_prints", now), now)
+    assert rec["collectors"] is None
+    assert rec["collector_diagnosis"] is None
+
+
+def test_diagnoses_vps_dead_when_cloud_still_producing(tmp_path):
+    # Only the cloud (:53) leg lands across the whole window -> clean under-capture
+    # + an unambiguous vps_dead attribution, mirroring the real 2026-07-19/20 outage.
+    now = _dt(2026, 7, 20, 0, 30)
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-19", range(0, 24), minute=54, complete=True)
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-20", [0], minute=54, complete=True)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "crypto_hourly", now), now)
+    assert rec["alert"] is True
+    assert "under_capture" in rec["alert_reason"]
+    assert rec["collectors"]["vps"]["passes"] == 0
+    assert rec["collectors"]["cloud"]["passes"] > 0
+    assert rec["collector_diagnosis"] == \
+        "vps_dead: 0 passes in window, cloud collector still producing"
+    assert "vps_dead" in rec["alert_reason"]
+
+
+def test_diagnoses_cloud_dead_when_vps_still_producing(tmp_path):
+    now = _dt(2026, 7, 20, 0, 30)
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-19", range(0, 24), minute=23, complete=True)
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-20", [0], minute=23, complete=True)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "crypto_hourly", now), now)
+    assert rec["alert"] is True
+    assert rec["collectors"]["cloud"]["passes"] == 0
+    assert rec["collectors"]["vps"]["passes"] > 0
+    assert rec["collector_diagnosis"] == \
+        "cloud_dead: 0 passes in window, vps collector still producing"
+
+
+def test_no_diagnosis_when_both_collectors_still_present(tmp_path):
+    # Both sides thinned (e.g. every other hour) -> under-capture alert fires but
+    # neither collector is at zero, so no attribution is guessed.
+    now = _dt(2026, 7, 16, 0, 30)
+    _hourly_day(tmp_path, "orderbook_depth", "2026-07-15", range(0, 24, 4), minute=23, complete=None)
+    _hourly_day(tmp_path, "orderbook_depth", "2026-07-15", range(0, 24, 4), minute=53, complete=None)
+    _hourly_day(tmp_path, "orderbook_depth", "2026-07-16", [0], minute=23, complete=None)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "orderbook_depth", now), now)
+    assert rec["alert"] is True
+    assert "under_capture" in rec["alert_reason"]
+    assert rec["collectors"]["vps"]["passes"] > 0
+    assert rec["collectors"]["cloud"]["passes"] > 0
+    assert rec["collector_diagnosis"] is None
+    assert "vps_dead" not in rec["alert_reason"]
+    assert "cloud_dead" not in rec["alert_reason"]
+
+
+def test_no_diagnosis_when_both_collectors_zero_family_ambiguous(tmp_path):
+    # An "other"-only leg (e.g. weather_books' real cloud offset, see module docstring)
+    # is honestly left unattributed rather than forced into vps or cloud.
+    now = _dt(2026, 7, 20, 0, 30)
+    _hourly_day(tmp_path, "weather_books", "2026-07-19", range(0, 24), minute=3, complete=None)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "weather_books", now), now)
+    assert rec["collectors"]["vps"]["passes"] == 0
+    assert rec["collectors"]["cloud"]["passes"] == 0
+    assert rec["collectors"]["other"]["passes"] > 0
+    assert rec["collector_diagnosis"] is None
+
+
+def test_collector_summary_tracks_newest_per_bucket(tmp_path):
+    _hourly_day(tmp_path, "sports_pairs", "2026-07-15", [0, 1, 2], minute=23, complete=True)
+    _hourly_day(tmp_path, "sports_pairs", "2026-07-15", [0, 1], minute=53, complete=True)
+    now = _dt(2026, 7, 15, 4, 0)
+    agg = tgm.aggregate_family(tmp_path, "sports_pairs", now)
+    summary = agg.collector_summary()
+    assert summary["vps"]["passes"] == 3
+    assert summary["vps"]["newest_captured_at"] == "2026-07-15T02:23:00+00:00"
+    assert summary["cloud"]["passes"] == 2
+    assert summary["cloud"]["newest_captured_at"] == "2026-07-15T01:53:00+00:00"
+    assert summary["other"]["passes"] == 0
+    assert summary["other"]["newest_captured_at"] is None
+
+
+def test_format_collector_diagnoses_lists_only_diagnosed_alerts(tmp_path):
+    now = _dt(2026, 7, 20, 0, 30)
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-19", range(0, 24), minute=54, complete=True)
+    report = tgm.build_report(tmp_path, now, families=["crypto_hourly"])
+    out = tgm.format_collector_diagnoses(report)
+    assert "crypto_hourly: vps_dead" in out
+
+
+def test_format_collector_diagnoses_empty_when_nothing_to_diagnose(tmp_path):
+    now = _dt(2026, 7, 15, 12, 0)
+    for day, hrs in (("2026-07-14", range(12, 24)), ("2026-07-15", range(0, 12))):
+        _hourly_day(tmp_path, "sports_pairs", day, hrs, minute=23, complete=True)
+        _hourly_day(tmp_path, "sports_pairs", day, hrs, minute=53, complete=True)
+    report = tgm.build_report(tmp_path, now, families=["sports_pairs"])
+    assert tgm.format_collector_diagnoses(report) == ""
+
+
 def test_stale_hourly_alerts(tmp_path):
     now = _dt(2026, 7, 15, 12, 0)
     # last pass 5h before now, nothing since -> stale (> 2h threshold).
@@ -354,4 +479,22 @@ def test_acceptance_3_polymarket_benign_not_hard_alerted():
     later = _dt(2026, 7, 17, 12, 0)
     r2 = tgm.build_report(_REAL_TAPE, later)["polymarket_pairs"]
     assert r2["alert"] is False
-    assert r2["alert_reason"].startswith("known_benign_silence")
+
+
+@_real
+def test_acceptance_4_l117_vps_dead_0719_attributed():
+    """The real 2026-07-19 VPS-cron death (findings/2026-07-20-tape-cadence-decline-
+    vps-collector-down.md, lesson L117): over the 24h window ending 2026-07-20T00:30,
+    the VPS(:2x) bucket is genuinely empty for the affected hourly-dual families while
+    cloud(:5x) keeps producing -> an unambiguous vps_dead attribution, not just an
+    aggregate under-capture ratio."""
+    now = _dt(2026, 7, 20, 0, 30)
+    report = tgm.build_report(_REAL_TAPE, now)
+    for fam in ("crypto_hourly", "orderbook_depth", "sports_pairs", "polymarket_macro_pairs"):
+        r = report[fam]
+        assert r["alert"] is True, f"{fam} should alert in this window: {r}"
+        assert r["collectors"]["vps"]["passes"] == 0, f"{fam}: {r['collectors']}"
+        assert r["collectors"]["cloud"]["passes"] > 0, f"{fam}: {r['collectors']}"
+        assert r["collector_diagnosis"] == \
+            "vps_dead: 0 passes in window, cloud collector still producing", \
+            f"{fam}: {r['collector_diagnosis']}"
