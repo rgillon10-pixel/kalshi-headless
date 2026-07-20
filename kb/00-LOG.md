@@ -6,6 +6,73 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-20 — Idle-run (policy c): Q36 weather_books data-adequacy audit — gate opens under-powered
+
+Research-loop run (protocol v3). Steps 0/0a done by the calling session: last 5 merged PRs
+(#134-#138) all confirmed ancestors of `origin/main` HEAD `51c3a0d`; `kb/00-LOG.md`'s newest
+entries and the newest `tape/*/dt=*` files both dated 2026-07-20 — no rewind. Open PRs #125
+(retro, "LEAVE OPEN for Ryan") and #77 (stale restock) — neither claims eligible work. Step
+0b: newest `tape/hourly-*` branch is `tape/hourly-20260720T1257Z`, already fully swept by
+PR #137 — nothing new to sweep this cycle.
+
+Full Q0-Q46 re-scan: **0 eligible TODO/IN-PROGRESS** (8th idle firing in the sequence).
+Idle-policy (a) empty (L118's own row: "The lessons ledger's UNENFORCED backlog is now empty
+as of this row"). Idle-policy (b) already covered every fixture-preppable gated item today
+(Q37, Q43 both prepped in earlier firings; Q36 part 2 needs the gated `weather_books` depth
+history directly, nothing safe to prep against fixtures alone). Dropped to idle-policy (c):
+a data-quality deep-dive on a tape family untouched by today's earlier runs — chose
+`tape/weather_books/`, since L117/L118 characterized the VPS-death's effect on
+crypto/sports/perp tape but nobody had checked whether it also hit the family Q36's own gate
+depends on, or whether the calendar gate opening (~2026-07-22) would actually mean adequate
+data.
+
+**Finding:** it will not. Per-day pass density on `tape/weather_books/` collapsed ~80%
+(28-31 passes/day → 6/day) starting 2026-07-19, the same dead-VPS-cron root cause L117/L118
+diagnosed elsewhere. KXTEMPNYCH's own captures-per-market-hour is median 1 / mean ~1.2-1.3
+(max 3) — too sparse for Q36's microstructure leg regardless of calendar-day count.
+Separately, Q36's settlement-basis leg is blocked on `n_settled_events=1` vs
+`MIN_EVENTS=10` (only one KXTEMPNYCH event-hour has ever settled in the committed
+`tape/settlement_ledger/`), confirmed by running `scripts/q36_kxtempnych_settlement_basis_probe.py`
+directly against committed tape (it correctly reports `INSUFFICIENT DATA`, not a fabricated
+verdict). `tape/weather_actuals/` (the ASOS cross-check) has been dark since 07-18.
+`tape/weather_books/` itself is now 72M, already past `tape/README.md`'s 50MB
+external-storage decision point — flagged for Ryan.
+
+Two independent `verifier` passes re-derived every load-bearing number directly from raw
+committed JSONL (day/line counts, `capture_id`-based pass density + minute-of-hour
+bucketing using `scripts/tape_gap_monitor.py`'s own `collector_bucket()`, KXTEMPNYCH
+coverage/depth histograms, and by executing the Q36 probe script itself) — both CONFIRMED
+every claim exactly. One pass additionally caught a 100x units bug in a draft supplementary
+"book notional at touch" descriptor (divided by 100 twice); that metric was omitted from the
+finding rather than fixed in place, since it was never part of the gate-adequacy conclusion.
+See `findings/2026-07-20-q36-weather-books-data-adequacy.md`, lessons **L119** (book-notional
+units sanity-check candidate) and **L120** (monitor blind-spot: a family whose sole surviving
+collector lands outside both named vps/cloud minute buckets can't be told apart from "healthy
+other-leg" by `collector_diagnosis` alone).
+
+No strategy claim, no `kb/strategies/00-index.md` change — this is a gate-adequacy
+characterization, not a Q36 verdict. Q36's own Status line updated to record the
+under-powered-gate warning so whoever runs it on ~07-22 doesn't trust the calendar count
+alone.
+
+Gates: `pytest -q` → 1317 passed (unchanged from PR #138 baseline — this run added no new
+Python code, docs/findings/lessons only). `python scripts/invariants.py --full` → exit 0
+("invariants: all green"; only pre-existing non-gating advisories: dir-shape/GC L25/L109,
+daily-cadence gaps L74).
+
+Step 9 — paper sub-pass: `SHADOW_REGISTRY`={s14_ladder_underwriting} only; this run's diff
+doesn't touch any tape the paper broker reads, so `paper_pass.py` is idempotent (0 newly
+processed). Realized P&L unchanged **+$12.10** (`broker_truth`; S14 stays DEAD-at-real-fills
+per Q34, proxy P&L not an edge). Still 0 proven edges.
+
+Next: the VPS collector remains down (Ryan/VPS-side fix, outside cloud-run scope) and is now
+confirmed to be degrading weather_books specifically, not just the crypto/sports/perp
+families L117/L118 already flagged; a future run should re-check Q43's perp gate (~07-23/24)
+and Q36's weather gate (~07-22) for the same under-powered-on-open pattern before trusting
+either verdict.
+
+---
+
 ## 2026-07-20 — Idle-run (policy b): Q33 Polymarket-US book-capture collector built (self-activating, credential-gated)
 
 Research-loop run (protocol v3). Steps 0/0a done by the calling session: `origin/main` HEAD `9c21a5b` (tape hourly pass 2026-07-20T16:02:45Z) matched local, no rewind; open PRs #125 (retro, "LEAVE OPEN for Ryan") and #77 (stale queue-restock) — neither claims eligible work.
