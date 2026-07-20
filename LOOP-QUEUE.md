@@ -847,6 +847,7 @@ the-odds-api soccer coverage vs Kalshi's current sports set). S11 flips to data-
 only when matched pairs flow.
 
 ### Q19 — S17 burst-event studies (lead-lag + dislocation scan) — TIME-SENSITIVE: CPI Jul 14, FOMC Jul 29
+Status: PER-EVENT WC-FINAL — NOT ELIGIBLE / HONEST GAP (2026-07-20, research loop, idle run). The WC-final burst-capture trigger `kalshi-burst-wcfinal-0719` (window Jul 19 20:10->22:45Z) DID fire (`last_fired_at` 2026-07-19T20:10:31Z per the trigger API, still `enabled: true`) but NO burst tape was ever committed — `tape/polymarket_pairs/` has no `dt=2026-07-19.jsonl` on main, and no `tape/burst-*` branch carries it (the only burst branch in the repo is the long-swept Jul-14 CPI one). This is a SECOND occurrence of the exact WC-semi1 (Jul 14) failure mode recorded below (trigger fired, `last_fired_at` set, no burst tape committed) — flagged for Ryan (Ryan-side trigger/collection infra, not analyzable or fixable from a cloud run), not silently dropped. Q19's WC-final per-event leg is therefore NOT eligible (no tape to analyze). Remaining PER-EVENT legs: WC semi1 + WC final (both trigger-fired-but-never-captured — Ryan-side trigger investigation needed), FOMC (Jul 29, S17's decision event).
 Status: PER-EVENT WC-SEMI2 DONE (2026-07-16, research loop) — descriptive only, no registry
 flip, S17 stays `data-collecting`. Built `--burst-window` mode for `scripts/s9_leadlag_probe.py`
 (the WC-round schema analog of `s17_leadlag_probe.py`'s burst mode, keyed by Kalshi ticker; +
