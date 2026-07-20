@@ -6,6 +6,28 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-20 — Idle-run (policy b): Q33 Polymarket-US book-capture collector built (self-activating, credential-gated)
+
+Research-loop run (protocol v3). Steps 0/0a done by the calling session: `origin/main` HEAD `9c21a5b` (tape hourly pass 2026-07-20T16:02:45Z) matched local, no rewind; open PRs #125 (retro, "LEAVE OPEN for Ryan") and #77 (stale queue-restock) — neither claims eligible work.
+
+Step 0b — stranded-tape sweep: **0 genuinely-missing lines**. Checked today's 4 fallback branches (`tape/hourly-20260720T{0354,0704,095513,1257}Z`) by exact line-set diff against `origin/main` — all fully absorbed (main HEAD at 16:02Z supersedes them; the prior run's T1257Z sweep plus subsequent hourly main-pushes brought main current). Spot-checked older branches (`tape/hourly-20260719T{2156,1856}Z`) and the lone burst branch (`tape/burst-20260714T120659Z`) — also 0 missing. Known Q17 pattern (branches absorbed but not deleted; deletion is Ryan-side, not a cloud-run job).
+
+Full Q0–Q46 re-scan: **0 eligible TODO/IN-PROGRESS** (7th idle run in the sequence). Confirmed by reading each candidate's prose: Q19's remaining legs (WC-semi1/WC-final trigger-fired-but-never-captured = Ryan-side infra gap; FOMC Jul 29 = 9 days out), Q36 part 2 / Q37 / Q43 all date-gated with prep already built, Q42 part 3 / Q32 / Q33-live / Q35-build all credential/auth-blocked, Q21 idea-gen is the nightly edge-hunter's item (round #6 completed earlier today, "never pad to quota"). Idle-policy (a) exhausted: 0 rows with current `UNENFORCED` enforcement in `kb/lessons/00-lessons.md` (L118 superseded L117, L116 closed L66).
+
+Idle-policy (b) — chose Q33's collector: it was UNBUILT and Q33's own text explicitly sanctions idle-run agents building the offline-tested, self-activating collector skeleton ("NONE may fetch live Polymarket US data until the credential appears"). Delegated to `collector-engineer`; lead independently reviewed the diff and re-ran both gates (did not trust the agent's self-report).
+
+Milestone: `collection/polymarket_us_pairs.py` + `tests/test_polymarket_us_pairs.py` (15 offline tests) + `hourly_pass.py` wiring (+5 tests in `tests/test_hourly_pass.py`). Credential-gated (`POLYMARKET_US_API_KEY` presence only; value never printed/logged), `blocked_key` no-op = the only cloud-reachable path (live smoke wrote nothing, created no tape dir — the honest deliverable, NOT a gap; fabricating a `real_ask` line to "show a pass" would violate provenance). Present-credential path snapshots the Polymarket-US (QCEX) book tagged `real_ask` into the distinct `tape/polymarket_us_pairs/` family with bitemporal + raw-bytes-sha256 provenance and honest no_book/book_error accounting; network ops are injectable, defaults are VPS-bring-up stubs that raise. READ-ONLY, no `execution/` imports, no order verbs, no hardcoded fee (Hard Rule #3 clean). Soft-unblocks the Q32/Q35-build collector prerequisite (still gated on the live credential). Judgment calls flagged: no_book non-gating (structural US-subset difference); default discovery/fetch stay VPS-injected stubs because mapping question-identity -> US market/token id needs the KYC'd client.
+
+No strategy claim, no `kb/strategies/00-index.md` change, no `findings/` — two-agent verdict rule N/A (collector build, Q44/Q45/Q46 precedent).
+
+Gates (independently re-run by the lead): `pytest -q` rc=0, **1317 passed** (1298 prior + 19 new). `python scripts/invariants.py --full` exit 0 ("invariants: all green"); only pre-existing non-gating advisories (stranded-ref, dir-shape/GC-classification L25/L109, daily-cadence gaps L74).
+
+Step 9 — paper sub-pass: `SHADOW_REGISTRY`={s14_ladder_underwriting} only. `paper_pass.py` idempotent (0 newly processed, 224 deferred-caps, 222 deferred-coverage, 76 already-in-ledger; 0 new ledger lines). Realized P&L unchanged **+$12.10** (`broker_truth`, `daily_summary`: "paper: 0 open position(s), 551 settled contract(s), realized P&L $+12.10, cash $+12.10, open notional $0.00"). S14 is DEAD-at-real-fills (Q34) and its `fill_model` is the L39/L85 candle-through proxy — paper-INFRA validation ONLY, never edge evidence. Still 0 proven edges.
+
+Next: the Q33 live fetch stays credential-blocked (Ryan/VPS-side Ed25519 bring-up); the next idle run either finds a fresh queue item, re-checks whether Q43's perp gate (~07-23/24) has opened with adequate per-day density (VPS `:23` cron still dead per L117/Q44), or drops to idle-policy (c)/(d).
+
+---
+
 ## 2026-07-20 — Idle-run (policy a): L117→L118 — `tape_gap_monitor.py` now names WHICH collector died
 
 Research-loop run (protocol v3). Steps 0/0a: `git fetch` needed a forced/non-fast-forward update to move this container's cached `origin/main` ref, momentarily matching the step-0a "main rewound" signature — checked against the real GitHub history instead of trusting the stale local cache: the last 10 merged PRs (#127-#136) form an unbroken base-SHA chain to `origin/main` HEAD `ecdac56`, and `kb/00-LOG.md`'s newest entry (this file, dated 2026-07-20) matches the newest `tape/*/dt=*` content — no actual rewind, just a stale local branch pointer from an earlier container snapshot. Reset local `main` via `git checkout -B main origin/main`, no work lost. Open PRs unchanged: #125 (retro, leave-open-for-Ryan) and #77 (stale queue-restock) — neither claims eligible work.

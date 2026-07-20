@@ -1007,6 +1007,107 @@ def test_settlement_ledger_raising_marks_incomplete_not_crash(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# polymarket_us_pairs (Q33): OPTIONAL credential-gated leg. blocked_key/absent (the only
+# state a cloud pass sees) must NOT lower completeness or counts; a genuine credentialed run
+# folds its captured US-book lines + own completeness_ok in; a crash is isolated like siblings.
+# --------------------------------------------------------------------------- #
+_BLOCKED_POLYMARKET_US = {"status": "blocked_key", "family": "polymarket_us_pairs",
+                          "venue": "polymarket_us", "credential_env": "POLYMARKET_US_API_KEY",
+                          "reason": "POLYMARKET_US_API_KEY absent — no network, wrote nothing"}
+
+
+def test_polymarket_us_blocked_key_does_not_gate_or_count(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     polymarket_us_fn=lambda: dict(_BLOCKED_POLYMARKET_US),
+                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    # absent credential is the normal cloud state: completeness intact, counts untouched
+    assert summary["completeness_ok"] is True
+    assert summary["n_lines"] == 1 + 1
+    assert summary["n_markets"] == 1 * 2 + 1 * 10
+    assert summary["polymarket_us_pairs"]["result"]["status"] == "blocked_key"
+
+
+def test_polymarket_us_default_is_blocked_key_when_env_absent(monkeypatch, tmp_path):
+    # the default wiring resolves the env credential; absent -> blocked_key, no network, no file
+    monkeypatch.delenv("POLYMARKET_US_API_KEY", raising=False)
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    # no polymarket_us_fn injected -> _default_polymarket_us_pass runs for real (offline)
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is True
+    assert summary["polymarket_us_pairs"]["result"]["status"] == "blocked_key"
+
+
+def test_polymarket_us_captured_lines_fold_in(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     polymarket_us_fn=lambda: {"status": "ok", "n_captured": 5,
+                                               "completeness_ok": True},
+                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is True
+    # fresh live-market US BBOs -> DO fold in (1 game + 1 symbol + 5 US books)
+    assert summary["n_lines"] == 1 + 1 + 5
+    assert summary["n_markets"] == 1 * 2 + 1 * 10 + 5
+
+
+def test_polymarket_us_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     polymarket_us_fn=lambda: {"status": "ok", "n_captured": 2,
+                                               "completeness_ok": False},
+                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_polymarket_us_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated polymarket_us_pairs crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     polymarket_us_fn=_boom,
+                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["polymarket_us_pairs"]["status"] == "error"
+    # sibling sub-passes survive (fault isolation)
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+    assert summary["n_lines"] == 1 + 1
+    assert summary["n_markets"] == 2 + 10
+
+
+# --------------------------------------------------------------------------- #
 # universe_sweep (Q46): 6-hourly cadence — fires only on {0,6,12,18} UTC, folds its counts
 # (FRESH BBOs, same class as sports/crypto/depth) into n_markets/n_lines, incompleteness
 # propagates, and a crash is isolated like every sibling.
