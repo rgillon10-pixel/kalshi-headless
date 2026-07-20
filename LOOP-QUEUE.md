@@ -942,6 +942,23 @@ corrected per the verifier's caveat before commit. See
 `invariants --full` green.
 
 ### Q21 — Idea-generation round: S19+ candidates (standing replenishment item)
+Status: ROUND COMPLETE (2026-07-20, kalshi-edge-hunter) — re-eligibility trigger fired again
+(0 eligible TODO/unclaimed/unblocked/gate-open items, FILE-SHAPE-verified per L25: Q43 gate ~07-23
+[`tape/perp_tape/` 4 canonical forward days, probe already built], Q36 gated ~07-22/23 AND
+design-blocked on an intraday-KNYC actual [probe already exists], Q37 ~Aug-05, Q19 WC-final/FOMC legs
+have no captured burst tape, Q32/Q33/Q35-build/Q42-part3 credential/auth-blocked). Proposed **3
+candidates (S43/S44/S45), ALL killed at idea stage by independent `verifier` attack → 0 registered**
+(6th round in ~8 days, all 0; no new tape surface since the 07-18 round — never pad to quota).
+**S43** (cross-venue econ directional convergence, one fee): `tape/econ_prints/` has exactly **n=1**
+in-window macro release (June CPI 07-14); every other series settles after the tape ends → no
+cross-event distribution to bootstrap (S9 data-adequacy grave); `polymarket_cpi_pairs` Kalshi leg is
+100% `synthetic`. **S44** (universe_sweep logical-complement coherence arb): collapses into S41 — the
+within-market YES+NO box min is **1.002** (never <$1; that gap IS the overround), sub-$1 cross-leg sums
+are non-exhaustive parlay longshots, complements unidentifiable from `universe_sweep.v1` + L96 20k cap.
+**S45** (single-series settlement-ledger rich-side maker-sell): `tape/settlement_ledger/` has **0 crypto
+rows** (zero-overlap join), `crypto_hourly` has no size/depth field (no fill model), and the flat 1¢
+maker fee swamps the 1–4¢ modal spread (S6/S13/S23 grave). New lessons **L113/L114/L115**. Still **0
+proven edges**; consumed S43/S44/S45 → **next free = S46**. See `findings/2026-07-20-q21-idea-gen-round.md`.
 Status: ROUND COMPLETE (2026-07-19, kalshi-edge-hunter) — re-eligibility trigger fired again
 (0 eligible TODO/unclaimed/unblocked/gate-open items, FILE-SHAPE-verified per L25: Q19 WC-final burst
 tape not yet captured [kickoff tonight 19:00Z], Q36 gated ~Jul-22 naive/~Jul-23+ clean [weather_books
