@@ -6,6 +6,24 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-20 — Idle-run (policy c): tape cadence-decline deep-dive — root cause is a dead VPS collector, not a code bug
+
+Research-loop run (protocol v3). Steps 0/0a: no history-integrity issue (merged PRs #132-#136 all confirmed ancestors of `origin/main`; `kb/00-LOG.md` and `tape/*/dt=*` both current through 2026-07-20). Open PRs unchanged: #125 (retro, "LEAVE OPEN for Ryan") and #77 (stale queue-restock) — neither claims eligible work.
+
+**Step 0b — stranded-tape sweep.** One branch younger than the last sweep, `tape/hourly-20260720T095513Z` (>2h old, committed 10:06:50Z), carried **1,694** genuinely-missing lines (line-set diff against `origin/main`, JSON-validated line by line): 1,104 `orderbook_depth`, 290 `weather_books`, 236 `sports_pairs`, 24 `polymarket_cpi_pairs` (new file), 17 `perp_tape`, 15 `polymarket_macro_pairs`, 5 `econ_prints`, 2 `crypto_hourly`, 1 `anomalies`. Union-appended, all lines JSON-validated.
+
+**Full Q0–Q46 re-scan: 0 eligible TODO/IN-PROGRESS** (unchanged from the prior 3 firings today). Idle-policy (a) is empty (L116 closed the backlog); idle-policy (b) is exhausted — every time-gated item that CAN be prepped from fixtures already has been (Q36 part 1, Q37, Q43); Q36 part 2 and Q42 part 3 need live gated tape/auth, not preppable offline. Took **idle-policy (c): a data-quality deep-dive on one tape family.**
+
+**Milestone — root-caused the perp_tape/crypto_hourly cadence decline.** This decline (511→238→102 lines/day, 64→28→14) has been flagged by three separate prior firings (PR #132, #134, #136) as "the same cloud-collector degradation Q44/L74/L75 flagged" but never actually investigated. Delegated to the `tape-auditor` agent, then independently re-verified every number myself (re-counted lines from scratch, re-derived the minute-of-hour attribution independently by parsing every `captured_at` timestamp) before writing it up — this is a data-quality diagnosis, not a verdict-class change, so the two-agent verifier rule doesn't strictly apply, but the same "don't trust the agent's self-report alone" discipline Q44/Q45/Q46 used seemed warranted given how actionable the conclusion is.
+
+**Finding:** the decline is real, global (identical in `perp_tape`/`crypto_hourly`/`orderbook_depth`/`sports_pairs`, all four halving in lockstep with dead-constant per-pass size — ruling out a per-family collector bug), and still worsening on 07-20. Minute-of-hour bucketing of `captured_at` (VPS cron signature `:2x` vs cloud-routine signature `:5x`, per `ops/ROUTINES.md`) pins the cause precisely: **the VPS `:23` cron on 87.99.146.250 stopped writing tape starting 2026-07-19** (partial day 07-18, zero VPS-pattern lines 07-19 and 07-20), leaving the already-degraded cloud `kalshi-collector` routine (Q44's own flagged ~60%-of-expected-cadence laggard since 07-15) as the sole survivor. Every collector module inspected (`collection/crypto_hourly.py`, `collection/perp_tape.py`) is clean — fixed symbol lists, honest `try/except`, 100% `completeness_ok` on passes that do fire. **This is a Ryan/VPS-infra item, not a repo bug** — no code change in this run would restore cadence. Flagged for Ryan: (a) check/restart the VPS `:23` cron on 87.99.146.250; (b) diagnose the cloud `kalshi-collector` routine's chronic under-cadence. Also flagged: Q43's `>=7 days` gate is a calendar-day count that will open on ~1/8th the intended tape density at current cadence — whoever runs Q43 should check per-day pass count, not just day count. See `findings/2026-07-20-tape-cadence-decline-vps-collector-down.md`; new lesson **L117** (UNENFORCED — candidate: teach `scripts/tape_gap_monitor.py` the minute-of-hour attribution so it names WHICH collector died, not just an aggregate under-capture ratio; not built this run, diagnosis only per idle-policy (c) scope).
+
+No strategy claim, no registry change (`kb/strategies/00-index.md` untouched) — two-agent verdict rule N/A (data-quality diagnosis, same tier as PR #118/#129's prior tape audits).
+
+`pytest -q` green (unchanged test count — docs/tape-only diff). `python scripts/invariants.py --full` green (only pre-existing non-gating advisories; the stranded-branch advisory clears after this commit merges).
+
+---
+
 ## 2026-07-20 — Idle-run (policy b): Q37 weather summer maker-NO probe-prep (S1 x S5 EMOS, self-activating)
 
 Research-loop run (protocol v3). Steps 0/0a: no history-integrity issue (`origin/main` HEAD matched local after `git fetch --unshallow`); open PRs #125 (retro, "LEAVE OPEN for Ryan") and #77 (stale queue-restock, superseded) — neither claims an eligible queue item.
