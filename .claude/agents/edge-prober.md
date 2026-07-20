@@ -157,7 +157,15 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   S28 family (and any "buy the ex-post known winner" variant, L66) at the
   IDEA stage, before `is_genuine_post_close` (L64/L101) is even reached — if
   a milestone reaches you framed this way, flag it back rather than building
-  the fill-sim.
+  the fill-sim. IF a future run ever formally reopens this idea-stage kill
+  (new tape, a different venue, a challenged premise) and a kill-condition
+  writeup for a "buy the known winner" trade shape gets built anyway, state
+  the losing-tail boundary precisely per L66: `edge = 1 − ask − fee` means a
+  losing cluster requires `ask` already priced within the fee of $1 (or a
+  post-entry settlement correction/void) — real but rare, so call it "a
+  genuine but thin losing tail," never "provably degenerate." An adversarial
+  verifier can construct a synthetic counterexample even when the real tape
+  never realizes one; overstating the degeneracy is the failure L66 caught.
 - Never register a maker-spread / spread-capture candidate whose only data leg
   is `tape/orderbook_depth/` — it is **toxicity-untestable by construction**, a
   clean IDEA-stage kill, not a data-collecting/untestable registration (L68 —
