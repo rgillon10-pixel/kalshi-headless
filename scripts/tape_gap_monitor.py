@@ -115,6 +115,22 @@ and exactly one of vps/cloud has zero passes in the window while the other is
 non-zero, the alert reason is extended with which collector looks dead
 (``collector_diagnosis``) — a genuine attribution, never a guess when both
 sides are non-zero or both are zero (ambiguous cases stay unattributed).
+
+Per-family expected-bucket map (L120, 2026-07-21)
+-------------------------------------------------
+L118's attribution above only ever names ``vps_dead``/``cloud_dead`` and reads
+``vps=0 & cloud=0`` as ambiguous. That permanently blinds it to a family whose
+SECOND collector lands in neither named window: ``weather_books``' cloud leg
+fires at minutes ~00-03 (``other``, not ``:5x``), so once its VPS(:2x) leg died
+on 2026-07-19 the monitor saw ``vps=0 & cloud=0`` and gave up — even though the
+tape proves the vps primary is the dead leg and ``other`` is the survivor.
+``EXPECTED_COLLECTOR_BUCKETS`` fixes this: a per-family ``{primary, secondary}``
+bucket map, calibrated against the REAL committed-tape minute histograms (see
+the constant's own comment for the 07-18..20 numbers). For a MAPPED family,
+``diagnose_collector`` names the dead expected leg when the other still produces;
+an UNMAPPED family keeps L118's exact vps/cloud logic (no regression). Both
+expected buckets zero, or both non-zero, still stay unattributed — L118's
+"no false attribution" discipline is preserved.
 """
 from __future__ import annotations
 
@@ -172,6 +188,35 @@ COLLECTOR_MINUTE_BUCKETS: Dict[str, range] = {
     "cloud": range(50, 60),
 }
 
+# Per-family expected collector-bucket map (L120). L118's ``collector_diagnosis``
+# only ever names ``vps_dead``/``cloud_dead`` and reads ``vps=0 & cloud=0`` as
+# ambiguous/unattributed — which permanently BLINDS it to a family like
+# ``weather_books`` whose real second collector lands in NEITHER the named
+# ``vps``(:20-29) nor ``cloud``(:50-59) window but in ``other`` (minutes ~00-03).
+# Once that family's PRIMARY (vps) leg dies, L118 sees ``vps=0 & cloud=0`` and
+# gives up, even though the tape itself proves the primary is the dead leg and
+# ``other`` is the sole survivor.
+#
+# Calibrated against the REAL committed-tape minute-of-hour histograms
+# (``tape/<family>/dt=2026-07-18..20``), NOT guessed:
+#   * ``weather_books``: PRIMARY leg lands at :27-:28 (``vps`` bucket), SECONDARY
+#     leg at :00-:03 (``other`` bucket). Verified: 07-18 vps=4098 lines /
+#     other=2410; 07-19 & 07-20 vps=0 while other persists (2940 / 3278). So the
+#     VPS primary died 07-19 and ``other`` is the survivor — mapped here so the
+#     diagnosis can NAME ``vps_dead`` instead of returning ambiguous.
+#   * ``crypto_hourly`` (representative dual-cron, read to anchor the map): PRIMARY
+#     :23 (``vps``), SECONDARY :54-:55 (``cloud``). Because its secondary is
+#     already the NAMED ``cloud`` bucket, L118's existing vps/cloud logic already
+#     attributes it correctly, so it needs NO override and is deliberately left
+#     OUT of this map (the same is true of ``orderbook_depth``/``sports_pairs``/
+#     the polymarket_* pairs — all standard :2x/:5x dual-cron families).
+#
+# A family NOT in this map keeps EXACTLY L118's ``vps``/``cloud`` diagnosis — no
+# regression. Only a mapped family uses the primary/secondary attribution below.
+EXPECTED_COLLECTOR_BUCKETS: Dict[str, Dict[str, str]] = {
+    "weather_books": {"primary": "vps", "secondary": "other"},
+}
+
 # The one benign-silence allowlist entry (see module docstring for full rationale).
 KNOWN_BENIGN_SILENCES: List[Dict[str, str]] = [
     {
@@ -213,6 +258,48 @@ def collector_bucket(dt: datetime) -> str:
         if minute in bucket:
             return name
     return "other"
+
+
+def diagnose_collector(family: str,
+                       collectors: Dict[str, Dict[str, Any]]) -> Optional[str]:
+    """Attribute an alerting hourly-dual family's silence to a dead collector.
+
+    Two paths, both preserving L117/L118's "never guess when ambiguous" rule:
+
+    * **Mapped family (L120).** If ``family`` is in ``EXPECTED_COLLECTOR_BUCKETS``,
+      use its ``primary``/``secondary`` bucket names. When exactly one of the two
+      expected buckets is zero while the other still produces passes, name the dead
+      one (``f"{dead}_dead: 0 passes in window, {alive} collector still
+      producing"``). This is what lets ``weather_books`` — whose secondary leg is
+      ``other``, not ``cloud`` — read ``vps_dead`` instead of ambiguous. Both
+      expected buckets zero (fully dark, already covered by STALE) or both non-zero
+      (no single leg to blame) stay unattributed.
+
+    * **Unmapped family.** EXACTLY L118's logic: bucket ``vps``/``cloud`` only —
+      one at zero while the other produces => ``vps_dead``/``cloud_dead``; both-zero
+      or both-non-zero => unattributed. No behavior change for any family L118
+      already handled.
+
+    Returns ``None`` when nothing can be attributed (never a guess).
+    """
+    mapping = EXPECTED_COLLECTOR_BUCKETS.get(family)
+    if mapping is not None:
+        primary = mapping["primary"]
+        secondary = mapping["secondary"]
+        p_n = collectors[primary]["passes"]
+        s_n = collectors[secondary]["passes"]
+        if p_n == 0 and s_n > 0:
+            return f"{primary}_dead: 0 passes in window, {secondary} collector still producing"
+        if s_n == 0 and p_n > 0:
+            return f"{secondary}_dead: 0 passes in window, {primary} collector still producing"
+        return None
+    vps_n = collectors["vps"]["passes"]
+    cloud_n = collectors["cloud"]["passes"]
+    if vps_n == 0 and cloud_n > 0:
+        return "vps_dead: 0 passes in window, cloud collector still producing"
+    if cloud_n == 0 and vps_n > 0:
+        return "cloud_dead: 0 passes in window, vps collector still producing"
+    return None
 
 
 def _parse_day_from_filename(path: Path) -> Optional[date]:
@@ -491,17 +578,15 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
     collector_diagnosis: Optional[str] = None
     if cfg["kind"] == "hourly-dual":
         collectors = agg.collector_summary()
-        vps_n = collectors["vps"]["passes"]
-        cloud_n = collectors["cloud"]["passes"]
-        # Attribute only the unambiguous case: exactly one side is silent
-        # while the other is still producing passes. Both-zero (fully dark,
-        # already covered by STALE) and both-nonzero (no single collector to
-        # blame) are left unattributed rather than guessed at.
+        # Attribute only the unambiguous case (see ``diagnose_collector``):
+        # exactly one expected bucket silent while the other still produces.
+        # Both-zero (fully dark, already covered by STALE) and both-non-zero (no
+        # single collector to blame) stay unattributed rather than guessed at.
+        # A mapped family (L120, e.g. weather_books whose secondary leg is
+        # ``other``) can now name a dead PRIMARY that L118 would have read as
+        # ambiguous; unmapped families keep L118's exact vps/cloud logic.
         if would_alert:
-            if vps_n == 0 and cloud_n > 0:
-                collector_diagnosis = "vps_dead: 0 passes in window, cloud collector still producing"
-            elif cloud_n == 0 and vps_n > 0:
-                collector_diagnosis = "cloud_dead: 0 passes in window, vps collector still producing"
+            collector_diagnosis = diagnose_collector(agg.family, collectors)
 
     benign = _benign_match(agg.family, newest) if would_alert else None
     if would_alert and benign is not None:

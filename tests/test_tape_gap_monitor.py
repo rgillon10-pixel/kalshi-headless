@@ -199,16 +199,101 @@ def test_no_diagnosis_when_both_collectors_still_present(tmp_path):
     assert "cloud_dead" not in rec["alert_reason"]
 
 
-def test_no_diagnosis_when_both_collectors_zero_family_ambiguous(tmp_path):
-    # An "other"-only leg (e.g. weather_books' real cloud offset, see module docstring)
-    # is honestly left unattributed rather than forced into vps or cloud.
+def test_unmapped_family_other_only_leg_stays_unattributed(tmp_path):
+    # An UNMAPPED hourly-dual family (crypto_hourly is not in EXPECTED_COLLECTOR_BUCKETS)
+    # whose only leg lands in "other" is honestly left unattributed rather than forced
+    # into vps or cloud — L118's exact both-named-buckets-zero behavior, preserved.
     now = _dt(2026, 7, 20, 0, 30)
-    _hourly_day(tmp_path, "weather_books", "2026-07-19", range(0, 24), minute=3, complete=None)
-    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "weather_books", now), now)
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-19", range(0, 24), minute=3, complete=None)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "crypto_hourly", now), now)
+    assert rec["alert"] is True  # a full window of drops still alerts
     assert rec["collectors"]["vps"]["passes"] == 0
     assert rec["collectors"]["cloud"]["passes"] == 0
     assert rec["collectors"]["other"]["passes"] > 0
+    assert rec["collector_diagnosis"] is None  # unmapped => no attribution guessed
+
+
+# --------------------------------------------------------------------------- #
+# Per-family expected-bucket map (L120): name a dead PRIMARY leg even when the
+# surviving leg is bucketed "other".
+# --------------------------------------------------------------------------- #
+def test_mapped_weather_books_names_vps_dead_when_only_other_survives(tmp_path):
+    # weather_books IS in EXPECTED_COLLECTOR_BUCKETS ({primary: vps, secondary: other}).
+    # Its VPS(:2x) primary leg died; only the "other"(:00-03) secondary survives.
+    # L118 would read vps=0 & cloud=0 as ambiguous; the L120 map names vps_dead.
+    now = _dt(2026, 7, 20, 0, 30)
+    _hourly_day(tmp_path, "weather_books", "2026-07-19", range(0, 24), minute=3, complete=None)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "weather_books", now), now)
+    assert rec["alert"] is True
+    assert rec["collectors"]["vps"]["passes"] == 0
+    assert rec["collectors"]["cloud"]["passes"] == 0
+    assert rec["collectors"]["other"]["passes"] > 0
+    assert rec["collector_diagnosis"] == \
+        "vps_dead: 0 passes in window, other collector still producing"
+    assert "vps_dead" in rec["alert_reason"]
+
+
+def test_mapped_weather_books_names_secondary_dead_when_only_primary_survives(tmp_path):
+    # The symmetric case: the "other" secondary died, the VPS primary survives.
+    # A thinned vps-only book so the under-capture ratio still fires the alert.
+    now = _dt(2026, 7, 16, 0, 30)
+    _hourly_day(tmp_path, "weather_books", "2026-07-15", range(0, 24), minute=27, complete=None)
+    _hourly_day(tmp_path, "weather_books", "2026-07-16", [0], minute=27, complete=None)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "weather_books", now), now)
+    assert rec["alert"] is True
+    assert rec["collectors"]["vps"]["passes"] > 0
+    assert rec["collectors"]["other"]["passes"] == 0
+    assert rec["collector_diagnosis"] == \
+        "other_dead: 0 passes in window, vps collector still producing"
+
+
+def test_mapped_family_both_expected_buckets_healthy_unattributed(tmp_path):
+    # Both the vps primary and the "other" secondary produce passes but the book is
+    # thinned enough to trip under-capture: no single leg to blame => unattributed.
+    now = _dt(2026, 7, 16, 0, 30)
+    _hourly_day(tmp_path, "weather_books", "2026-07-15", range(0, 24, 4), minute=27, complete=None)
+    _hourly_day(tmp_path, "weather_books", "2026-07-15", range(0, 24, 4), minute=2, complete=None)
+    _hourly_day(tmp_path, "weather_books", "2026-07-16", [0], minute=27, complete=None)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "weather_books", now), now)
+    assert rec["alert"] is True
+    assert "under_capture" in rec["alert_reason"]
+    assert rec["collectors"]["vps"]["passes"] > 0
+    assert rec["collectors"]["other"]["passes"] > 0
     assert rec["collector_diagnosis"] is None
+
+
+def test_mapped_family_both_expected_buckets_zero_unattributed(tmp_path):
+    # A mapped family whose passes land ENTIRELY outside its expected buckets
+    # (here only the :5x cloud window, which is neither weather_books' primary
+    # `vps` nor its secondary `other`) => both expected buckets zero => the L118
+    # "never guess when ambiguous" discipline holds and nothing is attributed.
+    now = _dt(2026, 7, 20, 0, 30)
+    _hourly_day(tmp_path, "weather_books", "2026-07-19", range(0, 24), minute=55, complete=None)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "weather_books", now), now)
+    assert rec["alert"] is True
+    assert rec["collectors"]["vps"]["passes"] == 0     # primary
+    assert rec["collectors"]["other"]["passes"] == 0   # secondary
+    assert rec["collectors"]["cloud"]["passes"] > 0    # neither expected bucket
+    assert rec["collector_diagnosis"] is None
+
+
+def test_diagnose_collector_helper_mapped_and_unmapped():
+    # Direct unit coverage of the attribution helper for both paths.
+    def cols(vps, cloud, other):
+        return {"vps": {"passes": vps}, "cloud": {"passes": cloud}, "other": {"passes": other}}
+    # Mapped (weather_books: primary vps, secondary other).
+    assert tgm.diagnose_collector("weather_books", cols(0, 0, 5)) == \
+        "vps_dead: 0 passes in window, other collector still producing"
+    assert tgm.diagnose_collector("weather_books", cols(5, 0, 0)) == \
+        "other_dead: 0 passes in window, vps collector still producing"
+    assert tgm.diagnose_collector("weather_books", cols(0, 9, 0)) is None  # both expected zero
+    assert tgm.diagnose_collector("weather_books", cols(5, 0, 5)) is None  # both expected non-zero
+    # Unmapped keeps L118 vps/cloud logic exactly.
+    assert tgm.diagnose_collector("crypto_hourly", cols(0, 5, 0)) == \
+        "vps_dead: 0 passes in window, cloud collector still producing"
+    assert tgm.diagnose_collector("crypto_hourly", cols(5, 0, 0)) == \
+        "cloud_dead: 0 passes in window, vps collector still producing"
+    assert tgm.diagnose_collector("crypto_hourly", cols(0, 0, 5)) is None  # other-only, unmapped
 
 
 def test_collector_summary_tracks_newest_per_bucket(tmp_path):
@@ -498,3 +583,28 @@ def test_acceptance_4_l117_vps_dead_0719_attributed():
         assert r["collector_diagnosis"] == \
             "vps_dead: 0 passes in window, cloud collector still producing", \
             f"{fam}: {r['collector_diagnosis']}"
+
+
+@_real
+def test_acceptance_5_l120_weather_books_vps_dead_via_other_survivor():
+    """The real 2026-07-19 VPS-cron death as seen by weather_books, whose SECOND
+    collector fires at minutes ~00-03 ("other", not the :5x cloud window). Over the
+    24h window ending 2026-07-20T00:30 the committed tape shows the VPS(:2x) bucket
+    genuinely empty while the "other" leg keeps producing (~6 passes) — L118 would
+    read vps=0 & cloud=0 as ambiguous, but the L120 EXPECTED_COLLECTOR_BUCKETS map
+    ({primary: vps, secondary: other}) names the dead primary. This is anchored to
+    the real committed tape, not a fixture (mirrors acceptance test 4)."""
+    now = _dt(2026, 7, 20, 0, 30)
+    r = tgm.build_report(_REAL_TAPE, now)["weather_books"]
+    assert r["alert"] is True, r
+    assert r["collectors"]["vps"]["passes"] == 0, r["collectors"]
+    assert r["collectors"]["cloud"]["passes"] == 0, r["collectors"]
+    assert r["collectors"]["other"]["passes"] > 0, r["collectors"]
+    assert r["collector_diagnosis"] == \
+        "vps_dead: 0 passes in window, other collector still producing", \
+        r["collector_diagnosis"]
+    # Sanity: L118's four dual-cron families are unmapped and unchanged — they still
+    # read the standard "cloud collector still producing" attribution, not "other".
+    crypto = tgm.build_report(_REAL_TAPE, now)["crypto_hourly"]
+    assert crypto["collector_diagnosis"] == \
+        "vps_dead: 0 passes in window, cloud collector still producing"
