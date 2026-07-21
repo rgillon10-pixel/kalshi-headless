@@ -608,3 +608,23 @@ def test_acceptance_5_l120_weather_books_vps_dead_via_other_survivor():
     crypto = tgm.build_report(_REAL_TAPE, now)["crypto_hourly"]
     assert crypto["collector_diagnosis"] == \
         "vps_dead: 0 passes in window, cloud collector still producing"
+
+
+@_real
+def test_acceptance_6_l123_settlement_ledger_frozen_since_build_day():
+    """L123 (findings/2026-07-21-settlement-ledger-frozen-hour10-deadzone.md,
+    verifier-CONFIRMED): `settlement_ledger` fires on its own single exact UTC hour
+    (10) that the live every-3h `kalshi-collector` cron never lands on, so it has
+    been silently frozen at its 2026-07-17 build day (last real captured_at
+    2026-07-17T12:23:02Z) ever since — invisibly, because this family was never
+    registered in FAMILY_CONFIG (an unconfigured family's STALE detector is a
+    no-op). This is the enforcement half of L123: registering the family here
+    means the monitor now actually catches the real, currently-ongoing freeze,
+    anchored to the real committed tape (mirrors acceptance tests 4/5), not a
+    fixture."""
+    now = _dt(2026, 7, 21, 6, 0)
+    r = tgm.build_report(_REAL_TAPE, now)["settlement_ledger"]
+    assert r["kind"] == "daily"
+    assert r["alert"] is True, r
+    assert "stale" in r["alert_reason"], r["alert_reason"]
+    assert r["age_hours"] > 48.0, r["age_hours"]
