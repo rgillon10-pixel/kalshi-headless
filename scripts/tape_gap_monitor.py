@@ -174,10 +174,28 @@ FAMILY_CONFIG: Dict[str, Dict[str, Any]] = {
     # check entirely and `evaluate_family` reports a bare "ok"). Registering it closes
     # that exact gap: the STALE detector (2x24h=48h threshold) now catches the freeze.
     "settlement_ledger":       {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily"},
+    # L127: perp_tape was misfiled here as "one-shot-backfill" since its 2026-07-16
+    # build, but `collection/hourly_pass.py` (lines ~56-61, 383-385) runs one
+    # `collection.perp_tape` pass EVERY hourly_pass invocation, unconditionally, same
+    # as the hourly-dual block above — it is a genuine ~48/day family, not a backfill.
+    # Being misclassified made its real degradation (VPS-death fallout, same L117
+    # cause as every other hourly-dual family) structurally invisible: an
+    # `interval_h=None` family never runs the UNDER-CAPTURE ratio check at all. Its
+    # captures land at minute-of-hour ~00-04 (verified against committed tape), which
+    # is neither the vps (:20-29) nor cloud (:50-59) bucket — same "other" signature
+    # as `weather_books`' L120 secondary leg, hence the same EXPECTED_COLLECTOR_BUCKETS
+    # mapping below rather than leaving it unmapped/ambiguous.
+    "perp_tape":               {"interval_h": 1.0,  "passes_per_day": 48,   "kind": "hourly-dual"},
     # One-shot / backfill families: no cadence expectation. Tracked for age only;
     # never alerted on cadence (Q44: "treat as always-complete captures, just
-    # track their captured_at cadence").
-    "perp_tape":               {"interval_h": None, "passes_per_day": None, "kind": "one-shot-backfill"},
+    # track their captured_at cadence"). NOTE (L127): hyperliquid_funding is
+    # perp_tape's ONLY cross-venue join partner (scripts/q42_crossvenue_funding_join.py)
+    # and has been frozen at its single 2026-07-17 manual backfill (108h+ stale and
+    # counting) with no collector ever wired to refresh it — the join silently
+    # truncates at that date rather than erroring. Genuinely one-shot by design
+    # (correct classification), but a join-critical one-shot leg going stale is not
+    # itself alerted by anything today; flagged, not fixed here (needs a new
+    # collector + an age-alert path, out of scope for this run — see L127).
     "hyperliquid_funding":     {"interval_h": None, "passes_per_day": None, "kind": "one-shot-backfill"},
 }
 
@@ -224,6 +242,11 @@ COLLECTOR_MINUTE_BUCKETS: Dict[str, range] = {
 # regression. Only a mapped family uses the primary/secondary attribution below.
 EXPECTED_COLLECTOR_BUCKETS: Dict[str, Dict[str, str]] = {
     "weather_books": {"primary": "vps", "secondary": "other"},
+    # L127: perp_tape's surviving collector lands at minute-of-hour ~00-04, the same
+    # "other" bucket as weather_books' secondary leg (both are captured later in the
+    # same hourly_pass() call, after the pass has crossed a minute boundary) — without
+    # this mapping the real vps-dead state reads as ambiguous (vps=0 & cloud=0).
+    "perp_tape": {"primary": "vps", "secondary": "other"},
 }
 
 # The one benign-silence allowlist entry (see module docstring for full rationale).

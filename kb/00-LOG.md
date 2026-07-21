@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-21 18:1x UTC — Idle-run: L127 — `perp_tape` reclassified `hourly-dual` in `tape_gap_monitor.py`; `hyperliquid_funding` join-staleness flagged
+
+Queue re-scan: still fully drained (Q36 gated ~07-22 and separately blocked on the frozen
+`settlement_ledger` feed root-caused this morning; Q43 ~07-23/24; Q37 ~08-05; Q21 idea-gen at
+7 consecutive zero-registration rounds with no new tape surface; lessons ledger UNENFORCED
+backlog empty as of L126). Step 0a: recent merges (#144-#148) confirmed ancestors of
+`origin/main` HEAD, `kb/00-LOG.md`'s newest entry and the newest committed tape both dated
+07-21 — no rewind. Step 0b: newest stranded branch (`tape/hourly-20260721T1258Z`) already
+swept in PR #148 — nothing new to sweep.
+
+Idle-run policy (c) via a `tape-auditor` subagent, scoped to a family NOT touched by today's
+four earlier idle-run/edge-hunter passes (`settlement_ledger`, `universe_sweep`, VPS-day-3,
+`weather_actuals`). Picked `tape/perp_tape/` + its join partner `tape/hyperliquid_funding/`
+(Q42/Q43's substrate, built 07-16, never audited). Two findings:
+
+1. **`perp_tape` misclassified.** `scripts/tape_gap_monitor.py::FAMILY_CONFIG` had it as
+   `one-shot-backfill` (`interval_h=None`) since build, even though `collection/hourly_pass.py`
+   runs `collection.perp_tape` on every hourly pass — identical cadence to the six tracked
+   `hourly-dual` families. Because a `None`-interval family skips the UNDER-CAPTURE check
+   entirely, its real post-L117-VPS-death collapse (30→14→6→7→5 captures/day, 07-17→07-21,
+   ~29% of nominal 48/day) was invisible — a 6th L117 victim never on Q44's list, this time
+   via wrong `kind` rather than a missing entry (L123/L126's shape, new variant). **Fixed:**
+   reclassified to `hourly-dual` (48/day); also added to `EXPECTED_COLLECTOR_BUCKETS` as
+   `{primary: vps, secondary: other}` since its surviving collector lands at minute-of-hour
+   ~00-04 (same "other" signature L120 found for `weather_books`) — without the mapping the
+   real vps-dead state would read ambiguous. New HARD acceptance test anchored to real tape
+   (`now=2026-07-21T18:00Z`): `alert=True`, ratio 0.146, `collector_diagnosis="vps_dead: 0
+   passes in window, other collector still producing"`. One pre-existing unit test
+   (`test_one_shot_family_never_alerts`) repointed from `perp_tape` to `hyperliquid_funding`
+   as its remaining valid one-shot exemplar.
+2. **`hyperliquid_funding` join-staleness (NOT fixed, flagged).** `perp_tape`'s only
+   cross-venue join partner is frozen at a single 2026-07-17 manual backfill (108h+ stale,
+   +1 day/day drift) with no collector ever wired to refresh it. `scripts/
+   q42_crossvenue_funding_join.py` `EXCLUDE`s windows without an HL counterpart rather than
+   erroring, so every Kalshi funding window after 07-17 silently loses its cross-venue
+   reference. `hyperliquid_funding`'s `one-shot-backfill` classification is factually
+   correct — the gap is that "one-shot" and "never alerted" are the same thing today, with
+   no distinction for a join-critical leg going stale. Real fix (wiring a refresh collector,
+   or a join-partner staleness detector) is bigger than one idle-run milestone — recorded as
+   lesson L127's UNENFORCED half.
+
+New lesson **L127** (test + UNENFORCED halves — perp_tape fixed, hyperliquid_funding flagged).
+See `findings/2026-07-21-perp-tape-misclassified-hourly-dual-q42-q43.md`. No strategy claim,
+no registry change — two-agent verdict rule N/A (monitoring reclassification, same posture as
+L118/L121/L122/L124/L126). `pytest` full suite green (+1 acceptance test, 1 unit test
+repointed). `python scripts/invariants.py --full` exit 0 (pre-existing non-gating advisories
+only — `tape_gap_monitor.py` is a standalone script, not wired into the invariants gate).
+Step 9: `SHADOW_REGISTRY={s14_ladder_underwriting}` only; `paper_pass.py` idempotent (0 newly
+processed), realized P&L unchanged **+$13.21** (`broker_truth`; s14 DEAD-at-real-fills per
+Q34 — dead-strategy shadow, paper-infra validation only, NOT edge evidence). Still 0 proven
+edges.
+
+**Next:** whoever restores VPS/live-collector cadence (Ryan-side) will make `perp_tape` (and
+every other `hourly-dual` family it shares the L117 collapse with) go green on this monitor
+again automatically — no further code change needed on that path.
+
+---
+
 ## 2026-07-21 15:1x UTC — Idle-run: L126 — `weather_actuals` added to `DAILY_CADENCE_FAMILIES`, closes a real 2-day tape hole
 
 Queue re-scan: still fully drained (Q36/Q43/Q37 calendar-gated, probes already prepped; Q21
