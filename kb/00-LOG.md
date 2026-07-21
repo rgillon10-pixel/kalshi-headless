@@ -6,6 +6,62 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-21 21:3x UTC — Idle-run: L128 — `hyperliquid_funding` join-staleness monitor check built + acceptance-tested (L127's monitor half converted)
+
+Queue re-scan: no numbered item Q1-Q46 eligible (all DONE/DEAD/BLOCKED/GATED — Q36/Q43/Q37
+calendar-gated, Q42 part 3 BLOCKED[needs-auth], Q21 idea-gen at repeated zero-registration
+rounds, Polymarket-cred items blocked). IDLE RUN. Step 0a: PASS — `origin/main` HEAD
+`2db5d3bc`, recent merges confirmed ancestors, `kb/00-LOG.md` newest entry and newest
+`tape/*/dt=*` both 2026-07-21, no rewind. Claim-check: only open PRs are #125 (weekly-retro,
+leave-open-for-Ryan) and #77 (stale 07-15) — neither claims eligible work. Step 0b: the 16
+recent `tape/hourly-*` stranded branches (07-19..07-21, refs carry a trailing `Z`) were ALL
+already union-merged into `origin/main` by the prior 07-21 15:1xZ run — 0 lines needed
+appending, no tape files changed, no branches deleted; ~160 OLDER stranded branches (pre-07-19,
+the long-standing Q17 backlog) remain un-swept, flagged honestly.
+
+Idle-run policy (a): convert an UNENFORCED lesson into enforcement. The sole open UNENFORCED
+lesson was L127's second half — `hyperliquid_funding` is a one-shot/backfill tape family
+(`interval_h=None`, no cadence detector), frozen at a single 2026-07-17 backfill, and the ONLY
+cross-venue join partner consumed by the LIVE join `scripts/q42_crossvenue_funding_join.py`, so
+its silent staleness truncates that join with no age-alert. L127 named two candidates: (a) wire
+a forward-refresh collector (the data FIX), and (b) a join-partner staleness DETECTOR. This run
+converted the DETECTION half (b):
+
+- `scripts/tape_gap_monitor.py`: new `JOIN_CRITICAL_ONE_SHOT = {"hyperliquid_funding":
+  {"max_age_h": 48.0, "consumer": "scripts/q42_crossvenue_funding_join.py"}}` + a JOIN-STALENESS
+  detector in `evaluate_family()` that appends a `join_stale` reason (through the existing
+  `would_alert` path) when a JOIN_CRITICAL_ONE_SHOT family's age exceeds its `max_age_h`. The
+  48h threshold is documented (the join finalizes funding windows every 8h → >48h means ~6
+  windows silently dropped; mirrors the daily-family 2×24h STALE posture). All other families'
+  STALE/UNDER-CAPTURE/collector-diagnosis logic untouched.
+- `tests/test_tape_gap_monitor.py`: `test_one_shot_family_never_alerts` repointed to a
+  non-join-critical unconfigured family (so "a family with no cadence config never pages on age"
+  stays covered); added `test_hyperliquid_funding_is_join_critical`,
+  `test_join_critical_one_shot_alerts_on_join_staleness`, and a HARD acceptance test
+  `test_acceptance_8_l127_hyperliquid_funding_join_stale` over the REAL committed tape
+  (`now=2026-07-21T18:00Z`, real newest `captured_at` 2026-07-17T06:20:03Z → age 107.67h > 48h,
+  `join_stale` alert fires).
+
+New lesson **L128** formally disposes L127's monitor half (candidate (b) → `test`); see
+`kb/lessons/00-lessons.md`. Candidate (a) — wiring `collection.hyperliquid_funding` into a
+scheduled incremental pass (the actual data-refresh FIX) — remains OPEN and unbuilt: it is a
+real collector-build milestone (Q42-adjacent / Q38-scale), NOT a lesson-to-test conversion, so
+it is flagged for Ryan / a future collector-build run, not closed here. After this run the
+UNENFORCED-lessons backlog is empty again.
+
+Gates: `pytest` 1347 passed / 0 failed; `python scripts/invariants.py --full` EXIT 0 (only the
+3 pre-existing non-gating advisories — L25/L74/L109 directory-shape + daily-cadence +
+stranded-branch warnings — nothing new). Two-agent verifier rule N/A (non-gating monitor
+extension — no registry flip, no bootstrap CI, no kill decision; same precedent as
+L118/L124/L126/L127-perp_tape). Step 9 paper sub-pass: `SHADOW_REGISTRY` non-empty
+(`s14_ladder_underwriting`); `scripts/paper_pass.py` ran deterministically over committed tape,
+0 events processed (216 deferred-caps, 222 deferred-coverage, 84 already-in-ledger) → NO new
+ledger lines. `daily_summary()`: `paper: 0 open position(s), 661 settled contract(s), realized
+P&L $+13.21, cash $+13.21, open notional $0.00` — **s14_ladder_underwriting is DEAD per Q34,
+so this P&L is paper-infra validation only, NOT edge evidence.** Still 0 proven edges.
+
+---
+
 ## 2026-07-21 18:1x UTC — Idle-run: L127 — `perp_tape` reclassified `hourly-dual` in `tape_gap_monitor.py`; `hyperliquid_funding` join-staleness flagged
 
 Queue re-scan: still fully drained (Q36 gated ~07-22 and separately blocked on the frozen

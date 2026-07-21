@@ -193,9 +193,11 @@ FAMILY_CONFIG: Dict[str, Dict[str, Any]] = {
     # and has been frozen at its single 2026-07-17 manual backfill (108h+ stale and
     # counting) with no collector ever wired to refresh it — the join silently
     # truncates at that date rather than erroring. Genuinely one-shot by design
-    # (correct classification), but a join-critical one-shot leg going stale is not
-    # itself alerted by anything today; flagged, not fixed here (needs a new
-    # collector + an age-alert path, out of scope for this run — see L127).
+    # (correct classification, so interval_h stays None — no cadence/UNDER-CAPTURE
+    # expectation). The join-critical staleness that L127 flagged "not fixed here"
+    # IS now enforced: the JOIN-STALENESS detector in `evaluate_family` (via
+    # JOIN_CRITICAL_ONE_SHOT below) age-alerts this family specifically because a
+    # live join depends on it, without giving it a false cadence expectation.
     "hyperliquid_funding":     {"interval_h": None, "passes_per_day": None, "kind": "one-shot-backfill"},
 }
 
@@ -247,6 +249,35 @@ EXPECTED_COLLECTOR_BUCKETS: Dict[str, Dict[str, str]] = {
     # same hourly_pass() call, after the pass has crossed a minute boundary) — without
     # this mapping the real vps-dead state reads as ambiguous (vps=0 & cloud=0).
     "perp_tape": {"primary": "vps", "secondary": "other"},
+}
+
+# JOIN-STALENESS detector (L127, 2026-07-21) — enforces the UNENFORCED half of L127.
+# ---------------------------------------------------------------------------------
+# A one-shot / backfill family (``interval_h=None``) carries NO cadence expectation,
+# so neither the STALE nor the UNDER-CAPTURE detector ever fires for it (both are
+# structural no-ops when ``interval_h``/``passes_per_day`` are None). That is correct
+# for a genuinely one-shot leg — until a LIVE family depends on it for a join, at which
+# point its silent staleness is no longer harmless: it silently strangles the join.
+# ``hyperliquid_funding`` is exactly this case: it is ``perp_tape``'s ONLY cross-venue
+# join partner (``scripts/q42_crossvenue_funding_join.py``) and has been frozen at a
+# single 2026-07-17 manual backfill with no collector wired to refresh it, so every
+# Kalshi funding window after 07-17 silently has no HL counterpart (the join's
+# EXCLUDE-partial-window logic drops it) with no error and no age-alert.
+#
+# This detector age-alerts such a family SPECIFICALLY because a live join consumes it,
+# WITHOUT giving it a false cadence expectation (interval_h stays None, so `dark`
+# stays False and no UNDER-CAPTURE ratio is invented). It fires ONLY for the families
+# explicitly listed here — every other one-shot family keeps Q44's
+# "age-tracked-only, never paged" posture untouched.
+#
+# Why max_age_h=48.0: the consumed join finalizes funding windows every 8h, so >48h
+# stale means ~6 join windows (48/8) have been silently dropped. The 48h threshold
+# deliberately mirrors the daily-family STALE posture (STALE_INTERVAL_MULTIPLE=2.0 x
+# 24h = 48h) — the same "two missed cadence units before paging" discipline, applied
+# to the join's 8h window budget rather than a collector cadence this family doesn't
+# have. See L127.
+JOIN_CRITICAL_ONE_SHOT: Dict[str, Dict[str, Any]] = {
+    "hyperliquid_funding": {"max_age_h": 48.0, "consumer": "scripts/q42_crossvenue_funding_join.py"},
 }
 
 # The one benign-silence allowlist entry (see module docstring for full rationale).
@@ -574,6 +605,24 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
             reasons.append(
                 f"stale: {age_hours:.1f}h since last pass "
                 f"(> {STALE_INTERVAL_MULTIPLE * interval_h:.0f}h threshold)"
+            )
+
+    # JOIN-STALENESS detector (L127). The STALE block above is a structural no-op
+    # for a one-shot family (interval_h is None), so a join-critical one-shot leg
+    # going stale is otherwise never paged. For a family explicitly registered in
+    # JOIN_CRITICAL_ONE_SHOT, alert when its age exceeds the join's tolerated
+    # max_age_h — this is the ONLY family class this detector touches, so no other
+    # family's STALE/UNDER-CAPTURE/dark posture changes. Uses the already-computed
+    # age_hours; flows through the shared `would_alert = bool(reasons)` path below.
+    join_cfg = JOIN_CRITICAL_ONE_SHOT.get(agg.family)
+    if join_cfg is not None and age_hours is not None:
+        max_age_h = join_cfg["max_age_h"]
+        consumer = join_cfg["consumer"]
+        if age_hours > max_age_h:
+            reasons.append(
+                f"join_stale: {age_hours:.1f}h since last pass "
+                f"(> {max_age_h:.0f}h threshold) — live join consumer {consumer} "
+                f"silently truncates at this date"
             )
 
     # A family with NO capture at or before `now` is "dark": either not yet
