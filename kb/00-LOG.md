@@ -6,6 +6,56 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-21 12:3x UTC — Idle-run (policy c): VPS collector still dead on day 3 + stranded-tape sweep (1,747 lines)
+
+Research-loop run (protocol v3). Step 0a PASS: `origin/main` HEAD `c28ed49` — recent merged PRs
+(#142/#144/#145/#146) all confirmed ancestors; `kb/00-LOG.md` newest entry and newest
+`tape/*/dt=*` file both current 2026-07-21, no rewind. Claim-check: only open PRs are #125
+(weekly-retro, leave-open-for-Ryan) and #77 (stale 2026-07-15 restock) — neither claims eligible
+work. Full Q0–Q46 re-scan: 0 eligible TODO/IN-PROGRESS items (Q36/Q43/Q37 all still calendar-
+gated, probes already prepped; Q21 idea-gen already hit its 7th consecutive zero-registration
+round 2026-07-21 04:15Z) → IDLE RUN. Idle-policy (a) empty (UNENFORCED backlog cleared by
+L123→L124 this morning); (b) exhausted (every gated item's probe already self-activating); took
+**(c)**.
+
+**Step 0b sweep.** Checked the 3 newest `tape/hourly-*` fallback branches from today
+(`20260721T0105Z`/`0705Z`/`0956Z`, all >30min old): the first two were already fully absorbed
+(0 missing lines — confirmed by the 04:15Z edge-hunter run and this run respectively); the third
+(`20260721T0956Z`, ~2.5h old) carried **1,747 genuinely-missing lines** across 9 families
+(1,145 `orderbook_depth`, 290 `weather_books`, 248 `sports_pairs`, 24 `polymarket_cpi_pairs` [new
+file], 17 `perp_tape`, 15 `polymarket_macro_pairs`, 5 `econ_prints`, 2 `crypto_hourly`,
+1 `anomalies`) — line-set union-appended (0 duplicates, all valid JSON, verified by re-parsing
+every appended line). Did not attempt a full re-sweep of the ~170 older stranded branches this
+run (the known Q17/PR#46 backlog, Ryan-review-only, repeatedly confirmed fully redundant by prior
+runs — re-diffing all of them line-by-line via per-file `git show` proved too slow for one run's
+budget and was aborted after ~20min with 0 branches fully processed; left for a future run or a
+purpose-built script, not blocking this milestone).
+
+**Data-quality finding (the run's real work) — VPS collector confirmed STILL dead, now a 3rd
+calendar day.** `findings/2026-07-20-tape-cadence-decline-vps-collector-down.md` root-caused the
+VPS `:23` cron (87.99.146.250) as dead starting 2026-07-19; the 07-21 04:15Z edge-hunter run
+separately found `settlement_ledger` frozen for a related reason. This run's question: has the
+VPS collector recovered? Independently re-derived minute-of-hour attribution over the
+currently-committed tape (fresh script, not a re-run of the 07-20 code): **zero VPS-signature
+(`:2x`) lines on 07-19, 07-20, AND 07-21** across `crypto_hourly`/`orderbook_depth`/
+`sports_pairs`/`polymarket_macro_pairs` — no recovery. Cross-checked against a live
+`tape_gap_monitor.py --no-notify` run: independently confirms `vps_dead` for all four, plus
+`settlement_ledger` 96.0h stale and `weather_actuals` 71.4h stale. Cumulative `orderbook_depth`
+loss estimate ≈49,000 lines over the 3 missing days (the largest-volume family in the repo).
+No fix applied — VPS-side only, out of reach for any cloud run; escalated to Ryan (phone note,
+`Priority: high`) since this is now an unresolved outage spanning two research-loop cycles and
+one edge-hunter cycle without a status change. See
+`findings/2026-07-21-vps-collector-day3-still-down.md`; `LOOP-QUEUE.md` Q44 status update.
+
+No strategy claim, no registry change — two-agent verdict rule N/A (data-quality/ops diagnosis,
+same tier as the 07-20/07-21 findings it extends). `pytest`: 1341 passed (unchanged — tape/docs-
+only diff). `python scripts/invariants.py --full`: exit 0 (only the pre-existing non-gating
+advisories: 174 stranded-branch refs, 4 dir-shaped `dt=`, 7 daily-cadence gaps). **Step 9:**
+`SHADOW_REGISTRY`={s14_ladder_underwriting} only; `paper_pass.py` re-run against the freshly-
+appended tape is idempotent (0 newly processed — the 2 new `crypto_hourly` lines aren't
+S14-eligible), realized P&L unchanged **+$13.21** (`broker_truth`; S14 stays DEAD-at-real-fills
+per Q34 — proxy P&L, not proven edge). Still **0 proven edges**.
+
 ## 2026-07-21 09:2x UTC — Idle-run (policy c): `universe_sweep` liquidity census — ~97% dead-tail auto-generated multi-leg artifacts
 
 Queue fully drained again (Q36/Q43/Q37 still calendar-gated, no numbered item eligible) and the
