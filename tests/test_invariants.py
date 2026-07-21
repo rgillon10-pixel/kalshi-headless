@@ -355,6 +355,24 @@ def test_daily_family_gap_warning_never_gates_exit_code(monkeypatch, capsys):
     assert "invariants: all green" in captured.out
 
 
+def test_daily_cadence_families_includes_weather_actuals():
+    # L126: weather_actuals is gated to a single fixed UTC hour (12) with no retry/backfill,
+    # the same failure shape L74 already covers for anomalies/econ_prints/polymarket_cpi_pairs
+    # — it was simply never added to the tracked tuple, so its own gap was invisible.
+    assert "weather_actuals" in inv.DAILY_CADENCE_FAMILIES
+
+
+def test_acceptance_l126_weather_actuals_real_gap_detected():
+    # HARD acceptance test anchored to the REAL committed tape (mirrors L75's live-validation
+    # posture): tape/weather_actuals/ has files for 07-16/07-17/07-18/07-21 but is MISSING
+    # 07-19 and 07-20 — a real 2-day hole caused by the live collector's post-VPS-death cron
+    # phase never landing on hour 12. Before L126 this family wasn't in DAILY_CADENCE_FAMILIES
+    # at all, so the gap was invisible to this detector; this pins that it's caught now.
+    issues = inv._daily_family_gap_issues(ROOT / "tape", families=("weather_actuals",))
+    assert "weather_actuals/dt=2026-07-19" in issues
+    assert "weather_actuals/dt=2026-07-20" in issues
+
+
 # ─── DB invariants ────────────────────────────────────────────────────────────
 
 def _db(tmp_path, name, ddl, rows_sql=()):

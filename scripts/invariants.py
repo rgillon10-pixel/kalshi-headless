@@ -546,11 +546,17 @@ def tape_dir_shape_orphan_warning(classified: List[Tuple[str, str]]) -> Optional
 
 # ─── Daily-cadence family gap warning (L74: non-gating, offline-safe advisory) ────
 
-# The 3 tape families `collection/hourly_pass.py` gates to a single `now.hour == 9` UTC
-# window (anomaly_sweep -> tape/anomalies/, econ_prints, polymarket_cpi_pairs) with no
-# retry/backfill — one bad hour costs a full calendar day of coverage, and unlike the
-# always-hourly families a missed day leaves no other capture to catch it (L74).
-DAILY_CADENCE_FAMILIES = ("anomalies", "econ_prints", "polymarket_cpi_pairs")
+# The tape families `collection/hourly_pass.py` gates to a single fixed `now.hour == N` UTC
+# window (anomaly_sweep -> tape/anomalies/, econ_prints, polymarket_cpi_pairs at hour 9;
+# weather_actuals at hour 12, L126) with no retry/backfill — one bad hour costs a full
+# calendar day of coverage, and unlike the always-hourly families a missed day leaves no
+# other capture to catch it (L74). `weather_actuals` added 2026-07-21 (L126) after a live
+# 2-day hole (2026-07-19, 2026-07-20) was found in committed tape: the live collector's
+# effective cron phase (post-VPS-death, ~hours {01,04,07,10,13,16,19,22}) never lands on
+# hour 12, so this exact-hour leg was silently starved by the same mechanism L74/L123
+# already documented for other families — but this family itself was never added to this
+# list, so the one tool built to catch it (`daily_family_gap_warning`) could not see it.
+DAILY_CADENCE_FAMILIES = ("anomalies", "econ_prints", "polymarket_cpi_pairs", "weather_actuals")
 
 
 def _daily_family_gap_issues(tape_root: Path = ROOT / "tape",

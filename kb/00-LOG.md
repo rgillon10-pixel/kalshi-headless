@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-21 15:1x UTC — Idle-run: L126 — `weather_actuals` added to `DAILY_CADENCE_FAMILIES`, closes a real 2-day tape hole
+
+Queue re-scan: still fully drained (Q36/Q43/Q37 calendar-gated, probes already prepped; Q21
+idea-gen 7 consecutive zero-registration rounds; lessons ledger UNENFORCED backlog empty as
+of L124). Idle-run policy (c) via a `tape-auditor` subagent scoped to find a genuinely-new
+data-quality angle not already covered by today's 4 prior runs (which all touched hour-9/
+hour-10/always-on legs). It found `weather_actuals` (hour-12 gate) has a real 2-day hole in
+committed tape — `dt=2026-07-19` and `dt=2026-07-20` both missing — root-caused to the SAME
+mechanism L123/L124 diagnosed for `settlement_ledger` earlier today: the live cloud
+collector's post-VPS-death cron phase (`≡1 mod 3`, reconstructed from `tape/perp_tape/`)
+never lands on hour 12, and the dead VPS `:23` collector (L117, still down day 3) can't pick
+up the slack. The twist: `weather_actuals` was never added to `scripts/invariants.py`'s
+`DAILY_CADENCE_FAMILIES` tuple — the exact detector L74/L75 built for this failure class —
+so this concrete, already-realized gap was invisible to the one tool meant to catch it, even
+after L123/L124 fixed the sibling family in an earlier run today.
+
+Fix (small, additive, non-gating, mirrors L75's own posture): added `"weather_actuals"` to
+`DAILY_CADENCE_FAMILIES` in `scripts/invariants.py`. Two new tests in
+`tests/test_invariants.py` — a membership check and a HARD acceptance test anchored to the
+real committed tape (`tests/test_acceptance_l126_weather_actuals_real_gap_detected`, pins
+both `weather_actuals/dt=2026-07-19` and `dt=2026-07-20` as detected). Live-verified:
+`python scripts/invariants.py --full`'s daily-cadence warning count moved 7→9 and now names
+`weather_actuals`. `forecast_collector`'s parallel hour-11 freeze remains a known, documented,
+out-of-scope gap (writes to gitignored `data/forecast_tape/`, never reaches committed `tape/`,
+so no monitor reading only `tape/` can ever see it) — not fixed here, flagged only. New lesson
+**L126** (built directly as `test`, no separate UNENFORCED row — found and fixed same run).
+
+Step 0b: swept `tape/hourly-20260721T1258Z` (newest stranded branch, ~2h old) — 21,713 lines
+across 8 families (20,000 `universe_sweep`, 1,128 `orderbook_depth`, 290 `weather_books`, 241
+`sports_pairs`, 20 `weather_actuals`, 17 `perp_tape`, 15 `polymarket_macro_pairs`, 2
+`crypto_hourly`), 0 invalid JSON, clean prefix match, committed separately before the
+milestone commit.
+
+`pytest` full suite green (unchanged count + 2 new). `python scripts/invariants.py --full`
+exit 0 (only pre-existing non-gating advisories, daily-cadence count now 9 not 7 — expected,
+that IS this run's fix taking effect). Step 9: `SHADOW_REGISTRY={s14_ladder_underwriting}`
+only; `paper_pass.py` idempotent (0 newly processed), ledger unchanged **+$13.21**
+(`broker_truth`; s14 stays DEAD-at-real-fills per Q34 — dead-strategy shadow, paper-infra
+validation only, NOT edge evidence). No strategy claim, no registry change — two-agent
+verdict rule N/A (monitoring-detector extension, same precedent as L75/L118/L121/L122/L124).
+Still 0 proven edges.
+
+**Next:** VPS collector remains dead (day 3+, Ryan/VPS-side); `forecast_collector`'s tape/
+scope gap and the daily-cadence detector's now-9-family list are both flagged for whoever
+runs Q36/Q37 once their calendar gates open.
+
 ## 2026-07-21 12:3x UTC — Idle-run (policy c): VPS collector still dead on day 3 + stranded-tape sweep (1,747 lines)
 
 Research-loop run (protocol v3). Step 0a PASS: `origin/main` HEAD `c28ed49` — recent merged PRs
