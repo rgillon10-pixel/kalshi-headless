@@ -15,6 +15,7 @@ Pure functions: deterministic, no clock, no network.
 from __future__ import annotations
 
 import math
+import warnings
 from typing import Iterable, Optional
 
 
@@ -160,6 +161,49 @@ def polymarket_fee_per_contract(price: float, rate: float = POLYMARKET_US_TAKER_
     the international geopolitics/econ fee-free category (the most-generous sensitivity)."""
     p = float(price)
     return float(rate) * p * (1.0 - p)
+
+
+# ─── Resting-book notional at touch (lesson L119 — the units-bug guardrail) ──────────────
+# A "book notional at touch" descriptor is the dollar depth resting at the best quote:
+# price × size. The trap L119 caught: Kalshi's price fields arrive as `_dollars`-suffixed
+# STRINGS and must be read via core.kalshi_fields.parse_kalshi_numeric (L90), which returns
+# an ALREADY-dollars float ('0.98' -> 0.98). A `price * size / 100` formula — the reflex for
+# a cents price — therefore understates real book depth ~100x. During the 2026-07-20 Q36
+# weather_books audit a draft metric read medians of $2.3-$19.7/market-hour when the true
+# medians were $215-$1,968 (findings/2026-07-20-q36-weather-books-data-adequacy.md). This is
+# THE shared helper that lesson said did not yet exist, so the next script that computes the
+# metric imports it instead of re-deriving the /100 mistake.
+
+# A genuinely liquid hourly-market touch rarely notionals below this; a result under it is the
+# fingerprint of a units (cents-vs-dollars) bug — but a legitimately thin market CAN sit here,
+# so the sanity check WARNS (non-gating advisory, the repo's default for anything short of a
+# hard data-integrity violation — cf. scripts/invariants.py's advisories, L100/L109/L110), it
+# does not raise. The returned notional is never altered by the check.
+LOW_TOUCH_NOTIONAL_WARN_DOLLARS = 50.0
+
+
+def book_notional_at_touch(price_dollars: float, size: float,
+                           *, warn_if_implausibly_low: bool = True) -> float:
+    """Dollar notional resting at the touch: `price_dollars * size` — NEVER `/100`.
+
+    `price_dollars` is already in dollars once parsed via `core.kalshi_fields.parse_kalshi_numeric`
+    (L90's `_dollars` convention). Dividing by 100 silently understates book depth ~100x
+    (lesson L119). Emits a non-gating `UserWarning` when the result is implausibly low for a
+    liquid market (0 < notional < LOW_TOUCH_NOTIONAL_WARN_DOLLARS) — a cheap units sanity
+    check, not a gate; the notional is returned regardless. Pass `warn_if_implausibly_low=False`
+    to silence it for a market known to be genuinely thin. A zero notional (empty/zero-size
+    touch) is honest, not suspicious, so it never warns."""
+    notional = float(price_dollars) * float(size)
+    if warn_if_implausibly_low and 0.0 < notional < LOW_TOUCH_NOTIONAL_WARN_DOLLARS:
+        warnings.warn(
+            f"book_notional_at_touch={notional:.4f} is below ${LOW_TOUCH_NOTIONAL_WARN_DOLLARS:.0f} "
+            f"for a supposedly liquid touch (price_dollars={price_dollars!r}, size={size!r}); "
+            f"a units bug (cents-vs-dollars, e.g. a stray /100 on an already-dollars price) "
+            f"produces exactly this fingerprint — lesson L119. Non-gating advisory.",
+            UserWarning,
+            stacklevel=2,
+        )
+    return notional
 
 
 def true_arb_edge(bracket_sum_value: float, total_fees: float) -> float:
