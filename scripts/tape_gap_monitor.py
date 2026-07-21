@@ -165,6 +165,15 @@ FAMILY_CONFIG: Dict[str, Dict[str, Any]] = {
     "polymarket_cpi_pairs":    {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily-econ-slot"},
     "econ_prints":             {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily-econ-slot"},
     "weather_actuals":         {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily"},
+    # L123: settlement_ledger fires on its own single exact UTC hour
+    # (SETTLEMENT_LEDGER_UTC_HOUR=10 in collection/hourly_pass.py), which the live
+    # every-3h `kalshi-collector` cron (`53 */3 * * *` -> hours {0,3,6,9,12,15,18,21})
+    # NEVER lands on -> the leg has been silently frozen at its 2026-07-17 build day
+    # ever since, invisibly, because this family was never registered here (an
+    # unconfigured family's STALE detector is a no-op — `interval_h=None` skips the
+    # check entirely and `evaluate_family` reports a bare "ok"). Registering it closes
+    # that exact gap: the STALE detector (2x24h=48h threshold) now catches the freeze.
+    "settlement_ledger":       {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily"},
     # One-shot / backfill families: no cadence expectation. Tracked for age only;
     # never alerted on cadence (Q44: "treat as always-complete captures, just
     # track their captured_at cadence").

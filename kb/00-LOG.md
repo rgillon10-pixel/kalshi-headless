@@ -6,6 +6,54 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-21 06:1x UTC — Idle-run (policy a): L123→L124 — settlement_ledger registered in tape_gap_monitor
+
+Queue fully drained again (Q36/Q43/Q37 still calendar-gated, no numbered item eligible).
+Top of the idle-run priority order: convert the sole open UNENFORCED lesson. **L123**
+(filed by last night's edge-hunter run) named the mechanism behind the settlement_ledger
+freeze it root-caused: a once-per-UTC-day collector gated on an exact hour (`ts.hour ==
+N`) silently stops forever the moment the live cron never lands on hour `N` — no error,
+no catch-up, just a tape family that quietly stops growing.
+
+`scripts/tape_gap_monitor.py` exists precisely to catch dead collector legs, but
+`settlement_ledger` was never added to its `FAMILY_CONFIG` — an unconfigured family's
+STALE detector is a structural no-op (`interval_h=None` skips the age check; the family
+reports a bare "ok" regardless of how long it's been silent). That's the actual reason
+the freeze was invisible: not a detector bug, a missing registration. Added
+`"settlement_ledger": {"interval_h": 24.0, "passes_per_day": 1, "kind": "daily"}` (same
+shape as the already-tracked `weather_actuals`), which turns the STALE detector on with
+zero other logic changes. A new real-tape acceptance test
+(`tests/test_tape_gap_monitor.py::test_acceptance_6_l123_settlement_ledger_frozen_since_build_day`)
+runs the monitor over the actual committed `tape/settlement_ledger/dt=2026-07-17.jsonl`
+at `now=2026-07-21T06:00Z` and confirms it now alerts `stale` at ~89.6h since the last
+real capture — the monitor genuinely catches the freeze this run's predecessor found by
+hand.
+
+`forecast_collector`'s parallel single-hour freeze (also named in L123,
+`FORECAST_COLLECTOR_UTC_HOUR=11`, also outside the every-3h cron's hour set) is **not**
+fixed by this change — it writes to gitignored `data/forecast_tape/`, outside `tape/`
+entirely, so it's structurally outside this monitor's read surface. Flagged, not silently
+dropped.
+
+New lesson **L124** supersedes L123 (`UNENFORCED` → `test`). Lessons ledger's UNENFORCED
+backlog is empty again. No strategy claim, no registry change, non-gating (standalone
+script, not wired into `scripts/invariants.py`) — two-agent verdict rule N/A, same
+precedent as L118/L121/L122. `pytest` full suite green, `invariants --full` exit 0
+(only pre-existing non-gating advisories: 1 local stranded tape/hourly-* ref, 4
+directory-shaped dt= paths, 7 daily-cadence gaps). Step 9: `SHADOW_REGISTRY` unchanged,
+`paper_pass.py` idempotent (0 newly processed, no new tape since the last sub-pass),
+realized P&L unchanged **+$13.21** (`broker_truth`; s14 stays DEAD-at-real-fills per Q34).
+
+Step 0b: spot-checked the two newest stranded branches (`tape/hourly-20260721T0105Z`,
+`tape/burst-20260714T120659Z`) against `main` — both fully subsumed, 0 missing lines.
+The ~190-branch historical backlog is undeleted-but-already-swept debris, not re-verified
+line-by-line this run (would cost far more than the run's actual milestone).
+
+See `kb/lessons/00-lessons.md` L124, `scripts/tape_gap_monitor.py`,
+`tests/test_tape_gap_monitor.py`.
+
+---
+
 ## 2026-07-21 04:15 UTC — kalshi-edge-hunter (nightly): review PASS + settlement_ledger frozen-since-build finding
 
 Nightly Opus thinking-seat run. Steps 0a/0/0b done first. **0a PASS** — the `git pull` showed a `origin/main` forced-update (the known stale-local-cache artifact, PR #137 precedent); verified real ancestry: recent squash-merge commits (`6af7e65`/`4b3bcd6`/`7bad144`/… = PRs #142/#141/#140) all confirmed ancestors of `origin/main` HEAD `36268eb`, and `kb/00-LOG.md` + newest `tape/*/dt=*` both current 2026-07-21 — no rewind. **0b** — newest fallback branch `tape/hourly-20260721T0105Z` already fully absorbed (all deltas are deletions = branch is a subset of main; swept by PR #142); nothing to sweep. Open PRs: #125 (weekly-retro, leave-open-for-Ryan) and #77 (stale restock) — neither claims eligible work, and both were named in prior nights, so NOT re-flagged (per the do-not-retrain-the-channel rule).
