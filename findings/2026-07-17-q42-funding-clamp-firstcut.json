@@ -1,0 +1,721 @@
+{
+  "clamp": {
+    "per_contract": {
+      "KXBCHPERP": {
+        "n": 112,
+        "n_zero": 76,
+        "zero_fraction": 0.6785714285714286,
+        "n_nonzero": 36,
+        "n_pos": 0,
+        "n_neg": 36,
+        "min_abs_nonzero": 0.0001055584296755,
+        "max_abs_nonzero": 0.0005344492347473,
+        "median_abs_nonzero": 0.0002727841798902
+      },
+      "KXBTCPERP": {
+        "n": 130,
+        "n_zero": 87,
+        "zero_fraction": 0.6692307692307692,
+        "n_nonzero": 43,
+        "n_pos": 42,
+        "n_neg": 1,
+        "min_abs_nonzero": 0.0001000371124721,
+        "max_abs_nonzero": 0.0009853048132826,
+        "median_abs_nonzero": 0.0001137573452557
+      },
+      "KXDOGEPERP": {
+        "n": 112,
+        "n_zero": 103,
+        "zero_fraction": 0.9196428571428571,
+        "n_nonzero": 9,
+        "n_pos": 0,
+        "n_neg": 9,
+        "min_abs_nonzero": 0.000102272419005,
+        "max_abs_nonzero": 0.0003945794616015,
+        "median_abs_nonzero": 0.0001280073227833
+      },
+      "KXETHPERP": {
+        "n": 130,
+        "n_zero": 103,
+        "zero_fraction": 0.7923076923076923,
+        "n_nonzero": 27,
+        "n_pos": 4,
+        "n_neg": 23,
+        "min_abs_nonzero": 0.0001003266443276,
+        "max_abs_nonzero": 0.0009721081348543,
+        "median_abs_nonzero": 0.0001322862089178
+      },
+      "KXHYPEPERP": {
+        "n": 115,
+        "n_zero": 77,
+        "zero_fraction": 0.6695652173913044,
+        "n_nonzero": 38,
+        "n_pos": 9,
+        "n_neg": 29,
+        "min_abs_nonzero": 0.0001000852239841,
+        "max_abs_nonzero": 0.0011806182265394,
+        "median_abs_nonzero": 0.00013391635471175
+      },
+      "KXKSHIBPERP": {
+        "n": 112,
+        "n_zero": 69,
+        "zero_fraction": 0.6160714285714286,
+        "n_nonzero": 43,
+        "n_pos": 0,
+        "n_neg": 43,
+        "min_abs_nonzero": 0.0001012090097813,
+        "max_abs_nonzero": 0.000479874001505,
+        "median_abs_nonzero": 0.0001496664563678
+      },
+      "KXLINKPERP": {
+        "n": 114,
+        "n_zero": 113,
+        "zero_fraction": 0.9912280701754386,
+        "n_nonzero": 1,
+        "n_pos": 0,
+        "n_neg": 1,
+        "min_abs_nonzero": 0.0001445977361082,
+        "max_abs_nonzero": 0.0001445977361082,
+        "median_abs_nonzero": 0.0001445977361082
+      },
+      "KXLTCPERP": {
+        "n": 112,
+        "n_zero": 80,
+        "zero_fraction": 0.7142857142857143,
+        "n_nonzero": 32,
+        "n_pos": 0,
+        "n_neg": 32,
+        "min_abs_nonzero": 0.0001006640480672,
+        "max_abs_nonzero": 0.0002146417279778,
+        "median_abs_nonzero": 0.00012581721623285
+      },
+      "KXNEARPERP": {
+        "n": 69,
+        "n_zero": 59,
+        "zero_fraction": 0.855072463768116,
+        "n_nonzero": 10,
+        "n_pos": 0,
+        "n_neg": 10,
+        "min_abs_nonzero": 0.000103021960928,
+        "max_abs_nonzero": 0.0002738506156272,
+        "median_abs_nonzero": 0.00012554591310945
+      },
+      "KXSOLPERP": {
+        "n": 130,
+        "n_zero": 122,
+        "zero_fraction": 0.9384615384615385,
+        "n_nonzero": 8,
+        "n_pos": 1,
+        "n_neg": 7,
+        "min_abs_nonzero": 0.0001090310848592,
+        "max_abs_nonzero": 0.0008499138107928,
+        "median_abs_nonzero": 0.00014867967844199998
+      },
+      "KXSUIPERP": {
+        "n": 112,
+        "n_zero": 78,
+        "zero_fraction": 0.6964285714285714,
+        "n_nonzero": 34,
+        "n_pos": 0,
+        "n_neg": 34,
+        "min_abs_nonzero": 0.0001055969961246,
+        "max_abs_nonzero": 0.0002288343876456,
+        "median_abs_nonzero": 0.000140721531196
+      },
+      "KXXRPPERP": {
+        "n": 130,
+        "n_zero": 81,
+        "zero_fraction": 0.6230769230769231,
+        "n_nonzero": 49,
+        "n_pos": 28,
+        "n_neg": 21,
+        "min_abs_nonzero": 0.0001002847699973,
+        "max_abs_nonzero": 0.0010430459131619,
+        "median_abs_nonzero": 0.0001648252354029
+      },
+      "KXZECPERP": {
+        "n": 69,
+        "n_zero": 54,
+        "zero_fraction": 0.782608695652174,
+        "n_nonzero": 15,
+        "n_pos": 0,
+        "n_neg": 15,
+        "min_abs_nonzero": 0.000106779067103,
+        "max_abs_nonzero": 0.0002800966938712,
+        "median_abs_nonzero": 0.0001655120001532
+      }
+    },
+    "dead_band_evidence": {
+      "smallest_surviving_abs_nonzero": 0.0001000371124721,
+      "documented_zero_threshold": 0.0001,
+      "n_nonzero_below_threshold": 0,
+      "grid_residual_mean": 0.2215585810444203,
+      "grid_residual_max": 0.49998265846999956,
+      "verdict": "formula_dead_band"
+    }
+  },
+  "zero_clustering": {
+    "n_days": 44,
+    "day_zero_fraction_mean": 0.7358700258897888,
+    "day_zero_fraction_stdev": 0.16634944475102842,
+    "day_zero_fraction_min": 0.4166666666666667,
+    "day_zero_fraction_max": 1.0,
+    "btc_zero_run_mean": 5.8,
+    "btc_zero_run_max": 30,
+    "btc_iid_expected_run": 3.023255813953488
+  },
+  "estimate_consistency": {
+    "n": 13,
+    "all_zero": true,
+    "n_zero": 13,
+    "max_abs": 0.0,
+    "capture_time": "2026-07-17T01:00:30.882229Z",
+    "next_funding": "2026-07-17T04:00:00Z",
+    "consistent_with_dead_band": true
+  },
+  "hl_coverage": {
+    "KXBCHPERP": {
+      "coin": "BCH",
+      "hl_covered": true,
+      "n_joined": 112,
+      "n_partial_dropped": 0
+    },
+    "KXBTCPERP": {
+      "coin": "BTC",
+      "hl_covered": true,
+      "n_joined": 130,
+      "n_partial_dropped": 0
+    },
+    "KXDOGEPERP": {
+      "coin": "DOGE",
+      "hl_covered": true,
+      "n_joined": 112,
+      "n_partial_dropped": 0
+    },
+    "KXETHPERP": {
+      "coin": "ETH",
+      "hl_covered": true,
+      "n_joined": 130,
+      "n_partial_dropped": 0
+    },
+    "KXHYPEPERP": {
+      "coin": "HYPE",
+      "hl_covered": true,
+      "n_joined": 115,
+      "n_partial_dropped": 0
+    },
+    "KXKSHIBPERP": {
+      "coin": "kSHIB",
+      "hl_covered": true,
+      "n_joined": 112,
+      "n_partial_dropped": 0
+    },
+    "KXLINKPERP": {
+      "coin": "LINK",
+      "hl_covered": true,
+      "n_joined": 114,
+      "n_partial_dropped": 0
+    },
+    "KXLTCPERP": {
+      "coin": "LTC",
+      "hl_covered": true,
+      "n_joined": 112,
+      "n_partial_dropped": 0
+    },
+    "KXNEARPERP": {
+      "coin": "NEAR",
+      "hl_covered": true,
+      "n_joined": 69,
+      "n_partial_dropped": 0
+    },
+    "KXSOLPERP": {
+      "coin": "SOL",
+      "hl_covered": true,
+      "n_joined": 130,
+      "n_partial_dropped": 0
+    },
+    "KXSUIPERP": {
+      "coin": "SUI",
+      "hl_covered": true,
+      "n_joined": 112,
+      "n_partial_dropped": 0
+    },
+    "KXXRPPERP": {
+      "coin": "XRP",
+      "hl_covered": true,
+      "n_joined": 130,
+      "n_partial_dropped": 0
+    },
+    "KXZECPERP": {
+      "coin": "ZEC",
+      "hl_covered": true,
+      "n_joined": 69,
+      "n_partial_dropped": 0
+    }
+  },
+  "n_joined_windows": 1447,
+  "regime": {
+    "buckets": {
+      "calm": {
+        "differential": {
+          "n": 483,
+          "mean": 4.471464238751118e-05,
+          "median": 3.1726699999999996e-05,
+          "min": -0.0009351515132825999,
+          "max": 0.0009048221358219
+        },
+        "kalshi_nonzero_fraction": 0.3167701863354037,
+        "kalshi_abs_rate": {
+          "n": 483,
+          "mean": 5.925049450894845e-05,
+          "median": 0.0,
+          "min": 0.0,
+          "max": 0.0009853048132826
+        },
+        "hl_abs_8h": {
+          "n": 483,
+          "mean": 4.068087287784679e-05,
+          "median": 3.946460000000001e-05,
+          "min": 1.2790000000000114e-07,
+          "max": 8.042949999999999e-05
+        }
+      },
+      "mid": {
+        "differential": {
+          "n": 815,
+          "mean": 0.0001097127865860659,
+          "median": 0.00010000000000000002,
+          "min": -0.00041232847271559995,
+          "max": 0.0010584687348543
+        },
+        "kalshi_nonzero_fraction": 0.16319018404907976,
+        "kalshi_abs_rate": {
+          "n": 815,
+          "mean": 2.7923668539740982e-05,
+          "median": 0.0,
+          "min": 0.0,
+          "max": 0.0009721081348543
+        },
+        "hl_abs_8h": {
+          "n": 815,
+          "mean": 9.774743411042946e-05,
+          "median": 0.00010000000000000002,
+          "min": 8.04812e-05,
+          "max": 0.00010000000000000002
+        }
+      },
+      "spike": {
+        "differential": {
+          "n": 149,
+          "mean": -1.5868967836483887e-05,
+          "median": 7.532010959099983e-06,
+          "min": -0.0007831728265393999,
+          "max": 0.0008778678131619001
+        },
+        "kalshi_nonzero_fraction": 0.3959731543624161,
+        "kalshi_abs_rate": {
+          "n": 149,
+          "mean": 9.138336579444228e-05,
+          "median": 0.0,
+          "min": 0.0,
+          "max": 0.0011806182265394
+        },
+        "hl_abs_8h": {
+          "n": 149,
+          "mean": 0.00017580336308724832,
+          "median": 0.00013990760000000003,
+          "min": 0.00010022450000000002,
+          "max": 0.0005877211000000001
+        }
+      }
+    },
+    "kill_test": {
+      "q1_abs_hl": 8.042949999999999e-05,
+      "q2_abs_hl": 0.00010000000000000002,
+      "abs_clamp_releases_in_spike": true,
+      "abs_differential_grows_in_spike": false
+    }
+  },
+  "signed_spike": {
+    "p10_hl_bps": -0.609622,
+    "p90_hl_bps": 1.0000000000000002,
+    "baseline_kalshi_nonzero_fraction": 0.23842432619212164,
+    "hl_positive_spike": {
+      "n": 661,
+      "differential_mean_bps": 1.164917733003115,
+      "differential_median_bps": 1.0000000000000002,
+      "hl_mean_bps": 1.043712750378215,
+      "kalshi_mean_bps": -0.12120498262490015,
+      "kalshi_nonzero_fraction": 0.1588502269288956
+    },
+    "hl_negative_spike": {
+      "n": 145,
+      "differential_mean_bps": -0.7589491729707656,
+      "differential_median_bps": -0.874204,
+      "hl_mean_bps": -1.4940778689655172,
+      "kalshi_mean_bps": -0.7351286959947517,
+      "kalshi_nonzero_fraction": 0.47586206896551725
+    },
+    "hl_middle": {
+      "n": 641,
+      "differential_mean_bps": 0.665402776751103,
+      "differential_median_bps": 0.674243,
+      "hl_mean_bps": 0.41882480187207494,
+      "kalshi_mean_bps": -0.2465779748790281,
+      "kalshi_nonzero_fraction": 0.2667706708268331
+    },
+    "kill3_clamp_releases_on_harvestable_side": false
+  },
+  "tail_risk": {
+    "n_windows": 1447,
+    "frac_hl_8h_negative": 0.20248790601243952,
+    "worst_hl_8h_sums_bps": [
+      -5.877211000000001,
+      -4.856216,
+      -4.451537,
+      -4.4252,
+      -4.076625
+    ],
+    "frac_differential_negative": 0.18935729094678647,
+    "worst_differential_bps": [
+      -9.351515132825998,
+      -7.831728265393999,
+      -7.334460741857,
+      -5.877211000000001,
+      -4.690930021166
+    ]
+  },
+  "kalshi_half_spreads": {
+    "KXBCHPERP": {
+      "bid": 2.2399,
+      "ask": 2.24,
+      "half_spread_bps": 0.2232192682877096,
+      "leverage_estimate": 3.0368
+    },
+    "KXBTCPERP": {
+      "bid": 6.3834,
+      "ask": 6.3848,
+      "half_spread_bps": 1.096474052724965,
+      "leverage_estimate": 6.0143
+    },
+    "KXDOGEPERP": {
+      "bid": 7.263,
+      "ask": 7.2666,
+      "half_spread_bps": 2.4777006937565327,
+      "leverage_estimate": 2.7239
+    },
+    "KXETHPERP": {
+      "bid": 1.8636,
+      "ask": 1.864,
+      "half_spread_bps": 1.0730765103556659,
+      "leverage_estimate": 4.5382
+    },
+    "KXHYPEPERP": {
+      "bid": 6.1394,
+      "ask": 6.1412,
+      "half_spread_bps": 1.4657264303049085,
+      "leverage_estimate": 2.1828
+    },
+    "KXKSHIBPERP": {
+      "bid": 4.1504,
+      "ask": 4.154,
+      "half_spread_bps": 4.335051298106549,
+      "leverage_estimate": 2.0058
+    },
+    "KXLINKPERP": {
+      "bid": 8.3376,
+      "ask": 8.3396,
+      "half_spread_bps": 1.1992420790064686,
+      "leverage_estimate": 3.4052
+    },
+    "KXLTCPERP": {
+      "bid": 4.5263,
+      "ask": 4.5285,
+      "half_spread_bps": 2.429650572072494,
+      "leverage_estimate": 3.7125
+    },
+    "KXNEARPERP": {
+      "bid": 1.9816,
+      "ask": 1.983,
+      "half_spread_bps": 3.531251576451768,
+      "leverage_estimate": 2.8177
+    },
+    "KXSOLPERP": {
+      "bid": 7.5458,
+      "ask": 7.5475,
+      "half_spread_bps": 1.1263275758121014,
+      "leverage_estimate": 2.6934
+    },
+    "KXSUIPERP": {
+      "bid": 7.4326,
+      "ask": 7.4341,
+      "half_spread_bps": 1.0089663476091244,
+      "leverage_estimate": 2.487
+    },
+    "KXXRPPERP": {
+      "bid": 1.0909,
+      "ask": 1.0913,
+      "half_spread_bps": 1.833012556135808,
+      "leverage_estimate": 2.7942
+    },
+    "KXZECPERP": {
+      "bid": 5.3247,
+      "ask": 5.3268,
+      "half_spread_bps": 1.9715533023521896,
+      "leverage_estimate": 2.5237
+    }
+  },
+  "carry": {
+    "per_asset": {
+      "KXBCHPERP": {
+        "n_windows": 112,
+        "gross_bps_8h": 0.9408783220944464,
+        "gross_annualized_on_notional": 0.1030261762693419,
+        "kalshi_half_spread_bps": 0.2232192682877096,
+        "round_trip_cost_bps": 36.44643853657542,
+        "breakeven_hold_windows": 38.73661203655289,
+        "breakeven_hold_days": 12.912204012184297,
+        "capital_fraction_of_notional": 0.6666666666666666,
+        "gross_roc_annualized": 0.15453926440401286
+      },
+      "KXBTCPERP": {
+        "n_windows": 130,
+        "gross_bps_8h": 0.2379682160993847,
+        "gross_annualized_on_notional": 0.026057519662882625,
+        "kalshi_half_spread_bps": 1.096474052724965,
+        "round_trip_cost_bps": 38.19294810544993,
+        "breakeven_hold_windows": 160.49600543922674,
+        "breakeven_hold_days": 53.49866847974224,
+        "capital_fraction_of_notional": 0.6666666666666666,
+        "gross_roc_annualized": 0.03908627949432394
+      },
+      "KXDOGEPERP": {
+        "n_windows": 112,
+        "gross_bps_8h": 0.5293010124496429,
+        "gross_annualized_on_notional": 0.0579584608632359,
+        "kalshi_half_spread_bps": 2.4777006937565327,
+        "round_trip_cost_bps": 40.955401387513064,
+        "breakeven_hold_windows": 77.37638966146794,
+        "breakeven_hold_days": 25.79212988715598,
+        "capital_fraction_of_notional": 0.7004540058984055,
+        "gross_roc_annualized": 0.08274413505408984
+      },
+      "KXETHPERP": {
+        "n_windows": 130,
+        "gross_bps_8h": 0.7771239254559462,
+        "gross_annualized_on_notional": 0.08509506983742611,
+        "kalshi_half_spread_bps": 1.0730765103556659,
+        "round_trip_cost_bps": 38.14615302071133,
+        "breakeven_hold_windows": 49.08631914572777,
+        "breakeven_hold_days": 16.362106381909257,
+        "capital_fraction_of_notional": 0.6666666666666666,
+        "gross_roc_annualized": 0.12764260475613917
+      },
+      "KXHYPEPERP": {
+        "n_windows": 115,
+        "gross_bps_8h": 1.0461749904222437,
+        "gross_annualized_on_notional": 0.11455616145123568,
+        "kalshi_half_spread_bps": 1.4657264303049085,
+        "round_trip_cost_bps": 38.93145286060982,
+        "breakeven_hold_windows": 37.21313663299942,
+        "breakeven_hold_days": 12.404378877666474,
+        "capital_fraction_of_notional": 0.7914605094374199,
+        "gross_roc_annualized": 0.1447402114006467
+      },
+      "KXKSHIBPERP": {
+        "n_windows": 112,
+        "gross_bps_8h": 0.29633335820671436,
+        "gross_annualized_on_notional": 0.03244850272363522,
+        "kalshi_half_spread_bps": 4.335051298106549,
+        "round_trip_cost_bps": 44.6701025962131,
+        "breakeven_hold_windows": 150.74274076512307,
+        "breakeven_hold_days": 50.24758025504102,
+        "capital_fraction_of_notional": 0.8318875261740952,
+        "gross_roc_annualized": 0.03900587724024183
+      },
+      "KXLINKPERP": {
+        "n_windows": 114,
+        "gross_bps_8h": 0.9015009768515967,
+        "gross_annualized_on_notional": 0.09871435696524984,
+        "kalshi_half_spread_bps": 1.1992420790064686,
+        "round_trip_cost_bps": 38.398484158012934,
+        "breakeven_hold_windows": 42.59394625629343,
+        "breakeven_hold_days": 14.197982085431143,
+        "capital_fraction_of_notional": 0.6666666666666666,
+        "gross_roc_annualized": 0.14807153544787477
+      },
+      "KXLTCPERP": {
+        "n_windows": 112,
+        "gross_bps_8h": 1.202393047190393,
+        "gross_annualized_on_notional": 0.13166203866734802,
+        "kalshi_half_spread_bps": 2.429650572072494,
+        "round_trip_cost_bps": 40.859301144144986,
+        "breakeven_hold_windows": 33.98165120766464,
+        "breakeven_hold_days": 11.327217069221547,
+        "capital_fraction_of_notional": 0.6666666666666666,
+        "gross_roc_annualized": 0.19749305800102204
+      },
+      "KXNEARPERP": {
+        "n_windows": 69,
+        "gross_bps_8h": 1.295031956543145,
+        "gross_annualized_on_notional": 0.14180599924147438,
+        "kalshi_half_spread_bps": 3.531251576451768,
+        "round_trip_cost_bps": 43.06250315290354,
+        "breakeven_hold_windows": 33.25207763046338,
+        "breakeven_hold_days": 11.084025876821128,
+        "capital_fraction_of_notional": 0.6882327193573955,
+        "gross_roc_annualized": 0.2060436757117258
+      },
+      "KXSOLPERP": {
+        "n_windows": 130,
+        "gross_bps_8h": 0.3027432056413616,
+        "gross_annualized_on_notional": 0.033150381017729096,
+        "kalshi_half_spread_bps": 1.1263275758121014,
+        "round_trip_cost_bps": 38.252655151624204,
+        "breakeven_hold_windows": 126.35347198159556,
+        "breakeven_hold_days": 42.11782399386519,
+        "capital_fraction_of_notional": 0.7046112719982178,
+        "gross_roc_annualized": 0.04704775858001452
+      },
+      "KXSUIPERP": {
+        "n_windows": 112,
+        "gross_bps_8h": 1.2155630400755626,
+        "gross_annualized_on_notional": 0.13310415288827412,
+        "kalshi_half_spread_bps": 1.0089663476091244,
+        "round_trip_cost_bps": 38.01793269521825,
+        "breakeven_hold_windows": 31.275986058982966,
+        "breakeven_hold_days": 10.425328686327655,
+        "capital_fraction_of_notional": 0.7354242058705267,
+        "gross_roc_annualized": 0.1809896272461114
+      },
+      "KXXRPPERP": {
+        "n_windows": 130,
+        "gross_bps_8h": 0.28521936922949237,
+        "gross_annualized_on_notional": 0.031231520930629413,
+        "kalshi_half_spread_bps": 1.833012556135808,
+        "round_trip_cost_bps": 39.66602511227162,
+        "breakeven_hold_windows": 139.0719894635054,
+        "breakeven_hold_days": 46.35732982116846,
+        "capital_fraction_of_notional": 0.6912175220098775,
+        "gross_roc_annualized": 0.045183346683423796
+      },
+      "KXZECPERP": {
+        "n_windows": 69,
+        "gross_bps_8h": 1.4056538343964784,
+        "gross_annualized_on_notional": 0.1539190948664144,
+        "kalshi_half_spread_bps": 1.9715533023521896,
+        "round_trip_cost_bps": 39.94310660470438,
+        "breakeven_hold_windows": 28.416033611756248,
+        "breakeven_hold_days": 9.472011203918749,
+        "capital_fraction_of_notional": 0.7295769439051129,
+        "gross_roc_annualized": 0.21097033856710357
+      }
+    },
+    "fee_death": {
+      "pooled_gross_bps_8h": 0.7508542994690776,
+      "note": "Under buy-and-hold (perps never expire) fees are one-time; the durable recurring cost per 8h window is ~0, so the base-case killer is capital drag + basis/tail risk, not per-window fees. Under a REBALANCE-EVERY-WINDOW assumption the 33bps round trip dwarfs the ~1bp gross -> instantly DEAD.",
+      "kalshi_taker_bps_that_kills_if_rebalanced_each_window": 0.3754271497345388
+    },
+    "eff_leverage": 3.0
+  },
+  "verdict": {
+    "gross": {
+      "bootstrap": {
+        "mean_bps": 0.7508542994690773,
+        "ci95_bps": [
+          0.6275825783236864,
+          0.8723410767068442
+        ],
+        "n_units": 44,
+        "n_obs": 1447
+      },
+      "admissible": {
+        "admissible": true,
+        "n_units": 44,
+        "n_opposing_units": 3,
+        "reasons": []
+      },
+      "ci_lower_bps": 0.6275825783236864,
+      "clears_materiality_floor": false,
+      "materiality_floor_bps": 1.0,
+      "outcome": "DEAD"
+    },
+    "net_generous": {
+      "bootstrap": {
+        "mean_bps": 0.7235634860857897,
+        "ci95_bps": [
+          0.6002801064163092,
+          0.8450620711480751
+        ],
+        "n_units": 44,
+        "n_obs": 1447
+      },
+      "admissible": {
+        "admissible": true,
+        "n_units": 44,
+        "n_opposing_units": 3,
+        "reasons": []
+      },
+      "ci_lower_bps": 0.6002801064163092,
+      "clears_materiality_floor": false,
+      "materiality_floor_bps": 1.0,
+      "outcome": "DEAD"
+    },
+    "net_conservative": {
+      "bootstrap": {
+        "mean_bps": -38.73895266614837,
+        "ci95_bps": [
+          -38.88438560953036,
+          -38.5865877949565
+        ],
+        "n_units": 44,
+        "n_obs": 1447
+      },
+      "admissible": {
+        "admissible": false,
+        "n_units": 44,
+        "n_opposing_units": 0,
+        "reasons": [
+          "no_opposing_unit"
+        ]
+      },
+      "ci_lower_bps": -38.88438560953036,
+      "clears_materiality_floor": false,
+      "materiality_floor_bps": 1.0,
+      "outcome": "DEAD-inadmissible"
+    }
+  },
+  "kill_checklist": {
+    "kill1_below_cost_in_all_regimes": {
+      "answer_yes": false,
+      "answer_yes_if_rebalance_every_window": true,
+      "note": "buy-and-hold: positive in calm/mid/HL-positive-spike, below cost only in the HL-negative crash tail (NOT all regimes). rebalance-every-window: dead in all regimes. The tradeable death is via the binding-bar materiality floor + net-conservative + tail + execution-surface, not via this mechanism-kill."
+    },
+    "kill2_clamp_is_display_artifact_not_formula": {
+      "answer_yes": false,
+      "evidence": {
+        "n_nonzero_below_threshold": 0,
+        "grid_residual_mean": 0.2215585810444203,
+        "smallest_surviving_abs_nonzero": 0.0001000371124721,
+        "estimate_consistent_with_dead_band": true
+      }
+    },
+    "kill3_clamp_releases_when_offshore_spikes": {
+      "answer_yes": false,
+      "evidence": {
+        "hl_positive_spike_kalshi_nonzero": 0.1588502269288956,
+        "baseline_kalshi_nonzero": 0.23842432619212164,
+        "hl_positive_spike_differential_bps": 1.164917733003115
+      }
+    }
+  },
+  "register_verdict": {
+    "register": "PARKED",
+    "register_string": "PARKED-pending-execution-surface + >=7d-forward-tape",
+    "blockers": [
+      "short-HL leg is outside this project's execution surface (Kalshi-only per CLAUDE.md) \u2014 never a green light regardless of carry",
+      "crash tail un-boundable from day-1 marks: HL 4%/hr (=32%/8h) vs Kalshi 2%/8h funding-cap asymmetry + mark-vs-mark basis \u2014 DEAD-by-data-adequacy until >=7d forward perp tape (both marks aligned) exists"
+    ],
+    "note": "Anomaly is REAL and characterized (all three Q42 mechanism-kills answered NO). Gross differential +0.751 bps/8h, CI [+0.628,+0.872], admissible, cleanly separated from zero. Parked, not falsified."
+  }
+}
