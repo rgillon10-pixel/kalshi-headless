@@ -6,6 +6,22 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-21 — Idle-run (policy a): L119→L121 — shared `book_notional_at_touch` helper + units sanity check
+
+Research-loop run (protocol v3). Steps 0/0a/0b done by the calling session (queue fully drained: every numbered item DONE/BLOCKED/time-gated, and Q21 idea-gen hit its 6th consecutive zero-registration round 2026-07-20 with no new tape surface — re-running unproductive, so this is an IDLE RUN). Idle-run policy order (a) — convert an UNENFORCED lesson — is top-priority and the one used here.
+
+**UNENFORCED queue re-derivation.** Whole-word grep over `kb/lessons/00-lessons.md` (the L108/L112/L116/L118 method) → open set is exactly `{L119, L120}`, both filed 2026-07-20 by the Q36 weather_books audit. Converted the lower-numbered **L119** per the established convention; **L120** stays open (no reachability/priority argument to jump it, unlike L116's explicit L66 skip).
+
+**Milestone — the shared helper L119 said did not exist.** L119's own candidate noted "no shared helper computes this metric yet, so there is nothing to anchor a static assert to." Built it: `core/pricing.py::book_notional_at_touch(price_dollars, size)` returns `price_dollars * size` (never `/100` — the L119 trap: a Kalshi `_dollars` price parsed via `core.kalshi_fields.parse_kalshi_numeric` (L90) is ALREADY dollars, so a reflexive `/100` understates book depth ~100x, the exact bug that read Q36 medians as $2.3-$19.7/market-hour when the truth was $215-$1,968). It carries an inline non-gating `UserWarning` units sanity check (fires when `0 < notional < LOW_TOUCH_NOTIONAL_WARN_DOLLARS` ($50), the fingerprint of a cents-vs-dollars mistake; a zero/empty touch stays silent; `warn_if_implausibly_low=False` silences it for a genuinely thin market). Home is `core/pricing.py` — the sanctioned price-arithmetic site (Hard Rule #3's only-arithmetic file), a natural sibling of `fee_per_contract`/`true_arb_edge`, not a bolted-on module. No live hand-rolled `price*size/100` exists in committed code to repoint (L119 records the buggy draft metric was omitted from the final finding rather than wired in) — the deliverable is the importable helper so the NEXT script calls it.
+
+**Enforcement form.** Non-gating advisory, not a raising assert (repo default for anything short of a hard data-integrity violation — same posture as L100/L109/L110's `scripts/invariants.py` advisories; a legitimately thin market can sit below $50, so a hard gate would false-positive). Pinned by `tests/test_pricing_book_notional.py` (8 tests): correct `price_dollars * size` computation, a regression that a reintroduced `/100` is caught (off by exactly 100x), the L119 real-numbers case ($215 not $2-$19), and the sanity warning firing/silent/disabled/boundary behavior.
+
+New lesson **L121** (`kb/lessons/00-lessons.md`) supersedes L119's enforcement column (`UNENFORCED` → `test`). The now-open UNENFORCED set is exactly `{L120}`. No strategy claim, no registry change (`kb/strategies/00-index.md` untouched), no `execution/` code, no network/credentials — two-agent verdict rule N/A (same "test"/"protocol, encoded" tier as L108/L112/L116/L118, not a verdict-class change). See `findings/2026-07-20-q36-weather-books-data-adequacy.md` for L119's origin.
+
+**Gates.** `pytest` → 1325 passed (1317 prior + 8 new). `python scripts/invariants.py --full` → exit 0 (only the pre-existing non-gating advisories: stranded-ref, dir-shape/GC-classification, daily-cadence gaps — all already known, none introduced by this run).
+
+---
+
 ## 2026-07-20 — Idle-run (policy c): Q36 weather_books data-adequacy audit — gate opens under-powered
 
 Research-loop run (protocol v3). Steps 0/0a done by the calling session: last 5 merged PRs
