@@ -369,11 +369,13 @@ def test_daily_family_stale_threshold_two_days(tmp_path):
 
 
 def test_one_shot_family_never_alerts(tmp_path):
-    # perp_tape is one-shot/backfill: no cadence expectation, never pages even when old.
-    _write_lines(tmp_path, "perp_tape", "2026-07-10",
+    # hyperliquid_funding is one-shot/backfill: no cadence expectation, never pages
+    # even when old. (perp_tape moved to hourly-dual in L127 — it DOES alert on age
+    # now, see test_acceptance_7_l127_perp_tape_reclassified_hourly_dual.)
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-10",
                  [_pass("c1", "2026-07-10T01:00:00+00:00", record_type="funding_rates")])
     now = _dt(2026, 8, 1, 0, 0)  # weeks later
-    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "perp_tape", now), now)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "hyperliquid_funding", now), now)
     assert rec["alert"] is False
     assert rec["completeness_ok"] is None  # no signal -> not fabricated True
 
@@ -628,3 +630,28 @@ def test_acceptance_6_l123_settlement_ledger_frozen_since_build_day():
     assert r["alert"] is True, r
     assert "stale" in r["alert_reason"], r["alert_reason"]
     assert r["age_hours"] > 48.0, r["age_hours"]
+
+
+@_real
+def test_acceptance_7_l127_perp_tape_reclassified_hourly_dual():
+    """L127: perp_tape was misfiled as "one-shot-backfill" since its 2026-07-16 build,
+    even though `collection/hourly_pass.py` runs it every hourly_pass() call same as
+    the other hourly-dual families — so its real post-L117-VPS-death degradation
+    (same root cause as crypto_hourly/sports_pairs/orderbook_depth) was structurally
+    invisible: an interval_h=None family never runs the UNDER-CAPTURE check. Anchored
+    to the real committed tape (mirrors acceptance tests 4/5/6), not a fixture."""
+    now = _dt(2026, 7, 21, 18, 0)
+    r = tgm.build_report(_REAL_TAPE, now)["perp_tape"]
+    assert r["kind"] == "hourly-dual"
+    assert r["alert"] is True, r
+    assert "under_capture" in r["alert_reason"], r["alert_reason"]
+    assert r["capture_ratio"] < 0.8, r["capture_ratio"]
+    # perp_tape's surviving collector lands in the "other" minute-bucket (~00-04),
+    # same signature as weather_books' L120 secondary leg — the L127 mapping in
+    # EXPECTED_COLLECTOR_BUCKETS should name vps_dead rather than leaving it
+    # ambiguous (vps=0 & cloud=0, the fate an unmapped family would suffer here).
+    assert r["collectors"]["vps"]["passes"] == 0, r["collectors"]
+    assert r["collectors"]["other"]["passes"] > 0, r["collectors"]
+    assert r["collector_diagnosis"] == \
+        "vps_dead: 0 passes in window, other collector still producing", \
+        r["collector_diagnosis"]
