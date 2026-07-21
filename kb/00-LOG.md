@@ -6,6 +6,67 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-21 09:2x UTC — Idle-run (policy c): `universe_sweep` liquidity census — ~97% dead-tail auto-generated multi-leg artifacts
+
+Queue fully drained again (Q36/Q43/Q37 still calendar-gated, no numbered item eligible) and the
+UNENFORCED lessons backlog is empty after L124 — so this idle firing took idle-policy (c), a
+data-quality deep-dive, on the one tape family accumulating fastest and most expensively:
+`tape/universe_sweep/`. Ran `scripts/universe_sweep_liquidity_census.py` over all five committed
+daily files (`dt=2026-07-17`..`dt=2026-07-21`, 5 files / **300,000 lines** / **0 malformed**,
+100% `real_ask`, NO network).
+
+**Finding.** Pooled, only **3.03%** of lines are FILLABLE (`yes_ask>0 AND yes_ask_size>=1`,
+n=9,098), **2.89%** LIQUID (size>=10), **10.84%** have any ACTIVITY (`open_interest>0 OR
+volume>0`; `volume_24h>0` is effectively 0.00% — ~5/300k rows — the same always-zero schema
+defect L96 named, now confirmed across the full history). The **96.97% dead tail** (290,902
+lines) is dominated by two auto-generated multi-leg series: `KXMVESPORTSMULTIGAMEEXTENDED` =
+**82.21%** of the whole census, `KXMVECROSSCATEGORY` = **14.68%** (together ~96.9%); every other
+series is <0.02%. Per-day fillable% swings (07-17 5.32% / 07-18 2.50% / 07-19 0.97% / 07-20
+3.97% / 07-21 1.59%) and is unstable pass-over-pass within a day (07-18 0.62%–8.09%, 07-20
+1.49%–7.97%) — because each capped 20-call pass reaches a different arbitrary slice of the
+>80k-market cursor (L96 disjoint-slice property), a single pass is not a reliable liquidity
+estimate.
+
+**Answer to Q46 design call (b) — "add an activity/liquidity discovery filter" (Ryan-gated).**
+Filtering at capture time to the ACTIVITY tier retains **10.74% of bytes** (~71 MB/day →
+~7.6 MB/day); to FILLABLE **2.89% of bytes** (~2 MB/day); to LIQUID **2.76%**. So an
+activity/liquidity discovery filter would cut this family's storage **~89% (activity) to ~97%
+(fillable/liquid)** while dropping only no-offer / no-activity KXMVE* artifacts. This is
+design-input only — **NO code/collector change to `universe_sweep` this run** (the cadence +
+filter decision stays Ryan-gated per Q46's DONE verdict).
+
+**Interpretation (honest).** Generalizes **L105** from a single day (07-19, anomaly-sweep use
+case) to the full 5-day history + the whole-census fillable question + the storage lens, and
+restates the L96/L105 illiquidity floor for the storage-decision use case. NOT a strategy claim —
+the opposite: the breadth census is ~97% un-tradeable auto-generated multi-leg no-offer
+artifacts; a cross-sectional consumer must filter to the fillable/active ~3–11% before treating a
+line as a quote. New lesson **L125** (documentation/house-style — a census fact, not statically
+assertable). Also did a ledger-hygiene pass: L25's and L120's enforcement cells still read
+`UNENFORCED` although both candidates are now built (L25 → `scripts/invariants.py`'s
+`_tape_dir_shape_issues`/`tape_dir_shape_warning` non-gating advisory, formally superseded by L29;
+L120 → `scripts/tape_gap_monitor.py`'s `EXPECTED_COLLECTOR_BUCKETS`/`diagnose_collector`, PR #142,
+superseded by L122) — corrected those two stale enforcement markers in place (lesson text
+unchanged, original candidate wording preserved).
+
+Finding: `findings/2026-07-21-universe-sweep-liquidity-census.md` (cites
+`scripts/universe_sweep_liquidity_census.py` + `findings/universe_sweep_liquidity_census.json`).
+No strategy claim, no registry change, two-agent verdict rule advisory (verifier pass PENDING at
+write time — data-quality characterization, re-derivable from committed tape by the one-line
+reproduce command). **Gates:** `pytest` **1341 passed** / `python scripts/invariants.py --full` exit 0
+(pre-existing non-gating advisories only: 2 local stranded-branch, 4 directory-shaped-dt +
+2/2 GC-classified, 7 daily-cadence-gap; research-lead to confirm on the final tree). **Step 9 paper:** `SHADOW_REGISTRY`={s14_ladder_underwriting}
+only, `paper_pass.py` idempotent (no paper-relevant tape touched), realized P&L unchanged
+**+$13.21** (`broker_truth`; s14 DEAD-at-real-fills per Q34, proxy P&L not an edge).
+
+**Concurrent-collector hygiene note (for Ryan).** An external hourly-collector hour-9 pass wrote
+`tape/anomalies` + `tape/econ_prints` lines into the shared tree while this run was working —
+excluded from this commit (not this run's milestone; the same "don't let a background collector
+collide with a direct edit" hygiene the Q46 build already flagged).
+
+See `findings/2026-07-21-universe-sweep-liquidity-census.md`, `kb/lessons/00-lessons.md` L125.
+
+---
+
 ## 2026-07-21 06:1x UTC — Idle-run (policy a): L123→L124 — settlement_ledger registered in tape_gap_monitor
 
 Queue fully drained again (Q36/Q43/Q37 still calendar-gated, no numbered item eligible).
