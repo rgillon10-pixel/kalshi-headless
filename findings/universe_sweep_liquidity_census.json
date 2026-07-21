@@ -1,0 +1,344 @@
+{
+  "dead_tail": {
+    "frac_of_census_dead": 0.969673,
+    "most_dominant_series": {
+      "frac_of_census": 0.822063,
+      "n_dead": 246619,
+      "n_in_census": 253202,
+      "series": "KXMVESPORTSMULTIGAMEEXTENDED"
+    },
+    "n_dead": 290902,
+    "top_series": [
+      {
+        "frac_of_census": 0.822063,
+        "frac_of_dead": 0.847773,
+        "n_dead": 246619,
+        "series": "KXMVESPORTSMULTIGAMEEXTENDED"
+      },
+      {
+        "frac_of_census": 0.146817,
+        "frac_of_dead": 0.151408,
+        "n_dead": 44045,
+        "series": "KXMVECROSSCATEGORY"
+      },
+      {
+        "frac_of_census": 0.000143,
+        "frac_of_dead": 0.000148,
+        "n_dead": 43,
+        "series": "KXSILVERH"
+      },
+      {
+        "frac_of_census": 0.00014,
+        "frac_of_dead": 0.000144,
+        "n_dead": 42,
+        "series": "KXWTIH"
+      },
+      {
+        "frac_of_census": 0.000103,
+        "frac_of_dead": 0.000107,
+        "n_dead": 31,
+        "series": "KXGOLDH"
+      },
+      {
+        "frac_of_census": 8e-05,
+        "frac_of_dead": 8.3e-05,
+        "n_dead": 24,
+        "series": "KXBRASILEIROCTOTAL"
+      },
+      {
+        "frac_of_census": 6e-05,
+        "frac_of_dead": 6.2e-05,
+        "n_dead": 18,
+        "series": "KXBRASILEIROTEAMTOTAL"
+      },
+      {
+        "frac_of_census": 5.3e-05,
+        "frac_of_dead": 5.5e-05,
+        "n_dead": 16,
+        "series": "KXBRASILEIROCSPREAD"
+      },
+      {
+        "frac_of_census": 4e-05,
+        "frac_of_dead": 4.1e-05,
+        "n_dead": 12,
+        "series": "KXBRASILEIROC1HTOTAL"
+      },
+      {
+        "frac_of_census": 3e-05,
+        "frac_of_dead": 3.1e-05,
+        "n_dead": 9,
+        "series": "KXBRASILEIRO1HTOTAL"
+      }
+    ]
+  },
+  "n_files": 5,
+  "n_lines": 300000,
+  "n_malformed": 0,
+  "pass_stability": {
+    "2026-07-17": {
+      "fillable_frac_max": 0.0685,
+      "fillable_frac_mean": 0.053183,
+      "fillable_frac_min": 0.0347,
+      "n_passes": 3,
+      "passes": [
+        {
+          "capture_id": "20260717T153311Z",
+          "fillable_frac": 0.0347,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260717T183023Z",
+          "fillable_frac": 0.05635,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260717T190554Z",
+          "fillable_frac": 0.0685,
+          "n_lines": 20000
+        }
+      ]
+    },
+    "2026-07-18": {
+      "fillable_frac_max": 0.0809,
+      "fillable_frac_mean": 0.025,
+      "fillable_frac_min": 0.0062,
+      "n_passes": 5,
+      "passes": [
+        {
+          "capture_id": "20260718T003036Z",
+          "fillable_frac": 0.01185,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260718T010611Z",
+          "fillable_frac": 0.01775,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260718T063046Z",
+          "fillable_frac": 0.0062,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260718T130255Z",
+          "fillable_frac": 0.0083,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260718T190632Z",
+          "fillable_frac": 0.0809,
+          "n_lines": 20000
+        }
+      ]
+    },
+    "2026-07-19": {
+      "fillable_frac_max": 0.0105,
+      "fillable_frac_mean": 0.009725,
+      "fillable_frac_min": 0.00895,
+      "n_passes": 2,
+      "passes": [
+        {
+          "capture_id": "20260719T010354Z",
+          "fillable_frac": 0.0105,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260719T190329Z",
+          "fillable_frac": 0.00895,
+          "n_lines": 20000
+        }
+      ]
+    },
+    "2026-07-20": {
+      "fillable_frac_max": 0.0797,
+      "fillable_frac_mean": 0.039717,
+      "fillable_frac_min": 0.01495,
+      "n_passes": 3,
+      "passes": [
+        {
+          "capture_id": "20260720T010320Z",
+          "fillable_frac": 0.01495,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260720T070315Z",
+          "fillable_frac": 0.0245,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260720T190412Z",
+          "fillable_frac": 0.0797,
+          "n_lines": 20000
+        }
+      ]
+    },
+    "2026-07-21": {
+      "fillable_frac_max": 0.0189,
+      "fillable_frac_mean": 0.015875,
+      "fillable_frac_min": 0.01285,
+      "n_passes": 2,
+      "passes": [
+        {
+          "capture_id": "20260721T010428Z",
+          "fillable_frac": 0.01285,
+          "n_lines": 20000
+        },
+        {
+          "capture_id": "20260721T070433Z",
+          "fillable_frac": 0.0189,
+          "n_lines": 20000
+        }
+      ]
+    }
+  },
+  "per_day": {
+    "2026-07-17": {
+      "activity": {
+        "frac_any_bytes": 0.105351,
+        "frac_any_lines": 0.106317,
+        "frac_open_interest": 0.106233,
+        "frac_volume": 0.106317,
+        "frac_volume_24h": 0.0,
+        "n_any": 6379
+      },
+      "fillable": {
+        "frac_bytes": 0.051107,
+        "frac_lines": 0.053183,
+        "n": 3191
+      },
+      "liquid": {
+        "frac_bytes": 0.050756,
+        "frac_lines": 0.052783,
+        "n": 3167
+      },
+      "n_bytes": 53104187,
+      "n_lines": 60000
+    },
+    "2026-07-18": {
+      "activity": {
+        "frac_any_bytes": 0.114086,
+        "frac_any_lines": 0.11507,
+        "frac_open_interest": 0.11494,
+        "frac_volume": 0.11507,
+        "frac_volume_24h": 1e-05,
+        "n_any": 11507
+      },
+      "fillable": {
+        "frac_bytes": 0.023673,
+        "frac_lines": 0.025,
+        "n": 2500
+      },
+      "liquid": {
+        "frac_bytes": 0.021911,
+        "frac_lines": 0.02304,
+        "n": 2304
+      },
+      "n_bytes": 88177721,
+      "n_lines": 100000
+    },
+    "2026-07-19": {
+      "activity": {
+        "frac_any_bytes": 0.12569,
+        "frac_any_lines": 0.126,
+        "frac_open_interest": 0.12595,
+        "frac_volume": 0.126,
+        "frac_volume_24h": 0.0,
+        "n_any": 5040
+      },
+      "fillable": {
+        "frac_bytes": 0.009451,
+        "frac_lines": 0.009725,
+        "n": 389
+      },
+      "liquid": {
+        "frac_bytes": 0.00924,
+        "frac_lines": 0.0095,
+        "n": 380
+      },
+      "n_bytes": 34725521,
+      "n_lines": 40000
+    },
+    "2026-07-20": {
+      "activity": {
+        "frac_any_bytes": 0.09486,
+        "frac_any_lines": 0.0959,
+        "frac_open_interest": 0.095817,
+        "frac_volume": 0.0959,
+        "frac_volume_24h": 5e-05,
+        "n_any": 5754
+      },
+      "fillable": {
+        "frac_bytes": 0.037622,
+        "frac_lines": 0.039717,
+        "n": 2383
+      },
+      "liquid": {
+        "frac_bytes": 0.035257,
+        "frac_lines": 0.036983,
+        "n": 2219
+      },
+      "n_bytes": 54386963,
+      "n_lines": 60000
+    },
+    "2026-07-21": {
+      "activity": {
+        "frac_any_bytes": 0.09535,
+        "frac_any_lines": 0.095975,
+        "frac_open_interest": 0.0959,
+        "frac_volume": 0.095975,
+        "frac_volume_24h": 2.5e-05,
+        "n_any": 3839
+      },
+      "fillable": {
+        "frac_bytes": 0.014479,
+        "frac_lines": 0.015875,
+        "n": 635
+      },
+      "liquid": {
+        "frac_bytes": 0.013549,
+        "frac_lines": 0.0148,
+        "n": 592
+      },
+      "n_bytes": 36411340,
+      "n_lines": 40000
+    }
+  },
+  "pooled": {
+    "activity": {
+      "frac_any_bytes": 0.107382,
+      "frac_any_lines": 0.108397,
+      "frac_open_interest": 0.108303,
+      "frac_volume": 0.108397,
+      "frac_volume_24h": 1.7e-05,
+      "n_any": 32519
+    },
+    "fillable": {
+      "frac_bytes": 0.028871,
+      "frac_lines": 0.030327,
+      "n": 9098
+    },
+    "liquid": {
+      "frac_bytes": 0.027583,
+      "frac_lines": 0.028873,
+      "n": 8662
+    },
+    "n_bytes": 266805732,
+    "n_lines": 300000
+  },
+  "schema": "universe_sweep_liquidity_census.v1",
+  "storage_decision": {
+    "activity_keep_frac_bytes": 0.107382,
+    "activity_keep_frac_lines": 0.108397,
+    "fillable_keep_frac_bytes": 0.028871,
+    "fillable_keep_frac_lines": 0.030327,
+    "liquid_keep_frac_bytes": 0.027583,
+    "liquid_keep_frac_lines": 0.028873,
+    "note": "kept-fraction if the collector had filtered to each tier at capture time"
+  },
+  "tape_root": "/home/user/kalshi-headless/tape/universe_sweep",
+  "tier_definitions": {
+    "activity_any": "volume_24h>0 OR open_interest>0 OR volume>0",
+    "fillable": "yes_ask > 0.0 AND yes_ask_size >= 1.0",
+    "liquid": "yes_ask > 0.0 AND yes_ask_size >= 10.0"
+  }
+}
