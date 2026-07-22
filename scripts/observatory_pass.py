@@ -22,8 +22,14 @@ Usage:
     python scripts/observatory_pass.py --status      # replay ledger, print state, no writes
 
 --rebuild recomputes daily aggregates in place but NEVER truncates the ledger —
-the ledger is append-only; duplicate day reconciles are no-ops by construction
-(reconcile skips any dt <= a pattern's last_dt and re-observations of known ids).
+the ledger is append-only; replaying an already-processed day (hit OR miss) is a
+no-op by construction (reconcile skips any dt <= a pattern's last_seen_dt and
+re-observations of known ids). Two documented consequences of append-only:
+(a) a rebuild after an extractor bugfix corrects the committed daily aggregates
+but cannot rewrite ledger history — corrected flags for already-processed days
+are dropped, not re-scored; (b) a tape day BACKFILLED behind a pattern's
+last_seen_dt (union-merge recoveries do this) records neither hit nor miss for
+that pattern. Both are deliberate: ledger truth only ever moves forward.
 """
 from __future__ import annotations
 

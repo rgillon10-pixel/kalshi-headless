@@ -94,8 +94,10 @@ def _fee_check(metric: str, direction: str, row: Dict[str, Any]) -> Optional[Dic
         if over is None or over >= 0 or n == 0:
             return None
         # Buy-every-leg cost: per-leg taker fee at uniform member price 1/n_legs.
-        # sports_pairs events are 2-3 outcome books; use 2 as the conservative floor.
-        legs = 2
+        # More legs = MORE total fees (3 legs at 1/3 cost ~$0.06 vs 2 at 1/2 ~$0.04),
+        # so the conservative (hardest) bar is the MAX plausible leg count for these
+        # books: sports_pairs events are 2-3 outcome books -> 3.
+        legs = 3
         fees = legs * fee_per_contract(1.0 / legs, TAKER_FEE_RATE)
         margin = -over - fees
         return {"cleared": margin > 0, "margin": round(margin, 6),

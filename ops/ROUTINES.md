@@ -19,7 +19,7 @@ placeholders below say `<NTFY_TOPIC_URL>`.
 | ntfy-watch | (in Ryan's account) | hourly | Haiku/Sonnet | unchanged |
 | kalshi-burst-cpi-0714 / wcsemi1-0714 / wcsemi2-0715 / wcfinal-0719 / fomc-0729 | (one-shots) | per event | — | unchanged; delete after firing |
 | VPS collector (not a routine) | cron `:23` on 87.99.146.250 | hourly | — | unchanged |
-| kalshi-observatory | (create via RemoteTrigger) | 03:15 daily | Sonnet 5 | **NEW 2026-07-21** (OBS-1 pilot; fires 1h before edge-hunter so it reads fresh patterns) |
+| kalshi-observatory | `trig_01PJ4ghR9GYiG2416eQUZyg8` | 03:15 daily | Sonnet 5 | **LIVE** (created 2026-07-22 03:57Z; OBS-1 pilot; fires 1h before edge-hunter so it reads fresh patterns; no-ops gracefully until the OBS-1 PR merges) |
 
 ## kalshi-research-loop — prompt delta (append to existing prompt, keep its ntfy URL)
 

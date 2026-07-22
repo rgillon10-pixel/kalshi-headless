@@ -232,6 +232,35 @@ def test_ledger_duplicate_day_is_noop(tmp_path):
     assert len(ledger.read_events(ledger_path=lp)) == n_before
 
 
+def test_ledger_replayed_miss_day_is_noop(tmp_path):
+    """--rebuild replays historical days: a day that was a MISS must not append a
+    second miss (code-review must-fix 2026-07-22: idempotency keys off last day
+    PROCESSED, not last hit — else rebuilds could spuriously expire live patterns)."""
+    lp = tmp_path / "patterns.jsonl"
+    ledger.reconcile([_flag("2026-07-10")], "2026-07-10", SCREENED, ledger_path=lp)
+    ledger.reconcile([], "2026-07-11", SCREENED, ledger_path=lp)  # miss day
+    ledger.reconcile([], "2026-07-12", SCREENED, ledger_path=lp)  # miss day
+    n_before = len(ledger.read_events(ledger_path=lp))
+    # rebuild replays all three days
+    for dt, flags in [("2026-07-10", [_flag("2026-07-10")]), ("2026-07-11", []),
+                      ("2026-07-12", [])]:
+        res = ledger.reconcile(flags, dt, SCREENED, ledger_path=lp)
+        assert res["appended"] == 0
+    assert len(ledger.read_events(ledger_path=lp)) == n_before
+    p = list(ledger.replay(ledger.read_events(ledger_path=lp)).values())[0]
+    assert p["consecutive_misses"] == 2  # NOT doubled to 4
+
+
+def test_ledger_hit_after_miss_still_recorded(tmp_path):
+    lp = tmp_path / "patterns.jsonl"
+    ledger.reconcile([_flag("2026-07-10")], "2026-07-10", SCREENED, ledger_path=lp)
+    ledger.reconcile([], "2026-07-11", SCREENED, ledger_path=lp)  # miss
+    res = ledger.reconcile([_flag("2026-07-12")], "2026-07-12", SCREENED, ledger_path=lp)
+    p = list(res["state"].values())[0]
+    assert p["hit_days"] == ["2026-07-10", "2026-07-12"]
+    assert p["consecutive_misses"] == 0  # hit resets the miss streak
+
+
 def test_ledger_append_only(tmp_path):
     lp = tmp_path / "patterns.jsonl"
     ledger.reconcile([_flag("2026-07-10")], "2026-07-10", SCREENED, ledger_path=lp)

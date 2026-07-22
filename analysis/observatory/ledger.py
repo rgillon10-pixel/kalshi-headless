@@ -82,6 +82,7 @@ def replay(events: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
                 "nearest_dead_cousin": ev.get("nearest_dead_cousin"),
                 "graveyard_blocked": bool(ev.get("graveyard_blocked")),
                 "first_dt": ev["dt"], "last_dt": ev["dt"],
+                "last_seen_dt": ev["dt"],
                 "hit_days": [ev["dt"]],
                 "consecutive_misses": 0,
                 "latest_fee_floor_cleared": ev.get("fee_floor_cleared"),
@@ -94,12 +95,19 @@ def replay(events: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
             if ev["dt"] not in s["hit_days"]:
                 s["hit_days"].append(ev["dt"])
             s["last_dt"] = ev["dt"]
+            s["last_seen_dt"] = max(s["last_seen_dt"], ev["dt"])
             s["consecutive_misses"] = 0
             s["latest_fee_floor_cleared"] = ev.get("fee_floor_cleared")
             s["latest_robust_z"] = ev.get("robust_z")
             s["latest_value"] = ev.get("value")
         elif kind == "recheck_miss" and pid in state:
             state[pid]["consecutive_misses"] += 1
+            # Misses advance last_seen_dt too — idempotency keys off the last day
+            # PROCESSED (hit or miss), not the last hit, or a --rebuild would
+            # re-append every historical miss and could spuriously (and, in an
+            # append-only ledger, irreversibly) expire a live pattern.
+            if ev.get("dt"):
+                state[pid]["last_seen_dt"] = max(state[pid]["last_seen_dt"], ev["dt"])
         elif kind == "annotate" and pid in state:
             if ev.get("survival_rationale"):
                 state[pid]["survival_rationale"] = ev["survival_rationale"]
@@ -145,8 +153,8 @@ def reconcile(flags: List[Dict[str, Any]], dt: str,
         if pid not in prior:
             base["event"] = "observed"
         else:
-            if dt <= prior[pid]["last_dt"]:
-                continue  # replayed/duplicate day — append nothing
+            if dt <= prior[pid]["last_seen_dt"]:
+                continue  # replayed/duplicate day (hit OR miss) — append nothing
             base["event"] = "recheck_hit"
         events.append(base)
 
@@ -155,7 +163,7 @@ def reconcile(flags: List[Dict[str, Any]], dt: str,
             continue
         if (s["family"], s["metric"]) not in screened_metrics:
             continue
-        if dt <= s["last_dt"]:
+        if dt <= s["last_seen_dt"]:
             continue
         events.append({"event": "recheck_miss", "pattern_id": pid, "dt": dt})
 
