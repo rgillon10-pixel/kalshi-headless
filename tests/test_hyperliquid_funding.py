@@ -158,3 +158,109 @@ def test_run_appends_across_passes(tmp_path):
         recs = _read_lines(s1["path"])
         assert len(recs) == 2
         assert {r["capture_id"] for r in recs} == {s1["capture_id"], s2["capture_id"]}
+
+
+# --------------------------------------------------------------------------- #
+# _committed_time_ms — reads already-archived print times from committed tape
+# --------------------------------------------------------------------------- #
+def test_committed_time_ms_reads_prior_backfill(tmp_path):
+    # seed the tape with a backfill record (BTC hours 0..9)
+    pager = FakePager({"BTC": _entries("BTC", 0, 10), "ETH": _entries("ETH", 0, 4)})
+    hf.run(coins=("BTC", "ETH"), start_ms=0, client=pager, tape_dir=tmp_path)
+    seen = hf._committed_time_ms(tmp_path, ("BTC", "ETH", "SOL"))
+    assert len(seen["BTC"]) == 10
+    assert len(seen["ETH"]) == 4
+    assert seen["SOL"] == set()                       # never archived -> empty, not a crash
+    # every archived time_ms is an int matching the entries we wrote
+    expected_btc = {e["time"] for e in _entries("BTC", 0, 10)}
+    assert seen["BTC"] == expected_btc
+
+
+def test_committed_time_ms_missing_dir_is_empty(tmp_path):
+    seen = hf._committed_time_ms(tmp_path / "nope", ("BTC",))
+    assert seen == {"BTC": set()}
+
+
+# --------------------------------------------------------------------------- #
+# run_incremental — appends only genuinely-new prints, dedup, fault isolation, empty=ok
+# --------------------------------------------------------------------------- #
+def test_incremental_appends_only_new_prints(tmp_path):
+    # seed: BTC hours 0..9 already archived (as a backfill)
+    seed = FakePager({"BTC": _entries("BTC", 0, 10)})
+    hf.run(coins=("BTC",), start_ms=0, client=seed, tape_dir=tmp_path)
+
+    # venue now has hours 0..14 (5 new). Incremental must fetch from the newest archived and
+    # append ONLY hours 10..14, never re-append 0..9.
+    fresh = FakePager({"BTC": _entries("BTC", 0, 15)})
+    summary = hf.run_incremental(coins=("BTC",), client=fresh, tape_dir=tmp_path)
+    assert summary["completeness_ok"] is True
+    assert summary["n_new_prints"] == 5
+    assert summary["per_coin_new_prints"] == {"BTC": 5}
+    assert summary["mode"] == "incremental"
+
+    recs = _read_lines(summary["path"])
+    inc = [r for r in recs if r.get("mode") == "incremental"]
+    assert len(inc) == 1
+    rec = inc[0]
+    assert rec["record_type"] == "funding_history"
+    assert rec["price_source_tag"] == "broker_truth"
+    assert rec["n_prints"] == 5
+    new_ms = {p["time_ms"] for p in rec["prints"]}
+    archived_ms = {e["time"] for e in _entries("BTC", 0, 10)}
+    assert new_ms.isdisjoint(archived_ms)             # no overlap with what was already archived
+    # the incremental fetch started at (or after) the newest archived print, not from launch
+    assert summary["path"] is not None
+
+
+def test_incremental_no_new_prints_writes_nothing_and_stays_complete(tmp_path):
+    seed = FakePager({"BTC": _entries("BTC", 0, 10)})
+    hf.run(coins=("BTC",), start_ms=0, client=seed, tape_dir=tmp_path)
+
+    # venue has nothing beyond what's archived
+    same = FakePager({"BTC": _entries("BTC", 0, 10)})
+    summary = hf.run_incremental(coins=("BTC",), client=same, tape_dir=tmp_path)
+    assert summary["completeness_ok"] is True          # nothing-new is NOT a failure
+    assert summary["n_new_prints"] == 0
+    assert summary["n_lines"] == 0
+    assert summary["path"] is None                      # no line -> no file write
+
+
+def test_incremental_from_empty_tape_fetches_from_launch(tmp_path):
+    # no prior tape: should fetch from launch and archive everything the venue has
+    fresh = FakePager({"BTC": _entries("BTC", 0, 6), "ETH": _entries("ETH", 0, 3)})
+    summary = hf.run_incremental(coins=("BTC", "ETH"), client=fresh, tape_dir=tmp_path,
+                                 launch_ms=0)
+    assert summary["completeness_ok"] is True
+    assert summary["per_coin_new_prints"] == {"BTC": 6, "ETH": 3}
+
+
+def test_incremental_one_coin_failure_isolated(tmp_path):
+    fresh = FakePager({"ETH": _entries("ETH", 0, 4)}, fail_coins={"BTC"})
+    summary = hf.run_incremental(coins=("BTC", "ETH"), client=fresh, tape_dir=tmp_path,
+                                 launch_ms=0)
+    assert summary["completeness_ok"] is False          # BTC fetch failed
+    assert summary["n_coins_ok"] == 1
+    assert summary["per_coin_status"]["BTC"] == "fetch_error"
+    assert summary["per_coin_status"]["ETH"] == "ok"
+    recs = {(_r.get("coin"), _r.get("status")): _r for _r in _read_lines(summary["path"])}
+    # BTC error is a visible record; ETH's genuinely-new prints still archived (fault isolation)
+    assert ("BTC", "fetch_error") in recs
+    eth = next(r for r in _read_lines(summary["path"]) if r["coin"] == "ETH" and r.get("prints"))
+    assert eth["n_prints"] == 4
+
+
+def test_incremental_idempotent_across_two_collectors(tmp_path):
+    # simulate the two staggered collectors: the first archives the new print, the second
+    # (same venue state) finds nothing new -> no duplicate line, no double-count.
+    seed = FakePager({"BTC": _entries("BTC", 0, 10)})
+    hf.run(coins=("BTC",), start_ms=0, client=seed, tape_dir=tmp_path)
+    venue = FakePager({"BTC": _entries("BTC", 0, 11)})   # exactly one new print (hour 10)
+
+    s1 = hf.run_incremental(coins=("BTC",), client=venue, tape_dir=tmp_path)
+    s2 = hf.run_incremental(coins=("BTC",), client=venue, tape_dir=tmp_path)
+    assert s1["n_new_prints"] == 1
+    assert s2["n_new_prints"] == 0                       # second collector sees nothing new
+    # the single new print appears exactly once across all incremental records
+    all_new = [p["time_ms"] for r in _read_lines(s1["path"])
+               if r.get("mode") == "incremental" for p in (r.get("prints") or [])]
+    assert len(all_new) == 1 and len(set(all_new)) == 1

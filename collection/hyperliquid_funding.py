@@ -28,13 +28,33 @@ One pass writes ONE JSONL record per coin (a `funding_history` record carrying t
 maps to a Kalshi perp ticker as `KX<COIN>PERP` (BTC->KXBTCPERP); the mapping for the long
 tail is left to the join, which is where an ambiguous symbol (kSHIB, HYPE) would surface.
 
+Two run modes (L127/L128 close-out, 2026-07-21):
+  * `run` (`--mode backfill`) — the original one-shot paginated backfill since launch. One
+    `funding_history`/`mode=backfill` record per coin carrying the FULL prints list.
+  * `run_incremental` (`--mode incremental`, the default hourly-pass leg) — a tiny forward
+    refresh. Per coin it reads the newest funding-print `time_ms` already on committed tape,
+    fetches only from there, and union-appends a record carrying ONLY the genuinely-new
+    prints (deduped per-print by `(coin, time_ms)` against everything already archived — an
+    append-only add, never a rewrite/reorder of existing lines). A pass with nothing new for
+    a coin writes NO line for it (empty-is-data, not a drop, and not an incompleteness); only
+    a genuine fetch/parse exception lowers completeness. This is what tracks `perp_tape`'s
+    forward cadence so `scripts/q42_crossvenue_funding_join.py` stops silently truncating at
+    the 2026-07-17 backfill date. Steady-state cost is 1 short page (~1 new hourly print) per
+    coin => 1-2 POSTs per pass; the first post-freeze pass catches the whole gap in one page
+    (< PAGE_LIMIT for any gap under ~20 days). Idempotent across the two staggered collectors
+    (VPS + cloud) and across re-runs: whichever pass runs first after a new hourly print
+    archives it, the next finds nothing new — the per-print dedup makes double-collection a
+    no-op, never a duplicate line.
+
 Run one pass / backfill since launch:
-    python -m collection.hyperliquid_funding
+    python -m collection.hyperliquid_funding                       # incremental forward refresh (default)
+    python -m collection.hyperliquid_funding --mode backfill       # full paginated backfill since launch
     python -m collection.hyperliquid_funding --coins BTC ETH SOL
 """
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from datetime import datetime, timezone
@@ -248,16 +268,123 @@ def run(coins: Sequence[str] = DEFAULT_COINS, start_ms: int = LAUNCH_MS,
     return summary
 
 
+# --------------------------------------------------------------------------- #
+# incremental forward refresh — reads what's already archived, appends only the new
+# --------------------------------------------------------------------------- #
+def _committed_time_ms(tape_dir: Path, coins: Sequence[str]) -> Dict[str, set]:
+    """Per-coin set of funding-print `time_ms` already on committed family tape.
+
+    Streaming over `dt=*.jsonl`: holds ONLY the int set per coin (hourly prints — a few
+    thousand ints even after a year, trivially bounded), never the full records, so this
+    stays within the memory discipline (L10) regardless of how much tape has accrued. A
+    malformed line / missing field is skipped, never fatal. Both `backfill` and `incremental`
+    records are read (both are `record_type=funding_history`), so the newest archived print
+    is found no matter which mode wrote it."""
+    seen: Dict[str, set] = {c: set() for c in coins}
+    d = Path(tape_dir)
+    if not d.is_dir():
+        return seen
+    for path in sorted(d.glob("dt=*.jsonl")):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except (ValueError, TypeError):
+                        continue
+                    if rec.get("record_type") != "funding_history":
+                        continue
+                    s = seen.get(rec.get("coin"))
+                    if s is None:
+                        continue
+                    for pr in rec.get("prints") or []:
+                        ms = pr.get("time_ms")
+                        if isinstance(ms, int):
+                            s.add(ms)
+        except OSError:
+            continue
+    return seen
+
+
+def run_incremental(coins: Sequence[str] = DEFAULT_COINS, client: Optional[Hyperliquid] = None,
+                    tape_dir: Optional[Path] = None, min_interval: float = 0.2,
+                    launch_ms: int = LAUNCH_MS) -> Dict[str, Any]:
+    """One incremental forward-refresh pass: per coin, fetch funding prints since the newest
+    already archived and union-append ONLY the genuinely-new ones (deduped per-print by
+    `(coin, time_ms)`; append-only, existing lines never touched).
+
+    `client`/`tape_dir` injectable for offline testing. Honest completeness: a per-coin fetch
+    failure is a visible `fetch_error` record that lowers `completeness_ok` but never kills the
+    sibling coins; a successful fetch that simply has no new prints yet is NORMAL (empty-is-data)
+    — it writes no line for that coin and does NOT lower completeness. A pass where nothing is
+    new for any coin writes no file at all (mirrors polymarket_pairs' `if lines:` guard)."""
+    tape_dir = Path(tape_dir) if tape_dir is not None else TAPE
+    if client is None:
+        client = Hyperliquid(min_interval=min_interval)
+
+    committed = _committed_time_ms(tape_dir, coins)
+    capture_id, captured_at, day = _now_ids()
+    base = {"schema_version": "hyperliquid_funding.v1", "capture_id": capture_id,
+            "captured_at": captured_at, "venue": "hyperliquid",
+            "record_type": "funding_history", "mode": "incremental"}
+
+    lines: List[str] = []
+    per_coin_new: Dict[str, int] = {}
+    per_coin_status: Dict[str, str] = {}
+    n_ok = 0
+    for coin in coins:
+        seen = committed.get(coin, set())
+        start_ms = max(seen) if seen else int(launch_ms)
+        body, ok = fetch_funding_history(client.funding_history, coin, start_ms)
+        n_ok += int(ok)
+        if not ok:
+            per_coin_new[coin] = 0
+            per_coin_status[coin] = "fetch_error"
+            lines.append(canonical_json({**base, "coin": coin, **body}))  # visible error record
+            continue
+        new_prints = [p for p in body["prints"]
+                      if p["time_ms"] is not None and p["time_ms"] not in seen]
+        per_coin_new[coin] = len(new_prints)
+        per_coin_status[coin] = "ok"
+        if new_prints:
+            lines.append(canonical_json({
+                **base, "coin": coin, "status": "ok", "start_ms": int(start_ms),
+                "prints": new_prints, "n_prints": len(new_prints),
+                "price_source_tag": "broker_truth",
+                "raw_sha256": sha256_hex(canonical_json(new_prints)),
+            }))
+
+    path = _write(tape_dir, day, lines) if lines else None
+    summary = {
+        "mode": "incremental", "capture_id": capture_id, "day": day,
+        "captured_at": captured_at, "n_coins": len(list(coins)), "n_coins_ok": n_ok,
+        "per_coin_new_prints": per_coin_new, "per_coin_status": per_coin_status,
+        "n_new_prints": sum(per_coin_new.values()), "n_lines": len(lines),
+        "completeness_ok": n_ok == len(list(coins)), "path": path,
+    }
+    print(f"[hyperliquid_funding] {capture_id} incremental: {n_ok}/{summary['n_coins']} coins ok, "
+          f"new_prints={per_coin_new}")
+    return summary
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Hyperliquid perp funding-history backfill (read-only, public /info)")
+        description="Hyperliquid perp funding-history collector (read-only, public /info)")
+    ap.add_argument("--mode", choices=["incremental", "backfill"], default="incremental",
+                    help="incremental forward refresh (default) or full paginated backfill")
     ap.add_argument("--coins", nargs="+", default=list(DEFAULT_COINS),
                     help="coin symbols to fetch (default: %(default)s)")
     ap.add_argument("--start-ms", type=int, default=LAUNCH_MS,
                     help="backfill window start (unix ms; default = Kalshi perps launch)")
     ap.add_argument("--min-interval", type=float, default=0.2)
     args = ap.parse_args(argv)
-    summary = run(coins=args.coins, start_ms=args.start_ms, min_interval=args.min_interval)
+    if args.mode == "backfill":
+        summary = run(coins=args.coins, start_ms=args.start_ms, min_interval=args.min_interval)
+    else:
+        summary = run_incremental(coins=args.coins, min_interval=args.min_interval)
     return 0 if summary["completeness_ok"] else 1
 
 

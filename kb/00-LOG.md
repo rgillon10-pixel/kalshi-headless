@@ -6,6 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-22 01:xx UTC — Ryan-interactive session: creds unblocked + three collectors built (Polymarket US, WS depth, hyperliquid_funding forward-refresh)
+
+**Ryan-interactive local session** (branch `worktree-creds-unblock-and-ws-depth`; parent
+session commits, not this distiller). Three things happened: credentials were unblocked, three
+collectors were built (all offline-tested, all their own suites green), and one prior open item
+(L127 candidate (a)) got closed.
+
+**Credentials** (VALUES never in repo — placed on the VPS at `/root/.secrets/kalshi-headless.env`):
+`POLYMARKET_US_*` verified LIVE (signed `GET /v1/markets` → HTTP 200 through
+`collection/polymarket_us_live.py`'s own `auth_headers`); `POLYMARKET_CLOB_*` (international)
+placed-unverified; `KALSHI_API_KEY_ID` + PEM — the PEM validates but the Key ID is rejected
+`401 NOT_FOUND` on BOTH prod and demo, awaiting Ryan re-check. TWC/`api.weather.com` key
+declared **DEAD** (business-only licensing) — Q36 note updated: IEM 1-min ASOS +
+`api.weather.gov` are now PRIMARY and the settlement-basis probe becomes load-bearing. Ryan
+OPENED the WS `orderbook_delta` build gate (GOAL.md amended; activation still key-gated).
+
+**Built** (three collector-engineer agents): (1) `collection/polymarket_us_live.py` + 32 tests +
+`ops/polymarket-us-bringup.md` + `findings/2026-07-21-polymarket-us-public-api-probe.md` — the
+live probe FALSIFIED the docs' "public market data needs no key" claim (all `/v1/` data
+endpoints 401 unauthenticated, only `/v1/health` open; app-level, not geo-block). Q33 → UNBLOCKED.
+(2) `collection/ws_depth.py` + 21 tests + systemd unit + `ops/ws-depth-bringup.md` — archives
+Kalshi's `orderbook_delta` (snapshot + every delta with `seq`), gzip'd + UTC-rotated, seq-gaps
+recorded as data + forced resync. Build DONE, activation pending a working Kalshi key (Q47).
+(3) `hyperliquid_funding` incremental forward-refresh wired into `hourly_pass` every pass +
+`tape_gap_monitor` reclassified (one-shot-backfill → hourly STALE-only, removed from
+`JOIN_CRITICAL_ONE_SHOT`) + 12 tests; live smoke appended 116 BTC + 116 ETH `broker_truth`
+prints — the q42 cross-venue join now reads 1179 HL hours, 130/130 windows joined, 0
+partial-excluded. **This CLOSES L127 candidate (a)** (the repair half L128 had left OPEN).
+
+**Distilled — 7 new lessons L130–L136** (`kb/lessons/00-lessons.md`): L130 vendor "public
+endpoint" docs are not load-bearing / `blocked_key` is a structural cloud-safety property
+(ledger-only + test); L131 authenticated ≠ order-capable — read-only market-data signing
+belongs in `collection/` (UNENFORCED collision, below); L132 a streaming seq-gap is DATA
+(generalizes L23; test); L133 streaming tape needs gzip+rotation day one (test); L134
+monitor classification is structure-dependent not cadence-dependent, closes L127(a) (test);
+L135 incremental-append collectors need a per-observation dedup identity `(coin, time_ms)`
+distinct from `capture_id` (test); L136 Python 3.9 `fromisoformat` rejects single-digit
+fractional-second timestamps (UNENFORCED).
+
+**Escalation flagged, NOT applied (docs-only pass):** the existing invariant
+`inv_order_endpoints_confined` (`scripts/invariants.py`) FIRES on `collection/ws_depth.py` —
+verified by calling the rule directly on the file; its `KALSHI-ACCESS-(KEY|SIGNATURE|TIMESTAMP)`
+header regex catches ws_depth's read-only handshake signing. The file is untracked so `main`'s
+gate is green today, but **the gate will go RED the moment ws_depth.py is committed/merged.**
+Resolution (sanction ws_depth.py in the invariant's exemption tuple + a matching test, OR
+relocate the signer to `execution/kalshi_client.py`) is a Ryan/parent policy call and must be
+settled before merge — see L131. No registry/verdict change this session (Q33 UNBLOCKED / Q47
+added are queue items, not strategy rows); `kb/strategies/00-index.md` untouched. Full suite
+this session: 1467 passed, 1 pre-existing unrelated failure
+(`tests/test_s17_leadlag_probe.py`, the L136 3.9-`fromisoformat` symptom, reproduces on clean
+`main`).
+
 ## 2026-07-22 00:1x UTC — Idle-run (policy c): VPS collector recovered post-PR#151 — closes the L117 outage
 
 Step 0a (history-integrity): PASS — `origin/main` HEAD `261133e`, last two commits are

@@ -58,6 +58,11 @@ _EMPTY_WEATHER = {"n_captured": 0, "n_expected": 0, "completeness_ok": True}
 # zero-contribution stub for the perp_tape sub-pass (crypto perps, network by default)
 _EMPTY_PERP = {"n_lines": 0, "n_contracts": 0, "completeness_ok": True}
 
+# zero-contribution stub for the hyperliquid_funding incremental leg (off-venue funding tape,
+# network by default). Like settlement_ledger/weather_actuals it does NOT fold into
+# n_markets/n_lines — only its completeness_ok folds in — so a "nothing new" pass is count-neutral.
+_EMPTY_HF = {"n_new_prints": 0, "n_lines": 0, "completeness_ok": True}
+
 # zero-contribution stub for the Q46 universe_sweep sub-pass (network by default). Fires on
 # {0,6,12,18} UTC — of the existing daily-slot tests, only WEATHER_ACTUALS_UTC_HOUR (12)
 # lands on a sweep hour, so those hour-12 tests inject this stub to stay offline and
@@ -97,7 +102,7 @@ def test_run_all_complete_outside_anomaly_hour(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["n_lines"] == 2 + 2
@@ -111,7 +116,7 @@ def test_run_prints_expected_digest_line(tmp_path, capsys):
 
     hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
            polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     out = capsys.readouterr().out
     assert "[hourly_pass] 12 markets, 2 lines, completeness ok" in out
@@ -127,7 +132,7 @@ def test_run_sports_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -139,7 +144,7 @@ def test_run_crypto_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -152,7 +157,7 @@ def test_run_polymarket_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(
         sports_fn=lambda: sports, crypto_fn=lambda: crypto,
         polymarket_fn=lambda: polymarket,
-        polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+        polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["n_lines"] == 2 + 2 + 2
@@ -170,7 +175,7 @@ def test_run_sports_raises_crypto_still_runs(tmp_path):
 
     summary = hp.run(sports_fn=_boom, crypto_fn=lambda: crypto,
                       polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["sports_pairs"]["status"] == "error"
@@ -188,7 +193,7 @@ def test_run_crypto_raises_sports_still_runs(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=_boom,
                       polymarket_fn=lambda: _EMPTY_POLYMARKET,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["crypto_hourly"]["status"] == "error"
@@ -206,7 +211,7 @@ def test_run_polymarket_raises_others_still_run(tmp_path):
 
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                       polymarket_fn=_boom,
-                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["polymarket_pairs"]["status"] == "error"
@@ -232,7 +237,7 @@ def test_anomaly_sweep_not_invoked_outside_09_utc(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     anomaly_sweep_fn=_sweep, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     anomaly_sweep_fn=_sweep, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["anomaly_sweep"] is None
@@ -246,7 +251,7 @@ def test_anomaly_sweep_not_built_does_not_fail_completeness(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["anomaly_sweep"]["result"]["status"] == "not_built"
@@ -260,7 +265,7 @@ def test_anomaly_sweep_error_marks_incomplete(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "error", "returncode": 1},
-                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=lambda: _NOT_BUILT_ECON, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -276,7 +281,7 @@ def test_anomaly_sweep_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=_boom, econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["anomaly_sweep"]["status"] == "error"
@@ -303,7 +308,7 @@ def test_econ_prints_not_invoked_outside_09_utc(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=_econ, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     econ_prints_fn=_econ, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["econ_prints"] is None
@@ -318,7 +323,7 @@ def test_econ_prints_all_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 5},
-                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["econ_prints"]["result"] == {"n_series": 5, "n_complete": 5}
@@ -333,7 +338,7 @@ def test_econ_prints_partial_marks_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: {"n_series": 5, "n_complete": 3},
-                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -349,7 +354,7 @@ def test_econ_prints_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
-                     econ_prints_fn=_boom, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     econ_prints_fn=_boom, polymarket_cpi_fn=lambda: _EMPTY_POLYMARKET_CPI, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["econ_prints"]["status"] == "error"
@@ -372,7 +377,7 @@ def test_polymarket_cpi_not_invoked_outside_09_utc(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     polymarket_cpi_fn=_cpi, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     polymarket_cpi_fn=_cpi, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["polymarket_cpi_pairs"] is None
@@ -388,7 +393,7 @@ def test_polymarket_cpi_complete_does_not_fail_completeness(tmp_path):
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
                      polymarket_cpi_fn=lambda: {"n_matched": 4, "completeness_ok": True},
-                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["polymarket_cpi_pairs"]["result"]["n_matched"] == 4
@@ -405,7 +410,7 @@ def test_polymarket_cpi_incomplete_marks_overall_incomplete(tmp_path):
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
                      polymarket_cpi_fn=lambda: {"n_matched": 2, "completeness_ok": False},
-                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -422,7 +427,7 @@ def test_polymarket_cpi_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      anomaly_sweep_fn=lambda: {"status": "not_built"},
                      econ_prints_fn=lambda: _NOT_BUILT_ECON,
-                     polymarket_cpi_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
+                     polymarket_cpi_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["polymarket_cpi_pairs"]["status"] == "error"
@@ -446,7 +451,7 @@ def test_depth_counts_fold_into_totals(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     # 1 game line + 1 symbol line + 4 depth lines; markets = 1*2 + 1*10 + 4 depth markets
@@ -465,7 +470,7 @@ def test_depth_incomplete_marks_overall_incomplete(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -480,7 +485,7 @@ def test_depth_raising_marks_incomplete_not_crash(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     depth_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     depth_fn=_boom, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["orderbook_depth"]["status"] == "error"
@@ -513,7 +518,7 @@ def test_depth_receives_this_passes_discovered_tickers(tmp_path):
     hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
            polymarket_fn=lambda: _EMPTY_POLYMARKET,
            polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-           depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+           depth_fn=_depth, weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert seen["tickers"] == ["KX-A", "KX-B", "KXBTC-1"]
 
@@ -575,6 +580,7 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
     monkeypatch.setattr(hp.perp_tape, "run", lambda **k: dict(_EMPTY_PERP))
+    monkeypatch.setattr(hp.hyperliquid_funding, "run_incremental", lambda **k: dict(_EMPTY_HF))
     # keep the two DAILY weather-revival legs offline regardless of the wall-clock hour
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
@@ -610,6 +616,7 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.polymarket_pairs, "run_cpi", fake_polymarket_cpi_run)
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
     monkeypatch.setattr(hp.perp_tape, "run", lambda **k: dict(_EMPTY_PERP))
+    monkeypatch.setattr(hp.hyperliquid_funding, "run_incremental", lambda **k: dict(_EMPTY_HF))
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
     monkeypatch.setattr(hp.universe_sweep, "run", lambda **k: {"n_markets": 0, "n_lines": 0, "completeness_ok": True})
@@ -634,7 +641,7 @@ def test_weather_counts_fold_into_totals(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _weather_summary(n_captured=6),
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
     # 1 game + 1 symbol + 6 weather books; markets = 1*2 + 1*10 + 6 weather markets
@@ -652,7 +659,7 @@ def test_weather_incomplete_marks_overall_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _weather_summary(n_captured=4, n_expected=5,
                                                          completeness_ok=False),
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     # the captured books still fold into totals honestly
@@ -669,7 +676,7 @@ def test_weather_raising_marks_incomplete_not_crash(tmp_path):
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     weather_fn=_boom, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     weather_fn=_boom, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["weather_books"]["status"] == "error"
@@ -710,7 +717,7 @@ def test_forecast_not_invoked_outside_its_hour(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, forecast_fn=_forecast,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["forecast_collector"] is None
@@ -726,7 +733,7 @@ def test_forecast_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 8},
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["forecast_collector"]["result"]["n_complete"] == 8
@@ -744,7 +751,7 @@ def test_forecast_config_only_zero_expected_pass_is_fine(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 0, "n_complete": 0},
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is True
 
@@ -758,7 +765,7 @@ def test_forecast_partial_drop_marks_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 6},
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -774,7 +781,7 @@ def test_forecast_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, forecast_fn=_boom,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["forecast_collector"]["status"] == "error"
@@ -800,7 +807,7 @@ def test_weather_actuals_not_invoked_outside_its_hour(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_actuals,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["weather_actuals"] is None
@@ -818,7 +825,7 @@ def test_weather_actuals_not_invoked_on_forecast_hour(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 8},
                      weather_actuals_fn=lambda: calls.append(1),
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
 
     assert calls == []
     assert summary["weather_actuals"] is None
@@ -836,7 +843,7 @@ def test_weather_actuals_complete_does_not_fail_completeness(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 20, "completeness_ok": True},
                      universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["weather_actuals"]["result"]["n_captured"] == 20
@@ -855,7 +862,7 @@ def test_weather_actuals_incomplete_marks_overall_incomplete(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 18, "completeness_ok": False},
                      universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -872,7 +879,7 @@ def test_weather_actuals_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_boom,
                      universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["weather_actuals"]["status"] == "error"
@@ -893,7 +900,7 @@ def test_perp_counts_fold_in_and_incompleteness_propagates(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
-                     perp_fn=lambda: perp, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: perp, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["n_lines"] == 1 + 1 + 6
@@ -912,13 +919,98 @@ def test_perp_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
-                     perp_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=_boom, now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["perp_tape"]["status"] == "error"
     assert "simulated perp_tape crash" in summary["perp_tape"]["error"]
     assert summary["sports_pairs"]["status"] == "ok"
     assert summary["crypto_hourly"]["status"] == "ok"
+
+
+# --------------------------------------------------------------------------- #
+# hyperliquid_funding (L127/L128 close-out): incremental off-venue funding leg — runs EVERY
+# pass, its lines do NOT fold into n_markets/n_lines (off-venue funding tape, not Kalshi BBOs),
+# its completeness folds in, and a crash is isolated like every sibling.
+# --------------------------------------------------------------------------- #
+def test_hyperliquid_funding_runs_every_pass_and_does_not_alter_counts(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+    calls = []
+
+    def _hf():
+        calls.append(1)
+        return {"n_new_prints": 2, "n_lines": 1, "completeness_ok": True}
+
+    n_markets_before = 1 * 2 + 1 * 10
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     hyperliquid_funding_fn=_hf, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    # runs unconditionally (not hour-gated), like perp_tape
+    assert calls == [1]
+    assert summary["completeness_ok"] is True
+    # off-venue funding tape -> NOT folded into counts (mirrors settlement_ledger/weather_actuals)
+    assert summary["n_markets"] == n_markets_before
+    assert summary["n_lines"] == 1 + 1
+    assert summary["hyperliquid_funding"]["result"]["n_new_prints"] == 2
+
+
+def test_hyperliquid_funding_no_new_prints_is_not_a_failure(tmp_path):
+    # a pass with nothing new (empty-is-data) keeps completeness ok and counts untouched
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     hyperliquid_funding_fn=lambda: dict(_EMPTY_HF),
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is True
+
+
+def test_hyperliquid_funding_incomplete_marks_overall_incomplete(tmp_path):
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     hyperliquid_funding_fn=lambda: {"n_new_prints": 0, "n_coins_ok": 1,
+                                                     "completeness_ok": False},
+                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+
+
+def test_hyperliquid_funding_raising_marks_incomplete_not_crash(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)
+
+    def _boom():
+        raise RuntimeError("simulated hyperliquid_funding crash")
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     weather_fn=lambda: _EMPTY_WEATHER,
+                     hyperliquid_funding_fn=_boom, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(NOT_ANOMALY_HOUR))
+
+    assert summary["completeness_ok"] is False
+    assert summary["hyperliquid_funding"]["status"] == "error"
+    assert "simulated hyperliquid_funding crash" in summary["hyperliquid_funding"]["error"]
+    # sibling sub-passes survive (fault isolation); counts untouched by the off-venue leg
+    assert summary["sports_pairs"]["status"] == "ok"
+    assert summary["crypto_hourly"]["status"] == "ok"
+    assert summary["n_lines"] == 1 + 1
+    assert summary["n_markets"] == 2 + 10
 
 
 # --------------------------------------------------------------------------- #
@@ -945,7 +1037,7 @@ def test_settlement_ledger_not_invoked_outside_its_hour(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      settlement_ledger_fn=lambda: calls.append(1),
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["settlement_ledger"] is None
@@ -962,7 +1054,7 @@ def test_settlement_ledger_complete_does_not_fail_or_alter_counts(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      settlement_ledger_fn=lambda: {"n_binary": 4200, "n_new": 120,
                                                    "completeness_ok": True},
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["settlement_ledger"]["result"]["n_new"] == 120
@@ -981,7 +1073,7 @@ def test_settlement_ledger_incomplete_marks_overall_incomplete(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      settlement_ledger_fn=lambda: {"n_binary": 5000, "markets_truncated": True,
                                                    "completeness_ok": False},
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -997,7 +1089,7 @@ def test_settlement_ledger_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, settlement_ledger_fn=_boom,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["settlement_ledger"]["status"] == "error"
@@ -1024,7 +1116,7 @@ def test_polymarket_us_blocked_key_does_not_gate_or_count(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      polymarket_us_fn=lambda: dict(_BLOCKED_POLYMARKET_US),
-                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
                      now=_ts(NOT_ANOMALY_HOUR))
 
     # absent credential is the normal cloud state: completeness intact, counts untouched
@@ -1044,7 +1136,7 @@ def test_polymarket_us_default_is_blocked_key_when_env_absent(monkeypatch, tmp_p
     summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
-                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
                      now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
@@ -1060,7 +1152,7 @@ def test_polymarket_us_captured_lines_fold_in(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      polymarket_us_fn=lambda: {"status": "ok", "n_captured": 5,
                                                "completeness_ok": True},
-                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
                      now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is True
@@ -1078,7 +1170,7 @@ def test_polymarket_us_incomplete_marks_overall_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      polymarket_us_fn=lambda: {"status": "ok", "n_captured": 2,
                                                "completeness_ok": False},
-                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
                      now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
@@ -1095,7 +1187,7 @@ def test_polymarket_us_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      polymarket_us_fn=_boom,
-                     weather_fn=lambda: _EMPTY_WEATHER, perp_fn=lambda: _EMPTY_PERP,
+                     weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
                      now=_ts(NOT_ANOMALY_HOUR))
 
     assert summary["completeness_ok"] is False
@@ -1126,7 +1218,7 @@ def test_universe_sweep_not_invoked_outside_its_hours(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      universe_sweep_fn=lambda: calls.append(1),
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(NOT_ANOMALY_HOUR))
 
     assert calls == []
     assert summary["universe_sweep"] is None
@@ -1149,7 +1241,7 @@ def test_universe_sweep_fires_on_each_scheduled_hour(tmp_path):
                          # hour 12 also fires the daily weather_actuals leg -> stub it offline
                          weather_actuals_fn=lambda: {"n_captured": 0, "completeness_ok": True},
                          universe_sweep_fn=_us,
-                         perp_fn=lambda: _EMPTY_PERP, now=_ts(hour))
+                         hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(hour))
 
         assert calls == [1], f"sweep did not fire on hour {hour}"
         assert summary["universe_sweep"]["status"] == "ok"
@@ -1165,7 +1257,7 @@ def test_universe_sweep_counts_fold_into_totals(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      universe_sweep_fn=lambda: {"n_markets": 9000, "n_lines": 9000,
                                                "completeness_ok": True},
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(0))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(0))
 
     assert summary["completeness_ok"] is True
     # fresh live-market BBOs -> DO fold in (1 game + 1 symbol + 9000 sweep lines)
@@ -1184,7 +1276,7 @@ def test_universe_sweep_incomplete_marks_overall_incomplete(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      universe_sweep_fn=lambda: {"n_markets": 5000, "n_lines": 5000,
                                                "truncated": True, "completeness_ok": False},
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(6))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(6))
 
     assert summary["completeness_ok"] is False
     # the captured snapshots still fold into totals honestly (truncated is the EXPECTED live
@@ -1203,7 +1295,7 @@ def test_universe_sweep_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, universe_sweep_fn=_boom,
-                     perp_fn=lambda: _EMPTY_PERP, now=_ts(18))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(18))
 
     assert summary["completeness_ok"] is False
     assert summary["universe_sweep"]["status"] == "error"

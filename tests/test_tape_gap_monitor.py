@@ -387,36 +387,64 @@ def test_one_shot_family_never_alerts(tmp_path):
     assert rec["completeness_ok"] is None  # no signal -> not fabricated True
 
 
-def test_hyperliquid_funding_is_join_critical(tmp_path):
-    # L127 membership: hyperliquid_funding is the registered join-critical one-shot
-    # family (perp_tape's only cross-venue join partner), so the JOIN-STALENESS
-    # detector applies to it.
-    assert "hyperliquid_funding" in tgm.JOIN_CRITICAL_ONE_SHOT
-    cfg = tgm.JOIN_CRITICAL_ONE_SHOT["hyperliquid_funding"]
-    assert cfg["max_age_h"] == 48.0
-    assert cfg["consumer"] == "scripts/q42_crossvenue_funding_join.py"
-    # Still a one-shot family (no cadence expectation): interval_h stays None so the
-    # STALE/UNDER-CAPTURE detectors remain no-ops and `dark` cannot fire.
-    assert tgm.FAMILY_CONFIG["hyperliquid_funding"]["interval_h"] is None
+def test_hyperliquid_funding_forward_refreshed_not_join_critical(tmp_path):
+    # L127/L128 close-out (candidate (a), this run supersedes L128's config choice):
+    # hyperliquid_funding.run_incremental is now wired into collection/hourly_pass.py and runs
+    # every pass, so the family GRADUATED from a frozen join-critical one-shot to a
+    # forward-refreshed hourly family. Its freeze is now caught by the STALE detector at 2h,
+    # which strictly subsumes the old 48h join-staleness stopgap — so it is no longer a member
+    # of JOIN_CRITICAL_ONE_SHOT (which is now empty; the mechanism stays dormant for future use).
+    assert "hyperliquid_funding" not in tgm.JOIN_CRITICAL_ONE_SHOT
+    cfg = tgm.FAMILY_CONFIG["hyperliquid_funding"]
+    assert cfg["interval_h"] == 1.0
+    assert cfg["kind"] == "hourly"
+    # STALE-only: single-WRITE-per-new-print, not per pass, so no fixed passes_per_day / ratio.
+    assert cfg["passes_per_day"] is None
+    # kind != "hourly-dual" -> no vps/cloud attribution invented for a single-writer family.
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-21",
+                 [_pass("c1", "2026-07-21T00:23:00+00:00")])
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "hyperliquid_funding",
+                                                   _dt(2026, 7, 21, 0, 40)), _dt(2026, 7, 21, 0, 40))
+    assert rec["collectors"] is None
 
 
-def test_join_critical_one_shot_alerts_on_join_staleness(tmp_path):
-    # A join-critical one-shot family past its max_age_h pages via the JOIN-STALENESS
-    # detector (interval_h is None, so STALE/UNDER-CAPTURE never fire) — and `dark`
-    # stays False because interval_h is None.
-    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-17",
+def test_hyperliquid_funding_stale_alerts_within_cadence(tmp_path):
+    # Now a proper hourly family: a fresh print keeps it healthy; a >2h silence pages via STALE
+    # (the "join is going stale" signal now caught in ~2h, not the old 48h).
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-21",
+                 [_pass("c1", "2026-07-21T05:23:00+00:00")])
+    near = _dt(2026, 7, 21, 6, 30)  # ~1h since last print -> healthy
+    rec_ok = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "hyperliquid_funding", near), near)
+    assert rec_ok["alert"] is False
+    far = _dt(2026, 7, 21, 9, 0)    # ~3.6h silent -> stale (> 2h threshold)
+    rec_bad = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "hyperliquid_funding", far), far)
+    assert rec_bad["alert"] is True
+    assert "stale" in rec_bad["alert_reason"]
+    assert rec_bad["age_hours"] > 2.0
+
+
+def test_join_critical_one_shot_alerts_on_join_staleness(tmp_path, monkeypatch):
+    # The JOIN-STALENESS mechanism (L128) is retained (dormant) for any FUTURE genuinely-one-shot
+    # leg a live join depends on. Register a synthetic such family to prove the detector still
+    # fires: an UNCONFIGURED family (interval_h=None -> STALE/UNDER-CAPTURE are no-ops, `dark`
+    # cannot fire) that IS in JOIN_CRITICAL_ONE_SHOT pages purely on join-age.
+    fam = "synthetic_join_partner"
+    assert fam not in tgm.FAMILY_CONFIG  # unconfigured -> default interval_h=None
+    monkeypatch.setitem(tgm.JOIN_CRITICAL_ONE_SHOT, fam,
+                        {"max_age_h": 48.0, "consumer": "scripts/some_live_join.py"})
+    _write_lines(tmp_path, fam, "2026-07-17",
                  [_pass("c1", "2026-07-17T06:20:03+00:00", record_type="funding_rates")])
     # Well within threshold -> no alert.
     near = _dt(2026, 7, 18, 6, 0)  # ~24h
-    rec_ok = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "hyperliquid_funding", near), near)
+    rec_ok = tgm.evaluate_family(tgm.aggregate_family(tmp_path, fam, near), near)
     assert rec_ok["alert"] is False
     assert rec_ok["alert_reason"] == "ok"
     # Past the 48h threshold -> join-staleness alert.
     far = _dt(2026, 7, 20, 6, 0)  # ~72h
-    rec_bad = tgm.evaluate_family(tgm.aggregate_family(tmp_path, "hyperliquid_funding", far), far)
+    rec_bad = tgm.evaluate_family(tgm.aggregate_family(tmp_path, fam, far), far)
     assert rec_bad["alert"] is True
     assert "join_stale" in rec_bad["alert_reason"]
-    assert "scripts/q42_crossvenue_funding_join.py" in rec_bad["alert_reason"]
+    assert "scripts/some_live_join.py" in rec_bad["alert_reason"]
     assert rec_bad["age_hours"] > 48.0
     # interval_h is None -> this family is never treated as "dark" and never gets a
     # fabricated cadence expectation.
@@ -701,19 +729,22 @@ def test_acceptance_7_l127_perp_tape_reclassified_hourly_dual():
 
 
 @_real
-def test_acceptance_8_l127_hyperliquid_funding_join_stale():
-    """L127 (enforcement half): hyperliquid_funding is perp_tape's ONLY cross-venue
-    join partner (scripts/q42_crossvenue_funding_join.py) but is frozen at a single
-    2026-07-17 manual backfill (newest real captured_at 2026-07-17T06:20:03Z) with no
-    collector wired to refresh it. As a one-shot family (interval_h=None) neither the
-    STALE nor UNDER-CAPTURE detector ever fires for it, so its join-strangling
-    staleness was previously invisible. The new JOIN-STALENESS detector
-    (JOIN_CRITICAL_ONE_SHOT, max_age_h=48) now pages it. Anchored to the real
-    committed tape (mirrors acceptance tests 4/5/6/7), not a fixture: at
-    now=2026-07-21T18:00Z the newest capture is ~107.7h old."""
-    now = _dt(2026, 7, 21, 18, 0)
+def test_acceptance_8_l127_hyperliquid_funding_forward_refreshed_catches_freeze_via_stale():
+    """L127/L128 close-out (candidate (a), this run): hyperliquid_funding.run_incremental is
+    now wired into collection/hourly_pass.py, so the family is a forward-refreshed hourly family
+    (interval_h=1.0, kind="hourly"), NOT the old frozen one-shot. Its freeze is now caught by
+    the STALE detector at 2h instead of the 48h join-staleness stopgap it graduated out of.
+
+    Anchored to the real committed tape at a HISTORICAL reference time (2026-07-19T06:00Z),
+    where the only capture at-or-before `now` is the original 2026-07-17T06:20:03Z manual
+    backfill (~47.7h old) — this is immune to any fresh forward-refresh lines the newly-wired
+    leg appends (dated after this `now`, they are filtered out), so it deterministically proves
+    the reclassified detector fires on exactly the freeze L127 flagged."""
+    now = _dt(2026, 7, 19, 6, 0)
     r = tgm.build_report(_REAL_TAPE, now)["hyperliquid_funding"]
-    assert r["kind"] == "one-shot-backfill"
+    assert r["kind"] == "hourly", r
     assert r["alert"] is True, r
-    assert "join_stale" in r["alert_reason"], r["alert_reason"]
-    assert r["age_hours"] > 48.0, r["age_hours"]
+    assert "stale" in r["alert_reason"], r["alert_reason"]
+    assert r["age_hours"] > 2.0, r["age_hours"]
+    # graduated out of the join-staleness stopgap: no longer a JOIN_CRITICAL_ONE_SHOT member.
+    assert "hyperliquid_funding" not in tgm.JOIN_CRITICAL_ONE_SHOT

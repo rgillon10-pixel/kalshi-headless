@@ -229,12 +229,27 @@ def inv_order_endpoints_confined(path: Path, text: str) -> Optional[str]:
     nears live graduation). Everything else — collectors, probes, the paper tier — is
     read-only public REST by construction. Catches: order-verb method names, the
     portfolio/orders REST path, and Kalshi auth-signing header names. Comment lines skipped
-    (matching the fee-rate rule's convention). One documented exemption besides the client:
+    (matching the fee-rate rule's convention). Two documented exemptions besides the client:
     scripts/kalshi_sign.py — the KB's OFFLINE signing-scheme repro (kb/kalshi-api/
-    01-auth-and-signing.md): throwaway key, no network, knowledge not action."""
+    01-auth-and-signing.md): throwaway key, no network, knowledge not action; and
+    collection/ws_depth.py — the READ-ONLY authenticated WS orderbook_delta collector
+    (Ryan opened the WS build gate 2026-07-21, GOAL.md amendment; lesson L131). Kalshi
+    requires the signed handshake even for market data, so that file may carry the auth
+    headers — but the order-verb half of this rule still applies to it in full."""
     if _file_excluded(path) or _rel(path) in (SANCTIONED["order_endpoints"],
                                               "scripts/kalshi_sign.py"):
         return None
+    if _rel(path) == "collection/ws_depth.py":
+        # L131 sanction covers AUTH HEADERS only — an order verb here must still fire.
+        pat_orders = re.compile(
+            r'(?i)\b(?:place_order|create_order|cancel_order|amend_order'
+            r'|batch_create_orders)\b|portfolio/orders')
+        hits = [(i, ln) for i, ln in _scan_lines(text)
+                if not ln.lstrip().startswith("#") and pat_orders.search(ln)]
+        return _fmt(path, hits,
+                    "order verb in collection/ws_depth.py — its L131 sanction covers "
+                    "read-only auth headers ONLY; order paths stay confined to "
+                    "execution/kalshi_client.py") if hits else None
     pat = re.compile(
         r'(?i)\b(?:place_order|create_order|cancel_order|amend_order|batch_create_orders)\b'
         r'|portfolio/orders'

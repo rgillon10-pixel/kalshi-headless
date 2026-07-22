@@ -186,19 +186,24 @@ FAMILY_CONFIG: Dict[str, Dict[str, Any]] = {
     # as `weather_books`' L120 secondary leg, hence the same EXPECTED_COLLECTOR_BUCKETS
     # mapping below rather than leaving it unmapped/ambiguous.
     "perp_tape":               {"interval_h": 1.0,  "passes_per_day": 48,   "kind": "hourly-dual"},
-    # One-shot / backfill families: no cadence expectation. Tracked for age only;
-    # never alerted on cadence (Q44: "treat as always-complete captures, just
-    # track their captured_at cadence"). NOTE (L127): hyperliquid_funding is
-    # perp_tape's ONLY cross-venue join partner (scripts/q42_crossvenue_funding_join.py)
-    # and has been frozen at its single 2026-07-17 manual backfill (108h+ stale and
-    # counting) with no collector ever wired to refresh it — the join silently
-    # truncates at that date rather than erroring. Genuinely one-shot by design
-    # (correct classification, so interval_h stays None — no cadence/UNDER-CAPTURE
-    # expectation). The join-critical staleness that L127 flagged "not fixed here"
-    # IS now enforced: the JOIN-STALENESS detector in `evaluate_family` (via
-    # JOIN_CRITICAL_ONE_SHOT below) age-alerts this family specifically because a
-    # live join depends on it, without giving it a false cadence expectation.
-    "hyperliquid_funding":     {"interval_h": None, "passes_per_day": None, "kind": "one-shot-backfill"},
+    # L127/L128 close-out (candidate (a), 2026-07-21): hyperliquid_funding is NO LONGER a
+    # frozen one-shot. `collection.hyperliquid_funding.run_incremental` is now wired into
+    # `collection/hourly_pass.py` and runs EVERY pass, union-appending only genuinely-new
+    # hourly prints — so the family now has a real forward cadence and its freeze is caught
+    # by the STALE detector at 2h instead of the old 48h join-staleness stopgap (which it has
+    # therefore graduated out of; see JOIN_CRITICAL_ONE_SHOT below). It is STALE-only
+    # (passes_per_day=None => the UNDER-CAPTURE ratio detector is a no-op), NOT hourly-dual,
+    # for a structural reason: it is single-WRITE per new HL hourly print, not per pass. HL
+    # posts hourly at :00; whichever staggered collector runs first after a new print archives
+    # it (VPS :23 in steady state), the other (cloud :53) then finds nothing new and writes no
+    # line — so the tape carries ~24 records/day landing in whatever bucket won the race, NOT
+    # the ~48/day two-writer shape the UNDER-CAPTURE ratio and the vps/cloud attribution assume.
+    # A fixed passes_per_day would false-alarm (cloud legitimately writes 0 in a healthy VPS
+    # window) and the collector self-heals across collectors anyway (if VPS dies, cloud catches
+    # every print, losing no data — the very failure a ratio would misread). STALE (2h) is the
+    # correct degradation detector here: it fires only when BOTH collectors miss ~2 consecutive
+    # opportunities or HL genuinely stops — the true "join is going stale" signal.
+    "hyperliquid_funding":     {"interval_h": 1.0,  "passes_per_day": None, "kind": "hourly"},
 }
 
 # Detector thresholds (documented; edit here, not in the logic).
@@ -276,9 +281,15 @@ EXPECTED_COLLECTOR_BUCKETS: Dict[str, Dict[str, str]] = {
 # 24h = 48h) — the same "two missed cadence units before paging" discipline, applied
 # to the join's 8h window budget rather than a collector cadence this family doesn't
 # have. See L127.
-JOIN_CRITICAL_ONE_SHOT: Dict[str, Dict[str, Any]] = {
-    "hyperliquid_funding": {"max_age_h": 48.0, "consumer": "scripts/q42_crossvenue_funding_join.py"},
-}
+# Currently EMPTY (L127/L128 close-out, 2026-07-21): hyperliquid_funding — the family this
+# detector was built for (L128) — GRADUATED to a forward-refreshed hourly family this run
+# (candidate (a) of L127: `run_incremental` wired into `collection/hourly_pass.py`). Its freeze
+# is now caught by the STALE detector at 2h (see FAMILY_CONFIG above), which strictly subsumes
+# the old 48h join-staleness stopgap, so it no longer needs — and would be double-flagged by —
+# a JOIN_CRITICAL_ONE_SHOT entry. The mechanism below is RETAINED (dormant) for any FUTURE
+# genuinely-one-shot leg that a live join comes to depend on; register it here the moment that
+# arises rather than re-deriving the detector.
+JOIN_CRITICAL_ONE_SHOT: Dict[str, Dict[str, Any]] = {}
 
 # The one benign-silence allowlist entry (see module docstring for full rationale).
 KNOWN_BENIGN_SILENCES: List[Dict[str, str]] = [
