@@ -6,6 +6,62 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-22 00:1x UTC — Idle-run (policy c): VPS collector recovered post-PR#151 — closes the L117 outage
+
+Step 0a (history-integrity): PASS — `origin/main` HEAD `261133e`, last two commits are
+`(vps)`-tagged tape passes; `kb/00-LOG.md` newest entry and newest committed tape both
+2026-07-21, no rewind. Step 0 (claim-check): only open PRs are #125 (weekly-retro,
+leave-open-for-Ryan) and #77 (stale, pre-dates current queue state) — neither claims
+active queue work. Step 0b (stranded-tape sweep): the newest `tape/hourly-*` branch,
+`tape/hourly-20260721T2158Z` (~2h old), carried **2,109** genuinely-missing lines across 6
+families (1,081 `orderbook_depth`, 529 `weather_books`, 448 `sports_pairs`, 30
+`polymarket_macro_pairs`, 17 `perp_tape`, 4 `crypto_hourly`) — union-appended, 0 invalid
+JSON, committed with this run.
+
+Queue re-scan: Q1-Q22 DONE/DEAD/BLOCKED-with-fix; Q23/Q24 registry-confirmed `dead ✗`
+(S19/S21, despite a stale-looking second "Status: TODO" block in Q23's own prose — the
+canonical `kb/strategies/00-index.md` registry, not the queue prose, settles it); Q25-Q30
+DONE (S22/S23/S24/S28/S29 all `dead ✗`); Q31/Q34 DONE; Q32/Q33/Q35-build credential-blocked;
+Q36 STILL GATED (`tape/weather_books/` 6/7 committed days as of this run); Q37 gated ~08-05;
+Q42 part 3 BLOCKED(needs-auth); Q43 gated ~07-23/24; Q44/Q45/Q46 DONE (with non-gating
+status-update trails). Q21 idea-gen's own re-eligibility condition (<3 non-blocked research
+items) is technically satisfied, but the last 7 consecutive rounds (07-13→07-20) registered 0
+survivors each time on an unchanged tape surface — an 8th round would not be an honest use of
+this firing. **0 numbered items eligible → IDLE RUN.** UNENFORCED lessons backlog is empty
+(L128) → policy (a) unavailable. Q36/Q37/Q43 already have self-activating probes prepped →
+policy (b) has nothing new to prep. → **policy (c): data-quality deep-dive.**
+
+**Finding.** Picked the single most consequential open ops question on the board: has the VPS
+`:23` collector (dead since 2026-07-19, L117/L118/L126/L127) recovered after `PR #151`'s
+self-healing wrapper merged (`22:37:40Z`)? **Yes — confirmed three independent ways**, not
+just by reading the commit messages: (1) two fresh `vps-collector`-authored commits after the
+merge (`069df6b` 22:48:18Z, `261133e` 23:31:05Z); (2) per-line `captured_at` timestamps inside
+those diffs are genuinely fresh (`23:23-23:28Z`), not relabeled backfill; (3)
+`scripts/tape_gap_monitor.py --now 2026-07-22T00:10Z`'s independent `collectors.vps`
+breakdown (reads only committed tape, blind to commit messages) shows exactly one fresh
+VPS-bucketed (`:20-29`) pass at `23:23:54Z` in its 24h window. A one-off catch-up pass landed
+off-cadence at `22:41-22:48Z` before the collector re-settled into its normal `:23` phase — the
+expected shape of "wedged 3 days, unwedged, resumed." See
+`findings/2026-07-22-vps-collector-recovered-post-pr151.md`, new lesson **L129**.
+
+**What this does NOT mean yet:** `under_capture` alerts on `sports_pairs`/`crypto_hourly`/
+`orderbook_depth`/`weather_books`/`polymarket_macro_pairs`/`perp_tape` (ratios 0.19-0.21) have
+NOT cleared — the 24h window denominator still carries the 3-day outage and will self-heal
+over the next ~24-36h; `settlement_ledger` (gated `SETTLEMENT_LEDGER_UTC_HOUR=10`, no VPS
+hour-10 pass yet) and `hyperliquid_funding` (never scheduled, L127 candidate (a) still open)
+remain stale for separate reasons. `tape/weather_books/` is at 6/7 committed days — the Q36
+gate should now open on schedule rather than staying starved. No registry change, no strategy
+claim — two-agent verdict rule N/A (ops/data-quality confirmation, same posture as
+L117/L118/L126/L127's diagnosis-only entries).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD-at-real-fills
+per Q34 — paper-infra validation only, NOT edge evidence). `scripts/paper_pass.py` processed 9
+newly-eligible events from this run's own stranded-tape sweep, wrote `paper/ledger/dt=2026-07-22.jsonl`
+(359 lines). Realized P&L moved **+$13.21 → +$15.05** (`broker_truth`). Still 0 proven edges.
+
+`pytest` and `python scripts/invariants.py --full` both green (see run digest for exact
+counts). No source code changed this run — tape sweep + paper ledger + docs/findings only.
+
 ## 2026-07-21 21:3x UTC — Idle-run: L128 — `hyperliquid_funding` join-staleness monitor check built + acceptance-tested (L127's monitor half converted)
 
 Queue re-scan: no numbered item Q1-Q46 eligible (all DONE/DEAD/BLOCKED/GATED — Q36/Q43/Q37
