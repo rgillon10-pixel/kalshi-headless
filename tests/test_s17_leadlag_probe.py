@@ -272,9 +272,21 @@ def test_parse_capture_time_none_when_unparseable():
     assert probe.parse_capture_time({}) is None
 
 
+def test_parse_capture_time_z_suffix_with_short_fraction():
+    # kb/lessons L136 live symptom shape: trailing-zero-stripped fractional seconds
+    # with a 'Z' suffix — Python 3.9's fromisoformat rejects this combination outright.
+    t = probe.parse_capture_time({"captured_at": "2026-07-07T00:57:04.7Z"})
+    assert t == datetime(2026, 7, 7, 0, 57, 4, 700000, tzinfo=timezone.utc)
+
+
 def test_parse_window_bound_z_suffix():
     assert probe.parse_window_bound("2026-07-14T12:05:00Z") == \
         datetime(2026, 7, 14, 12, 5, 0, tzinfo=timezone.utc)
+
+
+def test_parse_window_bound_short_fraction():
+    assert probe.parse_window_bound("2026-07-14T12:05:00.5Z") == \
+        datetime(2026, 7, 14, 12, 5, 0, 500000, tzinfo=timezone.utc)
 
 
 def test_filter_burst_window_inclusive():
