@@ -1567,6 +1567,58 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
    use `Priority: high` (instead of the default) and name the specific blocking action once,
    so a stuck item doesn't stay silent indefinitely.
 
+## Retro amendments — proposed 2026-07-19 (weekly retro) — PROPOSALS, LEAVE OPEN for Ryan
+
+Drafted by the weekly-retro run from the 2026-07-12 → 2026-07-19 "Log of runs". **Not yet
+adopted** — this is a leave-open PR; nothing below is binding until Ryan merges it. Per the
+retro's Stop rules, nothing here relaxes an invariant or a Stop rule, deletes or reorders a
+queue item, or touches source code. All three are additive process clarifications drawn from
+this week's actual friction. Ryan may adopt, edit, or reject each independently.
+
+1. **VPS silent-failure needs one escalation, not N low-signal hourly notes.** The VPS
+   collector leg (`:23` cron on 87.99.146.250) stopped committing after **2026-07-18 08:30Z**
+   and then fired empty every hour for ~28h+, each firing posting an identical
+   `Priority:high` "Hourly scan hit a snag: couldn't sync with GitHub before scanning. It will
+   retry automatically next…" note — ~28 near-duplicate P4 phone notes that, precisely because
+   they repeat, train the eye to ignore them. The stall was caught only by this weekly retro
+   (and, incidentally, by the 2026-07-18 `weather_books` audit, which found it had already
+   punched permanent holes in the Q36 weather-gate cadence). **Proposed:** when the VPS leg
+   posts **≥3 consecutive** "couldn't sync" hourly failures, the next *cloud* run (research
+   loop or edge-hunter — both have working GitHub access and can read the last successful
+   `(vps)` commit timestamp from `git log`) posts **one** consolidated `Priority:high` note of
+   the form "VPS collector down since `<ts>` (`<N>`h, `<M>` missed hourly passes) — cloud leg
+   still capturing; check the VPS's GitHub auth", then suppresses the repeat for 12h. The
+   per-hour VPS note itself should drop to `Priority:default` (or min) once it is in a known
+   consecutive-failure streak, so the escalation carries the signal and the hourly notes stop
+   crying wolf. Building the detector is a follow-up loop/Ryan task; this clause only fixes the
+   *policy* that a persistent one-leg outage currently reaches Ryan only by weekly accident.
+
+2. **A PR that adds/removes/re-hours a collector leg must update `ops/ROUTINES.md` in the same
+   PR.** This week four+ collector legs were wired into `hourly_pass.py` — `weather_books` +
+   `weather_actuals` (Q38), `settlement_ledger` (Q45, hour 10), `universe_sweep` (Q46, hours
+   0/6/12/18), and the `econ_prints`/`polymarket_cpi_pairs` additions — none of which were
+   added to `ops/ROUTINES.md`'s leg table. That table is the *only* authoritative desired-state
+   spec the retro diffs actual-vs-desired against (step 4c), so the drift-check now silently
+   under-reports: four live legs simply aren't in the baseline to be diffed. **Proposed:** any
+   PR that adds, removes, or changes the cadence/hour of a `hourly_pass.py` collector leg must,
+   in the same PR, update the `ops/ROUTINES.md` leg table (or state in the PR body why the leg
+   is deliberately excluded, e.g. a label-only leg that never folds into `completeness_ok`).
+   Gate is documentation-only — it never blocks a green-tests merge, it just keeps the
+   desired-state spec from going stale between retros.
+
+3. **A shadow paper P&L on a DEAD strategy must be labelled, not reported as a bare number.**
+   `execution.strategy_api.SHADOW_REGISTRY` still contains exactly one strategy,
+   `s14_ladder_underwriting`, and **S14 was falsified on 2026-07-16 (Q34, verifier-CONFIRMED,
+   queue-aware fill-sim CI [−0.0809, −0.0121] fully below zero)**. Yet every digest and phone
+   note this week has continued to report "paper P&L +$11.65 (`broker_truth`)" with no
+   indication that the strategy behind it is dead — a number a non-programmer reads as "the bot
+   is making money", when it is a candlestick-proxy artifact of a strategy realistic fills
+   already killed. **Proposed:** when a `SHADOW_REGISTRY` strategy's `kb/strategies/00-index.md`
+   status is `dead ✗`, its paper-P&L line in step-9 digests and phone notes must be tagged
+   "**dead-strategy shadow — paper-infra validation only, NOT edge evidence**" (or the strategy
+   retired from `SHADOW_REGISTRY`). Retiring it touches source and is Ryan's call, so it is
+   flagged here, not done in this PR; the labelling half is a pure digest-wording clarification.
+
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
