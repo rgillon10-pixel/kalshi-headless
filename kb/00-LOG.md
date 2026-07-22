@@ -6,6 +6,73 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-22 04:1x UTC — kalshi-edge-hunter: review PASS + Q21 idea-gen round (S46/S47 both DEAD, 0 registered — 7th zero round); the binding constraint is the data surface, not idea capacity
+
+Step 0a (history-integrity): **PASS.** The container's fresh clone made `git pull` report a
+forced-update (`69a3d3f...f3677d4`) that at first glance matches the rewind signature — but
+`69a3d3f` is a squashed-out 2026-07-16 hourly tape commit (a stale packed-ref artifact, the same
+class the 07-20/07-21 runs saw), not a rewritten history: recent merged PRs #148-#155 are all
+confirmed ancestors of `origin/main` HEAD `0075550`, and `kb/00-LOG.md`'s newest entry (07-22)
+matches the newest committed tape (07-22). Step 0 (claim-check): the only open PR is #125
+(weekly-retro, leave-open-for-Ryan) — 3 days old, already named every prior run, NOT re-flagged.
+Step 0b (stranded sweep): the only 07-22 fallback branches are <30 min old (skipped per protocol);
+the 00:25Z research-loop sweep (#152) already absorbed the newest sweepable branch — nothing to
+append.
+
+**Unit 1 (adversarial review) — PASS, no issue opened.** The last-24h findings are ops/data-quality
+(no bootstrap-CI verdict; two-agent rule N/A), so I re-checked the two load-bearing numbers that
+actually feed decisions. (a) The `universe_sweep` liquidity-census `is_fillable` predicate
+(`yes_ask>0 AND yes_ask_size>=1` over `real_ask`) is correctly conservative (a `yes_ask==0` leg is
+absence-of-offer, never a $0 fill). Its committed pooled **3.03%** fillable drifted to **~5.15%** on
+the current `dt=2026-07-21` file — but purely because append-only stranded-sweeps doubled that file
+(40k→80k lines) since the census ran; **69.8% of the fillable population is longshots (ask≤0.20)**, so
+the "~95%+ dead-tail, longshot-skewed" conclusion holds and resurrects no killed candidate. A
+descriptive snapshot over append-only tape shifting with the tape is expected, not a provenance
+defect. (b) The Observatory's fee-floor interpretation imports `MAKER_FEE_RATE`/`TAKER_FEE_RATE`/
+`fee_per_contract` from `core.pricing` — no hand-rolled coefficient (L18/L30, Rule #3). Both pass →
+no history rewrite, no GitHub issue.
+
+**Unit 2 (pipeline replenishment) — 2 proposed, both verifier-killed, 0 registered.** 0 eligible
+queue items → ran a Q21 round, grounded this time in tonight's Observatory pilot (`PR #155`, merged
+04:16Z), whose own first pass also produced **0 candidates** (23 persistent cross-sectional outliers,
+all in queue-crowding / one-sided-liquidity / graveyard-blocked naive-maker-spread). **S46**
+(touch-queue temporal-growth asymmetry as a settlement predictor — claimed the time-derivative escapes
+its dead cousin S22): verifier reproduced the L50 ex-post settlement join over `tape/orderbook_depth/`
+(197 games), growth-side hit **0.15–0.20 vs mid 0.80–0.85** on the disagreement subset with exact
+complementarity — the mid already prices the depth ladder's derivative, not just its level; fill side
+taker=S24 / maker=S19 dead. **S47** (Observatory-selected well-two-sided series → selective maker, the
+untested S11 lane): the deep-AND-fee-clearing intersection is empty (deep two-sided books carry ≤2¢
+spreads whose half ≤ the flat 1¢ maker fee = S6/S13; ≥3¢ fee-clearing spreads rest on ~10-contract
+token queues = L31), and `orderbook_depth` has no trade-print field, so a fill-sim would synthesize the
+fill (`synthetic`-as-fill, prime-directive-forbidden). New lessons **L130** (a temporal-derivative
+reformulation of a mid-integrated feature does NOT escape the disagreement-complementarity trap) and
+**L131** (`two_sided_share` is size-blind and anti-correlated with capturable maker edge; no fill claim
+without a trade tape). Seventh consecutive zero round; never pad to quota. Both kills — and the whole
+strategy graveyard — trace to the same two walls: the **fill wall** (hourly book snapshots carry no
+trade prints, so no maker fill is measurable) and the **mid-efficiency wall** (the mid integrates the
+depth ladder's level AND its time-derivative; taker directional dies on the round-trip). **Flagged for
+Ryan:** the binding constraint is the DATA SURFACE, not idea capacity — proving anything new likely
+needs a different input (trade-print / sub-hourly burst tape, or the credential-gated cross-venue/CME
+legs), a human decision, not a cloud run. See `findings/2026-07-22-q21-idea-gen-round.md`.
+
+**Unit 3 (probe-prep) — nothing to build.** Q43's gate opens ~07-23 (perp_tape 6/7 canonical forward
+days by FILE SHAPE per L25); its probe `scripts/q43_perp_binary_consistency_probe.py` already exists
+with 16 offline tests green and self-activates when the 7th day lands. Q36/Q37 probes are likewise
+already self-activating.
+
+**Housekeeping:** 178 `tape/hourly-*` (+1 `tape/burst-20260714T120659Z`, event passed = 179 total)
+stranded branches (Q17/PR#46, Ryan-side). Four burst triggers with passed event dates remain uncleaned
+and are named for deletion: `kalshi-burst-cpi-0714`, `-wcsemi1-0714`, `-wcsemi2-0715`, `-wcfinal-0719`
+(all fired weeks ago, next-run rolled to 2027); `kalshi-burst-fomc-0729` kept (07-29 future). Cleanup
+is the weekly-retro's charter — flagged, not deleted.
+
+**Gates:** `pytest` green and `python scripts/invariants.py --full` exit 0 (only the 3 pre-existing
+non-gating advisories — L25 dir-shape, L109 GC, L74 daily-cadence) on this docs/findings/lessons-only
+diff. Two-agent verdict rule N/A (0 registrations — no registry flip, no bootstrap CI, no kill of an
+existing candidate). **Step 9 (paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per
+Q34 — paper-infra validation only, NOT edge evidence); no new tape committed this run → `paper_pass.py`
+idempotent, ledger unchanged **+$15.05** (`broker_truth`). Still **0 proven edges.**
+
 ## 2026-07-22 03:2x UTC — Q36 re-verification: `weather_books` >=7-day calendar gate now OPEN (7/7 days), but STILL under-powered on BOTH legs
 
 Step 0a (history-integrity): PASS — `origin/main` HEAD `efb11b6`; the only commits since the prior run's HEAD (`3073715`) are `(vps)`-tagged hourly tape passes (`c9b0ed7` 01:32Z, `efb11b6` 02:32Z), kb log newest entry and newest committed tape both 2026-07-22, no rewind (the shallow-clone merge-base gap is a known clone artifact, not a history rewrite). Step 0 (claim-check): open PRs are #153 (DRAFT, Ryan-interactive local session — claims Q33/Q47/hyperliquid_funding-refresh; left UNTOUCHED, it explicitly awaits Ryan's decision on the `ws_depth.py` auth-boundary question), #125 (weekly-retro, leave-open-for-Ryan) and #77 (stale 07-15) — none claim this milestone. Step 0b (stranded-tape sweep): newest `tape/hourly-*` branch unchanged since the prior run's sweep (`20260721T2158Z`), nothing new to append.
