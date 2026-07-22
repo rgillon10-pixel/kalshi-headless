@@ -1143,6 +1143,17 @@ def test_polymarket_us_default_is_blocked_key_when_env_absent(monkeypatch, tmp_p
     assert summary["polymarket_us_pairs"]["result"]["status"] == "blocked_key"
 
 
+def test_polymarket_us_default_pass_delegates_to_live_module(monkeypatch):
+    """Regression: `_default_polymarket_us_pass` must call `polymarket_us_live.run` (the real
+    discover/fetch wiring), NOT `polymarket_us_pairs.run` directly. The latter's own default
+    discover/fetch are documented NotImplementedError VPS-bring-up stubs — calling it directly
+    means a credentialed VPS pass would silently error every hour instead of capturing real
+    US-book tape, even after credentials land (the bug this test guards against)."""
+    sentinel = {"status": "ok", "n_captured": 3, "completeness_ok": True}
+    monkeypatch.setattr(hp.polymarket_us_live, "run", lambda: sentinel)
+    assert hp._default_polymarket_us_pass() is sentinel
+
+
 def test_polymarket_us_captured_lines_fold_in(tmp_path):
     sports = _sports_summary(tmp_path, n_games=1, n_complete=1, per_game_outcomes=2)
     crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1, per_symbol_outcomes=10)

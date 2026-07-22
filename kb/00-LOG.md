@@ -6,6 +6,57 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-22 14:1x ET — Idle-run: Q33 hourly-pass wiring gap found + fixed (polymarket_us_live never actually wired in); main's invariants gate still red (issue #157, 5th stacked PR)
+
+Scheduled cloud research-loop run. Step 0a/0: no history rewind (the `git fetch` "forced
+update" is the same known stale-clone packed-ref artifact 5+ prior runs today already
+diagnosed); open PRs #158/#159/#160/#161 (today's earlier idle-run outputs, all blocked on
+issue #157) + #125 (leave-open-for-Ryan) claim nothing this run would otherwise pick. Step 0b:
+newest stranded branch already swept by PR #161 — nothing new. Full Q0-Q47 re-scan: 0 eligible
+(Q47 is BUILD DONE/ACTIVATION PENDING, Ryan-key-gated). Idle-policy (a)/(b) exhausted for
+today (only remaining UNENFORCED lesson, L131, explicitly needs Ryan's call) → took (c).
+
+**Finding + fix.** `tape/polymarket_us_pairs/` still had ZERO lines 14 hours after PR #153
+(04:20Z) placed verified-live Polymarket-US Ed25519 credentials on the VPS and claimed the leg
+"self-activates on the first VPS hourly pass after this merges." Traced the cause:
+`collection/hourly_pass.py::_default_polymarket_us_pass()` called
+`polymarket_us_pairs.run(api_key=...)` directly — the OLD 2026-07-20 skeleton's own default
+discover/fetch are documented `NotImplementedError` VPS-bring-up stubs, deliberately left
+unbuilt because the real client was originally meant to be Ryan-supervised work. But PR #153
+built that real client as a fully-tested, SEPARATE module, `collection/polymarket_us_live.py`,
+with its own ready-to-use `run()` that wires the live discover/fetch through the same skeleton
+— and nothing ever pointed `hourly_pass` at it. Net effect: even with working credentials on
+the VPS, every hourly pass would silently hit the stub's `NotImplementedError` (recorded as a
+`discovery_error`, not a crash) instead of capturing real US-book tape. Fixed the one call site
+(`_default_polymarket_us_pass` now calls `polymarket_us_live.run()`, which still delegates the
+credential gate to `polymarket_us_pairs.run`, so the cloud-sandbox `blocked_key`/no-network
+contract is unchanged) + one new regression test
+(`test_polymarket_us_default_pass_delegates_to_live_module`) pinning the correct module.
+Pure collector-wiring fix — no strategy claim, no registry change, two-agent rule N/A (Q33/
+Q44/Q45/Q46 precedent). `findings/2026-07-22-q33-hourly-pass-wiring-gap.md`.
+
+**Environment note:** this sandbox's system `cryptography` (41.0.7, apt-installed) is missing
+its `_cffi_backend` C extension, so importing `cryptography.hazmat.primitives.asymmetric.ed25519`
+panics (pyo3 ABI error) — the same root cause issue #157 already flagged as "pytest cannot even
+collect `tests/test_polymarket_us_live.py`/`tests/test_ws_depth.py`." `pip install --upgrade
+cryptography cffi websocket-client` (user-level) fixed collection for this run's own
+verification; the underlying fix (declaring these as real project dependencies, not relying on
+a system package) is issue #157's own fix-spec item 2, still unapplied pending Ryan.
+
+**Gates (this diff only, in isolation).** `pytest`: 1435 passed + the same 5 pre-existing
+`test_invariants.py` failures as base `main` (stash-compared, byte-identical failure set).
+`python scripts/invariants.py --full`: exit 2, identical 2 violations to base (this diff
+touches neither of the two files issue #157 flags). **NOT merged** — `main`'s own gate is red;
+this is now the 5th unmerged PR stacked behind issue #157 (open since 06:47Z, ~14h, blocking
+every clean merge since PR #153). Added a short comment to #157 quantifying the pileup.
+
+Step 9 (paper): `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills per Q34 —
+paper-infra validation only, NOT edge evidence). No new committed tape this run →
+`paper_pass.py` idempotent, ledger unchanged **+$15.05** (`broker_truth`). Still **0 proven
+edges**.
+
+---
+
 ## 2026-07-22 04:1x UTC — kalshi-edge-hunter: review PASS + Q21 idea-gen round (S46/S47 both DEAD, 0 registered — 7th zero round); the binding constraint is the data surface, not idea capacity
 
 Step 0a (history-integrity): **PASS.** The container's fresh clone made `git pull` report a

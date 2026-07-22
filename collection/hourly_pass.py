@@ -128,9 +128,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from collection import (crypto_hourly, econ_prints, forecast_collector, hyperliquid_funding,
-                        orderbook_depth, perp_tape, polymarket_pairs, polymarket_us_pairs,
-                        settlement_ledger, sports_pairs, universe_sweep, weather_actuals,
-                        weather_books)
+                        orderbook_depth, perp_tape, polymarket_pairs, polymarket_us_live,
+                        polymarket_us_pairs, settlement_ledger, sports_pairs, universe_sweep,
+                        weather_actuals, weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -176,11 +176,20 @@ def _default_polymarket_macro_pass() -> Dict[str, Any]:
 
 
 def _default_polymarket_us_pass() -> Dict[str, Any]:
-    """Q33: credential-gated Polymarket-US book capture. Resolves the env credential and, when
-    ABSENT (the only state a cloud pass ever sees), the collector returns `blocked_key` with NO
-    network call and NO file written — self-activating the moment `POLYMARKET_US_API_KEY`
-    lands, exactly like the odds leg on `ODDS_API_KEY`."""
-    return polymarket_us_pairs.run(api_key=os.environ.get(polymarket_us_pairs.CREDENTIAL_ENV_VAR))
+    """Q33: credential-gated Polymarket-US book capture, LIVE discover/fetch wired in via
+    `collection.polymarket_us_live.run` (which delegates the credential gate + tape write to
+    `polymarket_us_pairs.run`). When `POLYMARKET_US_API_KEY` is ABSENT (the only state a cloud
+    pass ever sees) this returns `blocked_key` with NO network call and NO file written,
+    exactly like the odds leg on `ODDS_API_KEY` — `polymarket_us_pairs.run` checks credential
+    presence before ever touching the injected discover/fetch callables.
+
+    Bug this fixes: calling `polymarket_us_pairs.run(api_key=...)` directly (the prior wiring)
+    falls back to that module's own default discover/fetch, which are documented
+    `NotImplementedError` VPS-bring-up stubs (real client always meant to be injected) — so a
+    credentialed VPS pass would silently error every hour instead of capturing real US-book
+    tape, even after credentials land. `polymarket_us_live.run` supplies the tested real
+    implementations."""
+    return polymarket_us_live.run()
 
 
 def _default_econ_prints_pass() -> Dict[str, Any]:
