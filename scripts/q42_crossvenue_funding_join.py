@@ -108,14 +108,22 @@ def _hour_index(ms: Optional[int]) -> Optional[int]:
 # collect each leg
 # --------------------------------------------------------------------------- #
 def collect_kalshi_prints(records: Sequence[Dict[str, Any]], tickers: Sequence[str],
-                          mode: str = "backfill") -> List[Dict[str, Any]]:
+                          mode: "Any" = "backfill") -> List[Dict[str, Any]]:
     """Flatten Kalshi finalized funding prints for the given perp tickers, deduped on
-    (market_ticker, funding_time). Only `funding_rates` records of `mode` are read."""
+    (market_ticker, funding_time). `mode` may be a single mode string OR a collection of
+    modes; only `funding_rates` records whose `mode` is in that set are read.
+
+    The real CLI / analysis run reads BOTH `backfill` (the one-shot historical dump written
+    once) AND `recent` (the finalized prints every hourly pass captures going forward).
+    Reading `backfill` alone silently FREEZES the join at the one-shot backfill horizon even
+    after the Hyperliquid leg is healed — the consumer-side mirror of L127's collection-side
+    freeze (see L137)."""
     want = set(tickers)
+    modes = {mode} if isinstance(mode, str) else set(mode)
     seen: set = set()
     out: List[Dict[str, Any]] = []
     for rec in records:
-        if rec.get("record_type") != "funding_rates" or rec.get("mode") != mode:
+        if rec.get("record_type") != "funding_rates" or rec.get("mode") not in modes:
             continue
         for pr in rec.get("prints") or []:
             t = pr.get("market_ticker")
@@ -306,8 +314,11 @@ def characterize_asset(joined: Sequence[Dict[str, Any]], n_partial: int,
 
 def analyze(perp_records: Sequence[Dict[str, Any]], hl_records: Sequence[Dict[str, Any]],
             asset_map: Dict[str, Dict[str, str]] = ASSET_MAP,
-            mode: str = "backfill") -> Dict[str, Any]:
-    """End-to-end per-asset cross-venue join + characterization. JSON-able report."""
+            mode: "Any" = ("backfill", "recent")) -> Dict[str, Any]:
+    """End-to-end per-asset cross-venue join + characterization. JSON-able report.
+
+    `mode` defaults to reading BOTH `backfill` and `recent` Kalshi funding-record modes so
+    the join tracks the ongoing finalized prints, not just the one-shot dump (L137)."""
     tickers = [v["kalshi_ticker"] for v in asset_map.values()]
     coins = [v["hl_coin"] for v in asset_map.values()]
     kalshi_all = collect_kalshi_prints(perp_records, tickers, mode=mode)
@@ -350,7 +361,9 @@ def _print_report(rep: Dict[str, Any]) -> None:
     print("=" * 100)
     print("Q42 (2) — KALSHI vs HYPERLIQUID CROSS-VENUE FUNDING JOIN (read-only, offline)")
     print("=" * 100)
-    print(f"source_tag={rep['price_source_tag']}  mode={rep['mode']}  "
+    _mode = rep['mode']
+    _mode_str = _mode if isinstance(_mode, str) else ",".join(_mode)
+    print(f"source_tag={rep['price_source_tag']}  modes={_mode_str}  "
           f"window_hours={rep['window_hours']}  (differential = HL 8h-equiv − Kalshi print)")
     for asset, a in rep["assets"].items():
         print("-" * 100)
@@ -403,13 +416,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="Kalshi perp tape path/glob (default: %(default)s)")
     ap.add_argument("--hl-tape", default=DEFAULT_HL_GLOB,
                     help="Hyperliquid funding tape path/glob (default: %(default)s)")
-    ap.add_argument("--mode", default="backfill", choices=["backfill", "recent"])
+    ap.add_argument("--modes", nargs="+", default=["backfill", "recent"],
+                    choices=["backfill", "recent"],
+                    help="Kalshi funding-record modes to read (default: BOTH; reading "
+                         "backfill alone freezes the join at the one-shot dump — L137).")
     ap.add_argument("--json-out", default=None)
     args = ap.parse_args(argv)
 
     perp_records = load_records(args.perp_tape)
     hl_records = load_records(args.hl_tape)
-    rep = analyze(perp_records, hl_records, mode=args.mode)
+    rep = analyze(perp_records, hl_records, mode=tuple(args.modes))
     _print_report(rep)
 
     if args.json_out:
