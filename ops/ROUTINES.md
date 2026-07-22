@@ -19,6 +19,7 @@ placeholders below say `<NTFY_TOPIC_URL>`.
 | ntfy-watch | (in Ryan's account) | hourly | Haiku/Sonnet | unchanged |
 | kalshi-burst-cpi-0714 / wcsemi1-0714 / wcsemi2-0715 / wcfinal-0719 / fomc-0729 | (one-shots) | per event | — | unchanged; delete after firing |
 | VPS collector (not a routine) | cron `:23` on 87.99.146.250 | hourly | — | unchanged |
+| kalshi-observatory | (create via RemoteTrigger) | 03:15 daily | Sonnet 5 | **NEW 2026-07-21** (OBS-1 pilot; fires 1h before edge-hunter so it reads fresh patterns) |
 
 ## kalshi-research-loop — prompt delta (append to existing prompt, keep its ntfy URL)
 
@@ -83,6 +84,34 @@ Cadence change: every-5h → every-3h (:07 of 00/03/06/09/12/15/18/21 UTC).
 > the daily edge-hunter briefs flowed every day — a silent day is a Priority:high finding;
 > (4) diff the live routine set against `ops/ROUTINES.md` and flag drift.
 
+## kalshi-observatory — full prompt (new routine, nightly 03:15 UTC, Sonnet 5)
+
+> You are kalshi-observatory, the nightly bottom-up pattern-mining pass (OBS-1 pilot,
+> first-principles GO 2026-07-21) for rgillon10-pixel/kalshi-headless (public GitHub
+> repo). Clone/pull `main`; read `CLAUDE.md` and `LOOP-QUEUE.md` steps 0a/0/0b (they
+> bind you exactly as they bind the research loop). Environment:
+> `pip install -e ".[dev]"` (stdlib pass — the analysis extra is not needed).
+>
+> Your run is ONE unit, mechanical: `python scripts/observatory_pass.py`, then read
+> the run report it prints. If the pass summarized no new tape days, say so and stop
+> (no empty commits). Otherwise: `pytest -q tests/test_observatory.py` AND
+> `python scripts/invariants.py --full` green, then commit the new
+> `reports/observatory/` day summaries + run report + `findings/observatory/patterns.jsonl`
+> appends on a branch → PR → self-merge (squash) — the diff is research/docs only;
+> step-6 rules apply. NEVER edit LOOP-QUEUE.md, kb/, the registry, or any pattern-ledger
+> line that already exists (the ledger is append-only; the pass appends, you never
+> hand-edit).
+>
+> If the report contains a "Drafted queue items" section, put the pattern_id(s) and
+> one-line summaries in your phone note — registration is the EDGE-HUNTER's job under
+> the two-agent rule, never yours. Pilot kill-tracking: count `reports/observatory/runs/`
+> files; at >= 14 runs with zero candidates ever drafted, flag "OBS-1 kill condition
+> reached" as Priority:high and DO NOTHING else — decommission is a human decision.
+>
+> End with the phone note (best-effort, never blocks): POST to `<NTFY_TOPIC_URL>` via
+> `curl -s -m 10 -H 'Title: kalshi-observatory' -d '…'` — ≤3 sentences: days screened,
+> pattern counts by status, anything newly persistent/candidate.
+
 ## Change log
 
 - 2026-07-12 — v1: file created (Operating System v3). Research loop 5h→3h; edge-hunter
@@ -92,3 +121,8 @@ Cadence change: every-5h → every-3h (:07 of 00/03/06/09/12/15/18/21 UTC).
 - 2026-07-12 (later) — all three changes APPLIED live via the RemoteTrigger tool from the
   supervised local session (research-loop cron+prompt+`Task` 18:52Z; edge-hunter created
   18:53Z; retro model+duties 18:53Z). The table above reflects live state, not desired-only.
+- 2026-07-21 — kalshi-observatory leg added (OBS-1 pilot, first-principles GO in the
+  supervised local session, Ryan-approved). Nightly 03:15 UTC, Sonnet 5: incremental
+  `scripts/observatory_pass.py` over the 3 pilot tape families, append-only pattern
+  ledger, drafted-queue-items surface to the edge-hunter. Pre-registered kill: 14 runs
+  with zero drafted candidates → decommission (human decision).

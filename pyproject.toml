@@ -22,7 +22,7 @@ analysis = [
 ]
 
 [tool.setuptools]
-packages = ["core", "collection", "validation"]
+packages = ["core", "collection", "validation", "analysis", "analysis.observatory"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
