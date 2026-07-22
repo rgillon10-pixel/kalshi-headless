@@ -129,6 +129,11 @@ coverage/sweep · <5% missing-snapshot rate · ≤6h detector latency · <2% mis
 
 ## Out of scope / explicitly deferred
 
+- **2026-07-21 amendment (Ryan, interactive session):** the WS `orderbook_delta` **build**
+  gate is OPEN — the collector may be built, offline-tested, and staged (see
+  `collection/ws_depth.py` + `ops/ws-depth-bringup.md`). **Activation** remains Ryan-gated:
+  it starts only when Ryan places a Kalshi API key on the VPS and enables the systemd unit.
+  Credentials stay VPS-only, never cloud — the structural gate is unchanged.
 - **WS `orderbook_delta` feed** (true continuous sub-second) and the **full signed trade
   feed** — need credentials → VPS/local only, never cloud; Ryan-gated, not in this goal.
 - **Any live-capital path** — governed by `CLAUDE.md` execution-lane tiers, unaffected here.

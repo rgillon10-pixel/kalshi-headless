@@ -1,0 +1,42 @@
+# kalshi.headless — Kalshi WebSocket orderbook_delta capture daemon (READ-ONLY).
+#
+# NOT enabled by default. Activation waits on a Kalshi API key landing on the VPS
+# (KALSHI_API_KEY_ID + KALSHI_PRIVATE_KEY_PATH in /root/.secrets/kalshi-headless.env). Without
+# the key the daemon exits blocked_key immediately; Restart=always would then hot-loop, so
+# only `systemctl enable --now` this unit AFTER the key + config/ws_depth_tickers.txt are in
+# place (see ops/ws-depth-bringup.md). This unit places NO orders — it is authenticated
+# read-only market data (see the CONTRACT NUANCE banner in collection/ws_depth.py).
+#
+# Install:
+#   install -m644 /root/kalshi-headless/ops/vps/kalshi-headless-wsdepth.service \
+#     /etc/systemd/system/kalshi-headless-wsdepth.service
+#   systemctl daemon-reload
+# Kill switch:  systemctl stop kalshi-headless-wsdepth   (daemon flushes + closes on SIGTERM)
+
+[Unit]
+Description=kalshi.headless Kalshi WS orderbook_delta capture (read-only tape)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/kalshi-headless
+EnvironmentFile=-/root/.secrets/kalshi-headless.env
+ExecStart=/root/bin/kalshi-headless-wsdepth.sh
+# Reconnect/backoff lives inside the daemon; systemd restart is the outer safety net.
+Restart=always
+RestartSec=10
+# Don't hammer if it keeps dying fast (e.g. a bad key): back off after repeated crashes.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+# Memory belt-and-suspenders (lesson L10: a Kalshi pull once blew 3GB RSS). The daemon is
+# already bounded (one int of seq-state per capped ticker), this just makes it structural.
+MemoryMax=512M
+# Read-only-ish hardening: the daemon only needs to write tape/ under the repo.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/root/kalshi-headless/tape
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

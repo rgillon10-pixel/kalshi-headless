@@ -77,6 +77,21 @@ cross-sectional snapshot is the substrate a longshot-fade / stale-quote / overro
 reads; it is top-of-book ONLY (no per-market /orderbook calls — that would be the unbounded
 expansion lesson L10 warns against). Fault-isolated like every sibling.
 
+Hyperliquid cross-venue funding (2026-07-21, L127/L128 close-out — candidate (a)): also runs
+one `collection.hyperliquid_funding.run_incremental` pass every hour — a tiny forward refresh
+of Hyperliquid's public hourly perp funding tape (BTC+ETH, no auth, no geo-block, `broker_truth`
+tags). This is the OFF-VENUE leg that `scripts/q42_crossvenue_funding_join.py` joins against
+Kalshi's finalized perp funding; the family was frozen at a single 2026-07-17 manual backfill
+(L127) so every Kalshi funding window after 07-17 silently lost its HL counterpart. Each pass
+reads the newest already-archived print per coin and union-appends ONLY the genuinely-new hourly
+prints (per-print dedup on `(coin, time_ms)`, append-only, never a rewrite), so it tracks
+perp_tape's forward cadence at 1-2 POSTs/pass. Being OFF-VENUE funding tape (not fresh Kalshi
+market BBOs), its lines are — like settlement_ledger/weather_actuals — deliberately NOT folded
+into n_markets/n_lines; only its own honest `completeness_ok` folds in (a fetch exception lowers
+it; a pass with no new prints is normal and does not). Fault-isolated like every sibling, and
+identical from cloud or VPS (the two staggered collectors idempotently share the tape via the
+per-print dedup — whichever runs first after a new print archives it, the other finds nothing new).
+
 LOOP-QUEUE.md Q33: also runs one `collection.polymarket_us_pairs` pass every hour — a
 credential-gated Polymarket-US (QCEX) book-capture leg. It is a no-op `{"status":
 "blocked_key"}` (NO network, NO file) unless `POLYMARKET_US_API_KEY` is present, so a cloud
@@ -112,9 +127,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from collection import (crypto_hourly, econ_prints, forecast_collector, orderbook_depth,
-                        perp_tape, polymarket_pairs, polymarket_us_pairs, settlement_ledger,
-                        sports_pairs, universe_sweep, weather_actuals, weather_books)
+from collection import (crypto_hourly, econ_prints, forecast_collector, hyperliquid_funding,
+                        orderbook_depth, perp_tape, polymarket_pairs, polymarket_us_pairs,
+                        settlement_ledger, sports_pairs, universe_sweep, weather_actuals,
+                        weather_books)
 from core.io import REPO_ROOT
 
 ANOMALY_SWEEP_UTC_HOUR = 9
@@ -299,6 +315,14 @@ def _default_perp_pass() -> Dict[str, Any]:
     return perp_tape.run()
 
 
+def _default_hyperliquid_funding_pass() -> Dict[str, Any]:
+    """Incremental forward refresh of Hyperliquid's public hourly perp funding tape (BTC+ETH).
+    Reads what's already archived and appends only genuinely-new prints — a tiny 1-2 POST leg,
+    identical from cloud or VPS (public /info, no credential, per-print dedup makes the two
+    staggered collectors idempotent)."""
+    return hyperliquid_funding.run_incremental()
+
+
 def _default_universe_sweep_pass() -> Dict[str, Any]:
     return universe_sweep.run()
 
@@ -321,6 +345,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         settlement_ledger_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         universe_sweep_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         perp_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        hyperliquid_funding_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         now: Optional[datetime] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
     polymarket_pairs.run_fed_decision (Fed meetings), plus anomaly_sweep, econ_prints, and
@@ -387,6 +412,20 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         n_lines += r.get("n_lines", 0)
         n_markets += r.get("n_contracts", 0)
         completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
+    else:
+        completeness_ok = False
+
+    # Hyperliquid cross-venue funding (L127/L128 close-out): incremental forward refresh of the
+    # off-venue perp funding tape q42_crossvenue_funding_join.py reads (BTC+ETH, broker_truth).
+    # Runs every pass; union-appends only genuinely-new hourly prints. This is OFF-VENUE funding
+    # tape, not fresh Kalshi market BBOs, so — like settlement_ledger/weather_actuals — its lines
+    # are deliberately NOT folded into n_markets/n_lines; only its own honest completeness_ok
+    # folds in (a fetch exception lowers it; a pass with no new prints is normal and does not).
+    # Fault-isolated like every sibling; identical from cloud or VPS (public /info, no auth).
+    hf_fn = hyperliquid_funding_fn or _default_hyperliquid_funding_pass
+    hyperliquid = _safe_call(hf_fn)
+    if hyperliquid["status"] == "ok":
+        completeness_ok = completeness_ok and bool(hyperliquid["result"].get("completeness_ok", False))
     else:
         completeness_ok = False
 
@@ -544,6 +583,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         "crypto_hourly": crypto,
         "orderbook_depth": depth,
         "perp_tape": perps,
+        "hyperliquid_funding": hyperliquid,
         "weather_books": weather,
         "polymarket_pairs": polymarket,
         "polymarket_macro_pairs": polymarket_macro,

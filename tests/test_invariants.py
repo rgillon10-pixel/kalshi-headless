@@ -485,6 +485,18 @@ def test_order_endpoint_rule_exempts_kb_signing_repro():
                          '"KALSHI-ACCESS-SIGNATURE": signature,') == []
 
 
+def test_order_endpoint_rule_ws_depth_auth_headers_sanctioned_order_verbs_still_fire():
+    # collection/ws_depth.py (L131, Ryan opened the WS build gate 2026-07-21): Kalshi
+    # requires the signed handshake even for read-only market data, so the auth headers
+    # are sanctioned there — but ONLY the headers; an order verb in that file must fire.
+    ws = ROOT / "collection" / "ws_depth.py"
+    assert inv.scan_text(ws, '"KALSHI-ACCESS-SIGNATURE": sig,') == []
+    assert any("[order_endpoints_confined]" in f
+               for f in inv.scan_text(ws, "resp = self.place_order(ticker)"))
+    assert any("[order_endpoints_confined]" in f
+               for f in inv.scan_text(ws, "self.post('/trade-api/v2/portfolio/orders')"))
+
+
 @pytest.mark.parametrize("snippet", [
     "orders = sorted(open_orders)",          # benign: no order-verb method name
     "self.orderbook(ticker)",                # read-only public endpoint, not portfolio/orders

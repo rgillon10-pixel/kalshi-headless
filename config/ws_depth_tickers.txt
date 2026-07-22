@@ -1,0 +1,20 @@
+# collection/ws_depth.py — the subscribed Kalshi ticker set for the WS orderbook_delta tape.
+#
+# Format: one full Kalshi MARKET ticker per line. `#` starts a comment; blank lines ignored.
+# Dedup + order-preserving; the daemon caps the set at MAX_TICKERS_DEFAULT (200) and flags
+# `truncated` if you list more (lesson L10 memory bound).
+#
+# Selection mechanism (deliberately simple + human-owned): a market only earns a continuous
+# L2 delta subscription if a human puts it here. Pick the ~most-active markets — the ones
+# where order-flow structure (L-speed/L-mech/L-flow) actually has signal. Good sources for
+# "most active right now":
+#   * the hourly REST tape: tape/orderbook_depth/dt=*.jsonl (rows with real depth), and
+#   * `GET /markets?status=open&limit=1000` sorted by `volume_fp` / `open_interest_fp`
+#     (parse via core.kalshi_fields.parse_kalshi_numeric — the values are *_fp STRINGS).
+# You can also override this file at runtime with WS_DEPTH_TICKERS="TICK1,TICK2,..." (env).
+#
+# Left intentionally EMPTY until a Kalshi API key lands on the VPS (the daemon is key-gated
+# and exits blocked_key without one). Populate during bring-up — see ops/ws-depth-bringup.md.
+# Example shape (commented — replace with live, currently-active tickers before enabling):
+# KXBTCD-25JAN0117-B95000
+# KXETHD-25JAN0117-B3400
