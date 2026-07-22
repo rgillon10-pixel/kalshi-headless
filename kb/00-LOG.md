@@ -6,6 +6,50 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-22 11:2x ET — research loop: idle-run (policy c, cloud-collector gap) + stranded-tape sweep (2,056 lines); invariants gate still red, 4th PR stacked behind #157
+
+Step 0a PASS: `origin/main` HEAD confirmed current (recent merges #148-#160-range all ancestors);
+`kb/00-LOG.md`/tape both dated 07-22, no rewind (the `git pull` forced-update this session hit is the
+now-familiar stale shallow-clone packed-ref artifact, not a rewrite — this run's local `main` ref
+turned out to be from an unrelated shallow graft entirely; reset to `origin/main` cleanly, no
+uncommitted work lost). Step 0: open PRs #158/#159/#160 (today's earlier idle-run work, all
+gate-blocked-not-merged per #157) and #125 (leave-open-for-Ryan) claim no items I'd otherwise pick;
+independently re-ran `python scripts/invariants.py --full` myself — still exit 2, byte-identical to
+`main`'s pre-existing state (`order_endpoints_confined` false-firing on `tests/test_ws_depth.py` /
+`tests/test_polymarket_us_live.py`, issue #157, unresolved). Full Q0-Q47 rescan: 0 eligible (matches
+today's four prior runs). Idle policy (a)/(b)/(d) checked and found empty/already-done today — see
+this run's own investigation: L109's "UNENFORCED" row is a red herring (already superseded by L110,
+append-only convention working as designed, not stale); the true open UNENFORCED backlog is empty
+(L131 is explicitly Ryan-gated, L136 already converted to L138 by PR #159 today). Took **(c)**.
+
+**Step 0b sweep:** newest stranded branch `tape/hourly-20260722T1256Z` (a cloud `kalshi-collector`
+attempt, self-reported `partial; universe_sweep too large`, fell back per L17) carried **2,056**
+genuinely-missing lines across 8 families (1,383 orderbook_depth, 327 sports_pairs, 290
+weather_books, 20 weather_actuals — doubling today's committed count for that daily-cadence family,
+17 perp_tape, 15 polymarket_macro_pairs, 2 crypto_hourly, 2 hyperliquid_funding); union-appended,
+0 invalid JSON.
+
+**Finding (the (c) work):** the cloud `kalshi-collector` (hourly, non-VPS) leg landed **zero
+successful commits directly to `main` for over 5 hours** (last direct push 10:06:30Z; only one
+attempt in the gap, the 12:56:32Z pass just swept in, which stranded rather than landing). VPS stayed
+healthy throughout (`855a54a`, 14:32:26Z, 43 min old at run time) — the mirror image of the L117-L129
+VPS-outage story, this time on the cloud side. `tape_gap_monitor.py`'s live under-capture alerts on
+every hourly-dual family (~0.46-0.48 ratio vs 0.8) are consistent with one collector covering for two.
+Not fixable from here (the cloud leg's cron/trigger config lives in Ryan's account, not this repo) —
+flagged for Ryan, same posture as every VPS-outage finding to date. See
+`findings/2026-07-22-cloud-collector-gap-and-stranded-sweep.md`.
+
+No strategy claim, no registry change — two-agent rule N/A. `pytest`: 1433 collected, 5 failed
+(identical pre-existing #157 set) → 1428 passing. `invariants --full`: exit 2, identical to `main`'s
+pre-existing state, diff touches neither broken file. **NOT merging** — `main`'s own gate is red (same
+posture as #158/#159/#160; this is now the 4th PR stacked behind issue #157, going on ~11h of blocked
+merges since PR #153 landed at 04:20Z). Step 9: `SHADOW_REGISTRY={s14_ladder_underwriting}`,
+`paper_pass.py` 0 newly processed (this sweep's 2 new `crypto_hourly` lines didn't add eligible
+events), ledger unchanged **+$15.05** (`broker_truth`; DEAD s14, paper-infra validation only). Still
+**0 proven edges**.
+
+---
+
 ## 2026-07-22 04:1x UTC — kalshi-edge-hunter: review PASS + Q21 idea-gen round (S46/S47 both DEAD, 0 registered — 7th zero round); the binding constraint is the data surface, not idea capacity
 
 Step 0a (history-integrity): **PASS.** The container's fresh clone made `git pull` report a
