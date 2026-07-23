@@ -684,6 +684,60 @@ def raw_datetime_fromisoformat_warning(sites: List[str]) -> Optional[str]:
     )
 
 
+# ─── Tape conflict-marker gate (GATING, not advisory) ────────────────────────
+#
+# Real incident (2026-07-23): tape/econ_prints/dt=2026-07-18.jsonl and
+# tape/anomalies/dt=2026-07-18.jsonl were each committed with 3 unresolved git
+# merge-conflict-marker lines (`<<<<<<< HEAD` / `=======` / `>>>>>>> <sha> (...)`) —
+# invalid JSON silently sitting in the append-only audit trail, undetected until a
+# tape-quality audit found them by hand. A conflict marker is never legitimate JSONL
+# content and is cheap/unambiguous to detect, so — unlike the advisories above — this
+# is a GATING check: it flips scan_tree()'s exit code.
+
+_CONFLICT_MARKER_RE = re.compile(rb"^(<{7}|>{7}|={7}$)")
+
+
+def _tape_conflict_marker_issues(tape_root: Path = ROOT / "tape") -> List[str]:
+    """Committed tape/**/*.jsonl lines that are unresolved git conflict markers (see
+    banner above). Best-effort/offline: a per-file read failure just skips that file, never
+    poisons the whole scan; a raw-bytes pre-check on the common case (no marker bytes present
+    at all) avoids paying the line-split cost on every large tape file. Returns sorted
+    `path:line` labels."""
+    out: List[str] = []
+    if not tape_root.is_dir():
+        return out
+    try:
+        for p in sorted(tape_root.rglob("*.jsonl")):
+            try:
+                data = p.read_bytes()
+            except Exception:
+                continue
+            if b"<<<<<<<" not in data and b">>>>>>>" not in data and b"=======" not in data:
+                continue
+            rel = str(p.relative_to(tape_root).as_posix())
+            for i, line in enumerate(data.split(b"\n"), 1):
+                if _CONFLICT_MARKER_RE.match(line):
+                    out.append(f"{rel}:{i}")
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def tape_conflict_marker_failure(issues: List[str]) -> Optional[str]:
+    """GATING failure message when committed tape carries an unresolved conflict-marker
+    line, else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = ", ".join(issues[:5]) + (", ..." if n > 5 else "")
+    return (
+        f"[tape_conflict_marker] {n} unresolved git conflict-marker line(s) in committed "
+        f"tape/**/*.jsonl (e.g. {examples}). A conflict marker is never valid JSONL — strip "
+        f"the marker line(s) only, never touch the surrounding real capture lines (append-"
+        f"only). See kb/lessons/00-lessons.md (2026-07-23 tape-corruption finding)."
+    )
+
+
 # ─── PreToolUse hook ────────────────────────────────────────────────────────
 
 def _post_edit_content(file_path: Path, old: str, new: str) -> Optional[str]:
@@ -774,6 +828,12 @@ def main() -> int:
         iso_warning = raw_datetime_fromisoformat_warning(_raw_datetime_fromisoformat_sites())
         if iso_warning:
             sys.stderr.write(iso_warning + "\n")
+        # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
+        # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
+        # code — cheap and unambiguous to catch.
+        marker_failure = tape_conflict_marker_failure(_tape_conflict_marker_issues())
+        if marker_failure:
+            failures.append(marker_failure)
 
     if failures:
         sys.stderr.write(f"invariants: {len(failures)} violation(s)\n")

@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-23 15:xx UTC — research loop: repaired committed conflict-marker corruption in tape/econ_prints + tape/anomalies, added a GATING invariant (L142)
+
+**What this run is.** Idle run — full Q0-Q47 re-scan found 0 eligible TODO/IN-PROGRESS items,
+unchanged from every recent firing; no open PR (#125 leave-open, #165/#166 draft Ryan-approved
+infra) claims eligible work. Step 0a: PASS — local `main` matched `origin/main` HEAD `ec82bf5`
+exactly, kb-log and newest tape both current 07-23, no rewind. Step 0b: no `tape/hourly-*` or
+`tape/burst-*` branch newer than `-20260723T0715Z` (already swept by #172 this morning) — nothing
+to append.
+
+**The milestone (idle-run policy c).** Policy (a) had already fired twice today (L140 09:xx, L141
+12:xx), so a `tape-auditor` agent ran a broad health scan across every committed tape family
+instead, looking for an under-examined data-quality question. It found a real bug, not just a
+descriptive gap: `tape/econ_prints/dt=2026-07-18.jsonl` and `tape/anomalies/dt=2026-07-18.jsonl`
+were each committed with **3 unresolved git merge-conflict-marker lines** (`=======` /
+`>>>>>>> 58145d7 (tape: hourly pass 2026-07-18T09:30:28Z (vps))` / a dangling `<<<<<<< HEAD` with
+nothing after it) from a botched VPS-vs-cloud tape merge — 6 lines of invalid JSON sitting in the
+append-only audit trail since 2026-07-18, undetected through at least 2 subsequent audits that
+didn't grep for the literal marker text. Independently re-verified with `json.loads` line-by-line:
+exactly those 6 lines fail to parse; every other line in both files (55 + 11 real captures) is
+valid JSON and unaffected — the merge itself had correctly concatenated both sides' real data, it
+just left the marker lines behind. Repaired by stripping only the 6 marker lines (append-only real
+capture lines untouched, re-verified 100% valid JSON post-repair).
+
+**Root-caused, not just patched.** Added a new **GATING** check (unlike every other tape
+advisory, which is stderr-only): `scripts/invariants.py::_tape_conflict_marker_issues` /
+`tape_conflict_marker_failure`, wired into `main()`'s tree-scan path. It greps every committed
+`tape/**/*.jsonl` for a line starting `<<<<<<<`/`>>>>>>>` or exactly `=======`, with a raw-bytes
+pre-check per file so it doesn't pay the line-split cost on the ~1.7GB of tape that doesn't
+contain any marker. A conflict marker is never legitimate JSONL and is cheap/unambiguous to
+detect — this class of bug (an unresolved conflict silently reaching committed history) is exactly
+what an assertion should catch per CLAUDE.md's own prime directive #3. New lesson **L142**.
+
+**Scope/tags.** `scripts/invariants.py` (+2 functions, 1 wiring line in `main()`), 2 tape files
+(6 lines removed, nothing else touched), `tests/test_invariants.py` (+7 tests incl. a HARD
+acceptance test pinning the real committed tape tree clean of conflict markers going forward).
+No collector, no strategy, no registry change — two-agent verdict rule N/A (data-integrity repair
++ non-strategy invariant, same precedent as L110/L118/L139/L141). `pytest` 1509→**1516 passed**.
+`python scripts/invariants.py --full` exit 0 (same 4 pre-existing non-gating advisories — stranded
+tape refs, dir-shaped `dt`, GC-orphan classes, daily-cadence gaps, raw-fromisoformat sites — the
+new gating check is silent since the real tree is now clean). Still 0 proven edges.
+
+---
+
 ## 2026-07-23 12:xx UTC — research loop: converted L138's residue to a non-gating fromisoformat advisory (L141)
 
 **What this run is.** Idle run — full Q0-Q47 re-scan found 0 eligible TODO/IN-PROGRESS items

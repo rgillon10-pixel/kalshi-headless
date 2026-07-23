@@ -572,3 +572,68 @@ def test_risk_caps_rule_fires_on_rebind_and_exempt_in_limits():
     # …and comparisons/imports elsewhere are not bindings.
     assert not any("[risk_caps_sanctioned]" in f for f in inv.scan_text(
         GENERIC, "ok = n <= limits.MAX_DAILY_ORDERS\nassert x == MAX_DAILY_ORDERS"))
+
+
+# ─── Tape conflict-marker gate (2026-07-23 incident) ─────────────────────────
+
+def test_tape_conflict_marker_issues_finds_all_three_marker_shapes(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-18.jsonl").write_text(
+        '{"a":1}\n'
+        '=======\n'
+        '>>>>>>> 58145d7 (tape: hourly pass 2026-07-18T09:30:28Z (vps))\n'
+        '{"a":2}\n'
+        '<<<<<<< HEAD\n'
+    )
+    issues = inv._tape_conflict_marker_issues(tape_root)
+    assert issues == [
+        "econ_prints/dt=2026-07-18.jsonl:2",
+        "econ_prints/dt=2026-07-18.jsonl:3",
+        "econ_prints/dt=2026-07-18.jsonl:5",
+    ]
+
+
+def test_tape_conflict_marker_issues_clean_family_is_empty(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "anomalies"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-20.jsonl").write_text('{"anomalies":[]}\n{"anomalies":[]}\n')
+    assert inv._tape_conflict_marker_issues(tape_root) == []
+
+
+def test_tape_conflict_marker_issues_missing_tape_root_is_empty(tmp_path):
+    assert inv._tape_conflict_marker_issues(tmp_path / "no-such-tape") == []
+
+
+def test_tape_conflict_marker_issues_real_tree_is_clean():
+    # HARD acceptance test: the 2026-07-23 incident (tape/econ_prints and tape/anomalies
+    # dt=2026-07-18.jsonl each carrying 3 marker lines) is repaired as of this commit — the
+    # real committed tape tree must show zero conflict-marker lines.
+    assert inv._tape_conflict_marker_issues() == []
+
+
+def test_tape_conflict_marker_failure_none_when_empty():
+    assert inv.tape_conflict_marker_failure([]) is None
+
+
+def test_tape_conflict_marker_failure_message_content():
+    msg = inv.tape_conflict_marker_failure(["tape/anomalies/dt=2026-07-18.jsonl:11"])
+    assert msg is not None
+    assert "[tape_conflict_marker]" in msg
+    assert "tape/anomalies/dt=2026-07-18.jsonl:11" in msg
+
+
+def test_tape_conflict_marker_gates_exit_code(monkeypatch, capsys):
+    # Unlike the advisories above, a conflict marker in committed tape must flip the exit
+    # code. `_tape_conflict_marker_issues`'s tape_root default is bound at def-time, so
+    # patch the detector function itself (same technique the wiring actually exercises)
+    # rather than ROOT, to prove main() turns a non-empty result into a gating failure.
+    monkeypatch.setattr(inv, "_tape_conflict_marker_issues",
+                         lambda *a, **k: ["tape/econ_prints/dt=2026-07-01.jsonl:2"])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "[tape_conflict_marker]" in captured.err
