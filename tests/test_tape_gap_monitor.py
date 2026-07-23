@@ -748,3 +748,38 @@ def test_acceptance_8_l127_hyperliquid_funding_forward_refreshed_catches_freeze_
     assert r["age_hours"] > 2.0, r["age_hours"]
     # graduated out of the join-staleness stopgap: no longer a JOIN_CRITICAL_ONE_SHOT member.
     assert "hyperliquid_funding" not in tgm.JOIN_CRITICAL_ONE_SHOT
+
+
+@_real
+def test_acceptance_9_l139_anomalies_was_a_monitoring_blind_spot():
+    """L139: `anomalies` (collection/hourly_pass.py runs `scripts/anomaly_sweep.py` only
+    when `ts.hour == ANOMALY_SWEEP_UTC_HOUR`, the same single-exact-UTC-hour gate shape
+    as `settlement_ledger` (L123) and `weather_actuals` (L126)) was never registered in
+    FAMILY_CONFIG. Since `build_report`'s default family list is
+    `list(FAMILY_CONFIG.keys())`, an unregistered family isn't just unscored — it never
+    appears in the report at all. Unlike L123/L126, `anomalies` is NOT currently frozen
+    (real committed tape shows a healthy daily cadence through 2026-07-22); this test
+    proves the registration both (a) makes the family visible in the report and (b) does
+    not false-alarm on its current healthy state, anchored just after its real last
+    capture."""
+    now = _dt(2026, 7, 22, 12, 0)
+    report = tgm.build_report(_REAL_TAPE, now)
+    assert "anomalies" in report
+    r = report["anomalies"]
+    assert r["kind"] == "daily-econ-slot", r
+    assert r["alert"] is False, r
+    assert r["age_hours"] < 24.0, r["age_hours"]
+
+
+@_real
+def test_acceptance_10_l139_anomalies_would_be_caught_if_it_ever_froze():
+    """L139 continued: proves the registration is load-bearing, not cosmetic — evaluated
+    far enough past the real last committed `anomalies` capture (2026-07-22T10:05:33Z) to
+    cross the STALE threshold (2 x 24h = 48h), the monitor now actually pages, closing the
+    exact blind spot that let `settlement_ledger` (L123) and `weather_actuals` (L126) each
+    freeze silently for days before anyone noticed by hand."""
+    now = _dt(2026, 7, 24, 12, 0)
+    r = tgm.build_report(_REAL_TAPE, now)["anomalies"]
+    assert r["alert"] is True, r
+    assert "stale" in r["alert_reason"], r["alert_reason"]
+    assert r["age_hours"] > 48.0, r["age_hours"]
