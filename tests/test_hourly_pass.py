@@ -92,6 +92,17 @@ def _ts(hour):
     return datetime(2026, 7, 3, hour, 0, 0, tzinfo=timezone.utc)
 
 
+def _tape_today(tmp_path):
+    """A tape_root where every daily-leg family already has today's dt= file, so the
+    L123 catch-up gate stays quiet and a test exercises ONLY the leg it injects."""
+    root = tmp_path / "tape_today"
+    for family in ("anomalies", "econ_prints", "polymarket_cpi_pairs",
+                   "weather_actuals", "settlement_ledger"):
+        (root / family).mkdir(parents=True, exist_ok=True)
+        (root / family / "dt=2026-07-03.jsonl").write_text("{}\n")
+    return root
+
+
 # --------------------------------------------------------------------------- #
 # happy path: both sub-passes complete, outside the anomaly-sweep hour
 # --------------------------------------------------------------------------- #
@@ -733,7 +744,8 @@ def test_forecast_complete_does_not_fail_completeness(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 8},
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["forecast_collector"]["result"]["n_complete"] == 8
@@ -751,7 +763,8 @@ def test_forecast_config_only_zero_expected_pass_is_fine(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 0, "n_complete": 0},
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is True
 
@@ -765,7 +778,8 @@ def test_forecast_partial_drop_marks_incomplete(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER,
                      forecast_fn=lambda: {"n_expected": 8, "n_complete": 6},
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(FORECAST_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(FORECAST_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -843,7 +857,8 @@ def test_weather_actuals_complete_does_not_fail_completeness(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 20, "completeness_ok": True},
                      universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["weather_actuals"]["result"]["n_captured"] == 20
@@ -862,7 +877,8 @@ def test_weather_actuals_incomplete_marks_overall_incomplete(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      weather_actuals_fn=lambda: {"n_captured": 18, "completeness_ok": False},
                      universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -879,7 +895,8 @@ def test_weather_actuals_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, weather_actuals_fn=_boom,
                      universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(ACTUALS_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(ACTUALS_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["weather_actuals"]["status"] == "error"
@@ -1054,7 +1071,8 @@ def test_settlement_ledger_complete_does_not_fail_or_alter_counts(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      settlement_ledger_fn=lambda: {"n_binary": 4200, "n_new": 120,
                                                    "completeness_ok": True},
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(SETTLEMENT_HOUR))
 
     assert summary["completeness_ok"] is True
     assert summary["settlement_ledger"]["result"]["n_new"] == 120
@@ -1073,7 +1091,8 @@ def test_settlement_ledger_incomplete_marks_overall_incomplete(tmp_path):
                      weather_fn=lambda: _EMPTY_WEATHER,
                      settlement_ledger_fn=lambda: {"n_binary": 5000, "markets_truncated": True,
                                                    "completeness_ok": False},
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(SETTLEMENT_HOUR))
 
     assert summary["completeness_ok"] is False
 
@@ -1089,7 +1108,8 @@ def test_settlement_ledger_raising_marks_incomplete_not_crash(tmp_path):
                      polymarket_fn=lambda: _EMPTY_POLYMARKET,
                      polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
                      weather_fn=lambda: _EMPTY_WEATHER, settlement_ledger_fn=_boom,
-                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP, now=_ts(SETTLEMENT_HOUR))
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     tape_root=_tape_today(tmp_path), now=_ts(SETTLEMENT_HOUR))
 
     assert summary["completeness_ok"] is False
     assert summary["settlement_ledger"]["status"] == "error"
@@ -1305,3 +1325,66 @@ def test_universe_sweep_raising_marks_incomplete_not_crash(tmp_path):
     assert summary["crypto_hourly"]["status"] == "ok"
     assert summary["n_lines"] == 1 + 1
     assert summary["n_markets"] == 2 + 10
+
+
+# --------------------------------------------------------------------------- #
+# daily-leg catch-up gate (L123/L124 root-cause fix): a daily leg is due on its exact
+# scheduled hour OR within DAILY_CATCHUP_HOURS after it while today's committed dt= file
+# is absent — so a cron that misses the scheduled hour no longer freezes the leg forever.
+# --------------------------------------------------------------------------- #
+def test_daily_leg_due_on_exact_hour_even_if_file_exists(tmp_path):
+    fam = tmp_path / "settlement_ledger"
+    fam.mkdir()
+    (fam / "dt=2026-07-03.jsonl").write_text("{}\n")
+    assert hp.daily_leg_due(_ts(hp.SETTLEMENT_LEDGER_UTC_HOUR),
+                            hp.SETTLEMENT_LEDGER_UTC_HOUR,
+                            "settlement_ledger", tape_root=tmp_path) is True
+
+
+def test_daily_leg_due_catchup_when_file_absent(tmp_path):
+    (tmp_path / "settlement_ledger").mkdir()
+    for h in range(hp.SETTLEMENT_LEDGER_UTC_HOUR + 1,
+                   hp.SETTLEMENT_LEDGER_UTC_HOUR + hp.DAILY_CATCHUP_HOURS + 1):
+        assert hp.daily_leg_due(_ts(h), hp.SETTLEMENT_LEDGER_UTC_HOUR,
+                                "settlement_ledger", tape_root=tmp_path) is True
+
+
+def test_daily_leg_not_due_in_catchup_when_file_present(tmp_path):
+    fam = tmp_path / "settlement_ledger"
+    fam.mkdir()
+    (fam / "dt=2026-07-03.jsonl").write_text("{}\n")
+    assert hp.daily_leg_due(_ts(hp.SETTLEMENT_LEDGER_UTC_HOUR + 2),
+                            hp.SETTLEMENT_LEDGER_UTC_HOUR,
+                            "settlement_ledger", tape_root=tmp_path) is False
+
+
+def test_daily_leg_not_due_outside_window(tmp_path):
+    (tmp_path / "settlement_ledger").mkdir()
+    before = hp.SETTLEMENT_LEDGER_UTC_HOUR - 1
+    after = (hp.SETTLEMENT_LEDGER_UTC_HOUR + hp.DAILY_CATCHUP_HOURS + 1) % 24
+    for h in (before, after):
+        assert hp.daily_leg_due(_ts(h), hp.SETTLEMENT_LEDGER_UTC_HOUR,
+                                "settlement_ledger", tape_root=tmp_path) is False
+
+
+def test_run_settlement_catchup_fires_after_missed_hour(tmp_path):
+    """Integration: run() at scheduled_hour+1 with NO dt= file for today invokes the
+    settlement leg (the exact freeze mode that lost 07-18..21)."""
+    sports = _sports_summary(tmp_path)
+    crypto = _crypto_summary(tmp_path)
+    tape_root = tmp_path / "tape"
+    (tape_root / "settlement_ledger").mkdir(parents=True)
+    called = []
+
+    def _sl():
+        called.append(True)
+        return {"n_new": 0, "completeness_ok": True}
+
+    hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+           polymarket_fn=lambda: _EMPTY_POLYMARKET,
+           polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+           weather_fn=lambda: _EMPTY_WEATHER, hyperliquid_funding_fn=lambda: _EMPTY_HF,
+           perp_fn=lambda: _EMPTY_PERP, settlement_ledger_fn=_sl,
+           now=_ts(hp.SETTLEMENT_LEDGER_UTC_HOUR + 1), tape_root=tape_root)
+
+    assert called == [True]
