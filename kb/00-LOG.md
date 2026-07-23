@@ -6,6 +6,88 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-23 04:1x UTC — kalshi-edge-hunter: review PASS (#169 sound) + main gate GREEN again (#157 resolved) + Q43 gate OPEN-but-density-gated + Q21 round #8 (S48 verifier-killed / S49 DEAD-at-idea, 0 registered)
+
+Step 0a (history-integrity): **PASS.** Fresh-clone `git pull` reported a forced-update
+(`69a3d3f...2235aa3`) — the same squashed-out stale-packed-ref artifact 8+ prior runs
+diagnosed, not a rewind: `origin/main` HEAD `2235aa3`, `kb/00-LOG.md`'s newest entry (07-22) and
+newest committed tape (07-23) both current, `invariants --full` green. Step 0 (claim-check): 12
+open PRs — the standing #125 (weekly-retro, leave-open-for-Ryan, ~4 days, NOT re-flagged),
+#165/#166 (Ryan-approved background-session data-stream-hardening / storage-migration drafts,
+claim nothing this run picks), and **#158–#164/#167 — ten research-loop idle-run outputs that
+stacked up behind issue #157 over ~23h.** Step 0b (stranded sweep): newest fallback branches
+already absorbed by PR #161's sweep; nothing new to append.
+
+**Standing blocker RESOLVED (the big state change).** Issue #157 (main's `invariants --full`
+red-gated since PR #153 at 07-22 04:20Z, blocking ~10 stacked PRs) was **merged-closed by #169
+~03:36Z, ~40 min before this run.** Independently re-ran `python scripts/invariants.py --full`
+on current `main` HEAD `2235aa3`: **exit 0, all green** (only the 3 pre-existing non-gating L25/
+L109/L74 advisories). `pytest`: **green** (exit 0, full suite). So the 23h blocker is cleared and
+the ten stacked PRs are now drainable by the next research-loop firing's step-0 claim-check (not a
+Ryan action; flagged, not mass-merged here — merging ten overlapping stranded-sweep/monitor PRs
+one-by-one is the loop's designed job and a conflict-cascade risk to force in one thinking-seat run).
+
+**Unit 1 (adversarial review) — PASS, no issue opened.** The one Stop-rules-adjacent change that
+merged in the last 24h was #169's edit to `inv_order_endpoints_confined`. Re-checked the diff: it
+adds only the two TEST files (`tests/test_ws_depth.py`, `tests/test_polymarket_us_live.py`) to the
+exemption tuple — files whose forbidden-verb strings appear only inside NEGATIVE assertions
+(`assert "place_order" not in source`). The order-verb half still fires in full for
+`collection/ws_depth.py` (the `_rel(path)=="collection/ws_depth.py"` branch is untouched), and NO
+production file is newly exempted — the structural no-trade gate is intact. Sound. The only other
+last-24h "verdicts" are ops/data-quality (Q42 join fix, ISO parser, stranded sweeps, Q33 wiring
+fix, Q43 density advisory, L139 monitor) with no bootstrap-CI edge claim — two-agent rule N/A.
+
+**Unit 3 (probe-prep) — Q43 gate OPENED today; ran the now-live probe; it is DENSITY-gated, not
+verdict-ready.** By FILE SHAPE (L25) `tape/perp_tape/` reached 7 canonical day-files
+(dt=2026-07-17..07-23, all non-empty: 511/255/102/119/153/391/17 lines; distinct captures
+30/15/6/7/9/23/1 — VPS-death-degraded on 07-19..21, recovering on 07-22), so
+`_perp_days_available()` = 7 = the gate. Ran `scripts/q43_perp_binary_consistency_probe.py`
+offline (read-only): the probe self-activated and correctly stayed PREP-class (no fabricated
+verdict). Result is **data-inadequate for a verdict**: only 80/1393 binary snapshots join a perp
+BBO (1313 dropped no-perp-in-window — thin perp density), lead-lag contemporaneous rho +0.5653
+but n=12 market-hours / directional legs n=2, and COHERENCE finds 8 fee-clearing dislocations but
+**0 executable** (all 8 depth-unmeasurable — perp_tape has no at-touch size; needs an
+`orderbook_depth` join not yet wired). So when the research loop picks up Q43 it should record a
+density-gated / prep-only outcome, NOT a bootstrap verdict — the calendar gate opening ≠ data
+adequacy (the Q36 lesson, restated). No code built: denser forward perp tape (recovering
+post-VPS-fix) is the prerequisite, and the coherence-leg depth join is premature while lead-lag is
+n=2. (PR #164, unmerged, already added an advisory density floor to the probe.)
+
+**Unit 2 (pipeline replenishment) — Q21 round #8, 0 registered.** Eligible items = 1 (Q43 just
+flipped gated→open today; everything else DONE/DEAD/BLOCKED/GATED) → <2 → ran a Q21 round, this
+time on the one genuinely-newer broad surface (`universe_sweep` full-universe BBO + `last_price`/
+`volume`, joined to `settlement_ledger` outcomes) instead of the exhausted `orderbook_depth`
+maker/depth surface of rounds 1–7. **S48** (last_price-vs-BBO flow-follow taker, hold-to-
+settlement): independent `verifier` re-ran the join+sim over committed tape — **KILL, n=2**. The
+`universe_sweep` ∩ `settlement_ledger` join is only **373 tickers**, and traded+fillable+settled
+collapses to **n=2 trades / 1 event / 1 combinatorial `KXMVE*` series** (ceiling n=3), below the
+L6 floor before any signal; both surviving trades lost (mean −$0.223, 0/2), both `volume_24h=0`,
+`last_price` mechanically > mid in a wide one-sided book (flow gap 3–5¢ < the 3.5–13.6¢ half-
+spread crossed to buy at the ask) = L31/L67 illusion + taker-into-overround (S1/S5/S7). **S49**
+(settlement-ledger category calibration): DEAD at idea on the SAME join-collapse + maker→fill wall
++ taker→overround wall. **The join-collapse corollary** (universe_sweep × settlement_ledger is
+structurally ~2 tradeable markets, settled overlap dominated by untraded `KXMVE*` combinatorials)
+is recorded in the finding, NOT as a numbered lesson (restates L31/L41/L67; the in-flight lesson
+PRs occupy L136–L139 — no `kb/lessons/` append this run, to avoid a backlog merge conflict).
+Eighth consecutive well-attacked zero, last registry candidate already closed → the finding IS the
+signal: proving a new fillable edge needs a NEW data input (trade-print/sub-hourly burst, or the
+credential-gated cross-venue/CME/Polymarket-US legs), a Ryan decision. Consumed S48/S49 → next
+free S50. See `findings/2026-07-23-q21-idea-gen-round.md`.
+
+**Housekeeping.** Stranded remote branches: **180** `tape/hourly-*` (+2 vs 07-22) + **1**
+`tape/burst-20260714T120659Z` (event passed) = 181 total, unchanged root cause (Q17/PR#46
+GitHub-App branch-delete scope, Ryan/retro-side). Burst triggers with passed event dates:
+`kalshi-burst-cpi-0714`, `-wcsemi1-0714`, `-wcsemi2-0715`, `-wcfinal-0719` (all fired weeks ago,
+rolled to 2027) — named for deletion (weekly-retro's charter); `-fomc-0729` kept (07-29 future).
+
+**Gates:** `pytest` exit 0, `python scripts/invariants.py --full` exit 0 (3 pre-existing
+non-gating advisories only), on this findings/log/queue-docs-only diff. Two-agent verdict rule
+N/A (0 registrations — no registry flip, no bootstrap CI, no kill of an existing candidate; S48's
+kill is an idea-stage two-agent gate, not a registry change). **Step 9 (paper sub-pass):**
+`SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills per Q34 — paper-infra validation
+only, NOT edge evidence); `paper_pass.py` idempotent this run (no new eligible tape since the last
+sub-pass), realized ledger P&L unchanged **+$15.15** (`broker_truth`). Still **0 proven edges.**
+
 ## 2026-07-22 04:1x UTC — kalshi-edge-hunter: review PASS + Q21 idea-gen round (S46/S47 both DEAD, 0 registered — 7th zero round); the binding constraint is the data surface, not idea capacity
 
 Step 0a (history-integrity): **PASS.** The container's fresh clone made `git pull` report a
