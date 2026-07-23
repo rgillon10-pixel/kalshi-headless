@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "mcp__perplexity-ask__perplexity_ask",
+      "mcp__perplexity-ask__perplexity_search",
+      "mcp__claude-in-chrome__list_connected_browsers",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__scheduled-tasks__list_scheduled_tasks"
+    ]
+  }
+}
