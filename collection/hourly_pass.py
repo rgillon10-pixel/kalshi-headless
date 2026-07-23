@@ -155,6 +155,33 @@ SETTLEMENT_LEDGER_UTC_HOUR = 10
 # depth), so this leg DOES fold into n_markets/n_lines (see the folding block below).
 UNIVERSE_SWEEP_UTC_HOURS = {0, 6, 12, 18}
 
+# Daily-leg catch-up (L123/L124 root-cause fix): a `ts.hour == N` gate silently freezes the
+# leg forever if the live cron stops landing on hour N (settlement_ledger froze exactly this
+# way while the VPS was down 07-18..21). A daily leg is therefore "due" not only ON its
+# scheduled hour but for DAILY_CATCHUP_HOURS after it, whenever today's committed dt= file is
+# absent — the absence check reads the committed tape family itself, so it is correct from
+# both the stateful VPS checkout and a freshly-pulled stateless cloud sandbox. The window is
+# bounded so a leg that legitimately writes nothing all day (zero matches -> no file) retries
+# a handful of times, not every remaining hour of the day. The forecast leg is the one
+# exception: it writes to gitignored data/forecast_tape/, which a stateless cloud run cannot
+# see, so an absence check there would re-fire it every cloud pass — it keeps the exact-hour
+# gate (already flagged in L124 as structurally outside tape/'s read surface).
+TAPE_ROOT = REPO_ROOT / "tape"
+DAILY_CATCHUP_HOURS = 6
+
+
+def daily_leg_due(ts: datetime, scheduled_hour: int, family: str,
+                  tape_root: Optional[Path] = None) -> bool:
+    """True when a once-per-UTC-day leg should run this pass: on its scheduled hour, or
+    within the catch-up window after it while today's `tape/<family>/dt=<today>.jsonl`
+    is still absent. `tape_root` is injectable for offline testing."""
+    if ts.hour == scheduled_hour:
+        return True
+    if not (scheduled_hour < ts.hour <= scheduled_hour + DAILY_CATCHUP_HOURS):
+        return False
+    root = tape_root if tape_root is not None else TAPE_ROOT
+    return not (root / family / f"dt={ts:%Y-%m-%d}.jsonl").exists()
+
 
 # --------------------------------------------------------------------------- #
 # sub-pass wiring (real by default, injectable for offline testing)
@@ -346,7 +373,8 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         universe_sweep_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         perp_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         hyperliquid_funding_fn: Optional[Callable[[], Dict[str, Any]]] = None,
-        now: Optional[datetime] = None) -> Dict[str, Any]:
+        now: Optional[datetime] = None,
+        tape_root: Optional[Path] = None) -> Dict[str, Any]:
     """One hourly pass: sports_pairs + crypto_hourly + polymarket_pairs (WC round) +
     polymarket_pairs.run_fed_decision (Fed meetings), plus anomaly_sweep, econ_prints, and
     polymarket_pairs.run_cpi (CPI derived-bucket pairing) during the 09 UTC hour.
@@ -480,7 +508,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         completeness_ok = False
 
     anomaly: Optional[Dict[str, Any]] = None
-    if ts.hour == ANOMALY_SWEEP_UTC_HOUR:
+    if daily_leg_due(ts, ANOMALY_SWEEP_UTC_HOUR, "anomalies", tape_root):
         sweep_fn = anomaly_sweep_fn or _run_anomaly_sweep_subprocess
         anomaly = _safe_call(sweep_fn)
         sweep_status = anomaly["result"]["status"] if anomaly["status"] == "ok" else "error"
@@ -488,7 +516,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
             completeness_ok = False
 
     econ: Optional[Dict[str, Any]] = None
-    if ts.hour == ECON_PRINTS_UTC_HOUR:
+    if daily_leg_due(ts, ECON_PRINTS_UTC_HOUR, "econ_prints", tape_root):
         e_fn = econ_prints_fn or _default_econ_prints_pass
         econ = _safe_call(e_fn)
         if econ["status"] == "error":
@@ -499,7 +527,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
                 completeness_ok = False
 
     polymarket_cpi: Optional[Dict[str, Any]] = None
-    if ts.hour == ECON_PRINTS_UTC_HOUR:
+    if daily_leg_due(ts, ECON_PRINTS_UTC_HOUR, "polymarket_cpi_pairs", tape_root):
         cpi_fn = polymarket_cpi_fn or _default_polymarket_cpi_pass
         polymarket_cpi = _safe_call(cpi_fn)
         if polymarket_cpi["status"] == "error":
@@ -534,7 +562,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     # module's own honest signal (a city fetch/parse exception or a Kalshi settled-fetch
     # exception lowers it; a source that simply hasn't posted yet is captured, not a drop).
     wx_actuals: Optional[Dict[str, Any]] = None
-    if ts.hour == WEATHER_ACTUALS_UTC_HOUR:
+    if daily_leg_due(ts, WEATHER_ACTUALS_UTC_HOUR, "weather_actuals", tape_root):
         wa_fn = weather_actuals_fn or _default_weather_actuals_pass
         wx_actuals = _safe_call(wa_fn)
         if wx_actuals["status"] == "error":
@@ -549,7 +577,7 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     # module's own honest signal (a truncated cap or a per-market parse exception lowers it; a
     # scalar filter or a not-yet-posted pending market does not).
     settlement: Optional[Dict[str, Any]] = None
-    if ts.hour == SETTLEMENT_LEDGER_UTC_HOUR:
+    if daily_leg_due(ts, SETTLEMENT_LEDGER_UTC_HOUR, "settlement_ledger", tape_root):
         sl_fn = settlement_ledger_fn or _default_settlement_ledger_pass
         settlement = _safe_call(sl_fn)
         if settlement["status"] == "error":
