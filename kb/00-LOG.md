@@ -6,6 +6,66 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-23 18:xx UTC — research loop: breadth idea-gen prep over universe_sweep (schema defect A + mirror B + untested-family fingerprint)
+
+**What this run is.** Idle run — a fresh full Q0-Q47 rescan (latest Status line per section,
+file-shape verified per L25) found **0 eligible TODO/IN-PROGRESS** items, confirming the
+orchestrator's belief: every item is DONE, credential/auth-BLOCKED (Q33 / Q42-part3 / Q47),
+calendar-gated-not-open (Q37 ~08-05), or gate-open-but-data-inadequate (Q36 needs a dedicated
+intra-hour + hour-10 collector; Q43's calendar gate opened today but is density-inadequate AND was
+already run today by the edge-hunter Unit 3 — not re-run). The early `Status: TODO` lines at
+LOOP-QUEUE 525/592/669/770 are append-only "original spec below, unchanged" history under items
+whose newest status is DONE. Step-0a/0/0b were done by the orchestrator (HEAD aae50aa). Idle-run
+policies (a) and (c) both already fired today (L140/L141 fromisoformat/invariant advisories, L142
+conflict-marker repair), so this run took **policy (d)** — an observations memo from accumulated
+tape for the NEXT Q21 idea-gen round.
+
+**The milestone (policy d).** Built read-only `scripts/universe_sweep_family_shapes.py` (+7 offline
+tests in `tests/test_universe_sweep_family_shapes.py`, synthetic fixtures, no network) over the full
+committed `tape/universe_sweep/` breadth census — 7 days `dt=2026-07-17..23`, **460,000 lines / 0
+malformed**, all `real_ask`. It builds ON L125's liquidity census (which stopped at the
+dead-tail/storage question) by mining the LIQUID tier for edge-candidate SHAPES, and surfaces two
+enabling findings before any shortlist:
+
+- **(A) FRESH SCHEMA DEFECT (sibling to L96).** `collection/universe_sweep.py` maps only the
+  YES-side sizes (`yes_bid_size_fp`, `yes_ask_size_fp`, lines 116-117) and has **no mapping for
+  `no_ask_size_fp` / `no_bid_size_fp`** — so `no_ask_size`/`no_bid_size` are persisted **0.0 on
+  100% of all 460,000 lines** (nonzero 0.000%, max 0.0), while `yes_ask_size` is nonzero 3.406%
+  (max 228,571). A consumer reading `no_ask_size==0` gets a FALSE "no NO-side offer". Distinct from
+  L96 (`volume_24h`) and L142 (conflict markers). **Flagged for Q46 / a collector-engineer pass,
+  NOT fixed** (collector code is the Ryan-gated Q46 lane).
+- **(B) MIRROR.** `no_ask == 1 - yes_bid` AND `no_bid == 1 - yes_ask` hold **exactly 2208/2208
+  (100.00%)** — so the dropped NO-side size is recoverable as `yes_bid_size`, and the correct
+  two-sided test uses the YES-side sizes. Correcting for (A) recovers **1,986** genuinely two-sided
+  lines the `no_ask_size==0` artifact had hidden.
+
+**Breadth read (honest, graveyard-aware).** 99.4% of the census is the two auto-generated
+multi-leg `KXMVE*` dead-tail series (L105/L125). Of 79 untested families with a two-sided line,
+most are the L31 ~$0.98 nominal-spread artifact (1c/99c "two-sided", zero volume). Filtering to
+active (vol or OI > 0) AND tight (<=15c median 2-sided spread) leaves: commodity daily-close
+ladders `KXWTIH` (oil, 8c) / `KXGOLDH` (gold, 4c) / `KXSILVERH` (silver, 4c), plus `KXMLBHRR`
+(MLB home-runs, 2c) and `KXWNBATOTAL` (Sigma-vol 8,469 / maxOI 2,785). The commodity close ladders
+are a **new settlement-basis MECE-ladder SURFACE the registry never touched** — but they sit in
+ALREADY-DEAD factor slots (S1/S5 settlement-fade, S33 intra-ladder coherence, S14 overround
+underwriting; L12/L33: a single sweep line cannot establish arb simultaneity), and the sports-total
+families hit the fill-wall (L131) + mid-efficiency-wall (L130) that killed S46/S47. Net: new
+SURFACES on old dead FACTORS, each needing a DEDICATED dense/trade-print collector before any probe
+could change a premise.
+
+**Scope/tags.** `scripts/universe_sweep_family_shapes.py` (new, read-only), 
+`tests/test_universe_sweep_family_shapes.py` (new, +7), `findings/2026-07-23-universe-sweep-family-shapes.md`
+(+ `findings/universe_sweep_family_shapes.json`), one appended Q21 status line, this log entry. NO
+strategy claim, NO CI/P&L, NO registration (next free = S48), `kb/strategies/00-index.md`
+untouched — **two-agent verdict rule N/A** (descriptive data-quality + idea-gen prep, same posture
+as L96/L125/L142). Lesson **candidates** (deferred to kb-distiller/collector-engineer, not recorded
+as rows here): "universe_sweep drops `no_ask_size`/`no_bid_size`; reconstruct via the YES-side
+mirror"; "the breadth census is a family-DISCOVERY surface, not a tested-family analysis surface".
+`pytest` 1516->**1523 passed**. `python scripts/invariants.py --full` **exit 0** (same 4
+pre-existing non-gating advisories: directory-shaped tape days, GC-orphan classes, 8 daily-cadence
+gaps, 36 raw-fromisoformat sites). Still 0 proven edges.
+
+---
+
 ## 2026-07-23 15:xx UTC — research loop: repaired committed conflict-marker corruption in tape/econ_prints + tape/anomalies, added a GATING invariant (L142)
 
 **What this run is.** Idle run — full Q0-Q47 re-scan found 0 eligible TODO/IN-PROGRESS items,
