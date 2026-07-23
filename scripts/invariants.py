@@ -235,9 +235,21 @@ def inv_order_endpoints_confined(path: Path, text: str) -> Optional[str]:
     collection/ws_depth.py — the READ-ONLY authenticated WS orderbook_delta collector
     (Ryan opened the WS build gate 2026-07-21, GOAL.md amendment; lesson L131). Kalshi
     requires the signed handshake even for market data, so that file may carry the auth
-    headers — but the order-verb half of this rule still applies to it in full."""
+    headers — but the order-verb half of this rule still applies to it in full.
+    Two further FULL exemptions (2026-07-23, closes issue #157, Ryan-approved), mirroring
+    scripts/kalshi_sign.py rather than the partial ws_depth.py carve-out — these are test
+    files whose entire job is asserting the invariant, not production code that could grow
+    an order path by accident: tests/test_ws_depth.py (asserts against fake
+    KALSHI-ACCESS-* header literals — offline unit test, no network) and
+    tests/test_polymarket_us_live.py (its own test_module_has_no_order_verbs asserts
+    "place_order" etc. are ABSENT from the collector source, so the forbidden-verb
+    strings appear here only inside a negative-assertion tuple, never as a call).
+    Root cause of the original break: PR #153 exempted the two source files but not
+    their tests, exactly the collision lesson L131 flagged as a risk before that merge."""
     if _file_excluded(path) or _rel(path) in (SANCTIONED["order_endpoints"],
-                                              "scripts/kalshi_sign.py"):
+                                              "scripts/kalshi_sign.py",
+                                              "tests/test_ws_depth.py",
+                                              "tests/test_polymarket_us_live.py"):
         return None
     if _rel(path) == "collection/ws_depth.py":
         # L131 sanction covers AUTH HEADERS only — an order verb here must still fire.

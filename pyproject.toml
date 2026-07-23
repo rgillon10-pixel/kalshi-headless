@@ -15,7 +15,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = [
+  "pytest>=7.0",
+  "cryptography>=42.0",     # RSA-PSS/Ed25519 handshake signing (ws_depth, polymarket_us_live)
+  "websocket-client>=1.7",  # ws_depth.py's live connection factory
+]
 analysis = [
   "numpy>=1.24",     # bootstrap CI / longshot-fade probe (Phase 1)
   "openpyxl>=3.1",   # read football-data.co.uk's free historical-odds .xlsx (S7a)
