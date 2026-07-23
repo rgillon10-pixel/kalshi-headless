@@ -165,6 +165,18 @@ FAMILY_CONFIG: Dict[str, Dict[str, Any]] = {
     "polymarket_cpi_pairs":    {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily-econ-slot"},
     "econ_prints":             {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily-econ-slot"},
     "weather_actuals":         {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily"},
+    # L139: `anomalies` (collection/hourly_pass.py runs `scripts/anomaly_sweep.py` as a
+    # subprocess only when `ts.hour == ANOMALY_SWEEP_UTC_HOUR` (9), the exact same
+    # single-exact-UTC-hour gate shape as `settlement_ledger` (L123) and
+    # `weather_actuals` (L126) before they were registered here — and, like both of
+    # those, `anomalies` was simply never added to FAMILY_CONFIG. Since the default
+    # report only iterates `list(FAMILY_CONFIG.keys())`, an unregistered family isn't
+    # merely mis-scored, it is never EVALUATED at all: a silent freeze here (the same
+    # failure mode that hit settlement_ledger for 5 days and weather_actuals for 2)
+    # would have no detector watching it, unlike its sibling daily-econ-slot legs.
+    # Registering it closes that blind spot pre-emptively, before it bites, rather
+    # than after (unlike L123/L126, `anomalies` is NOT currently frozen — see L139).
+    "anomalies":               {"interval_h": 24.0, "passes_per_day": 1,    "kind": "daily-econ-slot"},
     # L123: settlement_ledger fires on its own single exact UTC hour
     # (SETTLEMENT_LEDGER_UTC_HOUR=10 in collection/hourly_pass.py), which the live
     # every-3h `kalshi-collector` cron (`53 */3 * * *` -> hours {0,3,6,9,12,15,18,21})

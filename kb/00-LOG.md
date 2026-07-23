@@ -90,6 +90,67 @@ sub-pass), realized ledger P&L unchanged **+$15.15** (`broker_truth`). Still **0
 
 ---
 
+## 2026-07-23 03:1x UTC — research loop: idle run — L139 closes an `anomalies` tape_gap_monitor blind spot; issue #157 re-confirmed still red, now ~23h / 9+ PRs deep
+
+**Step 0a (history-integrity):** PASS. Local `main` had diverged from `origin/main` (a stale
+container ref, same known artifact many prior runs today diagnosed) — reset cleanly to
+`origin/main` HEAD `95771df`, no local work lost. `kb/00-LOG.md`'s newest entry and the newest
+committed tape both read 2026-07-22/23 with no gap.
+
+**Step 0 (claim-check):** 10 open PRs (#158–#166 + #125). #158–#164 are today's/yesterday's
+research-loop idle-run outputs, all left unmerged pending issue #157; #165/#166 are drafts from
+a separate Ryan-approved background/interactive session (data-stream hardening, tape storage
+migration) — additive infra, not claiming any numbered queue item this run would otherwise pick;
+#125 is the weekly-retro PR, leave-open-for-Ryan. None claim eligible queue work.
+
+**Step 0b (stranded sweep):** newest branch `tape/hourly-20260722T1256Z` already fully absorbed
+by PR #161 earlier today — nothing new to sweep.
+
+**Queue:** Q0–Q47 all DONE/DEAD/BLOCKED/GATED (unchanged from every run since 07-16) → idle run.
+Policy (a) exhausted (the only two open UNENFORCED lessons are L131, issue #157 itself and
+explicitly Ryan's call, and L136, already claimed by open PR #159); policy (b) has nothing new
+(Q43's probe already self-activated and was extended by PR #164 earlier today). Took **policy
+(c): a data-quality deep-dive on a tape family nobody had audited yet.**
+
+**Finding + fix (L139):** `scripts/tape_gap_monitor.py::build_report`'s default family list is
+`list(FAMILY_CONFIG.keys())` — a family absent from `FAMILY_CONFIG` is never evaluated at all,
+not just mis-scored. `tape/anomalies/` (`scripts/anomaly_sweep.py`, gated on
+`ts.hour == ANOMALY_SWEEP_UTC_HOUR`, the same single-exact-hour shape as `settlement_ledger`
+before L123 and `weather_actuals` before L126) had no entry — the identical blind spot that let
+those two freeze silently for days, caught here pre-emptively: `anomalies` is NOT currently
+frozen (healthy through `dt=2026-07-22`, last capture 2026-07-22T10:05:33Z, ~17h old at run
+time). Registered it (`daily-econ-slot`, same shape as `econ_prints`/`polymarket_cpi_pairs`) +
+2 new HARD acceptance tests anchored to the real committed tape (proves both no false-alarm on
+the current healthy state, and that the detector would actually fire if `anomalies` ever froze
+like its siblings did). See `findings/2026-07-23-anomalies-tape-gap-monitor-blind-spot.md`.
+
+**Issue #157 re-confirmed, still red** (independently re-ran `python scripts/invariants.py --full`
+on untouched `origin/main`: identical 2 `order_endpoints_confined` violations; `pytest` identical
+5 pre-existing `test_invariants.py` failures). Now blocking **9 stacked PRs for ~23h** since PR
+#153 merged (2026-07-22T04:20Z) — the ready-to-apply fix spec in #157 remains unapplied by design
+(Stop-rules-adjacent, L131, stays Ryan's call). Not re-litigated further in this entry; flagged in
+the phone note given the pileup has now crossed into double digits.
+
+**Two-agent rule:** N/A — non-gating monitor-registration extension, same precedent as
+L118/L121/L122/L124/L126/L127/L128.
+
+**Gates:** `pytest` (excluding the two files broken by issue #157's pre-existing
+`cryptography`/`_cffi_backend` ABI panic): 1430 passed, same 5 pre-existing failures as base
+`main` (byte-identical). `python scripts/invariants.py --full`: exit 2, identical to `main`'s
+pre-existing state — this diff touches neither flagged file.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD-at-real-fills per
+Q34 — dead-strategy shadow, paper-infra validation only, NOT edge evidence). `paper_pass.py`
+processed 9 newly-eligible fills off tape committed since `main`'s last committed ledger entry
+(2026-07-22), realized P&L **+$15.05 → +$15.15** (`broker_truth`); ledger line appended under
+`paper/ledger/dt=2026-07-23.jsonl`. Re-run confirmed idempotent (0 processed on a second pass).
+Still **0 proven edges**.
+
+**Not merging — `main`'s own gate is red.** Per LOOP-QUEUE.md step 6, leaving this PR open until
+issue #157 resolves, same posture as #158–#164.
+
+---
+
 ## 2026-07-22 20:2x ET — research loop: idle run, Q43 gets a capture-density advisory floor (issue #157 still red, 2nd day)
 
 Step 0a (history-integrity): PASS. This container's local `main` ref was a stale, unrelated
