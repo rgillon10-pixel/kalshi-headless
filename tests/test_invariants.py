@@ -373,6 +373,63 @@ def test_acceptance_l126_weather_actuals_real_gap_detected():
     assert "weather_actuals/dt=2026-07-20" in issues
 
 
+# ─── raw datetime.fromisoformat advisory (L138 residue: non-gating) ───────────
+
+def test_raw_datetime_fromisoformat_sites_finds_real_sites():
+    # HARD acceptance test anchored to the real tree: production code widely calls
+    # datetime.fromisoformat directly instead of core.timeutil.parse_iso_utc (L136/L138).
+    sites = inv._raw_datetime_fromisoformat_sites()
+    assert len(sites) >= 28
+    assert all(not s.startswith("core/timeutil.py") for s in sites)
+    assert all(not s.split("/", 1)[0] == "tests" for s in sites)
+
+
+def test_raw_datetime_fromisoformat_exempts_timeutil_and_tests(tmp_path):
+    (tmp_path / "core").mkdir()
+    (tmp_path / "core" / "timeutil.py").write_text("x = datetime.fromisoformat(s)\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "x.py").write_text("y = datetime.fromisoformat(s)\n")
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "x.py").write_text("z = datetime.fromisoformat(s)\n")
+    sites = inv._raw_datetime_fromisoformat_sites(tmp_path)
+    assert sites == ["scripts/x.py:1"]
+
+
+def test_raw_datetime_fromisoformat_skips_comment_lines(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "x.py").write_text("# datetime.fromisoformat(x)\n")
+    assert inv._raw_datetime_fromisoformat_sites(tmp_path) == []
+
+
+def test_raw_datetime_fromisoformat_does_not_flag_date_fromisoformat(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "x.py").write_text("d = date.fromisoformat(s)\n")
+    assert inv._raw_datetime_fromisoformat_sites(tmp_path) == []
+
+
+def test_raw_datetime_fromisoformat_warning_none_when_empty():
+    assert inv.raw_datetime_fromisoformat_warning([]) is None
+
+
+def test_raw_datetime_fromisoformat_warning_message_content():
+    msg = inv.raw_datetime_fromisoformat_warning(["scripts/s8_basis_probe.py:74"])
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "parse_iso_utc" in msg
+    assert "L138" in msg
+
+
+def test_raw_datetime_fromisoformat_warning_never_gates_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "parse_iso_utc" in captured.err
+    assert "L138" in captured.err
+    assert "invariants: all green" in captured.out
+
+
 # ─── DB invariants ────────────────────────────────────────────────────────────
 
 def _db(tmp_path, name, ddl, rows_sql=()):

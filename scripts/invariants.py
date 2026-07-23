@@ -634,6 +634,56 @@ def daily_family_gap_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Raw datetime.fromisoformat advisory (L138 residue: non-gating, offline-safe) ──
+
+_DATETIME_FROMISOFORMAT_RE = re.compile(r"\bdatetime\.fromisoformat\s*\(")
+_ISO_PARSE_SANCTIONED = ("core/timeutil.py",)  # home of core.timeutil.parse_iso_utc (L138)
+
+
+def _raw_datetime_fromisoformat_sites(root: Path = ROOT) -> List[str]:
+    """Production call sites of `datetime.fromisoformat(` outside the sanctioned
+    core/timeutil.py (L136/L138). Python 3.9's datetime.fromisoformat rejects a short (1-2
+    digit) fractional second and a bare `Z`; core.timeutil.parse_iso_utc normalizes those
+    first, so every other call site is a latent 3.9 crash on a Kalshi ts like `...04.7Z`.
+    `date.fromisoformat` (date-only) is NOT flagged (no fractional/tz hazard). tests/ construct
+    fixtures, not production parse paths. Best-effort/offline: any exception skips a file and
+    can never poison the gate. Returns sorted `path:line` labels."""
+    out: List[str] = []
+    try:
+        for p in _iter_source_files(root, exts=(".py",)):
+            rel = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
+            if rel in _ISO_PARSE_SANCTIONED or rel.split("/", 1)[0] == "tests":
+                continue
+            try:
+                lines = p.read_text().splitlines()
+            except Exception:
+                continue
+            for i, line in enumerate(lines, 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if _DATETIME_FROMISOFORMAT_RE.search(line):
+                    out.append(f"{rel}:{i}")
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def raw_datetime_fromisoformat_warning(sites: List[str]) -> Optional[str]:
+    """Non-gating advisory when production code calls datetime.fromisoformat directly instead
+    of core.timeutil.parse_iso_utc, else None. Pure."""
+    if not sites:
+        return None
+    n = len(sites)
+    examples = ", ".join(sites[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} production call site(s) use `datetime.fromisoformat(` "
+        f"directly instead of `core.timeutil.parse_iso_utc` (e.g. {examples}). On Python 3.9 a "
+        f"Kalshi timestamp with a short fractional second or bare `Z` (e.g. `...04.7Z`) crashes "
+        f"there (L136/L138); parse_iso_utc normalizes it first. Advisory only — does NOT affect "
+        f"the exit code. See kb/lessons/00-lessons.md L138."
+    )
+
+
 # ─── PreToolUse hook ────────────────────────────────────────────────────────
 
 def _post_edit_content(file_path: Path, old: str, new: str) -> Optional[str]:
@@ -719,6 +769,11 @@ def main() -> int:
         gap_warning = daily_family_gap_warning(_daily_family_gap_issues())
         if gap_warning:
             sys.stderr.write(gap_warning + "\n")
+        # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
+        # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.
+        iso_warning = raw_datetime_fromisoformat_warning(_raw_datetime_fromisoformat_sites())
+        if iso_warning:
+            sys.stderr.write(iso_warning + "\n")
 
     if failures:
         sys.stderr.write(f"invariants: {len(failures)} violation(s)\n")
