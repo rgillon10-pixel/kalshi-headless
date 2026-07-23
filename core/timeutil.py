@@ -34,6 +34,21 @@ def _parse_iso(s: str) -> datetime:
     return dt.astimezone(UTC)
 
 
+def parse_iso_utc(s: str) -> datetime:
+    """Sanctioned entry point for parsing a standalone ISO-8601 timestamp string
+    (aware UTC datetime out). Tolerates variable fractional-second precision and
+    a trailing 'Z' the same way `_parse_iso`/`parse_kalshi_ts` do.
+
+    kb/lessons L136: Python 3.9's `datetime.fromisoformat` rejects fractional
+    seconds that aren't exactly 3 or 6 digits (e.g. Kalshi's trailing-zero-
+    stripped '...:04.7Z'), a version-dependent parse hole any tape reader
+    calling the stdlib function directly can fall into. Callers parsing a raw
+    ISO string (not already dispatching through `parse_kalshi_ts`'s epoch-vs-ISO
+    branch) should use this instead of `datetime.fromisoformat` directly.
+    """
+    return _parse_iso(s)
+
+
 def standard_utc_offset_hours(tz_name: str, ref_year: int = 2020) -> float:
     """STANDARD-time UTC offset (hours) for a tz, ignoring DST.
 

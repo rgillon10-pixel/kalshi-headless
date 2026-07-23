@@ -6,6 +6,92 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-23 08:xx UTC — research loop: drained the 8-PR backlog stacked behind issue #157 (#158/#159/#160/#161/#162/#163/#164/#167)
+
+**What this run is.** The prior kalshi-edge-hunter nightly run (04:1x UTC entry below) found
+issue #157 resolved and main's gate green again, but explicitly declined to mass-merge the ten
+PRs that had stacked up behind it over the preceding ~23h — flagging it instead as "drainable by
+the next research-loop firing's step-0 claim-check... the loop's designed job." This run is that
+firing.
+
+**Step 0a (history-integrity):** PASS. `origin/main` HEAD `7b14e77`. This container's local `main`
+ref was again a stale, disconnected artifact (jumped back to a 2026-07-16 commit) — the same class
+of clone/packed-ref artifact dozens of prior runs this week diagnosed, not a rewind. `git reset
+--hard origin/main` recovered cleanly; working tree was clean, so nothing was lost.
+
+**Step 0 (claim-check) — the actual milestone.** Of the 12 open PRs, #125 (weekly-retro) and
+#165/#166 (Ryan-approved background-session drafts) were left untouched as before. The other
+eight — #158 (Q42 join un-freeze), #159 (L136→L138 ISO parser), #160/#161 (stranded-tape sweeps),
+#162 (Q33 hourly_pass wiring fix), #163 (docs-only #157 reconfirmation), #164 (Q43 density
+advisory), #167 (L139 anomalies monitor fix) — were each individually green in isolation but had
+all been left open because `main`'s own gate was red at the time they were created. With that gate
+now green, draining them is exactly the queued cleanup work. Rather than merge each through
+GitHub's own (potentially racy, definitely conflict-prone) merge button one at a time against a
+constantly-moving `main`, built a local integration branch off `origin/main` and merged all eight
+branches into it in creation order, resolving each conflict by hand as it arose:
+
+- **Every `kb/00-LOG.md` / `LOOP-QUEUE.md` conflict** was the same shape: two sibling runs each
+  inserted their own dated entry at the same point in an append-style log, based on a slightly
+  different snapshot of `main`. Resolved by literally reading both sides' timestamps and splicing
+  them back into chronological order — none of the prose itself needed rewriting, only re-ordering
+  around each other.
+- **Every tape JSONL conflict** (`orderbook_depth`, `weather_books`, `sports_pairs`,
+  `perp_tape`, `polymarket_macro_pairs`, `crypto_hourly`, `hyperliquid_funding`, `anomalies`,
+  `econ_prints`) was two independent stranded-tape sweeps or hourly passes touching the same
+  `dt=` file. Resolved by a plain set-union of both sides' lines (`sort -u` over the conflict
+  markers' two halves) — append-only JSONL with unique per-line capture identity makes this safe
+  by construction (same discipline the sweep protocol itself already uses), and every resulting
+  file was re-validated line-by-line as parseable JSON before committing (0 malformed lines across
+  ~90,000 lines touched).
+- **`kb/lessons/00-lessons.md`** had L137 (Q42, from #158) and L139 (anomalies monitor, from #167)
+  as adjacent new rows from independent branches — not a real conflict, kept both.
+- **One genuine bug caught by the merge process itself:** `paper/ledger/dt=2026-07-23.jsonl` was
+  an add/add conflict between #164 and #167. Diffing the two sides (after stripping the `ts`
+  field) showed they were byte-identical otherwise — both branches had independently replayed
+  `paper_pass.py` over the exact same 9 already-eligible fills off the exact same base ledger
+  state (`+$15.05 → +$15.15` reported identically by both PR bodies), so keeping both copies would
+  have double-counted every fill in the ledger. Kept one copy only. This is a real gap in the
+  "deterministic replay" design for step 9 that only surfaces at merge time: two sibling branches
+  that never see each other's ledger state will each think they're the first to process a given
+  fill. Not fixed here (no code changed — this is a `paper_pass.py` idempotency-across-branches
+  property, not a bug in this run's own diff), but worth a lesson if it recurs.
+
+**Step 0b (stranded sweep).** One branch newer than PR #161's last sweep: `tape/hourly-20260723T0359Z`.
+Diffed its `dt=2026-07-22` files against the fully-merged integration tree first — **0 genuinely
+missing lines**, which is itself a useful confirmation that the four prior stranded-sweeps (#160/#161
+plus this run's own merge) left no real gaps. Its `dt=2026-07-23` files were newer, though: **369**
+genuinely-missing lines (2 `crypto_hourly`, 15 `polymarket_macro_pairs`, 352 `sports_pairs`),
+union-appended, 0 invalid JSON.
+
+**Gates (full merged tree, fresh `pip install -e ".[dev,analysis]"` — no ad-hoc `cryptography`
+upgrade needed; a clean env now collects everything issue #157's underlying dependency gap used to
+break).** `pytest`: exit 0, full suite green. `python scripts/invariants.py --full`: exit 0 (the
+same 3 pre-existing non-gating advisories — L25 dir-shape, L109 GC, L74 daily-cadence — every prior
+run has carried).
+
+**Two-agent rule:** N/A for this run's own contribution (no new verdict — the drain reassembles
+five already-produced ops/data-quality findings, none of which flip a registry status, claim a
+bootstrap CI, or kill a candidate; each was already correctly scoped as two-agent-N/A by its own
+originating run).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills per
+Q34 — paper-infra validation only, NOT edge evidence). This run's own tape delta (the 369-line
+sweep above) added no new S14-eligible events; ledger unchanged at **+$15.15** (`broker_truth`).
+Still **0 proven edges**.
+
+**Housekeeping:** stranded branches unchanged at 181 (`tape/hourly-*` + 1 `burst-*`, Q17/PR#46,
+Ryan/retro-side) apart from the one swept above. The eight source PRs' branches
+(`research/2026-07-22-q42-join-recent-mode-unfreeze`, `research-loop/20260722-l136-tolerant-iso-parser`,
+`research-loop/20260722-stranded-sweep-and-157-escalation`,
+`research-loop/20260722-stranded-sweep-and-cloud-collector-gap`,
+`research-loop/20260722-q33-hourly-pass-wiring-fix`,
+`research-loop/20260722-idle-reconfirm-157-saturated`,
+`research-loop/20260723-q43-capture-density-advisory`,
+`research-loop/20260723-l139-anomalies-monitor-blindspot`) are superseded by this merge and should
+be deleted once their PRs close; not done here to avoid racing GitHub's own PR-close bookkeeping.
+
+---
+
 ## 2026-07-23 04:1x UTC — kalshi-edge-hunter: review PASS (#169 sound) + main gate GREEN again (#157 resolved) + Q43 gate OPEN-but-density-gated + Q21 round #8 (S48 verifier-killed / S49 DEAD-at-idea, 0 registered)
 
 Step 0a (history-integrity): **PASS.** Fresh-clone `git pull` reported a forced-update
@@ -87,6 +173,416 @@ kill is an idea-stage two-agent gate, not a registry change). **Step 9 (paper su
 `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills per Q34 — paper-infra validation
 only, NOT edge evidence); `paper_pass.py` idempotent this run (no new eligible tape since the last
 sub-pass), realized ledger P&L unchanged **+$15.15** (`broker_truth`). Still **0 proven edges.**
+
+---
+
+## 2026-07-23 03:1x UTC — research loop: idle run — L139 closes an `anomalies` tape_gap_monitor blind spot; issue #157 re-confirmed still red, now ~23h / 9+ PRs deep
+
+**Step 0a (history-integrity):** PASS. Local `main` had diverged from `origin/main` (a stale
+container ref, same known artifact many prior runs today diagnosed) — reset cleanly to
+`origin/main` HEAD `95771df`, no local work lost. `kb/00-LOG.md`'s newest entry and the newest
+committed tape both read 2026-07-22/23 with no gap.
+
+**Step 0 (claim-check):** 10 open PRs (#158–#166 + #125). #158–#164 are today's/yesterday's
+research-loop idle-run outputs, all left unmerged pending issue #157; #165/#166 are drafts from
+a separate Ryan-approved background/interactive session (data-stream hardening, tape storage
+migration) — additive infra, not claiming any numbered queue item this run would otherwise pick;
+#125 is the weekly-retro PR, leave-open-for-Ryan. None claim eligible queue work.
+
+**Step 0b (stranded sweep):** newest branch `tape/hourly-20260722T1256Z` already fully absorbed
+by PR #161 earlier today — nothing new to sweep.
+
+**Queue:** Q0–Q47 all DONE/DEAD/BLOCKED/GATED (unchanged from every run since 07-16) → idle run.
+Policy (a) exhausted (the only two open UNENFORCED lessons are L131, issue #157 itself and
+explicitly Ryan's call, and L136, already claimed by open PR #159); policy (b) has nothing new
+(Q43's probe already self-activated and was extended by PR #164 earlier today). Took **policy
+(c): a data-quality deep-dive on a tape family nobody had audited yet.**
+
+**Finding + fix (L139):** `scripts/tape_gap_monitor.py::build_report`'s default family list is
+`list(FAMILY_CONFIG.keys())` — a family absent from `FAMILY_CONFIG` is never evaluated at all,
+not just mis-scored. `tape/anomalies/` (`scripts/anomaly_sweep.py`, gated on
+`ts.hour == ANOMALY_SWEEP_UTC_HOUR`, the same single-exact-hour shape as `settlement_ledger`
+before L123 and `weather_actuals` before L126) had no entry — the identical blind spot that let
+those two freeze silently for days, caught here pre-emptively: `anomalies` is NOT currently
+frozen (healthy through `dt=2026-07-22`, last capture 2026-07-22T10:05:33Z, ~17h old at run
+time). Registered it (`daily-econ-slot`, same shape as `econ_prints`/`polymarket_cpi_pairs`) +
+2 new HARD acceptance tests anchored to the real committed tape (proves both no false-alarm on
+the current healthy state, and that the detector would actually fire if `anomalies` ever froze
+like its siblings did). See `findings/2026-07-23-anomalies-tape-gap-monitor-blind-spot.md`.
+
+**Issue #157 re-confirmed, still red** (independently re-ran `python scripts/invariants.py --full`
+on untouched `origin/main`: identical 2 `order_endpoints_confined` violations; `pytest` identical
+5 pre-existing `test_invariants.py` failures). Now blocking **9 stacked PRs for ~23h** since PR
+#153 merged (2026-07-22T04:20Z) — the ready-to-apply fix spec in #157 remains unapplied by design
+(Stop-rules-adjacent, L131, stays Ryan's call). Not re-litigated further in this entry; flagged in
+the phone note given the pileup has now crossed into double digits.
+
+**Two-agent rule:** N/A — non-gating monitor-registration extension, same precedent as
+L118/L121/L122/L124/L126/L127/L128.
+
+**Gates:** `pytest` (excluding the two files broken by issue #157's pre-existing
+`cryptography`/`_cffi_backend` ABI panic): 1430 passed, same 5 pre-existing failures as base
+`main` (byte-identical). `python scripts/invariants.py --full`: exit 2, identical to `main`'s
+pre-existing state — this diff touches neither flagged file.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD-at-real-fills per
+Q34 — dead-strategy shadow, paper-infra validation only, NOT edge evidence). `paper_pass.py`
+processed 9 newly-eligible fills off tape committed since `main`'s last committed ledger entry
+(2026-07-22), realized P&L **+$15.05 → +$15.15** (`broker_truth`); ledger line appended under
+`paper/ledger/dt=2026-07-23.jsonl`. Re-run confirmed idempotent (0 processed on a second pass).
+Still **0 proven edges**.
+
+**Not merging — `main`'s own gate is red.** Per LOOP-QUEUE.md step 6, leaving this PR open until
+issue #157 resolves, same posture as #158–#164.
+
+---
+
+## 2026-07-22 20:2x ET — research loop: idle run, Q43 gets a capture-density advisory floor (issue #157 still red, 2nd day)
+
+Step 0a (history-integrity): PASS. This container's local `main` ref was a stale, unrelated
+shallow-clone graft (no merge-base with `origin/main`) — the same known artifact 8+ prior runs
+today and yesterday already diagnosed, not a rewind. Reset cleanly to `origin/main` HEAD
+`9116d0c`, no local work lost. `kb/00-LOG.md`'s newest entry and the newest committed tape both
+read 2026-07-22, no gap.
+
+Step 0 (claim-check): 6 open PRs — #158 (Q42 join un-freeze), #159 (L136→L138 ISO parser), #160
+and #161 (stranded-tape sweeps + housekeeping), #162 (Q33 hourly-pass wiring fix), #163 (6th
+reconfirmation of the blocker below) — all green in isolation, all left unmerged because `main`'s
+own `invariants --full` gate is red (issue #157), plus #125 (weekly-retro, leave-open-for-Ryan).
+None claim eligible work. Step 0b: no stranded branch newer than #161's sweep — nothing to append.
+
+**The blocker (issue #157) is still open, unresolved into a 2nd calendar day.** Independently
+re-ran `python scripts/invariants.py --full` on untouched `origin/main`: still exit 2, byte-identical
+to every prior run's diagnosis (`tests/test_polymarket_us_live.py` / `tests/test_ws_depth.py`
+tripping `order_endpoints_confined`; `pytest` collection panics on the same `cryptography`/
+`_cffi_backend` ABI issue). Not applying the ready fix spec — same restraint as every run since
+06:47Z yesterday: this is Stop-rules-adjacent (L131) and stays Ryan's call. Did not add a 3rd
+comment to the issue — #163 already flagged that a 4th `Priority: high` phone note in one day
+would train the eye to ignore the feed, and this run has nothing new to add on that front.
+
+**Idle-run work (policy (b) follow-up).** Full Q0-Q47 re-scan: 0 eligible items, matching every
+run today/yesterday. Spot-checked Q43 fresh (its own gate is the most interesting thing that
+could change day-to-day): `tape/perp_tape/` is still 6/7 file-shaped days (`dt=2026-07-17`
+through `dt=2026-07-22`; `dt=2026-07-23` had not landed yet at run time, 00:1xZ). Rather than
+just reconfirm the same 6/7 count a 4th time, added a genuinely new safeguard: the Q43 probe
+(`scripts/q43_perp_binary_consistency_probe.py`) gated its two analysis legs on day-COUNT alone
+— exactly the trap Q36 fell into (calendar-gate-open != data-adequate) and had to discover after
+the fact. Q43's own history already flagged perp_tape's per-day capture density collapsing
+(30→14→6→7→5, L117/L127) even as the day count climbed — so this run adds
+`_perp_capture_density()`/`_thin_days()` (advisory floor `MIN_CAPTURES_PER_DAY_ADVISORY=10`,
+never a hard gate) that travels on every report, INSUFFICIENT DATA included, and puts an explicit
+CAVEAT sentence on the ANALYSIS-path note when thin days are present. Current reading: 07-17=31,
+07-18=15, 07-19=6 (thin), 07-20=7 (thin), 07-21=9 (thin), 07-22=23 — the decline is visibly
+recovering (07-22 tracks the cloud-collector fix independently found in PR #161/#162), not
+continuing, but 3 of the current 6 days remain thin. Whoever runs the live analysis the day the
+gate opens now sees this before trusting the lead-lag/coherence counts at face value. +3 offline
+tests (18 total in the file). See `findings/2026-07-23-q43-capture-density-advisory.md`.
+
+No verdict, no registry change, no bootstrap CI, no P&L claim — two-agent rule N/A (probe-prep
+infra, same posture as the 07-20/07-21 Q43 prep runs). `tape_gap_monitor.py` re-run live for a
+fresh idle-policy-(c) angle: same already-diagnosed cloud-collector-lag pattern PR #161 already
+found (7 families at ~0.48 capture ratio vs the 0.8 floor) — not a new finding, not repeated as
+one.
+
+**Gates:** `pytest` full suite green (18/18 in the touched test file, +3 new) except the same 5
+pre-existing `test_invariants.py` failures as base `main` (byte-identical, stash-compared) —
+issue #157. `python scripts/invariants.py --full`: exit 2, identical 2 violations to `main`'s
+pre-existing state; this diff touches neither flagged file. **Not merging this PR** — same
+posture as #158-#163, `main`'s own gate is red.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills
+per Q34 — dead-strategy shadow, paper-infra validation only, NOT edge evidence). `paper_pass.py`
+processed 9 newly-eligible fills off tape committed since the last sub-pass, realized P&L
+**+$15.05 → +$15.15** (`broker_truth`), ledger line appended to `paper/ledger/dt=2026-07-23.jsonl`.
+Still **0 proven edges** repo-wide.
+
+---
+
+## 2026-07-22 21:2x UTC — research loop: 6th independent re-confirmation of #157 (main gate still red, unchanged); idle-run avenues (a)-(d) fully saturated today, no new escalation
+
+Step 0a (history-integrity): PASS. `origin/main` HEAD `d7fd1b9`. This sandbox's local `main` ref
+had no merge-base with `origin/main` (a stale/unrelated shallow-clone graft, the same class of
+artifact 6+ prior runs today diagnosed) — reset cleanly via `git reset --hard origin/main`, no
+local unpushed work existed to lose. `kb/00-LOG.md`'s newest entry and the newest committed
+`tape/*/dt=*` content are both dated 2026-07-22 — no rewind.
+
+Step 0 (claim-check): five open PRs — #158 (Q42 join un-freeze), #159 (L136→L138 ISO parser),
+#160/#161 (stranded sweeps + findings), #162 (Q33 hourly_pass wiring fix) — all today's earlier
+idle-run outputs, all explicitly left unmerged pending issue #157. #125 (weekly-retro,
+leave-open-for-Ryan) unchanged. None claim work this run would otherwise pick.
+
+Step 0b (stranded sweep): newest branch still `tape/hourly-20260722T1256Z` (already swept into
+PR #161) — the cloud collector's next successful DIRECT push to `main` landed at 16:01:55Z,
+after that branch, so there is nothing newer to sweep.
+
+**Milestone (independent re-verification, no new commit-worthy finding).** Reproduced issue
+#157 a 6th time from a clean sandbox: `python scripts/invariants.py --full` exits 2 with the
+same 2 `order_endpoints_confined` violations (`tests/test_polymarket_us_live.py`,
+`tests/test_ws_depth.py`) reported at 06:47Z and reconfirmed at 12:25Z and 18:26Z; `pytest`
+still panics collecting `tests/test_polymarket_us_live.py` on the same `cryptography`/
+`_cffi_backend` ABI issue. Upgrading `cryptography`/`cffi`/`websocket-client` locally (as prior
+runs did, for gate-verification only) reproduces the same 5 pre-existing `test_invariants.py`
+failures, byte-identical to every run since 06:47Z. No new violation, no regression, nothing
+resolved. Per the established restraint of the five prior runs today, did **not** apply #157's
+fix spec — item 1 (exempting the two test files) is Stop-rules-adjacent and stays Ryan's call;
+item 2 (the `cryptography`/`websocket-client` dev-dependency addition) was left bundled with it
+rather than cherry-picked, to avoid a unilateral departure from that precedent without Ryan's
+input.
+
+Ryan has already received three `Priority: high` phone notes about this exact standing blocker
+in the last ~12h (09:23Z, 12:25Z, 18:26Z), each with a plain-English explanation, with no action
+yet. A 4th identical high-priority alert would be exactly the near-duplicate-note pattern the
+2026-07-19 weekly retro (PR #125, item 1) flagged as training the eye to ignore the feed — this
+run's mandatory phone note (protocol step 8) went out at default priority instead, informational
+only.
+
+Full Q0-Q47 rescan: 0 eligible TODO/IN-PROGRESS items, matching #158-#162's same-day assessment.
+Idle-run policy fully saturated today: (a) `kb/lessons/00-lessons.md` has no row currently sitting
+at a bare `UNENFORCED` enforcement tier; (b) every time-gated item (Q36/Q37/Q43) already has a
+self-activating probe; (c) data-quality deep-dives already ran today on `universe_sweep`
+(liquidity census), the Q42 cross-venue join, and the cloud-collector cadence gap (#161); (d) Q21
+idea-gen already completed its 7th consecutive zero-registration round this morning (#156). Ran
+`scripts/tape_gap_monitor.py` for a fresh cross-family snapshot as this run's own idle-policy-(c)
+check: 7/12 families alerting (`crypto_hourly`, `hyperliquid_funding`, `orderbook_depth`,
+`perp_tape`, `polymarket_macro_pairs`, `sports_pairs`, `weather_books`) — all consistent with the
+already-root-caused intermittent cloud-collector cadence (#161's finding); no new root cause.
+
+No strategy claim, no registry change, no bootstrap CI — two-agent verdict rule N/A. `pytest` /
+`invariants --full`: same pre-existing state as every run since 06:47Z (5 `test_invariants.py`
+failures / exit 2, all attributable to #157, none introduced by this or any diff today) — this
+diff is docs-only (`kb/00-LOG.md`, `LOOP-QUEUE.md`) and touches neither flagged file. **Step 9
+(paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per Q34, paper-infra
+validation only, NOT edge evidence); `paper_pass.py` processed 0 newly-eligible events, ledger
+unchanged **+$15.05** (`broker_truth`). Still **0 proven edges**.
+
+---
+
+## 2026-07-22 14:1x ET — Idle-run: Q33 hourly-pass wiring gap found + fixed (polymarket_us_live never actually wired in); main's invariants gate still red (issue #157, 5th stacked PR)
+
+Scheduled cloud research-loop run. Step 0a/0: no history rewind (the `git fetch` "forced
+update" is the same known stale-clone packed-ref artifact 5+ prior runs today already
+diagnosed); open PRs #158/#159/#160/#161 (today's earlier idle-run outputs, all blocked on
+issue #157) + #125 (leave-open-for-Ryan) claim nothing this run would otherwise pick. Step 0b:
+newest stranded branch already swept by PR #161 — nothing new. Full Q0-Q47 re-scan: 0 eligible
+(Q47 is BUILD DONE/ACTIVATION PENDING, Ryan-key-gated). Idle-policy (a)/(b) exhausted for
+today (only remaining UNENFORCED lesson, L131, explicitly needs Ryan's call) → took (c).
+
+**Finding + fix.** `tape/polymarket_us_pairs/` still had ZERO lines 14 hours after PR #153
+(04:20Z) placed verified-live Polymarket-US Ed25519 credentials on the VPS and claimed the leg
+"self-activates on the first VPS hourly pass after this merges." Traced the cause:
+`collection/hourly_pass.py::_default_polymarket_us_pass()` called
+`polymarket_us_pairs.run(api_key=...)` directly — the OLD 2026-07-20 skeleton's own default
+discover/fetch are documented `NotImplementedError` VPS-bring-up stubs, deliberately left
+unbuilt because the real client was originally meant to be Ryan-supervised work. But PR #153
+built that real client as a fully-tested, SEPARATE module, `collection/polymarket_us_live.py`,
+with its own ready-to-use `run()` that wires the live discover/fetch through the same skeleton
+— and nothing ever pointed `hourly_pass` at it. Net effect: even with working credentials on
+the VPS, every hourly pass would silently hit the stub's `NotImplementedError` (recorded as a
+`discovery_error`, not a crash) instead of capturing real US-book tape. Fixed the one call site
+(`_default_polymarket_us_pass` now calls `polymarket_us_live.run()`, which still delegates the
+credential gate to `polymarket_us_pairs.run`, so the cloud-sandbox `blocked_key`/no-network
+contract is unchanged) + one new regression test
+(`test_polymarket_us_default_pass_delegates_to_live_module`) pinning the correct module.
+Pure collector-wiring fix — no strategy claim, no registry change, two-agent rule N/A (Q33/
+Q44/Q45/Q46 precedent). `findings/2026-07-22-q33-hourly-pass-wiring-gap.md`.
+
+**Environment note:** this sandbox's system `cryptography` (41.0.7, apt-installed) is missing
+its `_cffi_backend` C extension, so importing `cryptography.hazmat.primitives.asymmetric.ed25519`
+panics (pyo3 ABI error) — the same root cause issue #157 already flagged as "pytest cannot even
+collect `tests/test_polymarket_us_live.py`/`tests/test_ws_depth.py`." `pip install --upgrade
+cryptography cffi websocket-client` (user-level) fixed collection for this run's own
+verification; the underlying fix (declaring these as real project dependencies, not relying on
+a system package) is issue #157's own fix-spec item 2, still unapplied pending Ryan.
+
+**Gates (this diff only, in isolation).** `pytest`: 1435 passed + the same 5 pre-existing
+`test_invariants.py` failures as base `main` (stash-compared, byte-identical failure set).
+`python scripts/invariants.py --full`: exit 2, identical 2 violations to base (this diff
+touches neither of the two files issue #157 flags). **NOT merged** — `main`'s own gate is red;
+this is now the 5th unmerged PR stacked behind issue #157 (open since 06:47Z, ~14h, blocking
+every clean merge since PR #153). Added a short comment to #157 quantifying the pileup.
+
+Step 9 (paper): `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills per Q34 —
+paper-infra validation only, NOT edge evidence). No new committed tape this run →
+`paper_pass.py` idempotent, ledger unchanged **+$15.05** (`broker_truth`). Still **0 proven
+edges**.
+
+---
+
+## 2026-07-22 11:2x ET — research loop: idle-run (policy c, cloud-collector gap) + stranded-tape sweep (2,056 lines); invariants gate still red, 4th PR stacked behind #157
+
+Step 0a PASS: `origin/main` HEAD confirmed current (recent merges #148-#160-range all ancestors);
+`kb/00-LOG.md`/tape both dated 07-22, no rewind (the `git pull` forced-update this session hit is the
+now-familiar stale shallow-clone packed-ref artifact, not a rewrite — this run's local `main` ref
+turned out to be from an unrelated shallow graft entirely; reset to `origin/main` cleanly, no
+uncommitted work lost). Step 0: open PRs #158/#159/#160 (today's earlier idle-run work, all
+gate-blocked-not-merged per #157) and #125 (leave-open-for-Ryan) claim no items I'd otherwise pick;
+independently re-ran `python scripts/invariants.py --full` myself — still exit 2, byte-identical to
+`main`'s pre-existing state (`order_endpoints_confined` false-firing on `tests/test_ws_depth.py` /
+`tests/test_polymarket_us_live.py`, issue #157, unresolved). Full Q0-Q47 rescan: 0 eligible (matches
+today's four prior runs). Idle policy (a)/(b)/(d) checked and found empty/already-done today — see
+this run's own investigation: L109's "UNENFORCED" row is a red herring (already superseded by L110,
+append-only convention working as designed, not stale); the true open UNENFORCED backlog is empty
+(L131 is explicitly Ryan-gated, L136 already converted to L138 by PR #159 today). Took **(c)**.
+
+**Step 0b sweep:** newest stranded branch `tape/hourly-20260722T1256Z` (a cloud `kalshi-collector`
+attempt, self-reported `partial; universe_sweep too large`, fell back per L17) carried **2,056**
+genuinely-missing lines across 8 families (1,383 orderbook_depth, 327 sports_pairs, 290
+weather_books, 20 weather_actuals — doubling today's committed count for that daily-cadence family,
+17 perp_tape, 15 polymarket_macro_pairs, 2 crypto_hourly, 2 hyperliquid_funding); union-appended,
+0 invalid JSON.
+
+**Finding (the (c) work):** the cloud `kalshi-collector` (hourly, non-VPS) leg landed **zero
+successful commits directly to `main` for over 5 hours** (last direct push 10:06:30Z; only one
+attempt in the gap, the 12:56:32Z pass just swept in, which stranded rather than landing). VPS stayed
+healthy throughout (`855a54a`, 14:32:26Z, 43 min old at run time) — the mirror image of the L117-L129
+VPS-outage story, this time on the cloud side. `tape_gap_monitor.py`'s live under-capture alerts on
+every hourly-dual family (~0.46-0.48 ratio vs 0.8) are consistent with one collector covering for two.
+Not fixable from here (the cloud leg's cron/trigger config lives in Ryan's account, not this repo) —
+flagged for Ryan, same posture as every VPS-outage finding to date. See
+`findings/2026-07-22-cloud-collector-gap-and-stranded-sweep.md`.
+
+No strategy claim, no registry change — two-agent rule N/A. `pytest`: 1433 collected, 5 failed
+(identical pre-existing #157 set) → 1428 passing. `invariants --full`: exit 2, identical to `main`'s
+pre-existing state, diff touches neither broken file. **NOT merging** — `main`'s own gate is red (same
+posture as #158/#159/#160; this is now the 4th PR stacked behind issue #157, going on ~11h of blocked
+merges since PR #153 landed at 04:20Z). Step 9: `SHADOW_REGISTRY={s14_ladder_underwriting}`,
+`paper_pass.py` 0 newly processed (this sweep's 2 new `crypto_hourly` lines didn't add eligible
+events), ledger unchanged **+$15.05** (`broker_truth`; DEAD s14, paper-infra validation only). Still
+**0 proven edges**.
+
+---
+
+## 2026-07-22 12:2x UTC — research loop: stranded-tape sweep (2,293 lines) + independent re-confirmation that issue #157's red gate now blocks 3 PRs across ~8h
+
+Step 0a PASS (`origin/main` HEAD `01c74de`; recent merges #148-#156 confirmed ancestors by
+commit-message match; `kb/00-LOG.md` and newest tape both 07-22; the `git fetch` "forced update"
+is the same stale-clone packed-ref artifact three prior runs today already diagnosed, not a
+rewind). Claim-check: #125 (weekly-retro, leave-open) and #158/#159 (this run-cycle's own
+Q42/L136 idle-run PRs, claimed, not redone) are open — all three, plus this run's own PR, are
+stuck behind the same wall.
+
+**Step 0b sweep:** the newest stranded `tape/hourly-*` branch (`...0403Z`, ~8h old, confirmed a
+superset of the also-stranded `...0357Z` branch) carried 2,293 genuinely-missing lines across 6
+families (1,397 orderbook_depth, 530 weather_books, 332 sports_pairs, 17 perp_tape, 15
+polymarket_macro_pairs, 2 crypto_hourly) — union-appended via `comm -13` line-set diff, 0 invalid
+JSON, no reordering.
+
+**Independent re-verification of issue #157** (filed 06:47Z this run-cycle, diagnosing `main`'s
+own `invariants --full` as red since PR #153 merged): re-ran both gates fresh from a clean
+`pip install -e ".[dev,analysis]"` sandbox. `invariants --full` still exits 2 — byte-identical to
+#157's original diagnosis (2 `order_endpoints_confined` violations: auth-header literals in
+`tests/test_polymarket_us_live.py`/`tests/test_ws_depth.py`, never exempted when PR #153 exempted
+their source files). `pytest` fails the same 5 `test_invariants.py` tests (all downstream of the
+2 violations), plus 2 files fail to *collect* for a missing `cryptography` dependency — matching
+#157's description exactly. Confirmed pre-existing/unrelated to any of today's diffs: stashed
+this run's own tape changes and reran — identical failure set with or without the stash.
+
+**Pileup:** three PRs now sit open, individually green, unable to merge per LOOP-QUEUE.md step 6
+("if gates are red, leave the PR open") — #158 (06:47Z, Q42 join un-freeze), #159 (09:23Z, L136
+tolerant ISO parser), and this run's own (tape sweep + this escalation). None of the three touch
+the two broken files; the block is entirely inherited from `main`'s own state.
+
+**Not fixed, on purpose** — same restraint #157/#158/#159 already exercised: `inv_order_endpoints_confined`
+is a Stop-rules-adjacent safety invariant, and lesson L131 explicitly flagged this exact collision
+risk and said never relax it silently. #157's own body already carries a ready-to-apply fix spec
+(exempt the two test files; add `cryptography`+`websocket-client` to dev deps); that stays a
+Ryan decision, not re-litigated a third time by this run. Added a comment to issue #157
+quantifying the now-3-PR pileup so the next firing (or Ryan) doesn't have to re-derive it. See
+`findings/2026-07-22-invariants-gate-red-blocks-3-runs.md`.
+
+No strategy claim, no registry change, no bootstrap CI — two-agent verdict rule N/A (ops/pipeline
+confirmation, same tier as the VPS-outage diagnosis entries). `pytest`: full suite green except
+the 5 pre-existing failures (confirmed identical to base main). `invariants --full`: exit 2,
+pre-existing/unrelated. Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} only, `paper_pass.py`
+idempotent (0 newly processed by this run's swept tape), ledger unchanged **+$15.05**
+(`broker_truth`; s14 DEAD-at-real-fills per Q34, paper-infra validation only, NOT edge evidence).
+Still **0 proven edges**.
+
+**Next:** merge #158, #159, and this run's PR (in that order) the moment issue #157 resolves —
+no further research-loop action needed on them until then.
+
+---
+
+## 2026-07-22 05:2x ET — idle-run (policy a): L136 → L138, sanctioned tolerant ISO-timestamp parser
+
+Step 0a (history-integrity): **PASS.** `origin/main` HEAD `d76d672`; recent merged PRs (#149-#156)
+all confirmed ancestors; `kb/00-LOG.md`'s newest entry and the newest committed `tape/*/dt=*` file
+both dated 2026-07-22 — no rewind.
+
+Step 0 (claim-check): two open PRs. **#125** (weekly-retro, leave-open-for-Ryan — untouched, per
+every prior run). **#158** (this run-cycle's own Q42 join un-freeze, idle-run policy (c)) claims
+Q42 — skipped, not redone. #158's body also surfaced a live blocker worth restating here:
+**`python scripts/invariants.py --full` on current `main` exits 2** (`inv_order_endpoints_confined`
+false-firing on two of PR #153's test files, `tests/test_polymarket_us_live.py` /
+`tests/test_ws_depth.py` — tracked in GitHub issue #157, opened by the prior firing). Reproduced
+independently this run: identical 2 violations on untouched `main`. #157's own ready-to-apply fix
+spec was deliberately left unapplied by the prior run ("a Stop-rules-adjacent safety invariant...
+that's a call for Ryan, not a cloud loop") — this run respects that same judgment and does not
+touch `inv_order_endpoints_confined` either. Net effect: **every PR merge is currently blocked**
+until Ryan settles #157's policy call (sanction `ws_depth.py`'s test files in the exemption tuple,
+mirroring the existing `scripts/kalshi_sign.py` precedent, vs. relocate the signer into
+`execution/kalshi_client.py`).
+
+Full Q0-Q47 re-scan: 0 eligible TODO/IN-PROGRESS (unchanged from every recent firing — all
+DONE/DEAD/BLOCKED/GATED/monitoring-only). → **IDLE RUN**, idle-policy (a) (convert an UNENFORCED
+lesson into an invariant/test) — first-priority per LOOP-QUEUE.md v3, and there was a genuinely
+open, safely-fixable candidate: **L131** (the `inv_order_endpoints_confined`/`ws_depth.py`
+collision, i.e. issue #157 itself) is UNENFORCED but explicitly requires Ryan's policy call —
+correctly skipped, not redone. **L136** (Python 3.9's `datetime.fromisoformat` rejects
+single-digit fractional-second timestamps, e.g. Kalshi's `...:04.7Z` — live symptom
+`tests/test_s17_leadlag_probe.py` failing under 3.9) has a concrete, safe, Stop-rules-neutral
+candidate and was the next lowest-open row.
+
+**Built:** `core/timeutil.py` already had the tolerant parser (`_parse_iso`, built for
+`parse_kalshi_ts`) but no public entry point for a standalone ISO string. Added
+`core.timeutil.parse_iso_utc(s)` as the sanctioned public wrapper; repointed
+`scripts/s17_leadlag_probe.py`'s two raw `datetime.fromisoformat` call sites
+(`parse_capture_time`, `parse_window_bound`) at it. This sandbox runs Python 3.11 (where
+`fromisoformat` already tolerates short fractions), so the exact 3.9 failure couldn't be
+re-triggered live here — verified by construction instead: the fraction is zero-padded to 6
+digits and `Z`→`+00:00` mapped *before* `fromisoformat` ever sees the string, so the input is
+byte-identical across Python versions. 9 new regression tests pin the exact L136 malformed-input
+shape end-to-end. New lesson **L138** supersedes L136's enforcement column (`UNENFORCED` →
+`test`). Left explicitly out of scope: ~30 other files (`collection/`, other `scripts/`) still
+call `datetime.fromisoformat` directly — not migrated, flagged as L138's own residue for a future
+pass. See `findings/2026-07-22-l136-tolerant-iso-parser.md`.
+
+No strategy claim, no registry change, no `execution/` code, no credentials, no network in test
+paths — two-agent verdict rule N/A (non-gating test/lesson-tier change, same precedent as
+L108/L112/L116/L118/L121/L122/L124/L126).
+
+**Gates.** `pytest tests/test_timeutil.py tests/test_s17_leadlag_probe.py`: all green (9 new).
+Full suite (excluding the two pre-existing-broken files, `cryptography`/pyo3 ABI panic, issue
+#157): green, byte-identical failure set to `main` before this change (verified via
+`git stash`/compare). `python scripts/invariants.py --full`: exit 2, but identical 2 violations
+to `main` — this diff touches neither flagged file. **Not merging** — main's own gate is red
+(issue #157), per LOOP-QUEUE.md step 6, same posture as PR #158 this cycle. PR opened, left open.
+
+Step 9 (paper sub-pass): `SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD-at-real-fills per Q34
+— paper-infra validation only, not edge evidence). No new committed tape this run (docs/code/test
+diff only) → `paper_pass.py` idempotent, ledger unchanged, **+$15.05** (`broker_truth`). Still
+**0 proven edges** repo-wide.
+
+Housekeeping: pytest incidentally live-captured `tape/anomalies`/`tape/econ_prints` lines during
+the 09-UTC-hour env-setup window (a live-network test in the suite fires opportunistically when
+the hour matches) — left untracked/uncommitted, matching the 2026-07-21T09:2xZ run's precedent
+("excluded from this commit"); will be picked up by a future stranded/hourly sweep.
+
+---
+
+## 2026-07-22 06:3x UTC — research loop: Q42 cross-venue join UN-FROZEN (backfill-only consumer freeze, 130→146 windows) + PR#153 gate-red escalated
+
+Idle run (policy c — joinability deep-dive; policy (a) UNENFORCED backlog empty since L128, (b) Q36/Q37/Q43 probes already self-activating). Investigating L127's flagged `hyperliquid_funding` freeze, found the state had changed: PR #153 (L134) wired an incremental HL refresh that healed the 07-17→07-22 gap. **But the Q42 cross-venue join still returned 130 windows/asset** — because `scripts/q42_crossvenue_funding_join.py::collect_kalshi_prints` reads `mode="backfill"` ONLY, silently ignoring the 73 ongoing `recent`-mode finalized-print captures (perp_tape's Kalshi prints reach 07-22T04:00 in raw committed tape; only the 1 one-shot backfill record was read). This is the **consumer-side mirror of L127's collection-side freeze**, and it corrects L134's own PR-#153 smoke ("130/130 windows joined, 0 partial-excluded"), which read the frozen count as healthy.
+
+**Fix:** read BOTH `backfill`+`recent` modes deduped on `(ticker, funding_time)` — join extends **130→146 windows/asset** (span 06-03T20:00→07-22T04:00, 0 partial-excluded), un-frozen forward. `mode="backfill"` semantics unchanged (existing unit test still green). New regression test `test_collect_kalshi_both_modes_included_and_cross_mode_dedup`. Re-characterized differential (`broker_truth`): BTC mean +0.30 bp/8h (regime-dependent — low-|HL| & HL-negative terciles negative), ETH +0.80 bp/8h — qualitatively unchanged from part 2 (regime-dependent basis, not a harvest). **NOT a P&L verdict, no registry change** (Q42 is a research item; part 3 still BLOCKED(needs-auth)). Headline 130→146 count redundantly recomputed independently (per L119). Two-agent verifier rule N/A (no registry flip / bootstrap CI / kill). Lesson **L137** (test). See `findings/2026-07-22-q42-crossvenue-join-recent-mode-unfreeze.md`.
+
+**GATE / OPS FLAG (Priority: high) — pre-existing, NOT introduced here:** `main` (`66f4d57`) is RED from PR #153 (base==branch failure sets, byte-identical). (1) `scripts/invariants.py --full` exits 2 — `inv_order_endpoints_confined` (a Stop-rules safety invariant) false-fires on `tests/test_ws_depth.py`; this is exactly the collision **L131** documented and predicted ("MUST be settled before ws_depth.py merges or the gate breaks") — now materialized via PR #153, cascading into `test_invariants.py::test_real_tree_is_green` + 4 `*_never_gates_exit_code` failures. (2) `pytest` cannot collect `tests/test_polymarket_us_live.py` / run `tests/test_ws_depth.py` — a pyo3/`_cffi_backend` `cryptography` ABI panic (the deferred pyproject dep). This run did NOT modify the safety invariant (working-agreement discipline — safety-surface fixes are Ryan's). Ready-to-apply fix spec (exempt `tests/test_ws_depth.py` mirroring `scripts/kalshi_sign.py`; add `cryptography`/`websocket-client` to dev deps or skip-guard the two tests) in the finding. The Q42 fix is green-in-isolation (10/10 q42 tests pass, zero new failures); PR left for merge AFTER the pre-existing red is resolved.
+
+Step 9 paper: `SHADOW_REGISTRY`={s14_ladder_underwriting} only; `paper_pass.py` deterministic no-op (0 processed, 93 already-in-ledger, rest deferred caps/coverage — no new tape produced new fills, ledger unchanged). `daily_summary`: `paper: 0 open position(s), 741 settled contract(s), realized P&L $+15.05, cash $+15.05, open notional $0.00` (`broker_truth`; s14 DEAD-at-real-fills per Q34 — paper-infra validation only, NOT edge evidence). Still **0 proven edges.**
+
+Branch `research/2026-07-22-q42-join-recent-mode-unfreeze`.
+
+---
 
 ## 2026-07-22 04:1x UTC — kalshi-edge-hunter: review PASS + Q21 idea-gen round (S46/S47 both DEAD, 0 registered — 7th zero round); the binding constraint is the data surface, not idea capacity
 

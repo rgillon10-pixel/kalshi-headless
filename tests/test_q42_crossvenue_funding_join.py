@@ -89,6 +89,24 @@ def test_collect_kalshi_filters_dedups():
     assert len(out) == 2                        # the recent-mode 0.0005 print is excluded
 
 
+def test_collect_kalshi_both_modes_included_and_cross_mode_dedup():
+    """L137: the real run must read BOTH backfill (one-shot dump) AND recent (ongoing
+    finalized prints); a (ticker, funding_time) seen in BOTH modes is deduped once."""
+    recs = [
+        _kalshi_record([_kprint("KXBTCPERP", "2026-06-03T20:00:00Z", 0.0)], mode="backfill"),
+        _kalshi_record([
+            _kprint("KXBTCPERP", "2026-06-03T20:00:00Z", 0.0),        # cross-mode dup -> dropped
+            _kprint("KXBTCPERP", "2026-07-22T04:00:00Z", 0.0005),     # NEW recent-only window
+        ], mode="recent"),
+    ]
+    out = J.collect_kalshi_prints(recs, ["KXBTCPERP"], mode=("backfill", "recent"))
+    fts = sorted(p["funding_time"] for p in out)
+    assert fts == ["2026-06-03T20:00:00Z", "2026-07-22T04:00:00Z"]   # both modes, dup deduped
+    # backfill-only would have frozen the join at the single 06-03 window:
+    bf_only = J.collect_kalshi_prints(recs, ["KXBTCPERP"], mode="backfill")
+    assert [p["funding_time"] for p in bf_only] == ["2026-06-03T20:00:00Z"]
+
+
 def test_collect_hl_dedups_and_skips_none():
     recs = [_hl_record("BTC", [
         {"coin": "BTC", "time_ms": 1780444800000, "funding_rate": 0.0000125},

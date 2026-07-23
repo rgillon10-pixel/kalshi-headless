@@ -59,6 +59,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.io import REPO_ROOT
 from core.pricing import TAKER_FEE_RATE, fee_per_contract
+from core.timeutil import parse_iso_utc
 
 TAPE_DIR = REPO_ROOT / "tape" / "polymarket_macro_pairs"
 CPI_TAPE_DIR = REPO_ROOT / "tape" / "polymarket_cpi_pairs"
@@ -301,8 +302,7 @@ def parse_capture_time(record: Dict[str, Any]) -> Optional[datetime]:
     captured_at = record.get("captured_at")
     if isinstance(captured_at, str):
         try:
-            dt = datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
-            return dt.astimezone(timezone.utc)
+            return parse_iso_utc(captured_at)
         except ValueError:
             pass
     cid = record.get("capture_id")
@@ -318,7 +318,7 @@ def parse_capture_time(record: Dict[str, Any]) -> Optional[datetime]:
 
 def parse_window_bound(text: str) -> datetime:
     """Parse a CLI window bound (ISO 8601, e.g. 2026-07-14T12:05:00Z) to aware UTC."""
-    return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return parse_iso_utc(text)
 
 
 def filter_burst_window(records: Sequence[Dict[str, Any]], start: datetime,
