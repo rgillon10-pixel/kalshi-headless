@@ -20,6 +20,73 @@ Branch `research/2026-07-22-q42-join-recent-mode-unfreeze`.
 
 ---
 
+## 2026-07-22 05:2x ET — idle-run (policy a): L136 → L138, sanctioned tolerant ISO-timestamp parser
+
+Step 0a (history-integrity): **PASS.** `origin/main` HEAD `d76d672`; recent merged PRs (#149-#156)
+all confirmed ancestors; `kb/00-LOG.md`'s newest entry and the newest committed `tape/*/dt=*` file
+both dated 2026-07-22 — no rewind.
+
+Step 0 (claim-check): two open PRs. **#125** (weekly-retro, leave-open-for-Ryan — untouched, per
+every prior run). **#158** (this run-cycle's own Q42 join un-freeze, idle-run policy (c)) claims
+Q42 — skipped, not redone. #158's body also surfaced a live blocker worth restating here:
+**`python scripts/invariants.py --full` on current `main` exits 2** (`inv_order_endpoints_confined`
+false-firing on two of PR #153's test files, `tests/test_polymarket_us_live.py` /
+`tests/test_ws_depth.py` — tracked in GitHub issue #157, opened by the prior firing). Reproduced
+independently this run: identical 2 violations on untouched `main`. #157's own ready-to-apply fix
+spec was deliberately left unapplied by the prior run ("a Stop-rules-adjacent safety invariant...
+that's a call for Ryan, not a cloud loop") — this run respects that same judgment and does not
+touch `inv_order_endpoints_confined` either. Net effect: **every PR merge is currently blocked**
+until Ryan settles #157's policy call (sanction `ws_depth.py`'s test files in the exemption tuple,
+mirroring the existing `scripts/kalshi_sign.py` precedent, vs. relocate the signer into
+`execution/kalshi_client.py`).
+
+Full Q0-Q47 re-scan: 0 eligible TODO/IN-PROGRESS (unchanged from every recent firing — all
+DONE/DEAD/BLOCKED/GATED/monitoring-only). → **IDLE RUN**, idle-policy (a) (convert an UNENFORCED
+lesson into an invariant/test) — first-priority per LOOP-QUEUE.md v3, and there was a genuinely
+open, safely-fixable candidate: **L131** (the `inv_order_endpoints_confined`/`ws_depth.py`
+collision, i.e. issue #157 itself) is UNENFORCED but explicitly requires Ryan's policy call —
+correctly skipped, not redone. **L136** (Python 3.9's `datetime.fromisoformat` rejects
+single-digit fractional-second timestamps, e.g. Kalshi's `...:04.7Z` — live symptom
+`tests/test_s17_leadlag_probe.py` failing under 3.9) has a concrete, safe, Stop-rules-neutral
+candidate and was the next lowest-open row.
+
+**Built:** `core/timeutil.py` already had the tolerant parser (`_parse_iso`, built for
+`parse_kalshi_ts`) but no public entry point for a standalone ISO string. Added
+`core.timeutil.parse_iso_utc(s)` as the sanctioned public wrapper; repointed
+`scripts/s17_leadlag_probe.py`'s two raw `datetime.fromisoformat` call sites
+(`parse_capture_time`, `parse_window_bound`) at it. This sandbox runs Python 3.11 (where
+`fromisoformat` already tolerates short fractions), so the exact 3.9 failure couldn't be
+re-triggered live here — verified by construction instead: the fraction is zero-padded to 6
+digits and `Z`→`+00:00` mapped *before* `fromisoformat` ever sees the string, so the input is
+byte-identical across Python versions. 9 new regression tests pin the exact L136 malformed-input
+shape end-to-end. New lesson **L138** supersedes L136's enforcement column (`UNENFORCED` →
+`test`). Left explicitly out of scope: ~30 other files (`collection/`, other `scripts/`) still
+call `datetime.fromisoformat` directly — not migrated, flagged as L138's own residue for a future
+pass. See `findings/2026-07-22-l136-tolerant-iso-parser.md`.
+
+No strategy claim, no registry change, no `execution/` code, no credentials, no network in test
+paths — two-agent verdict rule N/A (non-gating test/lesson-tier change, same precedent as
+L108/L112/L116/L118/L121/L122/L124/L126).
+
+**Gates.** `pytest tests/test_timeutil.py tests/test_s17_leadlag_probe.py`: all green (9 new).
+Full suite (excluding the two pre-existing-broken files, `cryptography`/pyo3 ABI panic, issue
+#157): green, byte-identical failure set to `main` before this change (verified via
+`git stash`/compare). `python scripts/invariants.py --full`: exit 2, but identical 2 violations
+to `main` — this diff touches neither flagged file. **Not merging** — main's own gate is red
+(issue #157), per LOOP-QUEUE.md step 6, same posture as PR #158 this cycle. PR opened, left open.
+
+Step 9 (paper sub-pass): `SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD-at-real-fills per Q34
+— paper-infra validation only, not edge evidence). No new committed tape this run (docs/code/test
+diff only) → `paper_pass.py` idempotent, ledger unchanged, **+$15.05** (`broker_truth`). Still
+**0 proven edges** repo-wide.
+
+Housekeeping: pytest incidentally live-captured `tape/anomalies`/`tape/econ_prints` lines during
+the 09-UTC-hour env-setup window (a live-network test in the suite fires opportunistically when
+the hour matches) — left untracked/uncommitted, matching the 2026-07-21T09:2xZ run's precedent
+("excluded from this commit"); will be picked up by a future stranded/hourly sweep.
+
+---
+
 ## 2026-07-23 04:1x UTC — kalshi-edge-hunter: review PASS (#169 sound) + main gate GREEN again (#157 resolved) + Q43 gate OPEN-but-density-gated + Q21 round #8 (S48 verifier-killed / S49 DEAD-at-idea, 0 registered)
 
 Step 0a (history-integrity): **PASS.** Fresh-clone `git pull` reported a forced-update
@@ -101,6 +168,8 @@ kill is an idea-stage two-agent gate, not a registry change). **Step 9 (paper su
 `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills per Q34 — paper-infra validation
 only, NOT edge evidence); `paper_pass.py` idempotent this run (no new eligible tape since the last
 sub-pass), realized ledger P&L unchanged **+$15.15** (`broker_truth`). Still **0 proven edges.**
+
+---
 
 ## 2026-07-22 04:1x UTC — kalshi-edge-hunter: review PASS + Q21 idea-gen round (S46/S47 both DEAD, 0 registered — 7th zero round); the binding constraint is the data surface, not idea capacity
 

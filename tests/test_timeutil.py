@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from core.timeutil import (is_coarse_close_time, is_genuine_post_close,
                            parse_crypto_hour_token_close_utc,
+                           parse_iso_utc, parse_kalshi_ts,
                            parse_sports_ticker_hhmm_as_utc)
 
 UTC = timezone.utc
@@ -133,3 +134,56 @@ def test_is_genuine_post_close_custom_margins():
                                  max_game_duration_hours=1.0) is True
     assert is_genuine_post_close(captured, close, tz_uncertainty_hours=13.0,
                                  max_game_duration_hours=6.0) is False
+
+
+# kb/lessons L136: Python 3.9's datetime.fromisoformat rejects fractional-second
+# precision that isn't exactly 3 or 6 digits (e.g. Kalshi's trailing-zero-stripped
+# '...:04.7Z'), and raises on a trailing 'Z' at all. parse_iso_utc is the sanctioned,
+# version-portable replacement for calling datetime.fromisoformat directly on a raw
+# ISO-8601 string. Live symptom this closes: scripts/s17_leadlag_probe.py under 3.9.
+
+def test_parse_iso_utc_single_digit_fraction():
+    # the exact shape that breaks Python 3.9's fromisoformat (needs 3 or 6 digits)
+    dt = parse_iso_utc("2026-07-14T12:05:03.5+00:00")
+    assert dt == datetime(2026, 7, 14, 12, 5, 3, 500000, tzinfo=UTC)
+
+
+def test_parse_iso_utc_trailing_z_with_short_fraction():
+    dt = parse_iso_utc("2026-07-07T00:57:04.7Z")
+    assert dt == datetime(2026, 7, 7, 0, 57, 4, 700000, tzinfo=UTC)
+    assert dt.tzinfo is not None
+    assert dt.utcoffset().total_seconds() == 0
+
+
+def test_parse_iso_utc_no_fraction():
+    dt = parse_iso_utc("2026-07-14T12:05:00Z")
+    assert dt == datetime(2026, 7, 14, 12, 5, 0, tzinfo=UTC)
+
+
+def test_parse_iso_utc_full_microseconds_unchanged():
+    dt = parse_iso_utc("2026-07-14T12:05:03.274300Z")
+    assert dt == datetime(2026, 7, 14, 12, 5, 3, 274300, tzinfo=UTC)
+
+
+def test_parse_iso_utc_naive_string_assumed_utc():
+    dt = parse_iso_utc("2026-07-14T12:05:00")
+    assert dt == datetime(2026, 7, 14, 12, 5, 0, tzinfo=UTC)
+
+
+def test_parse_iso_utc_non_utc_offset_converted():
+    dt = parse_iso_utc("2026-07-14T08:05:00-04:00")
+    assert dt == datetime(2026, 7, 14, 12, 5, 0, tzinfo=UTC)
+
+
+def test_parse_iso_utc_bad_string_raises_valueerror():
+    import pytest
+    with pytest.raises(ValueError):
+        parse_iso_utc("not-a-timestamp")
+
+
+def test_parse_kalshi_ts_iso_path_tolerates_short_fraction():
+    # parse_kalshi_ts's ISO branch already routes through the same helper —
+    # confirms the fix covers both call shapes.
+    dt, unit = parse_kalshi_ts("2026-07-07T00:57:04.7Z")
+    assert unit == "iso8601"
+    assert dt == datetime(2026, 7, 7, 0, 57, 4, 700000, tzinfo=UTC)
