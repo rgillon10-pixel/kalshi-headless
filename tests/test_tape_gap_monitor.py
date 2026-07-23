@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -762,7 +762,15 @@ def test_acceptance_9_l139_anomalies_was_a_monitoring_blind_spot():
     proves the registration both (a) makes the family visible in the report and (b) does
     not false-alarm on its current healthy state, anchored just after its real last
     capture."""
-    now = _dt(2026, 7, 22, 12, 0)
+    # L140: anchor `now` to the tape's OWN newest anomalies capture, not a hardcoded
+    # calendar date. `anomalies` is a healthy daily-growing family; the original
+    # hardcoded now=2026-07-22T12:00 assumed the newest committed capture stays frozen,
+    # which silently flips red the instant a routine fresh capture lands (it did, on
+    # 2026-07-23) — the real-tape-anchored-`now` time-bomb L140 records. Probing with a
+    # far-future `now` reads the true newest capture regardless of when it is.
+    newest = tgm._parse_iso(
+        tgm.build_report(_REAL_TAPE, _dt(2999, 1, 1))["anomalies"]["last_captured_at"])
+    now = newest + timedelta(hours=2)
     report = tgm.build_report(_REAL_TAPE, now)
     assert "anomalies" in report
     r = report["anomalies"]
@@ -778,7 +786,13 @@ def test_acceptance_10_l139_anomalies_would_be_caught_if_it_ever_froze():
     cross the STALE threshold (2 x 24h = 48h), the monitor now actually pages, closing the
     exact blind spot that let `settlement_ledger` (L123) and `weather_actuals` (L126) each
     freeze silently for days before anyone noticed by hand."""
-    now = _dt(2026, 7, 24, 12, 0)
+    # L140: derive `now` from the real tape's own newest anomalies capture + just past
+    # the 2x24h STALE threshold, so this proves the registration is load-bearing whatever
+    # the newest committed capture happens to be. A hardcoded now=2026-07-24T12:00 broke
+    # on 2026-07-23 when a fresh healthy capture pushed age below 48h (alert flipped off).
+    newest = tgm._parse_iso(
+        tgm.build_report(_REAL_TAPE, _dt(2999, 1, 1))["anomalies"]["last_captured_at"])
+    now = newest + timedelta(hours=49)
     r = tgm.build_report(_REAL_TAPE, now)["anomalies"]
     assert r["alert"] is True, r
     assert "stale" in r["alert_reason"], r["alert_reason"]

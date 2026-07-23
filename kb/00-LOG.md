@@ -6,6 +6,46 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-23 09:xx UTC — research loop: repaired the L139 real-tape acceptance time-bomb (L140)
+
+**What this run is.** Idle run — full Q0-Q47 re-scan found 0 eligible TODO/IN-PROGRESS items
+(all strategy items DONE/DEAD; Q36/Q43 data-gated, Q32/Q33/Q35-build/Q42-part3 auth-blocked,
+Q47 Ryan-gated); no open PR (#125/#165/#166) claims eligible work. Step 0a/0b: history-integrity
+PASS (a "main rewound" false alarm from this container's shallow clone resolved by deepening the
+fetch — 69a3d3f confirmed an ancestor of `origin/main` once un-truncated); stranded
+`tape/hourly-20260723T0715Z` swept (1,368 genuinely-new lines across crypto_hourly,
+hyperliquid_funding, orderbook_depth, perp_tape, polymarket_macro_pairs, sports_pairs, all
+dt=2026-07-23, every line validated as parseable JSON before commit; `tape/hourly-20260723T0359Z`
+independently checked — 0 new lines, already fully merged).
+
+**The forced milestone.** Establishing the baseline gate surfaced a RED pytest:
+`tests/test_tape_gap_monitor.py::test_acceptance_10_l139_anomalies_would_be_caught_if_it_ever_froze`
+— added earlier the same day by L139 — hardcoded `now=2026-07-24T12:00` against the assumption
+that the newest committed `anomalies` capture stays frozen at 2026-07-22T10:05:33Z. `anomalies` is
+a healthy, daily-growing family; a live collector pass on this box wrote
+`tape/anomalies/dt=2026-07-23.jsonl` mid-run (newest capture advanced 09:18:03Z → 09:29:59Z within
+this one run), dropping age to 26.5h < the 48h STALE threshold, so the monitor correctly did NOT
+alert and the test's `assert alert is True` failed. A born-broken time-bomb: any routine fresh
+capture on this family would flip the gate red for every subsequent run.
+
+**The fix.** Re-anchored both L139 acceptance tests (`_9` fresh-must-not-alarm, `_10`
+stale-must-page) to the tape's OWN newest capture, probed at test time via
+`build_report(_REAL_TAPE, far-future-date)["anomalies"]["last_captured_at"]`, then
+`now = newest + 49h` (stale) / `newest + 2h` (fresh). Guarantees unchanged; the anchor now tracks
+reality instead of a calendar date. Independently re-derived: reproduced the RED failure under the
+old hardcoded `now`; confirmed the fix pages when stale (`alert=True`, age 49.0h) and stays quiet
+when fresh (`alert=False`, age 2.0h); proved robustness by appending an even-fresher synthetic line
+and confirming the anchor recomputes and both guarantees still hold. New lesson **L140**.
+
+**Scope/tags.** Tests-only, +17/−3, one file (`tests/test_tape_gap_monitor.py`). No collector, no
+strategy, no registry change; the monitor logic itself was already correct. Two-agent verdict rule
+N/A (test-integrity fix, not a verdict-class change — no registry flip, no bootstrap CI, no kill
+decision). `pytest` 1502 passed; `python scripts/invariants.py --full` exit 0 (only pre-existing
+non-gating advisories: 2 known stranded tape refs, 4 directory-shaped `dt`, 8 daily-cadence missing
+days). Still 0 proven edges.
+
+---
+
 ## 2026-07-23 08:xx UTC — research loop: drained the 8-PR backlog stacked behind issue #157 (#158/#159/#160/#161/#162/#163/#164/#167)
 
 **What this run is.** The prior kalshi-edge-hunter nightly run (04:1x UTC entry below) found
