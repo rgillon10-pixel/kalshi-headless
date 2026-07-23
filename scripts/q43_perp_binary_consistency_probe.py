@@ -81,6 +81,14 @@ CRYPTO_GLOB = str(REPO_ROOT / "tape" / "crypto_hourly" / "dt=*.jsonl")
 # ── the self-activation gate: Q43 is GATED on >=7 forward days of perp_tape coverage ──
 PERP_DAYS_REQUIRED = 7
 
+# ── advisory-only density floor (2026-07-23, idle-run policy (b) follow-up). Day-COUNT alone
+# doesn't mean day-QUALITY (Q36's "calendar-gate-open != data-adequate" lesson) — perp_tape's
+# per-day distinct-capture count has swung 31/15/6/7/9/23 across 07-17..07-22 (L127's VPS-death
+# degradation, partially recovered). This floor never blocks the gate (PERP_DAYS_REQUIRED is
+# still the only hard gate) — it just travels an honest density readout with every report so a
+# thin window doesn't get silently mistaken for a healthy one the day PERP_DAYS_REQUIRED flips.
+MIN_CAPTURES_PER_DAY_ADVISORY = 10
+
 # ── binaries settle on BTC/ETH; the perp covers 13 symbols. Joinable set = the intersection. ──
 BINARY_SYMBOLS = ("BTC", "ETH")
 
@@ -101,6 +109,31 @@ def _perp_days_available(perp_glob: str = PERP_GLOB) -> int:
     behind `>= PERP_DAYS_REQUIRED` of these — below it the probe prints INSUFFICIENT DATA and
     exits 0 rather than fabricate a bootstrap from too few days."""
     return len(glob.glob(perp_glob))
+
+
+def _perp_capture_density(perp_glob: str = PERP_GLOB) -> Dict[str, int]:
+    """Distinct capture count per `dt=` day-file (keyed on `captured_at`, falling back to
+    `capture_id` when a record carries no timestamp). Advisory only — reported alongside the
+    day-count gate so a thin day (few captures) isn't mistaken for a healthy one just because
+    its file exists. Returns `{day_key: distinct_capture_count}`, sorted by day."""
+    density: Dict[str, int] = {}
+    for path in sorted(glob.glob(perp_glob)):
+        day_key = Path(path).stem  # "dt=2026-07-17"
+        seen = set()
+        for line in _iter_lines(path):
+            rec = _loads(line)
+            if rec is None:
+                continue
+            key = rec.get("captured_at") or rec.get("capture_id")
+            if key is not None:
+                seen.add(key)
+        density[day_key] = len(seen)
+    return density
+
+
+def _thin_days(density: Dict[str, int], floor: int = MIN_CAPTURES_PER_DAY_ADVISORY) -> List[str]:
+    """Day keys whose distinct-capture count falls below the advisory floor."""
+    return [day for day, n in density.items() if n < floor]
 
 
 # --------------------------------------------------------------------------- #
@@ -618,9 +651,14 @@ def run_probe(perp_glob: str = PERP_GLOB, crypto_glob: str = CRYPTO_GLOB) -> Dic
     """End-to-end, read-only. Gated: below `PERP_DAYS_REQUIRED` forward days of perp_tape it
     returns an INSUFFICIENT DATA status and runs NO analysis (no bootstrap, no CI, no verdict)."""
     perp_days = _perp_days_available(perp_glob)
+    density = _perp_capture_density(perp_glob)
+    thin = _thin_days(density)
     report: Dict[str, Any] = {
         "perp_days_available": perp_days,
         "perp_days_required": PERP_DAYS_REQUIRED,
+        "capture_density_by_day": density,
+        "thin_days": thin,
+        "min_captures_per_day_advisory": MIN_CAPTURES_PER_DAY_ADVISORY,
     }
     if perp_days < PERP_DAYS_REQUIRED:
         report["status"] = "INSUFFICIENT DATA"
@@ -638,6 +676,12 @@ def run_probe(perp_glob: str = PERP_GLOB, crypto_glob: str = CRYPTO_GLOB) -> Dic
         "PREP-class descriptive analysis, NOT a verdict: lead-lag rho + coherence run counts are "
         "reported; a positive/negative call requires the block-bootstrap-by-market-hour CI, the "
         "tick-magnitude + admissibility gates, and the two-agent rule — none run here.")
+    if thin:
+        report["note"] += (
+            f" CAVEAT: {len(thin)}/{perp_days} day(s) fall below the "
+            f"{MIN_CAPTURES_PER_DAY_ADVISORY}-capture/day advisory floor ({sorted(thin)}) — "
+            "calendar-gate-open does not mean data-adequate (Q36's lesson); any future bootstrap "
+            "CI should weight or exclude thin days rather than trust the day-count alone.")
     report["n_perp_bbo"] = len(perp_bbo)
     report["n_binary_snaps"] = len(binary_snaps)
     report["join_meta"] = join_meta
@@ -661,6 +705,12 @@ def print_report(rep: Dict[str, Any]) -> None:
     print("=" * 90)
     print(f"perp_tape forward days: {rep['perp_days_available']} "
           f"(gate opens at {rep['perp_days_required']})")
+    density = rep.get("capture_density_by_day") or {}
+    if density:
+        by_day = ", ".join(f"{d}={n}" for d, n in sorted(density.items()))
+        print(f"capture density/day (advisory floor {rep['min_captures_per_day_advisory']}): {by_day}")
+        if rep.get("thin_days"):
+            print(f"  THIN DAYS (below advisory floor): {sorted(rep['thin_days'])}")
 
     if rep.get("status") == "INSUFFICIENT DATA":
         print("\nINSUFFICIENT DATA — " + rep["reason"])

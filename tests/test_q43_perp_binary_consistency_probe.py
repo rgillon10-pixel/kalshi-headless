@@ -16,7 +16,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.q43_perp_binary_consistency_probe import (
+    MIN_CAPTURES_PER_DAY_ADVISORY,
     PERP_DAYS_REQUIRED,
+    _perp_capture_density,
+    _thin_days,
     binary_implied_level,
     build_coherence_runs,
     classify_member,
@@ -91,6 +94,36 @@ def test_insufficient_data_path(tmp_path):
     assert rep["perp_days_available"] == 4
     assert rep["perp_days_required"] == PERP_DAYS_REQUIRED
     assert "lead_lag" not in rep and "coherence" not in rep
+    # capture-density readout travels even below the day-count gate (2026-07-23 follow-up)
+    assert rep["min_captures_per_day_advisory"] == MIN_CAPTURES_PER_DAY_ADVISORY
+    assert set(rep["capture_density_by_day"]) == {f"dt=2026-07-{17 + i}" for i in range(4)}
+    # fixture records carry no captured_at/capture_id -> density 0, all days thin
+    assert all(n == 0 for n in rep["capture_density_by_day"].values())
+    assert sorted(rep["thin_days"]) == sorted(rep["capture_density_by_day"])
+
+
+# --------------------------------------------------------------------------- #
+# (A2) capture-density advisory floor (2026-07-23, idle-run policy (b) follow-up)
+# --------------------------------------------------------------------------- #
+def test_perp_capture_density_counts_distinct_captures(tmp_path):
+    """Density is per-DAY distinct `captured_at` count, not line count — duplicate/append-only
+    re-writes of the same capture must not inflate the density read."""
+    perp_dir = tmp_path / "perp"
+    perp_dir.mkdir()
+    _write_jsonl(perp_dir / "dt=2026-07-17.jsonl", [
+        {"record_type": "markets", "captured_at": "2026-07-17T00:00:00+00:00"},
+        {"record_type": "markets", "captured_at": "2026-07-17T00:00:00+00:00"},  # dup capture
+        {"record_type": "markets", "captured_at": "2026-07-17T01:00:00+00:00"},
+    ])
+    _write_jsonl(perp_dir / "dt=2026-07-18.jsonl", [])
+    density = _perp_capture_density(str(perp_dir / "dt=*.jsonl"))
+    assert density == {"dt=2026-07-17": 2, "dt=2026-07-18": 0}
+
+
+def test_thin_days_below_advisory_floor():
+    density = {"dt=2026-07-17": 31, "dt=2026-07-19": 6, "dt=2026-07-20": 7}
+    assert _thin_days(density, floor=10) == ["dt=2026-07-19", "dt=2026-07-20"]
+    assert _thin_days(density, floor=5) == []
 
 
 # --------------------------------------------------------------------------- #
@@ -334,3 +367,7 @@ def test_analysis_path_fires_when_gate_open(tmp_path):
     assert rep["status"] == "ANALYSIS"
     assert rep["join_meta"]["joinable_symbols"] == ["BTC"]   # binaries only carry BTC here
     assert "lead_lag" in rep and "coherence" in rep
+    # every fixture day here carries exactly 1 capture -> all 7 are thin, and the ANALYSIS-path
+    # note carries the caveat forward rather than silently dropping it once the gate opens
+    assert len(rep["thin_days"]) == 7
+    assert "CAVEAT" in rep["note"] and "calendar-gate-open" in rep["note"]

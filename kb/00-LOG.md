@@ -90,6 +90,67 @@ sub-pass), realized ledger P&L unchanged **+$15.15** (`broker_truth`). Still **0
 
 ---
 
+## 2026-07-22 20:2x ET — research loop: idle run, Q43 gets a capture-density advisory floor (issue #157 still red, 2nd day)
+
+Step 0a (history-integrity): PASS. This container's local `main` ref was a stale, unrelated
+shallow-clone graft (no merge-base with `origin/main`) — the same known artifact 8+ prior runs
+today and yesterday already diagnosed, not a rewind. Reset cleanly to `origin/main` HEAD
+`9116d0c`, no local work lost. `kb/00-LOG.md`'s newest entry and the newest committed tape both
+read 2026-07-22, no gap.
+
+Step 0 (claim-check): 6 open PRs — #158 (Q42 join un-freeze), #159 (L136→L138 ISO parser), #160
+and #161 (stranded-tape sweeps + housekeeping), #162 (Q33 hourly-pass wiring fix), #163 (6th
+reconfirmation of the blocker below) — all green in isolation, all left unmerged because `main`'s
+own `invariants --full` gate is red (issue #157), plus #125 (weekly-retro, leave-open-for-Ryan).
+None claim eligible work. Step 0b: no stranded branch newer than #161's sweep — nothing to append.
+
+**The blocker (issue #157) is still open, unresolved into a 2nd calendar day.** Independently
+re-ran `python scripts/invariants.py --full` on untouched `origin/main`: still exit 2, byte-identical
+to every prior run's diagnosis (`tests/test_polymarket_us_live.py` / `tests/test_ws_depth.py`
+tripping `order_endpoints_confined`; `pytest` collection panics on the same `cryptography`/
+`_cffi_backend` ABI issue). Not applying the ready fix spec — same restraint as every run since
+06:47Z yesterday: this is Stop-rules-adjacent (L131) and stays Ryan's call. Did not add a 3rd
+comment to the issue — #163 already flagged that a 4th `Priority: high` phone note in one day
+would train the eye to ignore the feed, and this run has nothing new to add on that front.
+
+**Idle-run work (policy (b) follow-up).** Full Q0-Q47 re-scan: 0 eligible items, matching every
+run today/yesterday. Spot-checked Q43 fresh (its own gate is the most interesting thing that
+could change day-to-day): `tape/perp_tape/` is still 6/7 file-shaped days (`dt=2026-07-17`
+through `dt=2026-07-22`; `dt=2026-07-23` had not landed yet at run time, 00:1xZ). Rather than
+just reconfirm the same 6/7 count a 4th time, added a genuinely new safeguard: the Q43 probe
+(`scripts/q43_perp_binary_consistency_probe.py`) gated its two analysis legs on day-COUNT alone
+— exactly the trap Q36 fell into (calendar-gate-open != data-adequate) and had to discover after
+the fact. Q43's own history already flagged perp_tape's per-day capture density collapsing
+(30→14→6→7→5, L117/L127) even as the day count climbed — so this run adds
+`_perp_capture_density()`/`_thin_days()` (advisory floor `MIN_CAPTURES_PER_DAY_ADVISORY=10`,
+never a hard gate) that travels on every report, INSUFFICIENT DATA included, and puts an explicit
+CAVEAT sentence on the ANALYSIS-path note when thin days are present. Current reading: 07-17=31,
+07-18=15, 07-19=6 (thin), 07-20=7 (thin), 07-21=9 (thin), 07-22=23 — the decline is visibly
+recovering (07-22 tracks the cloud-collector fix independently found in PR #161/#162), not
+continuing, but 3 of the current 6 days remain thin. Whoever runs the live analysis the day the
+gate opens now sees this before trusting the lead-lag/coherence counts at face value. +3 offline
+tests (18 total in the file). See `findings/2026-07-23-q43-capture-density-advisory.md`.
+
+No verdict, no registry change, no bootstrap CI, no P&L claim — two-agent rule N/A (probe-prep
+infra, same posture as the 07-20/07-21 Q43 prep runs). `tape_gap_monitor.py` re-run live for a
+fresh idle-policy-(c) angle: same already-diagnosed cloud-collector-lag pattern PR #161 already
+found (7 families at ~0.48 capture ratio vs the 0.8 floor) — not a new finding, not repeated as
+one.
+
+**Gates:** `pytest` full suite green (18/18 in the touched test file, +3 new) except the same 5
+pre-existing `test_invariants.py` failures as base `main` (byte-identical, stash-compared) —
+issue #157. `python scripts/invariants.py --full`: exit 2, identical 2 violations to `main`'s
+pre-existing state; this diff touches neither flagged file. **Not merging this PR** — same
+posture as #158-#163, `main`'s own gate is red.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills
+per Q34 — dead-strategy shadow, paper-infra validation only, NOT edge evidence). `paper_pass.py`
+processed 9 newly-eligible fills off tape committed since the last sub-pass, realized P&L
+**+$15.05 → +$15.15** (`broker_truth`), ledger line appended to `paper/ledger/dt=2026-07-23.jsonl`.
+Still **0 proven edges** repo-wide.
+
+---
+
 ## 2026-07-22 21:2x UTC — research loop: 6th independent re-confirmation of #157 (main gate still red, unchanged); idle-run avenues (a)-(d) fully saturated today, no new escalation
 
 Step 0a (history-integrity): PASS. `origin/main` HEAD `d7fd1b9`. This sandbox's local `main` ref
