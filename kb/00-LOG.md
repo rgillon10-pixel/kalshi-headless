@@ -90,6 +90,65 @@ sub-pass), realized ledger P&L unchanged **+$15.15** (`broker_truth`). Still **0
 
 ---
 
+## 2026-07-22 21:2x UTC — research loop: 6th independent re-confirmation of #157 (main gate still red, unchanged); idle-run avenues (a)-(d) fully saturated today, no new escalation
+
+Step 0a (history-integrity): PASS. `origin/main` HEAD `d7fd1b9`. This sandbox's local `main` ref
+had no merge-base with `origin/main` (a stale/unrelated shallow-clone graft, the same class of
+artifact 6+ prior runs today diagnosed) — reset cleanly via `git reset --hard origin/main`, no
+local unpushed work existed to lose. `kb/00-LOG.md`'s newest entry and the newest committed
+`tape/*/dt=*` content are both dated 2026-07-22 — no rewind.
+
+Step 0 (claim-check): five open PRs — #158 (Q42 join un-freeze), #159 (L136→L138 ISO parser),
+#160/#161 (stranded sweeps + findings), #162 (Q33 hourly_pass wiring fix) — all today's earlier
+idle-run outputs, all explicitly left unmerged pending issue #157. #125 (weekly-retro,
+leave-open-for-Ryan) unchanged. None claim work this run would otherwise pick.
+
+Step 0b (stranded sweep): newest branch still `tape/hourly-20260722T1256Z` (already swept into
+PR #161) — the cloud collector's next successful DIRECT push to `main` landed at 16:01:55Z,
+after that branch, so there is nothing newer to sweep.
+
+**Milestone (independent re-verification, no new commit-worthy finding).** Reproduced issue
+#157 a 6th time from a clean sandbox: `python scripts/invariants.py --full` exits 2 with the
+same 2 `order_endpoints_confined` violations (`tests/test_polymarket_us_live.py`,
+`tests/test_ws_depth.py`) reported at 06:47Z and reconfirmed at 12:25Z and 18:26Z; `pytest`
+still panics collecting `tests/test_polymarket_us_live.py` on the same `cryptography`/
+`_cffi_backend` ABI issue. Upgrading `cryptography`/`cffi`/`websocket-client` locally (as prior
+runs did, for gate-verification only) reproduces the same 5 pre-existing `test_invariants.py`
+failures, byte-identical to every run since 06:47Z. No new violation, no regression, nothing
+resolved. Per the established restraint of the five prior runs today, did **not** apply #157's
+fix spec — item 1 (exempting the two test files) is Stop-rules-adjacent and stays Ryan's call;
+item 2 (the `cryptography`/`websocket-client` dev-dependency addition) was left bundled with it
+rather than cherry-picked, to avoid a unilateral departure from that precedent without Ryan's
+input.
+
+Ryan has already received three `Priority: high` phone notes about this exact standing blocker
+in the last ~12h (09:23Z, 12:25Z, 18:26Z), each with a plain-English explanation, with no action
+yet. A 4th identical high-priority alert would be exactly the near-duplicate-note pattern the
+2026-07-19 weekly retro (PR #125, item 1) flagged as training the eye to ignore the feed — this
+run's mandatory phone note (protocol step 8) went out at default priority instead, informational
+only.
+
+Full Q0-Q47 rescan: 0 eligible TODO/IN-PROGRESS items, matching #158-#162's same-day assessment.
+Idle-run policy fully saturated today: (a) `kb/lessons/00-lessons.md` has no row currently sitting
+at a bare `UNENFORCED` enforcement tier; (b) every time-gated item (Q36/Q37/Q43) already has a
+self-activating probe; (c) data-quality deep-dives already ran today on `universe_sweep`
+(liquidity census), the Q42 cross-venue join, and the cloud-collector cadence gap (#161); (d) Q21
+idea-gen already completed its 7th consecutive zero-registration round this morning (#156). Ran
+`scripts/tape_gap_monitor.py` for a fresh cross-family snapshot as this run's own idle-policy-(c)
+check: 7/12 families alerting (`crypto_hourly`, `hyperliquid_funding`, `orderbook_depth`,
+`perp_tape`, `polymarket_macro_pairs`, `sports_pairs`, `weather_books`) — all consistent with the
+already-root-caused intermittent cloud-collector cadence (#161's finding); no new root cause.
+
+No strategy claim, no registry change, no bootstrap CI — two-agent verdict rule N/A. `pytest` /
+`invariants --full`: same pre-existing state as every run since 06:47Z (5 `test_invariants.py`
+failures / exit 2, all attributable to #157, none introduced by this or any diff today) — this
+diff is docs-only (`kb/00-LOG.md`, `LOOP-QUEUE.md`) and touches neither flagged file. **Step 9
+(paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per Q34, paper-infra
+validation only, NOT edge evidence); `paper_pass.py` processed 0 newly-eligible events, ledger
+unchanged **+$15.05** (`broker_truth`). Still **0 proven edges**.
+
+---
+
 ## 2026-07-22 14:1x ET — Idle-run: Q33 hourly-pass wiring gap found + fixed (polymarket_us_live never actually wired in); main's invariants gate still red (issue #157, 5th stacked PR)
 
 Scheduled cloud research-loop run. Step 0a/0: no history rewind (the `git fetch` "forced
