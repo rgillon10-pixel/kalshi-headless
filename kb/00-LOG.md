@@ -6,6 +6,20 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-22 06:3x UTC — research loop: Q42 cross-venue join UN-FROZEN (backfill-only consumer freeze, 130→146 windows) + PR#153 gate-red escalated
+
+Idle run (policy c — joinability deep-dive; policy (a) UNENFORCED backlog empty since L128, (b) Q36/Q37/Q43 probes already self-activating). Investigating L127's flagged `hyperliquid_funding` freeze, found the state had changed: PR #153 (L134) wired an incremental HL refresh that healed the 07-17→07-22 gap. **But the Q42 cross-venue join still returned 130 windows/asset** — because `scripts/q42_crossvenue_funding_join.py::collect_kalshi_prints` reads `mode="backfill"` ONLY, silently ignoring the 73 ongoing `recent`-mode finalized-print captures (perp_tape's Kalshi prints reach 07-22T04:00 in raw committed tape; only the 1 one-shot backfill record was read). This is the **consumer-side mirror of L127's collection-side freeze**, and it corrects L134's own PR-#153 smoke ("130/130 windows joined, 0 partial-excluded"), which read the frozen count as healthy.
+
+**Fix:** read BOTH `backfill`+`recent` modes deduped on `(ticker, funding_time)` — join extends **130→146 windows/asset** (span 06-03T20:00→07-22T04:00, 0 partial-excluded), un-frozen forward. `mode="backfill"` semantics unchanged (existing unit test still green). New regression test `test_collect_kalshi_both_modes_included_and_cross_mode_dedup`. Re-characterized differential (`broker_truth`): BTC mean +0.30 bp/8h (regime-dependent — low-|HL| & HL-negative terciles negative), ETH +0.80 bp/8h — qualitatively unchanged from part 2 (regime-dependent basis, not a harvest). **NOT a P&L verdict, no registry change** (Q42 is a research item; part 3 still BLOCKED(needs-auth)). Headline 130→146 count redundantly recomputed independently (per L119). Two-agent verifier rule N/A (no registry flip / bootstrap CI / kill). Lesson **L137** (test). See `findings/2026-07-22-q42-crossvenue-join-recent-mode-unfreeze.md`.
+
+**GATE / OPS FLAG (Priority: high) — pre-existing, NOT introduced here:** `main` (`66f4d57`) is RED from PR #153 (base==branch failure sets, byte-identical). (1) `scripts/invariants.py --full` exits 2 — `inv_order_endpoints_confined` (a Stop-rules safety invariant) false-fires on `tests/test_ws_depth.py`; this is exactly the collision **L131** documented and predicted ("MUST be settled before ws_depth.py merges or the gate breaks") — now materialized via PR #153, cascading into `test_invariants.py::test_real_tree_is_green` + 4 `*_never_gates_exit_code` failures. (2) `pytest` cannot collect `tests/test_polymarket_us_live.py` / run `tests/test_ws_depth.py` — a pyo3/`_cffi_backend` `cryptography` ABI panic (the deferred pyproject dep). This run did NOT modify the safety invariant (working-agreement discipline — safety-surface fixes are Ryan's). Ready-to-apply fix spec (exempt `tests/test_ws_depth.py` mirroring `scripts/kalshi_sign.py`; add `cryptography`/`websocket-client` to dev deps or skip-guard the two tests) in the finding. The Q42 fix is green-in-isolation (10/10 q42 tests pass, zero new failures); PR left for merge AFTER the pre-existing red is resolved.
+
+Step 9 paper: `SHADOW_REGISTRY`={s14_ladder_underwriting} only; `paper_pass.py` deterministic no-op (0 processed, 93 already-in-ledger, rest deferred caps/coverage — no new tape produced new fills, ledger unchanged). `daily_summary`: `paper: 0 open position(s), 741 settled contract(s), realized P&L $+15.05, cash $+15.05, open notional $0.00` (`broker_truth`; s14 DEAD-at-real-fills per Q34 — paper-infra validation only, NOT edge evidence). Still **0 proven edges.**
+
+Branch `research/2026-07-22-q42-join-recent-mode-unfreeze`.
+
+---
+
 ## 2026-07-23 04:1x UTC — kalshi-edge-hunter: review PASS (#169 sound) + main gate GREEN again (#157 resolved) + Q43 gate OPEN-but-density-gated + Q21 round #8 (S48 verifier-killed / S49 DEAD-at-idea, 0 registered)
 
 Step 0a (history-integrity): **PASS.** Fresh-clone `git pull` reported a forced-update
