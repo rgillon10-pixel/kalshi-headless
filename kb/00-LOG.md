@@ -6,6 +6,50 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-23 12:xx UTC — research loop: converted L138's residue to a non-gating fromisoformat advisory (L141)
+
+**What this run is.** Idle run — full Q0-Q47 re-scan found 0 eligible TODO/IN-PROGRESS items
+(queue fully drained, unchanged from the last several firings); no open PR (#125 leave-open,
+#165/#166 draft Ryan-approved infra) claimed eligible work. Step 0a: PASS — local `main` synced
+cleanly to `origin/main` HEAD `4e0edeb` via rebase, all 5 most-recent merged-PR commits verified
+ancestors, kb/00-LOG.md's and the newest committed tape's dates both current (2026-07-23), no
+rewind. Step 0b: the two most recent stranded branches, `tape/hourly-20260723T0359Z` and
+`tape/hourly-20260723T0715Z`, were verified line-by-line (per-file set difference against
+`origin/main`) to have ZERO missing lines — both already fully swept by earlier runs today
+(#172/#173/#175); no sweep commit needed.
+
+**The milestone (idle-run policy a).** Delegated milestone selection/design to `research-lead`,
+which scanned `kb/lessons/00-lessons.md`'s UNENFORCED rows and found L138's residue — "a static
+invariant forbidding raw `fromisoformat` outside `core/timeutil.py`" — the only cleanly
+cloud-convertible one left (the rest are terminal-as-protocol house-style rows or bigger-than-
+one-milestone / Ryan-VPS-side). `research-lead` validated the exact detector against the live
+tree (34 sites estimated) but had no Edit/Write tool this run, so it handed back a fully
+specified drop-in implementation for the calling session to apply. Applied as designed: a
+non-gating `scripts/invariants.py --full` advisory (`_raw_datetime_fromisoformat_sites` /
+`raw_datetime_fromisoformat_warning`) flags every production `datetime.fromisoformat(` call
+bypassing `core.timeutil.parse_iso_utc` (the tolerant wrapper fixing the Python-3.9
+short-fraction/bare-`Z` crash, L136/L138) — scoped to the real hazard only, NOT
+`date.fromisoformat` (date-only, no fractional/tz hazard — this module uses it itself and is
+correctly unflagged); `core/timeutil.py` and `tests/` exempt; comment lines skipped. One bug
+surfaced and fixed during application: the first draft used the module's global `_rel()` helper
+(hardcoded to the real `ROOT`), which broke the tmp_path-parametrized exemption test — fixed to
+compute the relative path against the passed-in `root` param directly. Real tree: **36
+occurrences**, all genuine hazards (most sites do `.replace("Z","+00:00")` first, which does NOT
+fix a single-fractional-digit crash). Offline-safe (any exception → `[]`) and stderr-only, so it
+cannot flip the gate — same posture as L20/L25/L75/L110; a dedicated test pins that guarantee.
+Deliberately does NOT migrate the 36 sites (per-site tz-aware-vs-naive behavior risk stays a
+separate future pass) — surfacing the backlog so it can't silently grow is the enforceable half.
+New lesson **L141**, supersedes L138's UNENFORCED residue.
+
+**Scope/tags.** `scripts/invariants.py` (+2 functions, 1 `main()` wiring block) and
+`tests/test_invariants.py` (+7 tests). No collector, no strategy, no registry change. Two-agent
+verdict rule N/A (non-gating advisory extension, not a verdict-class change — same precedent as
+L75/L110/L118/L139). `pytest` 1502→**1509 passed**. `python scripts/invariants.py --full` exit 0
+(5 non-gating advisories now: 2 stranded tape refs, 4 dir-shaped `dt`, 2 GC-orphan classes, 8
+daily-cadence missing days, 36 raw-`fromisoformat` sites). Still 0 proven edges.
+
+---
+
 ## 2026-07-23 09:xx UTC — research loop: repaired the L139 real-tape acceptance time-bomb (L140)
 
 **What this run is.** Idle run — full Q0-Q47 re-scan found 0 eligible TODO/IN-PROGRESS items
