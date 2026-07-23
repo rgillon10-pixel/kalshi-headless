@@ -6,6 +6,92 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-23 08:xx UTC — research loop: drained the 8-PR backlog stacked behind issue #157 (#158/#159/#160/#161/#162/#163/#164/#167)
+
+**What this run is.** The prior kalshi-edge-hunter nightly run (04:1x UTC entry below) found
+issue #157 resolved and main's gate green again, but explicitly declined to mass-merge the ten
+PRs that had stacked up behind it over the preceding ~23h — flagging it instead as "drainable by
+the next research-loop firing's step-0 claim-check... the loop's designed job." This run is that
+firing.
+
+**Step 0a (history-integrity):** PASS. `origin/main` HEAD `7b14e77`. This container's local `main`
+ref was again a stale, disconnected artifact (jumped back to a 2026-07-16 commit) — the same class
+of clone/packed-ref artifact dozens of prior runs this week diagnosed, not a rewind. `git reset
+--hard origin/main` recovered cleanly; working tree was clean, so nothing was lost.
+
+**Step 0 (claim-check) — the actual milestone.** Of the 12 open PRs, #125 (weekly-retro) and
+#165/#166 (Ryan-approved background-session drafts) were left untouched as before. The other
+eight — #158 (Q42 join un-freeze), #159 (L136→L138 ISO parser), #160/#161 (stranded-tape sweeps),
+#162 (Q33 hourly_pass wiring fix), #163 (docs-only #157 reconfirmation), #164 (Q43 density
+advisory), #167 (L139 anomalies monitor fix) — were each individually green in isolation but had
+all been left open because `main`'s own gate was red at the time they were created. With that gate
+now green, draining them is exactly the queued cleanup work. Rather than merge each through
+GitHub's own (potentially racy, definitely conflict-prone) merge button one at a time against a
+constantly-moving `main`, built a local integration branch off `origin/main` and merged all eight
+branches into it in creation order, resolving each conflict by hand as it arose:
+
+- **Every `kb/00-LOG.md` / `LOOP-QUEUE.md` conflict** was the same shape: two sibling runs each
+  inserted their own dated entry at the same point in an append-style log, based on a slightly
+  different snapshot of `main`. Resolved by literally reading both sides' timestamps and splicing
+  them back into chronological order — none of the prose itself needed rewriting, only re-ordering
+  around each other.
+- **Every tape JSONL conflict** (`orderbook_depth`, `weather_books`, `sports_pairs`,
+  `perp_tape`, `polymarket_macro_pairs`, `crypto_hourly`, `hyperliquid_funding`, `anomalies`,
+  `econ_prints`) was two independent stranded-tape sweeps or hourly passes touching the same
+  `dt=` file. Resolved by a plain set-union of both sides' lines (`sort -u` over the conflict
+  markers' two halves) — append-only JSONL with unique per-line capture identity makes this safe
+  by construction (same discipline the sweep protocol itself already uses), and every resulting
+  file was re-validated line-by-line as parseable JSON before committing (0 malformed lines across
+  ~90,000 lines touched).
+- **`kb/lessons/00-lessons.md`** had L137 (Q42, from #158) and L139 (anomalies monitor, from #167)
+  as adjacent new rows from independent branches — not a real conflict, kept both.
+- **One genuine bug caught by the merge process itself:** `paper/ledger/dt=2026-07-23.jsonl` was
+  an add/add conflict between #164 and #167. Diffing the two sides (after stripping the `ts`
+  field) showed they were byte-identical otherwise — both branches had independently replayed
+  `paper_pass.py` over the exact same 9 already-eligible fills off the exact same base ledger
+  state (`+$15.05 → +$15.15` reported identically by both PR bodies), so keeping both copies would
+  have double-counted every fill in the ledger. Kept one copy only. This is a real gap in the
+  "deterministic replay" design for step 9 that only surfaces at merge time: two sibling branches
+  that never see each other's ledger state will each think they're the first to process a given
+  fill. Not fixed here (no code changed — this is a `paper_pass.py` idempotency-across-branches
+  property, not a bug in this run's own diff), but worth a lesson if it recurs.
+
+**Step 0b (stranded sweep).** One branch newer than PR #161's last sweep: `tape/hourly-20260723T0359Z`.
+Diffed its `dt=2026-07-22` files against the fully-merged integration tree first — **0 genuinely
+missing lines**, which is itself a useful confirmation that the four prior stranded-sweeps (#160/#161
+plus this run's own merge) left no real gaps. Its `dt=2026-07-23` files were newer, though: **369**
+genuinely-missing lines (2 `crypto_hourly`, 15 `polymarket_macro_pairs`, 352 `sports_pairs`),
+union-appended, 0 invalid JSON.
+
+**Gates (full merged tree, fresh `pip install -e ".[dev,analysis]"` — no ad-hoc `cryptography`
+upgrade needed; a clean env now collects everything issue #157's underlying dependency gap used to
+break).** `pytest`: exit 0, full suite green. `python scripts/invariants.py --full`: exit 0 (the
+same 3 pre-existing non-gating advisories — L25 dir-shape, L109 GC, L74 daily-cadence — every prior
+run has carried).
+
+**Two-agent rule:** N/A for this run's own contribution (no new verdict — the drain reassembles
+five already-produced ops/data-quality findings, none of which flip a registry status, claim a
+bootstrap CI, or kill a candidate; each was already correctly scoped as two-agent-N/A by its own
+originating run).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD-at-real-fills per
+Q34 — paper-infra validation only, NOT edge evidence). This run's own tape delta (the 369-line
+sweep above) added no new S14-eligible events; ledger unchanged at **+$15.15** (`broker_truth`).
+Still **0 proven edges**.
+
+**Housekeeping:** stranded branches unchanged at 181 (`tape/hourly-*` + 1 `burst-*`, Q17/PR#46,
+Ryan/retro-side) apart from the one swept above. The eight source PRs' branches
+(`research/2026-07-22-q42-join-recent-mode-unfreeze`, `research-loop/20260722-l136-tolerant-iso-parser`,
+`research-loop/20260722-stranded-sweep-and-157-escalation`,
+`research-loop/20260722-stranded-sweep-and-cloud-collector-gap`,
+`research-loop/20260722-q33-hourly-pass-wiring-fix`,
+`research-loop/20260722-idle-reconfirm-157-saturated`,
+`research-loop/20260723-q43-capture-density-advisory`,
+`research-loop/20260723-l139-anomalies-monitor-blindspot`) are superseded by this merge and should
+be deleted once their PRs close; not done here to avoid racing GitHub's own PR-close bookkeeping.
+
+---
+
 ## 2026-07-23 04:1x UTC — kalshi-edge-hunter: review PASS (#169 sound) + main gate GREEN again (#157 resolved) + Q43 gate OPEN-but-density-gated + Q21 round #8 (S48 verifier-killed / S49 DEAD-at-idea, 0 registered)
 
 Step 0a (history-integrity): **PASS.** Fresh-clone `git pull` reported a forced-update
