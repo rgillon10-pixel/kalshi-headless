@@ -785,3 +785,176 @@ def test_tape_conflict_marker_gates_exit_code(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert rc == 2
     assert "[tape_conflict_marker]" in captured.err
+
+
+# ─── Tape invalid-JSON gate (L142 generalization) ────────────────────────────
+
+def _all_jsonl(tape_root):
+    """Helper: the set of resolved *.jsonl paths under a fixture tape_root, standing in for the
+    git-tracked set so a test's fixture files are all treated as 'committed' without needing a
+    real git repo. (`_tape_invalid_jsonl_issues` takes `tracked_files` explicitly for exactly
+    this reason.)"""
+    return {p.resolve() for p in tape_root.rglob("*.jsonl")}
+
+
+def test_tape_invalid_jsonl_real_tree_is_clean():
+    # HARD acceptance test: pins the current committed tape tree cleanliness. Every non-empty
+    # line of every git-TRACKED tape/**/*.jsonl parses as valid JSON right now. Uses the real
+    # git-tracked resolution (tracked_files=None default) — real committed tape is all-tracked
+    # and clean. Mirrors the conflict-marker real-tree test.
+    assert inv._tape_invalid_jsonl_issues() == []
+
+
+def test_tape_invalid_jsonl_issues_flags_truncated_line(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    f = fam / "dt=2026-07-18.jsonl"
+    f.write_text(
+        '{"a": 1}\n'
+        '{"a": 1,\n'          # truncated write -> invalid JSON
+        'garbage not json\n'  # stray non-JSON line
+        '{"a": 2}\n'
+    )
+    issues = inv._tape_invalid_jsonl_issues(tape_root, tracked_files={f.resolve()})
+    assert len(issues) == 2
+    assert issues[0].startswith("econ_prints/dt=2026-07-18.jsonl:2")
+    assert issues[1].startswith("econ_prints/dt=2026-07-18.jsonl:3")
+
+
+def test_tape_invalid_jsonl_issues_tracked_malformed_is_flagged(tmp_path):
+    # Fix-1 direction (b): a malformed .jsonl that IS in the tracked set is still caught — the
+    # scope fix excludes untracked files, it does NOT relax detection on committed corruption.
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    f = fam / "dt=2026-07-18.jsonl"
+    # torn last line, no trailing newline: a committed torn line IS real corruption (L142).
+    f.write_text('{"a": 1}\n{"a": 1,')
+    issues = inv._tape_invalid_jsonl_issues(tape_root, tracked_files={f.resolve()})
+    assert len(issues) == 1
+    assert issues[0].startswith("econ_prints/dt=2026-07-18.jsonl:2")
+
+
+def test_tape_invalid_jsonl_issues_untracked_malformed_is_not_flagged(tmp_path):
+    # Fix-1 direction (a), the wedge-prevention pin: a malformed / torn-last-line .jsonl that is
+    # NOT in the tracked set (a collector mid-append in an uncommitted file) must NOT be flagged,
+    # or an in-flight torn line would flip this GATING check to exit 2 and wedge the loop on data
+    # that was never committed (2026-07-24 incident: two untracked live-capture files appeared
+    # mid-run). Same file content as the tracked test above, but tracked_files is empty.
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    f = fam / "dt=2026-07-18.jsonl"
+    f.write_text('{"a": 1}\n{"a": 1,')
+    assert inv._tape_invalid_jsonl_issues(tape_root, tracked_files=set()) == []
+
+
+def test_tape_invalid_jsonl_issues_does_not_double_report_conflict_markers(tmp_path):
+    # A conflict-marker line also fails json.loads; per the design choice (option (a)) it
+    # stays the conflict-marker gate's job and is NOT reported by the invalid-JSON gate.
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "anomalies"
+    fam.mkdir(parents=True)
+    f = fam / "dt=2026-07-18.jsonl"
+    f.write_text(
+        '{"a": 1}\n'
+        '=======\n'
+        '>>>>>>> 58145d7 (tape merge)\n'
+        '<<<<<<< HEAD\n'
+        '{"a": 2}\n'
+    )
+    # Still caught by the conflict-marker gate (filesystem-scoped by design).
+    assert inv._tape_conflict_marker_issues(tape_root) == [
+        "anomalies/dt=2026-07-18.jsonl:2",
+        "anomalies/dt=2026-07-18.jsonl:3",
+        "anomalies/dt=2026-07-18.jsonl:4",
+    ]
+    # NOT double-reported by the invalid-JSON gate.
+    assert inv._tape_invalid_jsonl_issues(tape_root, tracked_files={f.resolve()}) == []
+
+
+def test_tape_invalid_jsonl_issues_tolerates_empty_and_whitespace_lines(tmp_path):
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-20.jsonl").write_text('{"a": 1}\n\n   \n{"a": 2}\n')
+    assert inv._tape_invalid_jsonl_issues(tape_root, tracked_files=_all_jsonl(tape_root)) == []
+
+
+def test_tape_invalid_jsonl_issues_ignores_non_jsonl_files(tmp_path):
+    # Scope check: only *.jsonl is scanned. A .raw.json capture blob (L25/L109) and a `meta`
+    # file with garbage content under tape/ must be ignored.
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-20.jsonl").write_text('{"a": 1}\n')
+    (fam / "dt=2026-07-20.raw.json").write_text('this is not json at all {{{\n')
+    (fam / "meta").write_text('garbage not json\n')
+    (fam / "README.md").write_text('# notes\nnot json\n')
+    assert inv._tape_invalid_jsonl_issues(tape_root, tracked_files=_all_jsonl(tape_root)) == []
+
+
+def test_tape_invalid_jsonl_issues_missing_tape_root_is_empty(tmp_path):
+    assert inv._tape_invalid_jsonl_issues(tmp_path / "no-such-tape") == []
+
+
+def test_tape_invalid_jsonl_issues_unreadable_file_does_not_crash(tmp_path):
+    # A file that cannot be decoded as utf-8 is skipped best-effort, never crashes the gate.
+    tape_root = tmp_path / "tape"
+    fam = tape_root / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-20.jsonl").write_bytes(b'\xff\xfe\x00\x01 not utf-8\n')
+    (fam / "dt=2026-07-21.jsonl").write_text('{"a": 1}\n')
+    # No exception; the good file's valid line yields no issue.
+    assert inv._tape_invalid_jsonl_issues(tape_root, tracked_files=_all_jsonl(tape_root)) == []
+
+
+def test_git_tracked_jsonl_subprocess_failure_returns_empty_set(monkeypatch):
+    # Offline/robustness: if the `git ls-files` subprocess raises for ANY reason, the tracked
+    # set is empty so the GATING check simply skips — a gating check must never flip the exit
+    # code on an environment/git failure. (A non-zero return is covered by the same early-out.)
+    def _boom(*a, **k):
+        raise OSError("git missing")
+    monkeypatch.setattr(inv.subprocess, "run", _boom)
+    assert inv._git_tracked_jsonl(inv.ROOT / "tape") == set()
+
+
+def test_git_tracked_jsonl_nonzero_exit_returns_empty_set(monkeypatch):
+    class _Proc:
+        returncode = 128
+        stdout = ""
+    monkeypatch.setattr(inv.subprocess, "run", lambda *a, **k: _Proc())
+    assert inv._git_tracked_jsonl(inv.ROOT / "tape") == set()
+
+
+def test_git_tracked_jsonl_finds_committed_tape():
+    # On the real repo, the tracked set is non-empty and every entry is a resolved .jsonl path
+    # under tape/ (sanity that the default git resolution actually returns the committed tree).
+    tracked = inv._git_tracked_jsonl()
+    assert tracked  # real repo has committed tape
+    assert all(str(p).endswith(".jsonl") for p in tracked)
+
+
+def test_tape_invalid_jsonl_failure_none_when_empty():
+    assert inv.tape_invalid_jsonl_failure([]) is None
+
+
+def test_tape_invalid_jsonl_failure_message_content():
+    msg = inv.tape_invalid_jsonl_failure(['econ_prints/dt=2026-07-18.jsonl:2 ({"a": 1,)'])
+    assert msg is not None
+    assert "[tape_invalid_jsonl]" in msg
+    assert "econ_prints/dt=2026-07-18.jsonl:2" in msg
+
+
+def test_tape_invalid_jsonl_gates_exit_code(monkeypatch, capsys):
+    # Unlike the advisories, an invalid-JSON line in committed tape must flip the exit code.
+    # Patch the detector function itself (its tape_root default is bound at def-time), same
+    # technique as the conflict-marker gate test.
+    monkeypatch.setattr(inv, "_tape_invalid_jsonl_issues",
+                        lambda *a, **k: ['econ_prints/dt=2026-07-01.jsonl:2 ({"a": 1,)'])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "[tape_invalid_jsonl]" in captured.err

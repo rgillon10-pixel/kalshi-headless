@@ -850,7 +850,14 @@ def _tape_conflict_marker_issues(tape_root: Path = ROOT / "tape") -> List[str]:
     banner above). Best-effort/offline: a per-file read failure just skips that file, never
     poisons the whole scan; a raw-bytes pre-check on the common case (no marker bytes present
     at all) avoids paying the line-split cost on every large tape file. Returns sorted
-    `path:line` labels."""
+    `path:line` labels.
+
+    Deliberately left filesystem-scoped (NOT git-tracked-scoped like the sibling invalid-JSON
+    gate): a `<<<<<<<`/`=======`/`>>>>>>>` marker only ever arises from a MERGE of tracked
+    content, so it cannot appear in an untracked collector-in-flight file the way a torn last
+    line can — the wedge that motivated scoping the JSON gate to tracked files simply has no
+    analog here, and an fs-wide sweep is strictly the safer (never-miss) posture for this
+    unambiguous corruption shape."""
     out: List[str] = []
     if not tape_root.is_dir():
         return out
@@ -883,6 +890,125 @@ def tape_conflict_marker_failure(issues: List[str]) -> Optional[str]:
         f"tape/**/*.jsonl (e.g. {examples}). A conflict marker is never valid JSONL — strip "
         f"the marker line(s) only, never touch the surrounding real capture lines (append-"
         f"only). See kb/lessons/00-lessons.md (2026-07-23 tape-corruption finding)."
+    )
+
+
+# ─── Tape invalid-JSON gate (GATING, not advisory) ───────────────────────────
+#
+# L142 generalization: a git conflict marker (caught above) is only one shape of the same
+# class of bug — a committed tape/**/*.jsonl line that is not valid JSON. A truncated write
+# (`{"a": 1,`), an encoding-corrupted byte run, or any stray non-JSON line is equally invalid
+# in an append-only audit trail and equally cheap/unambiguous to detect via json.loads. The
+# conflict-marker-only gate misses every non-marker corruption; this gate closes that hole.
+# Both are GATING (flip scan_tree()'s exit code).
+#
+# Conflict-marker overlap (design choice, per milestone #5, option (a)): a conflict-marker
+# line also fails json.loads. To keep L142's specific diagnostic intact and avoid
+# double-reporting, THIS check SKIPS any line already owned by the conflict-marker gate
+# (lines starting with `<<<<<<<` / `=======` / `>>>>>>>`), so a conflict marker stays the
+# conflict-marker gate's job and this gate reports only OTHER invalid JSON.
+
+_CONFLICT_MARKER_PREFIXES = ("<<<<<<<", "=======", ">>>>>>>")
+
+
+def _git_tracked_jsonl(tape_root: Path = ROOT / "tape") -> set:
+    """Set of resolved Paths of git-TRACKED `.jsonl` files under `tape_root`.
+
+    Scope fix (L142): the invalid-JSON gate must guard the COMMITTED append-only audit trail
+    ONLY. Walking the raw working tree also picks up UNTRACKED / in-flight files — a collector
+    mid-append leaves a torn last line (no trailing newline yet) in an uncommitted file, and
+    failing json.loads on that never-committed line would flip this GATING check to exit 2 and
+    wedge the autonomous loop on data that was never part of the audit trail (two untracked
+    live-capture files literally appeared mid-run on 2026-07-24, proving this). `git ls-files`
+    returns tracked AND staged files — the staged set is exactly the tape about to be committed,
+    which we DO want validated — so it is the correct scope.
+
+    Best-effort/offline: ANY failure (not a repo, git missing, non-zero exit, timeout, or any
+    exception) returns an EMPTY set so the GATING check simply skips those files — a gating
+    check must NEVER flip the exit code because of an environment/git failure (same posture as
+    `_daily_family_gap_issues` / `_git_tape_refs`). `ls-files` prints repo-root-relative POSIX
+    paths, which are resolved against ROOT."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "--", str(tape_root)],
+            capture_output=True, text=True, timeout=10,
+        )
+    except Exception:
+        return set()
+    if out.returncode != 0:
+        return set()
+    tracked = set()
+    for line in out.stdout.splitlines():
+        line = line.strip()
+        if line.endswith(".jsonl"):
+            try:
+                tracked.add((ROOT / line).resolve())
+            except Exception:
+                continue
+    return tracked
+
+
+def _tape_invalid_jsonl_issues(tape_root: Path = ROOT / "tape",
+                               tracked_files: Optional[set] = None) -> List[str]:
+    """Committed tape/**/*.jsonl lines that fail json.loads for a reason OTHER than being a
+    git conflict marker (those stay the conflict-marker gate's job — see banner). Scope is
+    git-TRACKED `*.jsonl` ONLY (never .raw.json / meta / .md orphans under tape/, and never
+    UNTRACKED / in-flight files — see `_git_tracked_jsonl` for why an uncommitted torn line
+    must not wedge this GATING check). When `tracked_files is None` the tracked set is resolved
+    via `_git_tracked_jsonl(tape_root)`; tests inject an explicit set so the scope is testable
+    without a real git repo in the fixture. Note there is NO torn-last-line leniency for a
+    tracked file — a committed torn line IS real corruption (L142's class) and must still be
+    caught; the fix is scope (exclude untracked), not tolerance. Empty/whitespace-only stripped
+    lines are legal trailing-newline JSONL and skipped. Best-effort/offline: a per-file READ
+    failure just skips that file (transient FS/encoding open error, same posture as
+    `_daily_family_gap_issues`), but a successfully-read non-empty line that deterministically
+    fails json.loads IS a real gating failure and is recorded. Returns sorted
+    `path:line (snippet)` labels."""
+    out: List[str] = []
+    if not tape_root.is_dir():
+        return out
+    if tracked_files is None:
+        tracked_files = _git_tracked_jsonl(tape_root)
+    try:
+        for p in sorted(tape_root.rglob("*.jsonl")):
+            if p.resolve() not in tracked_files:
+                continue  # untracked / in-flight file — not part of the committed audit trail
+            try:
+                text = p.read_text(encoding="utf-8")
+            except Exception:
+                # Transient/odd file-read error (encoding, permissions, race) -> skip this
+                # file, never crash the gate.
+                continue
+            rel = str(p.relative_to(tape_root).as_posix())
+            for i, raw_line in enumerate(text.split("\n"), 1):
+                line = raw_line.strip()
+                if not line:
+                    continue  # trailing-newline / blank line is legal JSONL, not an error
+                if line.startswith(_CONFLICT_MARKER_PREFIXES):
+                    continue  # owned by the conflict-marker gate; do not double-report
+                try:
+                    json.loads(line)
+                except Exception:
+                    snippet = line[:40] + ("..." if len(line) > 40 else "")
+                    out.append(f"{rel}:{i} ({snippet})")
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def tape_invalid_jsonl_failure(issues: List[str]) -> Optional[str]:
+    """GATING failure message when committed tape carries a non-empty line that fails
+    json.loads (and is not a conflict marker), else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = ", ".join(issues[:5]) + (", ..." if n > 5 else "")
+    return (
+        f"[tape_invalid_jsonl] {n} invalid-JSON line(s) in committed tape/**/*.jsonl "
+        f"(e.g. {examples}). Every non-empty line of append-only tape must parse as JSON — a "
+        f"truncated/encoding-corrupted/stray line is silent corruption of the audit trail. "
+        f"Strip or repair the bad line(s) only, never touch the surrounding real capture "
+        f"lines (append-only). See kb/lessons/00-lessons.md L142."
     )
 
 
@@ -993,6 +1119,12 @@ def main() -> int:
         marker_failure = tape_conflict_marker_failure(_tape_conflict_marker_issues())
         if marker_failure:
             failures.append(marker_failure)
+        # GATING (L142 generalization): any OTHER non-empty tape/**/*.jsonl line that fails
+        # json.loads (truncated write / encoding corruption / stray non-JSON) is equally
+        # silent corruption of the append-only audit trail. Also flips the exit code.
+        invalid_jsonl_failure = tape_invalid_jsonl_failure(_tape_invalid_jsonl_issues())
+        if invalid_jsonl_failure:
+            failures.append(invalid_jsonl_failure)
 
     if failures:
         sys.stderr.write(f"invariants: {len(failures)} violation(s)\n")
