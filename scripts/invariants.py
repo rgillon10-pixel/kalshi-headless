@@ -233,7 +233,7 @@ def inv_order_endpoints_confined(path: Path, text: str) -> Optional[str]:
     scripts/kalshi_sign.py — the KB's OFFLINE signing-scheme repro (kb/kalshi-api/
     01-auth-and-signing.md): throwaway key, no network, knowledge not action; and
     collection/ws_depth.py — the READ-ONLY authenticated WS orderbook_delta collector
-    (Ryan opened the WS build gate 2026-07-21, GOAL.md amendment; lesson L131). Kalshi
+    (Ryan opened the WS build gate 2026-07-21, GOAL.md amendment; lesson L145). Kalshi
     requires the signed handshake even for market data, so that file may carry the auth
     headers — but the order-verb half of this rule still applies to it in full.
     Two further FULL exemptions (2026-07-23, closes issue #157, Ryan-approved), mirroring
@@ -245,21 +245,21 @@ def inv_order_endpoints_confined(path: Path, text: str) -> Optional[str]:
     "place_order" etc. are ABSENT from the collector source, so the forbidden-verb
     strings appear here only inside a negative-assertion tuple, never as a call).
     Root cause of the original break: PR #153 exempted the two source files but not
-    their tests, exactly the collision lesson L131 flagged as a risk before that merge."""
+    their tests, exactly the collision lesson L145 flagged as a risk before that merge."""
     if _file_excluded(path) or _rel(path) in (SANCTIONED["order_endpoints"],
                                               "scripts/kalshi_sign.py",
                                               "tests/test_ws_depth.py",
                                               "tests/test_polymarket_us_live.py"):
         return None
     if _rel(path) == "collection/ws_depth.py":
-        # L131 sanction covers AUTH HEADERS only — an order verb here must still fire.
+        # L145 sanction covers AUTH HEADERS only — an order verb here must still fire.
         pat_orders = re.compile(
             r'(?i)\b(?:place_order|create_order|cancel_order|amend_order'
             r'|batch_create_orders)\b|portfolio/orders')
         hits = [(i, ln) for i, ln in _scan_lines(text)
                 if not ln.lstrip().startswith("#") and pat_orders.search(ln)]
         return _fmt(path, hits,
-                    "order verb in collection/ws_depth.py — its L131 sanction covers "
+                    "order verb in collection/ws_depth.py — its L145 sanction covers "
                     "read-only auth headers ONLY; order paths stay confined to "
                     "execution/kalshi_client.py") if hits else None
     pat = re.compile(
@@ -783,6 +783,55 @@ def raw_datetime_fromisoformat_warning(sites: List[str]) -> Optional[str]:
     )
 
 
+_LESSON_ID_ROW_RE = re.compile(r"^\|\s*(L\d+)\s*\|")
+
+
+def _duplicate_lesson_id_issues(
+    lessons_path: Path = ROOT / "kb" / "lessons" / "00-lessons.md",
+) -> List[str]:
+    """Lesson IDs (`L<n>`) that appear on more than one row of kb/lessons/00-lessons.md's
+    table (2026-07-24 incident: L130 and L131 were each independently assigned to two
+    unrelated lessons by concurrent runs that didn't check the ledger's current max ID before
+    picking a number — one silently shadows the other in every future citation). Only the
+    table's ID column (`| L<n> |` at line start) is matched; prose mentions of an ID elsewhere
+    in a row's own text are not counted. Best-effort/offline: a read failure returns [] and
+    can never poison the gate. Returns sorted `L<n>` labels for every ID with >1 row."""
+    try:
+        lines = lessons_path.read_text().splitlines()
+    except Exception:
+        return []
+    try:
+        seen: Dict[str, int] = {}
+        for line in lines:
+            m = _LESSON_ID_ROW_RE.match(line)
+            if m:
+                seen[m.group(1)] = seen.get(m.group(1), 0) + 1
+        dupes = sorted(
+            (lid for lid, n in seen.items() if n > 1),
+            key=lambda lid: int(lid[1:]),
+        )
+        return dupes
+    except Exception:
+        return []
+
+
+def duplicate_lesson_id_warning(dupes: List[str]) -> Optional[str]:
+    """Non-gating advisory when kb/lessons/00-lessons.md assigns the same lesson ID to more
+    than one row, else None. Pure."""
+    if not dupes:
+        return None
+    n = len(dupes)
+    examples = ", ".join(dupes[:5]) + (", ..." if n > 5 else "")
+    return (
+        f"warning (non-gating): {n} lesson ID(s) in kb/lessons/00-lessons.md are assigned to "
+        f"more than one row (e.g. {examples}) — a duplicate ID means later citations of that "
+        f"number are ambiguous between two unrelated lessons. Give the newer/less-cited row a "
+        f"fresh next-free ID instead (grep the ID's own citations first to see which meaning is "
+        f"load-bearing); do not renumber a row that is only cited under its current ID. "
+        f"Advisory only — does NOT affect the exit code. See kb/lessons/00-lessons.md L147."
+    )
+
+
 # ─── Tape conflict-marker gate (GATING, not advisory) ────────────────────────
 #
 # Real incident (2026-07-23): tape/econ_prints/dt=2026-07-18.jsonl and
@@ -933,6 +982,11 @@ def main() -> int:
         iso_warning = raw_datetime_fromisoformat_warning(_raw_datetime_fromisoformat_sites())
         if iso_warning:
             sys.stderr.write(iso_warning + "\n")
+        # L147 advisory: kb/lessons/00-lessons.md assigning the same lesson ID to more than
+        # one row (2026-07-24 incident: L130/L131 each collided). Non-gating — stderr only.
+        dup_lesson_warning = duplicate_lesson_id_warning(_duplicate_lesson_id_issues())
+        if dup_lesson_warning:
+            sys.stderr.write(dup_lesson_warning + "\n")
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
         # code — cheap and unambiguous to catch.

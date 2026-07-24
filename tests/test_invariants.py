@@ -524,6 +524,60 @@ def test_raw_datetime_fromisoformat_warning_never_gates_exit_code(monkeypatch, c
     assert "invariants: all green" in captured.out
 
 
+# ─── duplicate lesson-ID advisory (L147: L130/L131 each collided 2026-07-24) ──
+
+def test_duplicate_lesson_id_real_tree_is_clean():
+    # HARD acceptance test anchored to the real tree: this run renumbered the two
+    # collided IDs (L131 ws_depth-invariant lesson -> L145, L130 Polymarket-US-probe
+    # lesson -> L146), so the real ledger must report zero duplicates now.
+    assert inv._duplicate_lesson_id_issues() == []
+
+
+def test_duplicate_lesson_id_issues_finds_real_duplicate(tmp_path):
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | first lesson | src | test |\n"
+        "| L2 | 2026-07-02 | second lesson | src | test |\n"
+        "| L2 | 2026-07-03 | a DIFFERENT lesson someone else also called L2 | src | test |\n"
+    )
+    assert inv._duplicate_lesson_id_issues(lessons) == ["L2"]
+
+
+def test_duplicate_lesson_id_issues_ignores_prose_mentions_outside_id_column(tmp_path):
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | see also L2 for the sibling lesson | src | test |\n"
+        "| L2 | 2026-07-02 | the only row actually keyed L2 | src | test |\n"
+    )
+    assert inv._duplicate_lesson_id_issues(lessons) == []
+
+
+def test_duplicate_lesson_id_issues_missing_file_is_safe(tmp_path):
+    assert inv._duplicate_lesson_id_issues(tmp_path / "does-not-exist.md") == []
+
+
+def test_duplicate_lesson_id_warning_none_when_empty():
+    assert inv.duplicate_lesson_id_warning([]) is None
+
+
+def test_duplicate_lesson_id_warning_message_content():
+    msg = inv.duplicate_lesson_id_warning(["L2"])
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "L2" in msg
+    assert "L147" in msg
+
+
+def test_duplicate_lesson_id_warning_never_gates_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "invariants: all green" in captured.out
+    # The real tree is clean post-fix, so the advisory should not fire at all here.
+    assert "lesson ID(s)" not in captured.err
+
+
 # ─── DB invariants ────────────────────────────────────────────────────────────
 
 def _db(tmp_path, name, ddl, rows_sql=()):
@@ -637,7 +691,7 @@ def test_order_endpoint_rule_exempts_kb_signing_repro():
 
 
 def test_order_endpoint_rule_ws_depth_auth_headers_sanctioned_order_verbs_still_fire():
-    # collection/ws_depth.py (L131, Ryan opened the WS build gate 2026-07-21): Kalshi
+    # collection/ws_depth.py (L145, Ryan opened the WS build gate 2026-07-21): Kalshi
     # requires the signed handshake even for read-only market data, so the auth headers
     # are sanctioned there — but ONLY the headers; an order verb in that file must fire.
     ws = ROOT / "collection" / "ws_depth.py"
