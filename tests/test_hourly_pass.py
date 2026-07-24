@@ -581,7 +581,19 @@ def test_main_wires_sports_limit_and_crypto_symbols(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
     monkeypatch.setattr(hp.perp_tape, "run", lambda **k: dict(_EMPTY_PERP))
     monkeypatch.setattr(hp.hyperliquid_funding, "run_incremental", lambda **k: dict(_EMPTY_HF))
-    # keep the two DAILY weather-revival legs offline regardless of the wall-clock hour
+    # This test drives the REAL main() through real datetime.now(UTC), so it must stay green at
+    # EVERY wall-clock hour: stub every hour-gated leg so none reaches a live network/subprocess
+    # call at its own UTC hour (else the test flakes only during that hour). Covered here:
+    #   hour 9  -> econ_prints (real run() -> network) and the anomaly_sweep subprocess
+    #             (ANOMALY_SWEEP_SCRIPT exists, so it would actually spawn); polymarket_cpi is
+    #             already stubbed via polymarket_pairs.run_cpi above.
+    #   hour 10 -> settlement_ledger (real run() -> a 5000-market Kalshi pull; the original flake)
+    #   hour 11 -> forecast_collector; hour 12 -> weather_actuals; {0,6,12,18} -> universe_sweep.
+    monkeypatch.setattr(hp.settlement_ledger, "run", lambda **k: {"completeness_ok": True})
+    monkeypatch.setattr(hp.econ_prints, "run", lambda **k: {"n_series": 0, "n_complete": 0})
+    # anomaly_sweep is a subprocess of ANOMALY_SWEEP_SCRIPT; point it at a nonexistent path so
+    # the leg reports not_built (no subprocess spawned) instead of running live at hour 9.
+    monkeypatch.setattr(hp, "ANOMALY_SWEEP_SCRIPT", tmp_path / "no-such-anomaly-sweep.py")
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
     monkeypatch.setattr(hp.universe_sweep, "run", lambda **k: {"n_markets": 0, "n_lines": 0, "completeness_ok": True})
@@ -617,6 +629,19 @@ def test_main_returns_nonzero_on_incomplete_pass(monkeypatch, tmp_path):
     monkeypatch.setattr(hp.weather_books, "run", lambda **k: dict(_EMPTY_WEATHER))
     monkeypatch.setattr(hp.perp_tape, "run", lambda **k: dict(_EMPTY_PERP))
     monkeypatch.setattr(hp.hyperliquid_funding, "run_incremental", lambda **k: dict(_EMPTY_HF))
+    # This test drives the REAL main() through real datetime.now(UTC), so it must stay green at
+    # EVERY wall-clock hour: stub every hour-gated leg so none reaches a live network/subprocess
+    # call at its own UTC hour (else the test flakes only during that hour). Covered here:
+    #   hour 9  -> econ_prints (real run() -> network) and the anomaly_sweep subprocess
+    #             (ANOMALY_SWEEP_SCRIPT exists, so it would actually spawn); polymarket_cpi is
+    #             already stubbed via polymarket_pairs.run_cpi above.
+    #   hour 10 -> settlement_ledger (real run() -> a 5000-market Kalshi pull; the sibling flake)
+    #   hour 11 -> forecast_collector; hour 12 -> weather_actuals; {0,6,12,18} -> universe_sweep.
+    monkeypatch.setattr(hp.settlement_ledger, "run", lambda **k: {"completeness_ok": True})
+    monkeypatch.setattr(hp.econ_prints, "run", lambda **k: {"n_series": 0, "n_complete": 0})
+    # anomaly_sweep is a subprocess of ANOMALY_SWEEP_SCRIPT; point it at a nonexistent path so
+    # the leg reports not_built (no subprocess spawned) instead of running live at hour 9.
+    monkeypatch.setattr(hp, "ANOMALY_SWEEP_SCRIPT", tmp_path / "no-such-anomaly-sweep.py")
     monkeypatch.setattr(hp.forecast_collector, "run", lambda **k: {"n_expected": 0, "n_complete": 0})
     monkeypatch.setattr(hp.weather_actuals, "run", lambda **k: {"n_captured": 0, "completeness_ok": True})
     monkeypatch.setattr(hp.universe_sweep, "run", lambda **k: {"n_markets": 0, "n_lines": 0, "completeness_ok": True})
