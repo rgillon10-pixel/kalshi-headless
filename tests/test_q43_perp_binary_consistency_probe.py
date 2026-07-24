@@ -371,3 +371,40 @@ def test_analysis_path_fires_when_gate_open(tmp_path):
     # note carries the caveat forward rather than silently dropping it once the gate opens
     assert len(rep["thin_days"]) == 7
     assert "CAVEAT" in rep["note"] and "calendar-gate-open" in rep["note"]
+
+
+# --------------------------------------------------------------------------- #
+# (F) multiplexed-record_type consumer-correctness (2026-07-24 idle-run audit)
+# --------------------------------------------------------------------------- #
+def test_load_perp_bbo_ignores_non_markets_records(tmp_path):
+    """perp_tape multiplexes 4 record types (markets / orderbook / funding_estimate /
+    funding_rates) that legitimately SHARE (ticker, captured_at) within one pass. A 2026-07-24
+    idle-run audit confirmed all three current perp consumers filter record_type, but nothing
+    pinned load_perp_bbo's filter against an adversarial non-markets row. An `orderbook` /
+    `funding_estimate` record carrying a top-level perp ticker (and, worst-case, a bogus
+    `contracts` list with a DIFFERENT quote) must NEVER produce a BBO -- only the `markets`
+    record's contracts do. Guards the ONLY gate-open item's correctness against a future refactor
+    that starts reading BBO from a non-markets record (an L96-class conflation)."""
+    perp_dir = tmp_path / "perp"
+    perp_dir.mkdir()
+    ts = "2026-07-24T00:29:58+00:00"
+    markets = {"record_type": "markets", "capture_id": ts, "captured_at": ts,
+               "contracts": [{"ticker": "KXBTCPERP", "bid": 6.4536, "ask": 6.4561,
+                              "contract_size": 0.0001,
+                              "settlement_mark_price": {"price": "6.4519"}}]}
+    # adversarial: a non-markets record for the SAME ticker+captured_at, carrying a bogus
+    # contracts list with a DIFFERENT quote -- must be ignored purely on record_type.
+    orderbook = {"record_type": "orderbook", "ticker": "KXBTCPERP", "capture_id": ts,
+                 "captured_at": ts, "asks": [[6.99, 10]], "bids": [[6.00, 10]],
+                 "contracts": [{"ticker": "KXBTCPERP", "bid": 6.00, "ask": 6.99,
+                                "contract_size": 0.0001,
+                                "settlement_mark_price": {"price": "6.50"}}]}
+    funding = {"record_type": "funding_estimate", "ticker": "KXBTCPERP", "capture_id": ts,
+               "captured_at": ts, "mark_price": 6.45, "funding_rate_estimate": 0.0}
+    _write_jsonl(perp_dir / "dt=2026-07-24.jsonl", [orderbook, markets, funding])
+
+    bbo = load_perp_bbo(str(perp_dir / "dt=*.jsonl"))
+    assert len(bbo) == 1                        # exactly one BTC BBO, from the markets record only
+    assert bbo[0]["symbol"] == "BTC"
+    # the markets quote, NOT the orderbook record's bogus 6.00/6.99
+    assert bbo[0]["bid"] == 6.4536 and bbo[0]["ask"] == 6.4561
