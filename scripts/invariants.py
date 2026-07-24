@@ -39,7 +39,7 @@ import subprocess
 import sys
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -583,7 +583,14 @@ def tape_dir_shape_orphan_warning(classified: List[Tuple[str, str]]) -> Optional
 # hour 12, so this exact-hour leg was silently starved by the same mechanism L74/L123
 # already documented for other families — but this family itself was never added to this
 # list, so the one tool built to catch it (`daily_family_gap_warning`) could not see it.
-DAILY_CADENCE_FAMILIES = ("anomalies", "econ_prints", "polymarket_cpi_pairs", "weather_actuals")
+# `settlement_ledger` added 2026-07-24 (L144, closing L123's structural residue): it is
+# gated at `SETTLEMENT_LEDGER_UTC_HOUR=10` (`collection/hourly_pass.py`) and writes committed
+# `tape/settlement_ledger/`, but the every-3h live cron never lands on hour 10 (L123) so the
+# family froze at its `dt=2026-07-17` build day — the direct data-adequacy blocker on Q36 —
+# and was never registered here even after its twin freeze was root-caused. The unregistered-
+# leg meta-guard below now trips the moment a future single-hour committed leg forgets this.
+DAILY_CADENCE_FAMILIES = ("anomalies", "econ_prints", "polymarket_cpi_pairs", "weather_actuals",
+                          "settlement_ledger")
 
 
 def _daily_family_gap_issues(tape_root: Path = ROOT / "tape",
@@ -631,6 +638,98 @@ def daily_family_gap_warning(issues: List[str]) -> Optional[str]:
         f"These families ({', '.join(DAILY_CADENCE_FAMILIES)}) capture only during a single "
         f"UTC hour with no retry/backfill, so one bad hour blacks out a full day with nothing "
         f"else to catch it. See kb/lessons/00-lessons.md L74."
+    )
+
+
+# ─── Unregistered single-hour committed leg meta-guard (L144: non-gating, offline-safe) ──
+
+# `collection/hourly_pass.py` runs several legs ONCE per UTC day, gated on exact single-hour
+# equality (`if ts.hour == <NAME>_UTC_HOUR:`). Such a leg has no catch-up: if the scheduler
+# never lands on hour N, the family it writes silently FREEZES with no error (L123/L124 for
+# settlement_ledger, L126 for weather_actuals — both cost real committed-tape holes). The one
+# tool built to surface that freeze, `daily_family_gap_warning`, can only see a family listed
+# in DAILY_CADENCE_FAMILIES. Twice now (weather_actuals, then settlement_ledger) a real leg
+# was added and simply never registered, so the freeze stayed invisible. This meta-guard
+# closes the STRUCTURAL half L123 left open: it parses hourly_pass.py, finds every single-hour
+# leg, resolves the committed tape family/families it writes, and asserts each is monitored —
+# so the NEXT unregistered leg trips CI instead of freezing in silence. (The trailing-edge
+# freeze DETECTION half is already handled at runtime by scripts/tape_gap_monitor.py, where
+# settlement_ledger was registered by L124 — this guard is deliberately structural, not
+# wall-clock, so it stays deterministic and offline.) The plural `*_UTC_HOURS` set-membership
+# gate (universe_sweep, fires 4x/day on {0,6,12,18}) is NOT a single-hour leg and is excluded.
+
+# Maps each single-hour `*_UTC_HOUR` constant in hourly_pass.py to the committed tape
+# family/families it gates. ECON_PRINTS_UTC_HOUR gates two (econ_prints AND the polymarket_cpi
+# leg reused at the same hour). Every family here must be in DAILY_CADENCE_FAMILIES.
+SINGLE_HOUR_LEG_FAMILIES: Dict[str, Tuple[str, ...]] = {
+    "ANOMALY_SWEEP_UTC_HOUR": ("anomalies",),
+    "ECON_PRINTS_UTC_HOUR": ("econ_prints", "polymarket_cpi_pairs"),
+    "WEATHER_ACTUALS_UTC_HOUR": ("weather_actuals",),
+    "SETTLEMENT_LEDGER_UTC_HOUR": ("settlement_ledger",),
+}
+# Single-hour legs that DELIBERATELY write no committed tape/<family>, with the documented
+# reason each is exempt from cadence monitoring (nothing to gap-check).
+SINGLE_HOUR_LEG_EXEMPT: Dict[str, str] = {
+    "FORECAST_COLLECTOR_UTC_HOUR": ("writes gitignored data/forecast_tape/, never a committed "
+                                    "tape/ family (L123/L124) — nothing to gap-check"),
+}
+
+_TS_HOUR_EQ_RE = re.compile(r"ts\.hour\s*==\s*([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _unregistered_single_hour_leg_issues(
+        hourly_pass_path: Path = ROOT / "collection" / "hourly_pass.py",
+        monitored: Tuple[str, ...] = DAILY_CADENCE_FAMILIES,
+        known: Optional[Dict[str, Tuple[str, ...]]] = None,
+        exempt: Optional[Dict[str, str]] = None,
+        source: Optional[str] = None) -> List[str]:
+    """Every single-hour committed leg (`if ts.hour == <NAME>_UTC_HOUR:`) in hourly_pass.py
+    whose resolved committed tape family is NOT in `monitored` and NOT documented-exempt
+    (lesson L144). Best-effort/offline: ANY failure (missing file, read error, exception) is
+    swallowed and returns [] so it can never poison the gate. `source`/`known`/`exempt` are
+    injectable for offline testing; each defaults to the real file / real maps. A constant the
+    guard does NOT recognize is SURFACED (not silently passed) — the point is that a future
+    `*_UTC_HOUR` leg added without registration trips here. Returns sorted issue labels."""
+    known = SINGLE_HOUR_LEG_FAMILIES if known is None else known
+    exempt = SINGLE_HOUR_LEG_EXEMPT if exempt is None else exempt
+    issues: List[str] = []
+    try:
+        if source is None:
+            source = hourly_pass_path.read_text(encoding="utf-8")
+        names = {n for n in _TS_HOUR_EQ_RE.findall(source) if n.endswith("_UTC_HOUR")}
+        for name in names:
+            if name in exempt:
+                continue
+            if name in known:
+                for fam in known[name]:
+                    if fam not in monitored:
+                        issues.append(
+                            f"{name} -> tape/{fam} (single-hour committed leg not in "
+                            f"DAILY_CADENCE_FAMILIES)")
+            else:
+                issues.append(
+                    f"{name} (unrecognized single-hour leg; resolve its committed tape family "
+                    f"and add to DAILY_CADENCE_FAMILIES + SINGLE_HOUR_LEG_FAMILIES, or exempt it)")
+    except Exception:
+        return []
+    return sorted(issues)
+
+
+def unregistered_single_hour_leg_warning(issues: List[str]) -> Optional[str]:
+    """A non-gating advisory message when a single-hour committed collector leg in
+    collection/hourly_pass.py is not registered for daily-cadence monitoring, else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = "; ".join(issues[:3]) + ("; ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} single-hour committed collector leg(s) in "
+        f"collection/hourly_pass.py are not registered for daily-cadence monitoring "
+        f"(e.g. {examples}). A once-per-UTC-day `if ts.hour == N` leg that writes a committed "
+        f"tape/<family> silently FREEZES if the scheduler never lands on hour N (L123/L124/"
+        f"L126), and only DAILY_CADENCE_FAMILIES membership lets daily_family_gap_warning see "
+        f"it. Register the family (or add a documented SINGLE_HOUR_LEG_EXEMPT reason). "
+        f"See kb/lessons/00-lessons.md L144."
     )
 
 
@@ -823,6 +922,12 @@ def main() -> int:
         gap_warning = daily_family_gap_warning(_daily_family_gap_issues())
         if gap_warning:
             sys.stderr.write(gap_warning + "\n")
+        # L144 advisory: a single-hour committed leg in hourly_pass.py that is not registered
+        # in DAILY_CADENCE_FAMILIES (the structural gap that hid the weather_actuals/L126 and
+        # settlement_ledger/L123 freezes). Non-gating — stderr only, never flips the exit code.
+        leg_warning = unregistered_single_hour_leg_warning(_unregistered_single_hour_leg_issues())
+        if leg_warning:
+            sys.stderr.write(leg_warning + "\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.
         iso_warning = raw_datetime_fromisoformat_warning(_raw_datetime_fromisoformat_sites())

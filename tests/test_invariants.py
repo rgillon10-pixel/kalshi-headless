@@ -373,6 +373,100 @@ def test_acceptance_l126_weather_actuals_real_gap_detected():
     assert "weather_actuals/dt=2026-07-20" in issues
 
 
+# ─── unregistered single-hour committed leg meta-guard (L144: non-gating) ─────
+
+def test_daily_cadence_families_includes_settlement_ledger():
+    # L144: settlement_ledger is gated at a single fixed UTC hour (10) with no retry/backfill
+    # (SETTLEMENT_LEDGER_UTC_HOUR), writes committed tape/settlement_ledger/, and froze at its
+    # dt=2026-07-17 build day (Q36 blocker) because the every-3h cron never lands on hour 10 —
+    # the same shape L123/L124 root-caused. It was simply never added to the tracked tuple, so
+    # daily_family_gap_warning could not see it. This pins the registration.
+    assert "settlement_ledger" in inv.DAILY_CADENCE_FAMILIES
+
+
+def test_unregistered_single_hour_leg_real_tree_is_clean():
+    # HARD acceptance test anchored to the REAL repo tree: with settlement_ledger now
+    # registered, every single-hour committed leg in collection/hourly_pass.py resolves to a
+    # family that IS in DAILY_CADENCE_FAMILIES (or the documented forecast_collector exemption),
+    # so the meta-guard produces NO advisory. This is the state the milestone had to reach by
+    # hand; the guard now holds it.
+    assert inv._unregistered_single_hour_leg_issues() == []
+
+
+def test_unregistered_single_hour_leg_fires_on_unregistered_known_family():
+    # The next-variant bug: settlement_ledger's real single-hour leg exists in hourly_pass.py,
+    # but someone forgot to register it. Simulate by dropping it from the monitored tuple; the
+    # guard must catch it (this is exactly what bit weather_actuals/L126 and settlement_ledger).
+    monitored = tuple(f for f in inv.DAILY_CADENCE_FAMILIES if f != "settlement_ledger")
+    issues = inv._unregistered_single_hour_leg_issues(monitored=monitored)
+    assert any("SETTLEMENT_LEDGER_UTC_HOUR" in i and "settlement_ledger" in i for i in issues)
+
+
+def test_unregistered_single_hour_leg_fires_on_unrecognized_new_leg():
+    # A FUTURE single-hour committed leg added to hourly_pass.py that the guard's maps don't
+    # recognize must be SURFACED, not silently passed — closing the loop L126/L144 closed by
+    # hand. Feed a synthetic hourly_pass-shaped source with a brand-new *_UTC_HOUR gate.
+    synthetic = (
+        "NEWLEG_UTC_HOUR = 5\n"
+        "def run(now=None):\n"
+        "    ts = now\n"
+        "    if ts.hour == NEWLEG_UTC_HOUR:\n"
+        "        newleg.run()\n"
+    )
+    issues = inv._unregistered_single_hour_leg_issues(source=synthetic)
+    assert any("NEWLEG_UTC_HOUR" in i and "unrecognized" in i for i in issues)
+
+
+def test_unregistered_single_hour_leg_ignores_plural_hours_set_gate():
+    # The plural `*_UTC_HOURS` set-membership gate (universe_sweep, 4x/day on {0,6,12,18}) is
+    # NOT a single-hour leg and must never be flagged — a missed hour there does not black out
+    # the day. `ts.hour in ...` is not `ts.hour == ...`, and the name ends _UTC_HOURS not _HOUR.
+    synthetic = (
+        "UNIVERSE_SWEEP_UTC_HOURS = {0, 6, 12, 18}\n"
+        "    if ts.hour in UNIVERSE_SWEEP_UTC_HOURS:\n"
+        "        universe.run()\n"
+    )
+    assert inv._unregistered_single_hour_leg_issues(source=synthetic) == []
+
+
+def test_unregistered_single_hour_leg_exempt_forecast_not_flagged():
+    # forecast_collector writes gitignored data/forecast_tape/, never a committed tape/ family,
+    # so it is documented-exempt and must not be flagged even though it is a single-hour leg.
+    synthetic = "    if ts.hour == FORECAST_COLLECTOR_UTC_HOUR:\n        forecast.run()\n"
+    assert inv._unregistered_single_hour_leg_issues(source=synthetic) == []
+
+
+def test_unregistered_single_hour_leg_warning_none_when_empty():
+    assert inv.unregistered_single_hour_leg_warning([]) is None
+
+
+def test_unregistered_single_hour_leg_warning_message_content():
+    msg = inv.unregistered_single_hour_leg_warning(
+        ["SETTLEMENT_LEDGER_UTC_HOUR -> tape/settlement_ledger (single-hour committed leg ...)"])
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "SETTLEMENT_LEDGER_UTC_HOUR" in msg
+    assert "L144" in msg
+
+
+def test_unregistered_single_hour_leg_issues_missing_file_is_empty(tmp_path):
+    # Best-effort/offline: a missing hourly_pass.py must return [] (never poison the gate).
+    assert inv._unregistered_single_hour_leg_issues(tmp_path / "nope.py") == []
+
+
+def test_unregistered_single_hour_leg_warning_never_gates_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(inv, "_unregistered_single_hour_leg_issues",
+                        lambda: ["FAKE_UTC_HOUR (unrecognized single-hour leg ...)"])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "FAKE_UTC_HOUR" in captured.err
+    assert "L144" in captured.err
+    assert "invariants: all green" in captured.out
+
+
 # ─── raw datetime.fromisoformat advisory (L138 residue: non-gating) ───────────
 
 def test_raw_datetime_fromisoformat_sites_finds_real_sites():
