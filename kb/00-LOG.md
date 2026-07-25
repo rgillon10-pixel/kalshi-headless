@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~21:1x UTC — IDLE RUN (policy b): Q19 FOMC burst-capture pre-flight — chunked-commit recipe designed + offline-tested, not applied (research loop)
+
+Step 0a PASS: `origin/main` HEAD `b5a9d6e` (merged PR #199); `kb/00-LOG.md` newest entry and
+newest committed tape both 2026-07-25, no rewind. Step 0 claim-check: open PRs #191 (draft,
+dead-shadow invariant, Ryan-review), #165/#166 (draft, Ryan-action infra), #125 (leave-open
+weekly-retro) — none claim eligible queue work. Step 0b: newest `tape/hourly-*`/`tape/burst-*`
+branches (`...20260725T1003Z`, `...20260725T1257Z`) already swept by PR #197 — nothing new.
+
+Full Q0-Q47 re-scan: Q19 FOMC gate still 4 days out (2026-07-29), Q36/Q42-pt3/Q43/Q47 still
+density/calendar/credential-gated (re-verified directly against their own Status blocks, not
+trusting prior runs' notes), Q1-odds/Q32/Q33/Q35-build stay credential-blocked. Lessons ledger's
+`**UNENFORCED**` backlog is empty (L163, this morning, closed the last open row) — idle-run
+policy (a) exhausted → policy (b): prep for the next time-gated item, Q19's FOMC leg.
+
+**The milestone.** The immediately-prior FOMC-adjacent run (PR #195) flagged unfinished business:
+"2 of 3 prior burst-capture windows (WC semi-1, WC final) fired but committed no data — worth a
+pre-flight check before Jul 29." Verified live via `list_triggers`: `kalshi-burst-fomc-0729`
+(`trig_01L9RysFtWUUjj3BgQmNKw7g`) is correctly configured (`enabled: true`, fires
+2026-07-29T17:40:00Z) and already carries the 2026-07-15 push-verification hardening. Root-caused
+why that hardening didn't save `wcfinal-0719` anyway: the mechanism gates the ENTIRE ~125-160min
+window on ONE git commit after the whole capture loop returns — any sandbox interruption before
+that single commit loses every already-captured, already-on-local-disk tick, uncommitted (stated
+as a hypothesis; no direct evidence like a captured stderr distinguishes "died mid-run" from
+"started late, window already past" — both currently look identical from outside: zero tape, no
+error). Built + offline-tested a chunked-commit fix requiring **no source change** to
+`collection/burst_capture.py` (it already supports `--max-ticks` per invocation):
+`scripts/burst_chunk_plan.py` (+18 tests) computes the exact `--max-ticks` sequence for a given
+window (FOMC: 6 chunks of 14 ticks each, regression-pinned), `ops/burst_capture_chunked.md` is
+the runbook + the literal recommended replacement text for the trigger's step 3 (commit+push+
+verify after EVERY chunk instead of once at the end).
+
+**Deliberately not applied.** Per the 2026-07-15 precedent (that hardening was Ryan-applied, not
+autonomous — "already Ryan-hardened ... that's handled"), editing a live one-shot trigger's
+prompt is treated as Ryan's call, not a cloud research loop's. `kalshi-burst-fomc-0729` was left
+untouched; `update_trigger` was not invoked. **Action needed from Ryan before 2026-07-29
+17:40Z** — apply the replacement text via `update_trigger` on `trig_01L9RysFtWUUjj3BgQmNKw7g`, or
+accept the existing single-shot recipe's risk. `LOOP-QUEUE.md` Q19 status and `ops/ROUTINES.md`'s
+burst-capture-legs row both updated. See `findings/2026-07-25-q19-fomc-burst-preflight.md`.
+
+No verdict, no registry change, no P&L claim — two-agent verdict rule N/A (ops/infra hardening +
+a diagnostic writeup of already-documented facts, same posture as L109/L118/L126/L144/L150/L152/
+L156/L157/L160/L161/L163). `pytest -q`: **≥1972 collected, 0 failed** (18 new in
+`tests/test_burst_chunk_plan.py`; full-suite run taken after this diff's last edit, per the L162/
+L163 fresh-gate-line rule — this sandbox's pytest summary line does not reliably flush after a
+full run, a known cosmetic quirk per PR #193, so the count is cross-checked via
+`pytest --collect-only -q` summing to 1972 rather than trusted from the dot-progress tail).
+`python scripts/invariants.py --full`: exit 0, `invariants: all green` (same pre-existing
+non-gating advisory classes as `main` before this run; the L136/L150 raw-`fromisoformat` ratchet
+initially caught this diff's own new script using it directly — fixed to
+`core.timeutil.parse_iso_utc` before commit, ratchet count unchanged from baseline). Step 9:
+`SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per Q34, paper-infra validation only, NOT edge
+evidence); `paper_pass.py` idempotent (0 newly eligible — this diff touches no tape), ledger
+unchanged **+$18.15** (`broker_truth`; 984 settled, 0 open). Still **0 proven edges**. Separately
+noted, not actioned: the VPS collector leg advisory now reads 75.8h silent (worsening, Ryan-side,
+non-gating).
+
+---
+
 ## 2026-07-25 ~18:0x UTC — IDLE RUN (policy a): L162→L163 fresh-gate-line protocol rule (research loop)
 
 Step 0a PASS: `origin/main` HEAD `ed4422c` (merged PR #198); `kb/00-LOG.md` newest entry and
