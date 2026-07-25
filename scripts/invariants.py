@@ -32,6 +32,7 @@ Lines that legitimately contain a banned string (rule defs, fixtures) carry the 
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sqlite3
@@ -1673,6 +1674,159 @@ def recovery_dwell_warning(issues: List[Tuple[str, str]]) -> Optional[str]:
     )
 
 
+# ─── Hand-rolled binary settlement-result advisory (L52: non-gating, offline) ─
+#
+# L52 (2026-07-14): Kalshi sports settlement results are NOT always binary. Q26's live pull of
+# `fetch_kalshi_settled` over 458 settled markets across 7 sports series returned 8 rows with
+# `result: "scalar"` — not `result in {"yes","no"}`. Code that reads a settled market's result
+# by comparing it to the bare string "yes"/"no" therefore silently classifies every non-binary
+# row as the LOSING side of a yes/no hit-rate or P&L calculation, instead of excluding it.
+# The sanctioned fix is `core.settlement` (`filter_binary_settlements` / `binary_outcome` /
+# `require_binary_result`), which filters on the result field's ACTUAL value.
+#
+# This is a LEXICAL, LINE-SCOPED proxy, and it is deliberately narrow:
+#   * a HIT needs BOTH an equality/inequality against a `"yes"`/`"no"` literal AND a
+#     settlement token (`result`/`results`/`settle*`/`outcome`) on the SAME line. The same-line
+#     requirement is the whole precision story — `execution/fill_models.py` compares an ORDER
+#     SIDE (`side == "yes"`, `order.side != "no"`) on lines with no settlement token, and those
+#     must never be reported. Pinned in tests/test_settlement_result_advisory.py.
+#   * a file is GUARDED (and dropped ENTIRELY) when it anywhere mentions a `"scalar"` literal,
+#     applies an `in`/`not in` membership test over a 2-element ("yes","no") collection, or
+#     references the sanctioned helper. File-level, not line-level: see BLIND SPOTS below.
+# Deliberate blind spots (regression-tested as MISSES, so widening the rule has to delete a
+# test on purpose rather than by accident):
+#   * the settlement token on an EARLIER line than the comparison —
+#     `scripts/probe_ladder_coherence.py:140` (`if res == "yes":`, where `res` is assigned from
+#     a settlement record two lines up) is a genuine unguarded site this rule does not see.
+#     Closing it needs dataflow, not a wider regex;
+#   * file-level guard granularity: ONE `"scalar"` mention anywhere exempts every other
+#     hand-rolled comparison in that file;
+#   * membership over a >2-element or dynamically-built collection, `result.startswith("y")`,
+#     `dict.get("result") == "yes"` split across lines, and `match`/`case` forms.
+_BINARY_RESULT_CMP_RE = re.compile(
+    r"""(?:(?:==|!=)\s*(['"])(?:yes|no)\1)|(?:(['"])(?:yes|no)\2\s*(?:==|!=))"""
+)
+_SETTLEMENT_TOKEN_RE = re.compile(r"\b(?:results?|settle\w*|outcome)\b", re.I)
+_SCALAR_LITERAL_RE = re.compile(r"""['"]scalar['"]""")
+# `x in ("yes","no")` / `x not in {"no","yes"}` / `[...]` — an EXPLICIT 2-element binary filter.
+_BINARY_MEMBERSHIP_RE = re.compile(
+    r"""\b(?:not\s+in|in)\s*[\(\[\{]\s*(['"])(?:yes|no)\1\s*,\s*"""
+    r"""(['"])(?:yes|no)\2\s*,?\s*[\)\]\}]"""
+)
+_SETTLEMENT_HELPER_RE = re.compile(
+    r"core\.settlement|from\s+core\s+import\s+settlement"
+    r"|is_binary_result|binary_outcome|filter_binary_settlements"
+    r"|filter_binary_results_map|require_binary_result"
+)
+# The sanctioned home of the binary-result predicate itself (it must compare against the
+# literals to define them). Whole-file exemption, same shape as LADDER_SIZE_COERCION_EXEMPT.
+HANDROLLED_BINARY_RESULT_EXEMPT = ("core/settlement.py",)
+
+
+def _docstring_line_numbers(text: str) -> set:
+    """1-based line numbers spanned by module/class/function DOCSTRINGS in `text`, via `ast`.
+
+    Prose that merely DISCUSSES a settlement comparison is documentation, not a hand-rolled
+    read: `scripts/weather_rehab_s5.py` lines 107 and 112 say "YES pays $1 if result=='yes'"
+    inside the module docstring, while its line 508 really does compute
+    `[tk for tk in tickers if members[tk]["result"] == "yes"]`. A comment-prefix test cannot
+    tell those apart; the AST can. Falls back to NO exclusion when the file does not parse —
+    the honest degradation is to over-report, never to skip a real site. Pure."""
+    out: set = set()
+    try:
+        tree = ast.parse(text)
+    except Exception:
+        return out
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+            continue
+        body = getattr(node, "body", None)
+        if not body:
+            continue
+        first = body[0]
+        if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            out.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+    return out
+
+
+def _handrolled_binary_result_sites(root: Path = ROOT) -> List[str]:
+    """Production lines that decide a settled market's outcome by comparing it to a bare
+    `"yes"`/`"no"` literal, in files carrying no binary-result guard (L52).
+
+    See the module-level block above for the exact HIT rule, the file-level GUARD set, and the
+    deliberate blind spots. `tests/` is skipped (fixtures construct the bad shape on purpose)
+    and `HANDROLLED_BINARY_RESULT_EXEMPT` exempts the sanctioned helper itself.
+
+    Best-effort/offline: no network, no git, no subprocess; any per-file exception skips that
+    file and can never poison the gate. Returns sorted `relpath:line` labels."""
+    out: List[str] = []
+    try:
+        for p in _iter_source_files(root, exts=(".py",)):
+            try:
+                rel = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
+            except Exception:
+                continue
+            if rel in HANDROLLED_BINARY_RESULT_EXEMPT or rel.split("/", 1)[0] == "tests":
+                continue
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+                if (_SCALAR_LITERAL_RE.search(text)
+                        or _BINARY_MEMBERSHIP_RE.search(text)
+                        or _SETTLEMENT_HELPER_RE.search(text)):
+                    continue  # file carries an explicit binary-result guard
+                doc_lines = _docstring_line_numbers(text)
+                for i, line in enumerate(text.splitlines(), 1):
+                    if i in doc_lines or line.lstrip().startswith("#"):
+                        continue
+                    if (_BINARY_RESULT_CMP_RE.search(line)
+                            and _SETTLEMENT_TOKEN_RE.search(line)):
+                        out.append(f"{rel}:{i}")
+            except Exception:
+                continue
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def handrolled_binary_result_warning(sites: List[str]) -> Optional[str]:
+    """Non-gating advisory when production code hand-rolls a binary settlement-result read
+    outside `core.settlement` (L52), else None. Pure.
+
+    States its TESTED shape set and its known misses, not its intent: a LOW count is evidence
+    of PRECISION only, never of RECALL (L155)."""
+    if not sites:
+        return None
+    n = len(sites)
+    examples = ", ".join(sites[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} production site(s) decide a settled market's outcome by "
+        f"comparing a result field to a bare \"yes\"/\"no\" literal, with no binary-result "
+        f"guard anywhere in the file (e.g. {examples}). Kalshi settlement is NOT always "
+        f"binary — Q26's live pull of 458 settled markets across 7 sports series returned 8 "
+        f"with result:\"scalar\" — so an unfiltered comparison silently books every "
+        f"non-binary row as the losing side of a yes/no hit-rate or P&L. Filter on the result "
+        f"field's actual value via core.settlement.filter_binary_settlements / "
+        f"core.settlement.binary_outcome. "
+        f"COVERAGE (lexical proxy, line-scoped, tested shapes only): an `==`/`!=` against a "
+        f"'yes'/'no' string literal (either operand order) sharing ONE line with a settlement "
+        f"token (`result`/`results`/`settle*`/`outcome`); docstring lines are excluded via an "
+        f"AST pass and comment lines and tests/ are skipped. "
+        f"KNOWN BLIND SPOTS (deliberate, regression-tested as misses in "
+        f"tests/test_settlement_result_advisory.py): the settlement token on an EARLIER line "
+        f"than the comparison — scripts/probe_ladder_coherence.py:140 (`if res == \"yes\":`) "
+        f"is a genuine unguarded settlement read this line-scoped rule does NOT report; "
+        f"file-level guard granularity, where a single 'scalar' literal / ('yes','no') "
+        f"membership test / core.settlement reference ANYWHERE in a file exempts every other "
+        f"hand-rolled comparison in it; and non-comparison forms "
+        f"(`result.startswith`, match/case, membership over a dynamically built collection). "
+        f"A low or zero count is PRECISION evidence, not RECALL (L155). "
+        f"Advisory only — does NOT affect the exit code. See kb/lessons/00-lessons.md L52, "
+        f"L155."
+    )
+
+
 # ─── Tape conflict-marker gate (GATING, not advisory) ────────────────────────
 #
 # Real incident (2026-07-23): tape/econ_prints/dt=2026-07-18.jsonl and
@@ -1994,6 +2148,20 @@ def main() -> int:
                 sys.stderr.write(dwell_warning + "\n")
         except BaseException:
             sys.stderr.write("note: recovery-dwell advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L52 advisory: a production site deciding a settled market's outcome by comparing a
+        # result field to a bare "yes"/"no" literal, in a file with no binary-result guard
+        # (8 of 458 settled sports markets returned result:"scalar"). Non-gating — stderr
+        # only. Wrapped in `except BaseException` like the collector-health and dwell stanzas:
+        # the detector self-guards, but a raise in the FORMATTER or a non-str return (making
+        # `+ "\n"` a TypeError) would otherwise reach the exit code and turn a non-gating
+        # advisory into a gate — the L156 DEFECT-1 lesson.
+        try:
+            binres_warning = handrolled_binary_result_warning(_handrolled_binary_result_sites())
+            if binres_warning:
+                sys.stderr.write(binres_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: binary-settlement-result advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
