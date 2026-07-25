@@ -6,6 +6,71 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~16:2x UTC — IDLE RUN (policy a): L52 settlement-binary helper + non-gating advisory, 6 live sites found (research loop)
+
+Step 0a PASS: `origin/main` HEAD `0941f4d` (merged PR #197) fast-forwarded cleanly; ancestry of
+#195/#196/#197's merge commits verified directly (`git merge-base --is-ancestor`); `kb/00-LOG.md`
+newest entry and newest committed tape both 2026-07-25, 0-day gap — no rewind. Step 0 claim-check:
+open PRs unchanged — #191 (draft, dead-shadow invariant, Ryan-review; its `_dead_shadow` /
+`DEAD_SHADOW_PAPER_INFRA_EXEMPT` scope left untouched), #165/#166 (draft, Ryan-action
+data-stream-hardening/storage-migration), #125 (leave-open weekly-retro) — none claim eligible
+queue work. Full Q0–Q47 re-verified saturated (calendar: Q19 FOMC gate 2026-07-29 still 4 days
+out, Q37 ~08-05; density: Q36/Q43 still inadequate; creds: Q1-odds/Q32/Q33/Q35/Q47 still blocked)
+→ IDLE RUN.
+
+**Step 0b: a fresh full run of the new `scripts/tape_branch_sweep.py`** (built by the immediately-
+prior idle run) over all `tape/*` branches found **zero new genuinely-stranded tape** — the two
+branches the prior run (#197) swept and merged (`tape/hourly-20260725T1003Z`/`T1257Z`) no longer
+show as problems, and the only "missing" hits are the same 13 previously-audited-benign branches
+(8 `tape/cloud-env-check.md` edit-not-append artifacts, 5 pre-L142-fix conflict-marker artifacts).
+Nothing to commit from step 0b this run.
+
+**Idle-run milestone, policy (a), delegated to `research-lead`:** re-derived the full open
+`**UNENFORCED**` lesson set from `kb/lessons/00-lessons.md` from scratch (most nominal candidates
+are already closed by a later superseding row) and converted **L52** ("Kalshi settled sports
+markets are not always binary — 8/458 came back `result:"scalar"`") into enforcement. Built
+`core/settlement.py` (the shared READ-path classifier the row asked for: `is_binary_result`,
+`binary_outcome` — returns `None`, never a fabricated `0`, for a non-binary value —
+`filter_binary_settlements`/`filter_binary_results_map`, strict allow-list so an unobserved future
+result string is non-binary by default) + a non-gating `scripts/invariants.py` advisory
+(`_handrolled_binary_result_sites`/`handrolled_binary_result_warning`) that reports production code
+comparing a settlement `result` field to a bare `"yes"`/`"no"` literal with no binary guard in the
+file. **Live result: 6 real sites** (`scripts/s14_ladder_fillsim.py:119`,
+`scripts/s19_wing_fade_fillsim.py:142`, `scripts/seed5_funding_prior_probe.py:180`,
+`scripts/weather_rehab_s5.py:508/610/616`), all frozen/verdicted historical probes deliberately
+left unedited (that's exactly why the check is advisory, not gating) — `invariants --full` still
+exits 0. Two blind spots stated in the warning text and regression-pinned as misses (an
+earlier-line settlement token; file-level guard granularity), per L155's honest-recall discipline.
+
+**Reconciles, does not overturn, L106** (2026-07-19, which closed L52 as terminal): L106's
+objection was scoped to a **gating** scanner (would false-gate ~9 frozen legacy probes) and that
+reasoning still holds — nothing built here is gating. Also corrects L92's claim that
+`collection/settlement_ledger.py` closed L52's helper gap: it only centralized the **write** path
+(a private local filter); the **read**-path helper genuinely did not exist until this run.
+`tape/settlement_ledger/` measures 10,605/10,605 binary (2 files) — the collector's pre-filter
+working, not evidence the API is clean (upstream rate is 8/458 ≈ 1.7%).
+
+Independently re-verified (not just the building agent's self-report): `pytest -q` exit 0 (agent
+reported 1954 passed, 0 failed — 125 of those new; the pre-existing worktree-scan/cryptography
+baseline flake did not reproduce in this sandbox), `python scripts/invariants.py --full` exit 0
+(same 6 pre-existing non-gating advisory classes as before this run, plus the new L52 advisory
+firing correctly once). See `findings/2026-07-25-l52-settlement-binary-result-enforcement.md`. No
+strategy claim, no registry change, no bootstrap CI — two-agent verifier rule N/A per the explicit
+non-gating-tooling precedent (L109/L118/L126/L144/L150/L152/L156/L157/L160/L161).
+
+**Separately noted, not actioned this run:** the VPS `:23` collector leg remains dead — now
+**70.9h** silent (last capture `2026-07-22T17:29:49Z`), up from 61.7h at the prior run and 63.2h
+before that; still Ryan-side (cron restart), still non-gating, still invisible without the L156
+advisory since the cloud `:53` leg keeps the tape growing.
+
+Step 9 (paper sub-pass): `SHADOW_REGISTRY={s14_ladder_underwriting}` (registry status `dead ✗`
+per Q34 — paper-infra validation only, NOT edge evidence). `python scripts/paper_pass.py`: 0 newly
+processed (178 deferred-caps, 264 deferred-coverage, 122 already-in-ledger), ledger unchanged at
+**+$18.15** realized (`broker_truth`, 984 settled contracts, 0 open) — idempotent no-op, nothing to
+commit under `paper/`. Still **0 proven edges**.
+
+---
+
 ## 2026-07-25 ~14:0x UTC — IDLE RUN (policy a): L157 recovery-dwell advisory built + 271-line genuine stranded-tape sweep (research loop)
 
 Step 0a PASS: `origin/main` HEAD `cab68f6` (merged PR #196) fast-forwarded cleanly; `kb/00-LOG.md`
