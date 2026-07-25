@@ -1,16 +1,27 @@
 # Chunked burst-capture recipe (added 2026-07-25 — Q19 FOMC pre-flight)
 
+**Correction (same-day follow-up, independent verifier review):** the original version of this
+runbook mis-cited the "144 snapshots" figure to `kb/00-LOG.md` (it isn't there — the real source
+is below), miscounted "2 of 3" fired one-shots (it's 2 of 4), and recommended a UNIFORM chunk
+plan whose seam lands on top of the FOMC release instant itself. All three fixed here; see
+`findings/2026-07-25-q19-fomc-burst-preflight.md`'s correction section for the full account.
+
 ## The problem this fixes
 
 Every burst trigger today (`ops/ROUTINES.md` "Burst-capture legs") runs ONE continuous
 `python -m collection.burst_capture --until <end> --interval I --families F` for the whole
 event window (up to ~155 minutes) and commits tape to git exactly ONCE, after the script exits
-on its own. Two of the three fired one-shots so far produced ZERO committed tape despite
-`last_fired_at` confirming they ran:
+on its own. 2 of the 4 one-shots fired so far produced ZERO committed tape despite
+`last_fired_at` confirming they ran (`kalshi-burst-cpi-0714` and `kalshi-burst-wcsemi2-0715`
+both fired and succeeded — this hits about half the one-shots that have run, not all of them):
 
-- `kalshi-burst-wcsemi1-0714` (2026-07-14) — `kb/00-LOG.md` 2026-07-14 entry pins this to the
-  triggered sandbox dying mid-run, losing 144 already-captured snapshots that were never
-  committed.
+- `kalshi-burst-wcsemi1-0714` (2026-07-14) — `kb/00-LOG.md`'s 2026-07-14 entry states plainly
+  it "produced NO tape anywhere ... no commit ... no fallback branch ... the session apparently
+  did not even reach its own fallback-branch-push step" (no snapshot count, no definitive root
+  cause given there). The "144 snapshots captured, claimed 'committed', lost when the sandbox
+  died" characterization is from a DIFFERENT, later (2026-07-15) source: the live burst-trigger
+  prompts' own "MANDATORY PUSH VERIFICATION" text (`kalshi-burst-wcfinal-0719`/`-fomc-0729`,
+  read via `list_triggers`).
 - `kalshi-burst-wcfinal-0719` (2026-07-19) — lost data too, even though a 2026-07-15
   Ryan-applied fix had already added mandatory push-verification to every remaining one-shot
   (`kalshi-burst-wcsemi2-0715`/`-wcfinal-0719`/`-fomc-0729`). `LOOP-QUEUE.md` Q19's 2026-07-19
@@ -37,22 +48,32 @@ one-shot prompt already has. Worst case, a chunk's own sandbox dies: every PRIOR
 already safely on the remote, and only the in-flight chunk (≤20 min of ticks) is at risk instead
 of the whole window.
 
-Use `scripts/burst_chunk_plan.py` to compute the exact `--max-ticks` sequence — do not
-hand-compute it (an arithmetic slip here is exactly the class of bug this repo's lessons ledger
-keeps catching elsewhere, e.g. L162). Example, the FOMC window:
+Use `scripts/burst_chunk_plan.py` to compute a UNIFORM chunk sequence — do not hand-compute it
+(an arithmetic slip here is exactly the class of bug this repo's lessons ledger keeps catching
+elsewhere, e.g. L162). Example, the FOMC window's naive uniform plan:
 
 ```
 $ python3 scripts/burst_chunk_plan.py --start 2026-07-29T17:40:00Z --until 2026-07-29T19:45:00Z \
     --interval 90 --chunk-minutes 20
-total_ticks=84 interval=90s chunk~21.0min n_chunks=6
+total_ticks=84 interval=90s chunk~19.5min n_chunks=6
 max_ticks_sequence=[14, 14, 14, 14, 14, 14]
 ```
 
+**This naive uniform output must NOT be used as-is for FOMC.** Its first chunk boundary (the
+seam between chunk 1 and chunk 2) falls at approximately 17:59:30Z-18:01:00Z — straddling the
+18:00:00Z statement release, the single highest-information instant in the window. L57 found
+the entire June-CPI burst's lead-lag signal lived in ONE release-instant capture; a seam there
+risks losing exactly the tick this whole recipe exists to protect. `scripts/burst_chunk_plan.py`
+computes a uniform plan only — it does not know about a decisive release instant and will not
+warn you (see its module docstring). **The recommended recipe below hand-adjusts the first
+chunk so the release instant falls safely inside it, verified by
+`tests/test_burst_chunk_plan.py::test_hand_verified_seam_safe_fomc_recipe_keeps_release_inside_first_chunk`.**
+
 ## Recommended trigger-prompt replacement (FOMC, `kalshi-burst-fomc-0729`)
 
-This is a RECOMMENDATION, not applied by this run. Per the 2026-07-15 precedent
-(`kb/00-LOG.md` 2026-07-14 entry: "already Ryan-hardened ... that's handled"), editing a live
-one-shot trigger's prompt is Ryan's call, not an autonomous cloud run's — the account-level
+This is a RECOMMENDATION, not applied by this run. Per the 2026-07-15 precedent (`kb/00-LOG.md`'s
+2026-07-15 04:xx entry: "already Ryan-hardened ... that's handled"), editing a live one-shot
+trigger's prompt is Ryan's call, not an autonomous cloud run's — the account-level
 `update_trigger` tool was deliberately not invoked here. Ryan (or a Ryan-supervised session) can
 apply this via `update_trigger` on `trig_01L9RysFtWUUjj3BgQmNKw7g` any time before 2026-07-29
 17:40Z.
@@ -61,15 +82,20 @@ Replace step 3 of the existing prompt (`Run: python -m collection.burst_capture 
 with:
 
 ```
-3. Compute the chunk plan (do not hand-compute): `python3 scripts/burst_chunk_plan.py --start
-   2026-07-29T17:40:00Z --until 2026-07-29T19:45:00Z --interval 90 --chunk-minutes 20`
-   -> max_ticks_sequence=[14, 14, 14, 14, 14, 14] (6 chunks).
+3. Use this hand-verified, seam-safe chunk sequence (do NOT regenerate it with
+   scripts/burst_chunk_plan.py's default --chunk-minutes 20 — that produces a uniform plan
+   whose first seam lands on the 18:00:00Z release instant; see ops/burst_capture_chunked.md):
+   max_ticks_sequence = [16, 14, 14, 14, 14, 12]  (6 chunks, sums to the window's 84 ticks;
+   chunk 1's extra 2 ticks push its boundary to ~18:02:30Z, safely past the release with margin).
    For EACH value N in that sequence, in order:
    a. Run: python -m collection.burst_capture --until 2026-07-29T19:45:00Z --interval 90
       --families fed,econ,crypto --max-ticks N
       (the SAME --until every time; the script self-limits to N ticks or the deadline,
       whichever comes first, and exits 0 with 0 ticks harmlessly once the deadline has passed —
-      if that happens, stop the loop, do not run remaining chunks).
+      if that happens, stop the loop, do not run remaining chunks). This command's own exit code
+      is 1 whenever any family's completeness check failed during this chunk's ticks — that is
+      EXPECTED and not a reason to stop; only a process crash / no output at all means the chunk
+      itself was lost.
    b. Commit ONLY new/changed files under tape/, message 'tape: burst fomc-jul29 chunk <k>/6
       <UTC ISO timestamp>'. git pull --rebase origin main, then git push origin main; on
       rejection retry rebase+push up to 3 times; if still failing, push to branch
@@ -86,11 +112,18 @@ with:
 Step 6 (final message) and step 7 (phone note) should report how many of the 6 chunks landed
 successfully, not just an overall pass/fail — e.g. "5/6 chunks committed, chunk 4 lost (sandbox
 restart), data for that ~20min segment missing" is exactly the information a bare "burst
-failed" summary would have hidden on 07-14 and 07-19.
+failed" summary would have hidden on 07-14 and 07-19. Six commit+push+verify round-trips also
+take real wall-clock time out of the ~125-minute window (not accounted for by the tick sequence
+alone) — this is fine, `--until` still bounds the total, but don't assume the chunks alone fill
+the window with zero overhead.
 
 ## Applying this pattern to future one-shots
 
 Any new burst trigger (a future FOMC meeting, a new World-Cup-style event) should use this same
-chunked recipe from the start rather than the single-continuous-run template — compute its
-`--max-ticks` sequence with `scripts/burst_chunk_plan.py` and follow the step-3 replacement
-above, substituting that event's own `--until`/`--interval`/`--families`.
+chunked recipe from the start rather than the single-continuous-run template. Compute a starting
+sequence with `scripts/burst_chunk_plan.py`, but if the event has one or more decisive release
+instants (a scheduled statement, a print time, a kickoff), MANUALLY check whether any chunk
+boundary in that sequence falls within one `--interval` of any of them — if so, hand-adjust the
+chunk sizes (as done above for FOMC's 18:00:00Z) so every such instant lands safely inside a
+chunk, never on its seam. Do not skip this check; the tool will not do it for you (see its
+module docstring and lesson L164 in `kb/lessons/00-lessons.md`).

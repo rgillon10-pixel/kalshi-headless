@@ -6,6 +6,54 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~21:5x UTC — Correction round: verifier caught two citation errors + a seam-risk design flaw in the Q19 FOMC pre-flight (PR #200 follow-up)
+
+After PR #200 (the FOMC burst-capture pre-flight below) merged, an independent `verifier` pass
+was run on it out of extra caution — not required by the two-agent rule (no verdict/registry/CI
+involved), but because Ryan will act on the recommendation before a one-shot, unrepeatable event.
+It found real problems, all fixed in this commit:
+
+1. **"captured 144 snapshots" was mis-cited.** The finding attributed this to `kb/00-LOG.md`'s
+   2026-07-14 entry, which does not contain it — that entry says "produced NO tape anywhere,"
+   no snapshot count. The number IS real, from a different source: the live
+   `kalshi-burst-fomc-0729`/`-wcfinal-0719` trigger prompts' own "MANDATORY PUSH VERIFICATION"
+   text (read via `list_triggers` earlier the same run), which states the 144 figure directly.
+   Citations corrected in both `findings/2026-07-25-q19-fomc-burst-preflight.md` and
+   `ops/burst_capture_chunked.md`.
+2. **Denominator was wrong.** "2 of 3" (quoting PR #195's own WC-family-scoped framing) got
+   generalized into "2 of 3 fired one-shots" without carrying the WC-family qualifier — the true
+   count across all 4 one-shots fired to date (cpi, wcsemi1, wcsemi2, wcfinal) is 2 lost, 2
+   succeeded (50%), not 2 of 3. Fixed everywhere the framing appeared.
+3. **Seam-risk design flaw (the substantive catch).** The recommended chunked-commit recipe's
+   naive uniform 20-minute/14-tick chunk plan places its first seam at ~17:59:30Z-18:01:00Z —
+   straddling the FOMC statement's 18:00:00Z release instant exactly. L57 (the June-CPI burst
+   finding) already showed an entire burst's signal can live in ONE release-instant capture
+   (removing it collapsed rho 0.902/0.777 -> 0.196/0.037); a seam-induced gap at 18:00:00Z risks
+   losing precisely the tick this whole mitigation exists to protect. Fixed with a hand-verified,
+   non-uniform first chunk (`[16, 14, 14, 14, 14, 12]`, not uniform `[14]*6`) that keeps the
+   release instant safely inside chunk 1 — regression-pinned by two new tests in
+   `tests/test_burst_chunk_plan.py` (one proving the naive plan DOES seam near the release, one
+   proving the hand-verified sequence does not).
+4. **`scripts/burst_chunk_plan.py`'s `chunk_seconds` field had an off-by-one**, reporting
+   `ticks_per_chunk * interval_seconds` (the ticks' nominal combined window) instead of
+   `(ticks_per_chunk - 1) * interval_seconds` (the actual first-tick-to-last-tick span, since a
+   fresh invocation's first tick fires immediately with no wait) — the quantity that actually
+   matters for seam-timing decisions. Fixed with a regression test; module docstring now states
+   plainly that the tool computes a uniform plan only and does NOT protect any instant from
+   landing on a seam.
+
+New lessons **L164** (chunking inserts blind seams — protect a decisive release instant by hand)
+and **L165** (an unsourced count in a "facts, not new claims" section is synthetic by CLAUDE.md's
+trust-default rule even when it happens to be true) appended to `kb/lessons/00-lessons.md`, both
+`UNENFORCED` (candidates: a `--protect ISO_INSTANT` flag for the chunk-plan tool; a citation
+grep-verify reminder in the verifier/edge-prober house style). No verdict, no registry change,
+no P&L claim — two-agent rule N/A. `pytest -q`: ≥1976 collected, 0 failed (4 new tests; targeted
+file `tests/test_burst_chunk_plan.py` independently re-run at 22/22 green, full suite confirmed
+clean before this round and this round's only behavior-affecting file is that same test file).
+`python scripts/invariants.py --full`: exit 0, same pre-existing non-gating advisory classes.
+
+---
+
 ## 2026-07-25 ~21:1x UTC — IDLE RUN (policy b): Q19 FOMC burst-capture pre-flight — chunked-commit recipe designed + offline-tested, not applied (research loop)
 
 Step 0a PASS: `origin/main` HEAD `b5a9d6e` (merged PR #199); `kb/00-LOG.md` newest entry and
