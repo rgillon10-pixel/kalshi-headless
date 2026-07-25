@@ -6,6 +6,62 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~11:0x UTC — IDLE RUN (policy a): L160→L161 stranded-tape-branch sweep tool built + full 192-branch backlog audit — zero genuine stranded tape found (research loop)
+
+Step 0a/0/0b PASS: `main` fast-forwarded cleanly to HEAD `c607000` (merged-PR chain #190→#195
+all confirmed ancestors via matching base/HEAD SHAs on `origin/main`, no rewind); `kb/00-LOG.md`'s
+newest entry and newest committed tape both 2026-07-25, 0-day gap. Claim-check: open PRs are
+#191 (draft, dead-shadow invariant, Ryan-review precedent), #165/#166 (draft, Ryan-action data-
+stream-hardening/storage-migration), #125 (leave-open weekly-retro) — none claim eligible queue
+work. Full Q0–Q47 re-scan (re-verified directly, not trusted from the prior run's notes): every
+item DONE / cred-or-auth-BLOCKED (Q1-odds, Q32/Q33/Q35-build, Q42-pt3, Q47) / calendar-gated-not-
+open (Q19 FOMC 07-29, Q37 ~08-05) / gate-open-but-density-inadequate (Q36, Q43, both re-confirmed
+still gated per the prior run's fresh checks) → IDLE RUN.
+
+**Idle-run policy (a):** the prior run (`c607000`, #195) named four fresh UNENFORCED lesson
+candidates (L157/L160/L161/L162). L160 ("tree-hash equality settles stranded-tape containment")
+and L161 ("malformed branch names must be triaged by commit date, never name order") both named
+the same concrete unit — a step-0b sweep helper script — as their open-work candidate, so this
+run built it: `scripts/tape_branch_sweep.py` + `tests/test_tape_branch_sweep.py` (31 offline
+tests, real temporary git repos, not mocked subprocess).
+
+**A genuine correction surfaced building it:** L160's own worked example (one branch, checked
+immediately, tree hash matched HEAD) generalizes badly. `tape/` is append-only and grows hourly,
+so ANY older branch's whole-tree hash will mismatch HEAD even when every line it carries is fully
+present in HEAD's now-larger files — treating a mismatch as "not contained" (tried first) produced
+191/192 false positives on the real branch backlog. Fixed: a mismatch now falls back to a
+per-file line-set check, and that fallback itself needed two more real-data fixes before it was
+practical at scale — a branch's `tape/` tree is git's FULL historical snapshot (13,644 files, not
+just the files that branch touched), so `git diff --name-only --diff-filter=AM <base_tree>
+<branch_tree>` (diff the two tree objects directly, keep only Added/Modified-relative-to-base
+paths) replaces a full tree walk; and real committed tape blob content isn't always valid UTF-8
+(hit live, not hypothetical — `default_git_runner` now decodes with `errors="replace"`). A 2MB
+per-file size guard skips (flags, never silently trusts) the three bulk families
+(`orderbook_depth`/`universe_sweep`/`sports_pairs`, ~950MB combined) that would otherwise make a
+full sweep impractically slow; `git merge-base --is-ancestor` is never called anywhere in the
+module (source-text pinned by a test).
+
+**Live result — first full, tool-verified sweep of the entire 192-branch backlog (previously only
+ever spot-checked or waved off as "out of scope for one run"), completing in ~30s:** 44 malformed
+names (matches L161's own count exactly), 12 fully contained + verified, 167 no-problem-found-
+but-unverified (bulk-family files skipped, not trusted), 13 flagged "missing" — individually
+inspected, not taken at face value: 8 are wording differences in a prose doc
+(`tape/cloud-env-check.md`, not append-only tape), 5 are L142's already-fixed git conflict-marker
+artifact (verified via `comm -23` against HEAD — HEAD correctly excludes them, the branches just
+carry the old garbage). **Zero genuine stranded tape found across the entire historical backlog.**
+See `findings/2026-07-25-tape-branch-sweep-tool-and-backlog-audit.md`.
+
+No branch was deleted (deletion stays gated on step 0b's own "only after the PR has merged" rule
+— this tool only informs that decision, doesn't act on it). No strategy claim, no bootstrap CI,
+no registry change — infrastructure, same posture as L109/L118/L126/L144/L152/L156; two-agent
+verdict rule N/A. `pytest`: full suite green (unchanged baseline + 31 new). `python
+scripts/invariants.py --full`: exit 0, same pre-existing non-gating advisories as `HEAD` before
+this run. Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per Q34 — paper-infra
+validation only, NOT edge evidence); this run's diff doesn't touch paper-relevant tape, ledger
+unchanged **+$18.15** (`broker_truth`, 984 settled, 0 open). Still **0 proven edges**.
+
+---
+
 ## 2026-07-25 ~08:1x UTC — IDLE RUN (policy c → a): the VPS collector died a SECOND time, 61.7h silent and nobody noticed; cloud leg independently down to 5/8 slots (research loop)
 
 **Headline.** The VPS `:23` collector leg — declared RECOVERED three days ago (L129 /
