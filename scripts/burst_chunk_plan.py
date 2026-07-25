@@ -22,6 +22,18 @@ This module does the one part of that recipe worth computing rather than doing b
 `--max-ticks` per chunk, and how many chunks, cover a given window without an off-by-one leaving a
 gap at the end. It runs no network calls and touches no tape; it is pure arithmetic over the same
 `--until`/`--interval` values the trigger prompt already carries.
+
+WHAT THIS MODULE DOES NOT DO. It computes a UNIFORM chunk size only — it does not protect any
+particular instant within the window from landing on a chunk seam (the commit+push+verify pause
+between two chunk invocations). For a one-shot event with a single decisive release moment (an
+FOMC statement, a CPI print), a uniform plan can place a seam directly on top of it — see
+`findings/2026-07-25-q19-fomc-burst-preflight.md`'s "third gap" section, caught by an independent
+verifier review after this module's first version shipped. L57 already established that an
+entire burst's signal can live in ONE release-instant capture. Anyone using this tool for an
+event with such a moment MUST manually check that no chunk boundary (the running sum of the
+`chunk_max_ticks_sequence()` output, converted to elapsed time) falls within one `--interval` of
+that moment, and hand-adjust the first chunk's size if it does — this module will not catch that
+for you.
 """
 from __future__ import annotations
 
@@ -43,9 +55,11 @@ class ChunkPlan:
 
 
 def ticks_per_chunk(chunk_minutes: float, interval_seconds: int) -> int:
-    """How many ticks fit in one chunk window, rounded UP so a chunk never undershoots the
-    requested minutes (an undershoot would just mean slightly more, slightly shorter chunks —
-    harmless; an overshoot risks a chunk running longer than intended)."""
+    """How many ticks fit in one chunk's NOMINAL window (`chunk_minutes` converted to a tick
+    count via `ceil`, so `ticks_per_chunk * interval_seconds >= chunk_minutes * 60`). This is a
+    sizing target, not the actual elapsed span between a chunk's first and last tick — see
+    `chunk_plan`'s `chunk_seconds` field for that (one interval shorter, since the first tick of
+    a fresh `collection.burst_capture` invocation fires immediately, with no wait)."""
     if interval_seconds <= 0:
         raise ValueError(f"interval_seconds must be > 0, got {interval_seconds}")
     if chunk_minutes <= 0:
@@ -58,7 +72,14 @@ def chunk_plan(total_minutes: float, chunk_minutes: float, interval_seconds: int
     cadence, each chunk approximately `chunk_minutes` long. The LAST chunk's tick count is
     whatever remains (never padded past the window — `collection.burst_capture` already stops
     itself at `--until` regardless of `--max-ticks`, so overshoot is harmless, but the plan
-    should report the honest remainder for the runbook's own bookkeeping)."""
+    should report the honest remainder for the runbook's own bookkeeping).
+
+    `chunk_seconds` is the ACTUAL elapsed span from a chunk's first tick to its last —
+    `(ticks_per_chunk - 1) * interval_seconds`, one interval shorter than the nominal
+    `ticks_per_chunk * interval_seconds` window, because a fresh `collection.burst_capture`
+    invocation's first tick fires immediately (no wait before boundary k=0). This is the
+    quantity that matters for seam-timing decisions (see the module docstring's warning about
+    protecting a decisive release instant)."""
     if total_minutes <= 0:
         raise ValueError(f"total_minutes must be > 0, got {total_minutes}")
     total_ticks = max(1, math.ceil((total_minutes * 60.0) / interval_seconds))
@@ -69,7 +90,7 @@ def chunk_plan(total_minutes: float, chunk_minutes: float, interval_seconds: int
         total_ticks=total_ticks,
         ticks_per_chunk=tpc,
         n_chunks=n_chunks,
-        chunk_seconds=float(tpc * interval_seconds),
+        chunk_seconds=float(max(0, tpc - 1) * interval_seconds),
         last_chunk_ticks=last,
     )
 

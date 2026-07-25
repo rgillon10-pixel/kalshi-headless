@@ -52,6 +52,23 @@ def test_chunk_plan_exact_division_no_remainder():
     assert chunk_max_ticks_sequence(plan) == [10, 10, 10]
 
 
+def test_chunk_plan_chunk_seconds_is_first_to_last_tick_span_not_nominal_window():
+    # 10 ticks @ 120s interval: first tick fires at t=0 (no wait), last at t=9*120=1080s.
+    # chunk_seconds must be (n-1)*interval = 1080, NOT n*interval = 1200 (the pre-correction bug
+    # this test regression-pins: an independent verifier caught the finding's chunk-duration
+    # claim overstating the actual first-to-last-tick span by one interval).
+    plan = chunk_plan(total_minutes=60, chunk_minutes=20, interval_seconds=120)
+    assert plan.ticks_per_chunk == 10
+    assert plan.chunk_seconds == pytest.approx(1080.0)
+    assert plan.chunk_seconds == pytest.approx((plan.ticks_per_chunk - 1) * 120)
+
+
+def test_chunk_plan_chunk_seconds_never_negative_for_single_tick_chunk():
+    plan = chunk_plan(total_minutes=1, chunk_minutes=20, interval_seconds=90)
+    assert plan.ticks_per_chunk >= 1
+    assert plan.chunk_seconds >= 0.0
+
+
 def test_chunk_plan_sequence_sums_to_total_ticks():
     # a battery of realistic (window, chunk, interval) triples, none evenly divisible.
     cases = [
@@ -126,6 +143,39 @@ def test_fomc_window_plan_matches_the_recommended_recipe():
 # CLI smoke test — exercises main() end-to-end (argparse + print), no mocking needed
 # since the module does no I/O beyond stdout.
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# FOMC seam-safety — regression-pins both halves of the verifier-caught design flaw: the naive
+# uniform plan DOES seam near the 18:00:00Z release instant, and the hand-verified non-uniform
+# recipe in ops/burst_capture_chunked.md does NOT (18:00:00Z lands inside its first chunk with
+# margin, not on a boundary). Tick k fires at start + k*interval; a chunk of N ticks spans
+# indices 0..N-1, i.e. from t=0 to t=(N-1)*interval.
+# --------------------------------------------------------------------------- #
+def _tick_time_seconds(tick_index: int, interval_seconds: int) -> float:
+    return tick_index * interval_seconds
+
+
+def test_naive_uniform_fomc_plan_seams_near_the_release_instant():
+    # naive: chunk_minutes=20 -> ticks_per_chunk=14 (this module's own default recipe).
+    plan = chunk_plan(total_minutes=125, chunk_minutes=20, interval_seconds=90)
+    assert chunk_max_ticks_sequence(plan)[0] == 14
+    first_chunk_last_tick_s = _tick_time_seconds(14 - 1, 90)  # last tick INSIDE chunk 1
+    second_chunk_first_tick_s = _tick_time_seconds(14, 90)     # first tick of chunk 2 (post-seam)
+    release_s = 20 * 60  # 18:00:00Z is 20 minutes into a 17:40:00Z start
+    # the seam (seconds between these two ticks) brackets the release instant +/- one interval:
+    assert first_chunk_last_tick_s <= release_s <= second_chunk_first_tick_s + 90
+
+
+def test_hand_verified_seam_safe_fomc_recipe_keeps_release_inside_first_chunk():
+    # the recipe actually recommended in ops/burst_capture_chunked.md: [16, 14, 14, 14, 14, 12].
+    seam_safe_sequence = [16, 14, 14, 14, 14, 12]
+    assert sum(seam_safe_sequence) == 84  # still covers the full FOMC window, per test above
+    first_chunk_ticks = seam_safe_sequence[0]
+    first_chunk_last_tick_s = _tick_time_seconds(first_chunk_ticks - 1, 90)
+    release_s = 20 * 60
+    # release instant must fall STRICTLY inside chunk 1 (not within one interval of its edge).
+    assert 90 < release_s < first_chunk_last_tick_s - 90
+
+
 def test_main_smoke(capsys):
     rc = main([
         "--start", "2026-07-29T17:40:00Z",
