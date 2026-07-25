@@ -66,6 +66,7 @@ SANCTIONED = {
     "fee_rate": "core/pricing.py",
     "order_endpoints": "execution/kalshi_client.py",   # unbuilt until live-graduation nears
     "risk_caps": "execution/limits.py",
+    "iso_parse": "core/timeutil.py",   # home of the tolerant parse_iso_utc (L136/L138/L150)
 }
 
 
@@ -295,6 +296,105 @@ def inv_risk_caps_sanctioned(path: Path, text: str) -> Optional[str]:
                 "rebind them") if hits else None
 
 
+# ─── Raw datetime.fromisoformat RATCHET (L136/L150: GATING, allowlisted) ─────
+#
+# Python 3.9's `datetime.fromisoformat` REJECTS two timestamp shapes Kalshi and Polymarket
+# emit constantly: a short (1-2 digit) fractional second (`...04.7Z`) and a bare trailing `Z`
+# (L136). `core.timeutil.parse_iso_utc` normalizes both (and 9-digit nanosecond fractions)
+# before delegating to the stdlib, and is the ONE sanctioned parse path.
+#
+# L150 proved this is not theoretical: a full census of committed tape found 38.27% of all ISO
+# timestamp values (638,730 / 1,669,146) would crash a strict 3.9 consumer, with 0 genuinely
+# corrupt values — every one of them parses under `parse_iso_utc`.
+#
+# Why a STATIC ratchet and not a test: `pyproject.toml` declares `requires-python = ">=3.9"`,
+# but CI/this sandbox runs 3.11, where every hazardous shape parses FINE. A unit test therefore
+# CANNOT see this hazard — the suite is green on the permissive interpreter no matter how many
+# raw call sites exist. Only a source-level assert closes it.
+#
+# RATCHET semantics (the pins below may only ever SHRINK):
+#   * a file NOT listed here (and not sanctioned/excluded) with >=1 raw call  -> FAIL. This is
+#     the whole point: a NEW raw call site is blocked at the hook / on --full.
+#   * a listed file whose count EXCEEDS its pin                               -> FAIL (debt grew).
+#   * a listed file at or below its pin                                       -> pass silently,
+#     so a migration that removes call sites is always allowed (lower the pin when you do).
+# Never raise a pin to make this green; delete the call site instead.
+#
+# The 33 files / 39 sites pinned below are the LEGACY debt measured on 2026-07-24 with the
+# exact regex this check uses (`_DATETIME_FROMISOFORMAT_RE`, shared with the L141 advisory
+# further down, so pins and detector agree by construction). MIGRATING those sites is
+# deliberately NOT done here: L150 records that it is behaviour-sensitive per site (tz-aware vs
+# naive return values differ, and some call sites compare against naive datetimes), so it stays
+# L138/L141 scope. This ratchet only guarantees the debt never grows while that work is pending.
+# `date.fromisoformat(` is NOT matched and must never be: a bare `YYYY-MM-DD` day token has no
+# fractional field and no `Z`, so it carries none of the 3.9 hazard.
+LEGACY_RAW_FROMISOFORMAT_SITES: Dict[str, int] = {
+    "collection/burst_capture.py":                      1,
+    "collection/crypto_hourly.py":                      2,
+    "collection/odds_api.py":                           1,
+    "collection/polymarket_pairs.py":                   1,
+    "collection/sports_history.py":                     3,
+    "scripts/longshot_fade_probe.py":                   1,
+    "scripts/probe_ladder_coherence.py":                1,
+    "scripts/q24_sports_longshot_maker_fillsim.py":     1,
+    "scripts/q25_depth_tape_anatomy.py":                1,
+    "scripts/q26_ofi_depth_imbalance_probe.py":         1,
+    "scripts/q27_favorite_underpricing_fillsim.py":     1,
+    "scripts/q36_kxtempnych_settlement_basis_probe.py": 1,
+    "scripts/q37_weather_summer_makerno_probe.py":      1,
+    "scripts/q42_crossvenue_funding_join.py":           1,
+    "scripts/q43_perp_binary_consistency_probe.py":     1,
+    "scripts/s13_maker_fillsim.py":                     1,
+    "scripts/s14_ladder_fillsim.py":                    1,
+    "scripts/s14_queue_fillsim.py":                     1,
+    "scripts/s19_wing_fade_fillsim.py":                 1,
+    "scripts/s20_ladder_overround_anatomy.py":          1,
+    "scripts/s6_maker_firstcut.py":                     1,
+    "scripts/s8_basis_probe.py":                        1,
+    "scripts/s9_leadlag_probe.py":                      2,
+    "scripts/seed3_listing_age_anatomy.py":             1,
+    "scripts/seed5_funding_prior_probe.py":             1,
+    "scripts/tape_gap_monitor.py":                      1,
+    "scripts/weather_fee_schedule_probe.py":            1,
+    "scripts/weather_rehab_s5.py":                      3,
+    "tests/test_q27_favorite_underpricing_fillsim.py":  1,
+    "tests/test_q30_draw_aversion_maker_probe.py":      1,
+    "tests/test_q37_weather_summer_makerno_probe.py":   1,
+    "tests/test_seed5_funding_prior_probe.py":          1,
+    "tests/test_tape_timestamp_parseability_audit.py":  1,
+}
+
+
+def inv_no_raw_datetime_fromisoformat(path: Path, text: str) -> Optional[str]:
+    """L136/L150 GATING ratchet: no NEW raw `datetime.fromisoformat` call site, and no growth of
+    the legacy ones. Route every ISO parse through `core.timeutil.parse_iso_utc` — Python 3.9
+    (the floor `pyproject.toml` declares) rejects the bare-`Z` and short-fraction shapes that
+    make up 38.27% of committed tape timestamps (L150), while CI runs 3.11 where they all parse,
+    so no unit test can ever catch a new raw site. Only the datetime flavour is matched;
+    `date.fromisoformat(` (day tokens) is harmless and deliberately not flagged. The sanctioned
+    site `core/timeutil.py` calls the stdlib parser legitimately, AFTER normalizing the
+    fractional field. Comment lines are skipped (same convention as the rho/fee rules). See the
+    banner above LEGACY_RAW_FROMISOFORMAT_SITES for the ratchet rules."""
+    if _file_excluded(path) or _rel(path) == SANCTIONED["iso_parse"]:
+        return None
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#") and _DATETIME_FROMISOFORMAT_RE.search(ln)]
+    if not hits:
+        return None
+    pin = LEGACY_RAW_FROMISOFORMAT_SITES.get(_rel(path))
+    if pin is not None and len(hits) <= pin:
+        return None
+    detail = (f"NEW raw datetime.fromisoformat call site"
+              if pin is None else
+              f"legacy raw datetime.fromisoformat count GREW: {len(hits)} > pinned {pin}")
+    return _fmt(path, hits,
+                f"{detail} — lessons L136/L150: use core.timeutil.parse_iso_utc; Python 3.9 "
+                f"(the declared floor) rejects bare-`Z`/short-fraction timestamps that are "
+                f"38.27% of committed tape, and CI runs 3.11 where they all parse, so the test "
+                f"suite is structurally blind to this — the pins in "
+                f"LEGACY_RAW_FROMISOFORMAT_SITES may only shrink, never rise")
+
+
 STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_gefs", inv_no_gefs),
     ("no_bare_pstdev", inv_no_bare_pstdev),
@@ -305,6 +405,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_http_server", inv_no_http_server),
     ("order_endpoints_confined", inv_order_endpoints_confined),
     ("risk_caps_sanctioned", inv_risk_caps_sanctioned),
+    ("no_raw_datetime_fromisoformat", inv_no_raw_datetime_fromisoformat),
 ]
 
 
