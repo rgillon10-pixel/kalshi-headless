@@ -1113,6 +1113,126 @@ def tape_invalid_jsonl_failure(issues: List[str]) -> Optional[str]:
     )
 
 
+_REGISTRY_ROW_RE = re.compile(r"^\|\s*\*{0,2}(S\d+)\*{0,2}\s*\|")
+_SHADOW_ASSIGN_RE = re.compile(r"^SHADOW_REGISTRY\s*:")
+_SHADOW_KEY_RE = re.compile(r"""["']([A-Za-z_][A-Za-z0-9_]*)["']\s*:""")
+_SHADOW_KEY_SID_RE = re.compile(r"^(s\d+)_")
+
+# Shadow-registry keys that are DELIBERATELY registered while their strategy is
+# `dead ✗` in kb/strategies/00-index.md, each with the documented reason. RATCHET:
+# this dict may only SHRINK, never grow — a new dead strategy must be deregistered,
+# not exempted. A stale entry (key no longer registered, or no longer dead) is itself
+# a GATING failure, so an exemption cannot outlive its reason.
+DEAD_SHADOW_PAPER_INFRA_EXEMPT: Dict[str, str] = {
+    "s14_ladder_underwriting": ("DEAD per Q34 (2026-07-16, verifier-CONFIRMED queue-aware "
+                                "fill-sim, mean -$0.0453 CI [-0.0809,-0.0121]); kept registered "
+                                "ONLY as paper-tier infrastructure validation — its ledger P&L "
+                                "is NOT edge evidence and must never be cited as one"),
+}
+
+
+def _registry_dead_ids(index_path: Path = ROOT / "kb" / "strategies" / "00-index.md") -> set:
+    """Set of strategy ids (e.g. {'S1','S14'}) whose registry status cell reads dead.
+    Empty set if the registry is missing (offline-safe: a missing registry must not
+    wedge the gate). Pure apart from the single file read."""
+    if not index_path.exists():
+        return set()
+    dead = set()
+    for line in index_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = _REGISTRY_ROW_RE.match(line)
+        if not m:
+            continue
+        cells = [c.strip() for c in line.split("|")]
+        # cells[0] is the empty pre-pipe field; id is cells[1], status is cells[4].
+        if len(cells) > 4 and "dead" in cells[4].lower():
+            dead.add(m.group(1))
+    return dead
+
+
+def _shadow_registry_keys(api_path: Path = ROOT / "execution" / "strategy_api.py") -> List[str]:
+    """The literal keys of SHADOW_REGISTRY, read STATICALLY (never imported — the scan
+    must stay import- and network-free). Empty list if the file or the dict is missing."""
+    if not api_path.exists():
+        return []
+    keys: List[str] = []
+    inside = False
+    for line in api_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not inside:
+            if _SHADOW_ASSIGN_RE.match(line) and "{" in line:
+                inside = True
+            continue
+        if line.startswith("}"):
+            break
+        if line.lstrip().startswith("#"):
+            continue
+        keys.extend(_SHADOW_KEY_RE.findall(line))
+    return keys
+
+
+def _dead_shadow_issues(index_path: Path = ROOT / "kb" / "strategies" / "00-index.md",
+                        api_path: Path = ROOT / "execution" / "strategy_api.py",
+                        exempt: Optional[Dict[str, str]] = None) -> List[str]:
+    """Issues where SHADOW_REGISTRY disagrees with the strategy registry. Three classes:
+    (a) a `dead ✗` strategy still registered and not exempt, (b) a registered key that maps
+    to NO registry row at all (an unregistered shadow — the hole that would otherwise let a
+    rename evade check (a)), (c) a stale exemption whose reason no longer applies. Pure
+    apart from the two file reads."""
+    exempt = DEAD_SHADOW_PAPER_INFRA_EXEMPT if exempt is None else exempt
+    dead = _registry_dead_ids(index_path)
+    keys = _shadow_registry_keys(api_path)
+    known = {m.group(1).upper() for line in
+             (index_path.read_text(encoding="utf-8", errors="replace").splitlines()
+              if index_path.exists() else [])
+             for m in [_REGISTRY_ROW_RE.match(line)] if m}
+    issues: List[str] = []
+    for key in keys:
+        m = _SHADOW_KEY_SID_RE.match(key)
+        sid = m.group(1).upper() if m else None
+        if sid is None or (known and sid not in known):
+            issues.append(f"{key}: no `s<N>_` strategy id resolvable in the registry"
+                          if sid is None else
+                          f"{key}: maps to {sid}, which has no row in the strategy registry")
+        elif sid in dead and key not in exempt:
+            issues.append(f"{key}: strategy {sid} is `dead ✗` in the registry but is still "
+                          f"registered for paper shadowing")
+    for key, reason in exempt.items():
+        if key not in keys:
+            issues.append(f"STALE EXEMPTION {key}: no longer in SHADOW_REGISTRY — drop the "
+                          f"DEAD_SHADOW_PAPER_INFRA_EXEMPT entry (reason was: {reason[:60]}...)")
+            continue
+        m = _SHADOW_KEY_SID_RE.match(key)
+        sid = m.group(1).upper() if m else None
+        if sid is not None and sid not in dead:
+            issues.append(f"STALE EXEMPTION {key}: {sid} is no longer `dead ✗` — drop the "
+                          f"DEAD_SHADOW_PAPER_INFRA_EXEMPT entry")
+    return issues
+
+
+def dead_shadow_registered_failure(issues: List[str]) -> Optional[str]:
+    """GATING failure message when SHADOW_REGISTRY and kb/strategies/00-index.md disagree,
+    else None. Pure.
+
+    Why this gates rather than warns: a strategy falsified at real asks that keeps shadowing
+    keeps emitting a realized-P&L number into run digests and the phone feed, where it reads
+    as a live result. The prime directive's whole point is that only a bootstrapped CI > 0 at
+    real asks counts — a dead strategy's ledger is the exact number most likely to be mistaken
+    for one. Until now the separation was prose discipline in the run log; this makes it
+    structural."""
+    if not issues:
+        return None
+    n = len(issues)
+    body = "; ".join(issues[:5]) + ("; ..." if n > 5 else "")
+    return (
+        f"[dead_shadow_registered] {n} SHADOW_REGISTRY/registry disagreement(s): {body}. "
+        f"A strategy marked `dead ✗` in kb/strategies/00-index.md must be removed from "
+        f"execution/strategy_api.py::SHADOW_REGISTRY, so a falsified strategy can never keep "
+        f"accruing paper P&L that reads as a live result. If a dead strategy must stay "
+        f"registered purely as paper-tier infrastructure validation, add it to "
+        f"DEAD_SHADOW_PAPER_INFRA_EXEMPT with a written reason — that dict may only shrink. "
+        f"See kb/lessons/00-lessons.md L153."
+    )
+
+
 # ─── PreToolUse hook ────────────────────────────────────────────────────────
 
 def _post_edit_content(file_path: Path, old: str, new: str) -> Optional[str]:
@@ -1226,6 +1346,13 @@ def main() -> int:
         invalid_jsonl_failure = tape_invalid_jsonl_failure(_tape_invalid_jsonl_issues())
         if invalid_jsonl_failure:
             failures.append(invalid_jsonl_failure)
+        # GATING (Stage 0 of the graph-engineering audit, 2026-07-24): SHADOW_REGISTRY must
+        # agree with the strategy registry — a `dead ✗` strategy that keeps shadowing keeps
+        # emitting realized paper P&L that reads as a live result. Previously prose discipline
+        # in the run log only; now structural. Flips the exit code.
+        dead_shadow_failure = dead_shadow_registered_failure(_dead_shadow_issues())
+        if dead_shadow_failure:
+            failures.append(dead_shadow_failure)
 
     if failures:
         sys.stderr.write(f"invariants: {len(failures)} violation(s)\n")
