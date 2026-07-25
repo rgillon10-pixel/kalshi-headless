@@ -6,6 +6,95 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~05:2x UTC — IDLE RUN (policy a): L47 enforced — ladder-size float-to-int coercion, live violation found and fixed (research loop)
+
+**Step 0a/0/0b: PASS.** `main` fast-forwarded cleanly to HEAD `c170fa6` (PR chain #175→#190
+all confirmed ancestors via `git merge-base --is-ancestor`, no rewind); `kb/00-LOG.md`'s newest
+entry (~00:2x UTC 2026-07-25) and the newest committed tape both current. Claim-check: open
+PRs are #125 (weekly-retro, leave-open-for-Ryan), #165/#166 (draft, Ryan-approved
+background-session infra), and #191 (draft, "invariants: GATE a dead strategy that is still
+paper-shadowing (L153)" — a separate background worktree session, 26 min old at claim-check
+time) — none claim eligible queue work; #191 was left untouched (see below). Stranded-tape
+sweep: the newest branch, `tape/hourly-20260724T1857Z`, was already swept by the
+immediately-prior merged PR #190 — nothing new to sweep this run.
+
+**Queue re-verified saturated (independently, not trusting prior runs' notes).** Re-read Q19
+(PREP DONE, FOMC leg gated 2026-07-29 — still 4 days out; WC-semi1/final legs are Ryan-side
+trigger failures, already flagged, unanalyzable), Q36 (both parts still hard-gated —
+`settlement_ledger` stuck at n=1, `weather_books` microstructure structurally under-powered),
+Q37 (PREPPED, gated ~2026-08-05), Q43 (calendar gate open, density unchanged since the
+2026-07-24 audit — a re-run would only reproduce the same data-inadequate result) directly
+against their current Status blocks myself. Also ran the just-shipped
+`scripts/invariants.py::_stale_unenforced_candidate_issues()` (PR #190) directly — **0 issues**,
+so no fresh stale-marker conversion was available this run either → IDLE RUN.
+
+**Constraint honored:** PR #191 (open, draft, unmerged) is independently building `_dead_shadow_
+issues`/`DEAD_SHADOW_PAPER_INFRA_EXEMPT` on lesson L153 from a separate background worktree
+session. This run's milestone was scoped away from that lesson/those names entirely —
+`grep -rn "dead_shadow\|DEAD_SHADOW\|L153"` over the diff returns nothing; the only file this
+run shares with #191 is `scripts/invariants.py`, touched via a distinct, additive function
+block.
+
+**The milestone (delegated to `research-lead` → `edge-prober`/`kb-distiller`, verified by an
+independent `verifier`).** Re-read all 22 genuinely-`**UNENFORCED**`-marked lesson rows and
+checked each against the tree by hand; most were terminal (per-probe methodology, Ryan/VPS-
+gated) or already-built-but-stale in ways the narrow L152 advisory can't see (L22 superseded by
+L24; L45's parser already exists as `core.timeutil.parse_crypto_hour_token_close_utc`; L105's
+edge-prober bullet already exists; L117's minute-of-hour bucketing already exists in
+`tape_gap_monitor.py`). **L47** was the one genuinely-unbuilt row — and confirming that
+surfaced a real, live violation of its own rule: `execution/fill_models.py::_taker_depth` (the
+paper-fill-sim code path) carried a bare `take = min(remaining, int(size))`, coercing a
+resting order-book ladder size to an int with no stated rounding rule, exactly what L47
+forbids. A real-tape census over all 17 files of `tape/orderbook_depth/dt=*.jsonl`
+(`yes_bids`/`no_bids`, tagged `price_source_tags={"asks":"real_ask","bids":"real_bid"}`, level
+counts not prices): **14,756,132 levels · 747,412 fractional (5.07%) · 5,832 with
+0 < size < 1 · 0 zero · 0 negative · max 13,209,380.2**. The violation was real but numerically
+**benign** — `int()` on a non-negative float is a floor, the conservative direction, and an
+exhaustive replay of every real committed ladder through the old vs. new arithmetic found
+**0 divergences** (zero paper P&L moved; the ledger holds zero `taker_depth` fills to date
+anyway, and every queue-aware fill-sim to date — S14/S19/Q24/Q27/Q30 — already keeps queue-ahead
+depth as a float, so no published verdict carried an optimistic queue-truncation bias).
+
+**What shipped:** `core/depth.py::whole_contracts_available()` — THE sanctioned coercion (one
+documented floor rule, one callable home), wired into `_taker_depth`; a schema note in
+`collection/orderbook_depth.py`; a non-gating `scripts/invariants.py` advisory
+(`_ladder_size_coercion_issues`/`ladder_size_coercion_warning`) flagging any NEW bare
+int-coercion of a size-ish field; `tests/test_ladder_size_float_contract.py` (new, including a
+real-tape replay proving zero P&L moved) + additions to `tests/test_depth.py`/
+`tests/test_invariants.py`.
+
+**Two-agent trail, and it earned its keep.** The `verifier` CONFIRMED the census, the
+zero-divergence replay, and that nothing verdict-class was ever at stake — but **REFUTED** the
+advisory's recall claim: a 15-shape adversarial probe showed the lexical rule missed 10 of 13
+genuine violation shapes, including the exact double-subscript form (`int(no_bids[0][1])`)
+`analysis/observatory/features.py:160-161` already writes — i.e. the single likeliest
+reintroduction path was invisible to the first draft. Widened the matcher for the 3 shapes
+where precision stays safe (0 issues on the clean tree, still), and recorded the remaining 7 as
+deliberate, regression-tested blind spots rather than guess at a wider, false-positive-prone
+regex. New lesson **L155**: a lexical advisory reporting 0 issues on a clean tree is evidence of
+*precision* only, never *recall* — a ledger row must state the tested shape set, not the
+intent (generalizes L151 from runtime-conditional hazards to lexical-proxy coverage claims).
+New lesson **L154**: the placement lesson — a rule documented only at its producer
+(`collection/normalize.py`'s docstring) does not bind a consumer in another lane
+(`execution/`); a rule needs one callable home. L47's enforcement column updated in place
+(narrative text unchanged, prior-run precedent).
+
+No strategy claim, no registry change, no P&L verdict — two-agent rule satisfied anyway given
+the load-bearing real-tape census (same posture as L109/L118/L126/L144/L150/L152 precedent).
+
+## Gates
+`pytest`: 1675 → **1729 passed, 0 failed** (independently re-run in full by the orchestrating
+session — not just the sub-agent's self-report). `python scripts/invariants.py --full`: exit
+0, byte-identical to the pre-change baseline — same 4 pre-existing non-gating advisory classes
+(L25 dir-shape, L109 orphan-GC, L74 daily-cadence-gap, L138 raw-fromisoformat); the new advisory
+correctly stays silent on the real tree.
+
+## Step 9 (paper sub-pass)
+`SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD per Q34 — paper-infra validation only, NOT
+edge evidence). `scripts/paper_pass.py` run against current tape: 0 newly-eligible events this
+pass (idempotent — no new tape committed this run to replay against), ledger unchanged: 984
+settled contracts, 0 open, realized P&L **+$18.15** (`broker_truth`). Still **0 proven edges**.
+
 ## 2026-07-25 ~04:1x UTC — kalshi-edge-hunter nightly: Unit 1 adversarial review (CLEAN) + Unit 2 Q21 round (3 proposed, 0 registered — 13th zero) + Unit 3 probe-prep (no-op)
 
 **Step 0a/0/0b: PASS.** History integrity clean — `kb/00-LOG.md` newest entry and newest committed
@@ -63,7 +152,6 @@ L25 dir-shape, L109 orphan-GC, L74 daily-cadence-gap, L138 raw-fromisoformat). S
 evidence); `paper_pass.py` processed 0 newly-eligible events (no new tape since the 00:2x run),
 ledger unchanged **+$18.15** (`broker_truth`; 984 settled contracts, 0 open). Still **0 proven edges.**
 Branch `edge-hunter/20260725-q21-round`.
-
 ## 2026-07-25 ~00:2x UTC — IDLE RUN (policy a): L152's own proposed follow-up built — stale-UNENFORCED-candidate advisory (research loop)
 
 **Step 0a/0/0b: PASS.** `main` fast-forwarded cleanly to HEAD `cebe691` (PR chain #175→#189 all

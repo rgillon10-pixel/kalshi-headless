@@ -22,6 +22,17 @@ Reuse — this module reinvents nothing:
   * The fetch pattern is copied verbatim from `collection/capture_orderbooks.py`:
     `client.get_text(ORDERBOOK_PATH.format(ticker=ticker))` -> `orderbook_fp` -> normalize.
 
+SCHEMA — LADDER SIZES ARE FLOATS (lesson L47): each `yes_bids`/`no_bids` entry is a
+`[price, size]` pair where BOTH elements are floats, and `size` is genuinely fractional in the
+real tape (census over all `tape/orderbook_depth/dt=*.jsonl`, 2026-07-25: 747,412 / 14,756,132
+levels = 5.07% fractional, 5,832 with 0 < size < 1, none zero or negative — descriptive level
+counts, not prices). A consumer that assumes integer contract counts (`int(size)` truncation,
+or an equality check against a whole-number queue position) silently corrupts queue-depth
+reads. Report and compare sizes as FLOATS throughout. The same contract is stated at the
+shared normalizer that produces these ladders (`collection/normalize.py::normalize_snapshot`);
+the ONLY sanctioned int coercion, for "how many whole contracts can I lift at this level", is
+`core.depth.whole_contracts_available` (explicit floor rule, justified in its docstring).
+
 Source tags (CLAUDE.md trust-default + Hard Rules #3/#4): a LIVE order-book read is a genuine
 fillable quote, not a model, so each record tags its ask fields `real_ask` and its bid fields
 `real_bid` (an explicit tag — untagged defaults to `synthetic` per project convention). Note:

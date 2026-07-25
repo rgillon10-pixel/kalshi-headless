@@ -10,7 +10,10 @@ returns a `Fill` or None. Same tape families the collectors already write:
     bid ladder and vice-versa (this arithmetic already lives in
     collection/normalize.py; we walk the ladder the same way). Because this
     family carries resting SIZE at each level, `taker_immediate` walks the ladder
-    and can PARTIALLY fill — honest about available depth.
+    and can PARTIALLY fill — honest about available depth. Those sizes are FLOATS
+    and can be fractional (L47); the only place this module turns one into a
+    contract count is `core.depth.whole_contracts_available` (explicit floor rule,
+    documented there). No bare `int(size)`/`round(size)` anywhere in this module.
 
   * sports_pairs.v1 — per-outcome BBO (`yes_ask`/`no_ask`/`yes_bid`/`no_bid`,
     `price_source_tag`) with NO size. `taker_immediate` fills the whole requested
@@ -34,6 +37,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.depth import whole_contracts_available
 from core.pricing import MAKER_FEE_RATE, TAKER_FEE_RATE, fee_per_contract
 from execution.schema import Fill, Order
 
@@ -144,7 +148,10 @@ def _taker_depth(order: Order, record: Dict[str, Any]) -> Optional[Fill]:
             break
         if not _crosses_buy(order.limit_price, ask_price):
             break  # ladder is best-first; once a level is above our limit, so is the rest
-        take = min(remaining, int(size))
+        # L47: ladder sizes are FLOATS and genuinely fractional (5.07% of real-tape
+        # levels). The ONLY sanctioned int coercion is core.depth's explicit floor rule
+        # (you can lift whole contracts only); never a bare int()/round() here.
+        take = min(remaining, whole_contracts_available(size))
         if take <= 0:
             continue
         taken_cost += ask_price * take
