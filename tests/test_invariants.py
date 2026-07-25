@@ -467,6 +467,171 @@ def test_unregistered_single_hour_leg_warning_never_gates_exit_code(monkeypatch,
     assert "invariants: all green" in captured.out
 
 
+# ─── ladder-size int-coercion advisory (L47: non-gating) ─────────────────────
+
+def test_ladder_size_coercion_real_tree_is_clean():
+    # HARD acceptance test anchored to the real tree: the one violation this advisory was
+    # built for (execution/fill_models.py::_taker_depth's bare `int(size)`) now routes
+    # through core.depth.whole_contracts_available, so the real tree must report ZERO.
+    assert inv._ladder_size_coercion_issues() == []
+
+
+def test_ladder_size_coercion_fires_on_reintroduced_violation(tmp_path):
+    (tmp_path / "execution").mkdir()
+    (tmp_path / "execution" / "fill_models.py").write_text(
+        "def f(remaining, size):\n    return min(remaining, int(size))\n")
+    assert inv._ladder_size_coercion_issues(tmp_path) == ["execution/fill_models.py:2"]
+
+
+def test_ladder_size_coercion_fires_on_round_floor_ceil_and_level_subscript(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "a.py").write_text("a = round(bid_size)\n")
+    (tmp_path / "scripts" / "b.py").write_text("b = math.floor(queue_ahead)\n")
+    (tmp_path / "scripts" / "c.py").write_text("c = math.ceil(total_depth)\n")
+    (tmp_path / "scripts" / "d.py").write_text("d = int(level[1])\n")
+    (tmp_path / "scripts" / "e.py").write_text("e = int(rec.no_bid_size)\n")
+    (tmp_path / "scripts" / "f.py").write_text("f = int(sizes[i])\n")
+    (tmp_path / "scripts" / "g.py").write_text("g = round(sz, 0)\n")
+    assert inv._ladder_size_coercion_issues(tmp_path) == [
+        f"scripts/{n}.py:1" for n in "abcdefg"]
+
+
+def test_ladder_size_coercion_exempts_core_depth_and_tests(tmp_path):
+    (tmp_path / "core").mkdir()
+    (tmp_path / "core" / "depth.py").write_text("return int(math.floor(size))\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "x.py").write_text("y = int(size)\n")
+    assert inv._ladder_size_coercion_issues(tmp_path) == []
+
+
+def test_ladder_size_coercion_does_not_flag_known_false_positive_shapes(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    # (a) an ALL-CAPS module constant in a printf (scripts/probe_ladder_coherence.py:405)
+    (tmp_path / "scripts" / "a.py").write_text('x = f"{int(MIN_DEPTH)}"\n')
+    # (b) a RATIO rounded for reporting (scripts/universe_sweep_family_shapes.py:275)
+    (tmp_path / "scripts" / "b.py").write_text("b = round(size_pos[k] / n_lines, 6)\n")
+    # (c) a non-size int coercion (qty, timestamps, prices)
+    (tmp_path / "scripts" / "c.py").write_text(
+        "c = int(order.qty)\nd = int(_parse_iso(t).timestamp())\ne = round(1.0 - ask, 2)\n")
+    # (d) a BACKTICKED prose mention of the forbidden pattern inside a docstring
+    (tmp_path / "scripts" / "d.py").write_text(
+        '"""A consumer assuming integer counts (`int(size)` truncation) corrupts reads."""\n')
+    # (e) a comment line
+    (tmp_path / "scripts" / "e.py").write_text("# never a bare int(size) here\n")
+    # (f) sizes kept as FLOATS (the correct shape) must never be flagged
+    (tmp_path / "scripts" / "f.py").write_text("total += float(level[1])\n")
+    assert inv._ladder_size_coercion_issues(tmp_path) == []
+
+
+def test_is_ladder_size_expr_unit_cases():
+    assert inv._is_ladder_size_expr("size")
+    assert inv._is_ladder_size_expr("bid_size")
+    assert inv._is_ladder_size_expr("sizes[i]")
+    assert inv._is_ladder_size_expr("rec.no_ask_size")
+    assert inv._is_ladder_size_expr("queue_ahead")
+    assert inv._is_ladder_size_expr("total_depth")
+    assert inv._is_ladder_size_expr("level[1]")
+    assert not inv._is_ladder_size_expr("MIN_DEPTH")
+    assert not inv._is_ladder_size_expr("SIZE")
+    assert not inv._is_ladder_size_expr("level[0]")   # element 0 is the PRICE
+    assert not inv._is_ladder_size_expr("qty")
+    assert not inv._is_ladder_size_expr("sum_volume")
+    # multi-subscript: the LAST index selects element 1 of a [price, size] pair
+    assert inv._is_ladder_size_expr("no_bids[0][1]")
+    assert inv._is_ladder_size_expr("ladder[i][1]")
+    assert not inv._is_ladder_size_expr("no_bids[1][0]")   # element 0 is the PRICE
+    assert not inv._is_ladder_size_expr("row[0][1]")       # `row` is not ladder-ish
+
+
+def _coercion_fires_on(tmp_path, source: str) -> bool:
+    """Run one source LINE through the advisory in a throwaway production-shaped file."""
+    d = tmp_path / "scripts"
+    d.mkdir(exist_ok=True)
+    f = d / "probe.py"
+    f.write_text(source if source.endswith("\n") else source + "\n")
+    return inv._ladder_size_coercion_issues(tmp_path) != []
+
+
+# --- L155: recall is only what a constructed-negative corpus proves ------------
+# A lexical advisory reporting 0 issues on a clean tree is evidence of PRECISION only.
+# These two tests are the RECALL half: the first pins the shapes that DO fire, the second
+# pins the deliberate blind spots as misses so a future widening has to update them on
+# purpose. Derived from the 2026-07-25 verifier's 15-shape adversarial probe.
+
+TESTED_FIRING_SHAPES = (
+    "x = int(size)",
+    "x = round(bid_size)",
+    "x = math.floor(sizes[i])",
+    "x = math.ceil(rec.no_ask_size)",
+    "x = int(queue_ahead)",
+    "x = int(total_depth)",
+    "x = int(level[1])",
+    "x = int(lvl[1])",
+    "x = int(bid[1])",
+    "x = int(no_bids[0][1])",      # the shape analysis/observatory/features.py:160 writes
+    "x = int(ladder[i][1])",
+    "x = int(float(size))",
+    "x = round(float(level[1]))",
+    "x = math.trunc(size)",
+    "x = trunc(level[1])",
+)
+
+# Documented, DELIBERATE recall holes. Each was considered and rejected: a lexical rule wide
+# enough to catch it would false-positive on the real tree (`depth` is an already-integer
+# level COUNT in the orderbook_depth schema; `row`/`pair`/`entry` are ordinary iteration
+# names; the rest need dataflow or an AST pass). An honest documented hole beats a
+# false-positive-prone guard. If you widen the matcher, DELETE the entry here on purpose.
+KNOWN_BLIND_SPOT_SHAPES = (
+    "x = int(depth)",                     # bare `depth`: integer level COUNT field
+    "x = int(row[1])",
+    "x = int(pair[1])",
+    "x = int(entry[1])",
+    "n = size\nx = int(n)",               # renamed intermediate: needs dataflow
+    "x = int(size_remaining)",            # size-ish PREFIX, not suffix
+    "x = int(resting_qty_at_level)",      # paraphrase
+    "x = int(\n    size\n)",              # multi-line call: the scan is line-by-line
+    "x = size // 1",                      # non-call coercion
+    "x = '%d' % size",                    # non-call coercion
+    'x = f"{size:d}"',                    # non-call coercion
+    "if size == 5:\n    pass",            # L47's other half (equality vs whole-number queue)
+)
+
+
+@pytest.mark.parametrize("src", TESTED_FIRING_SHAPES)
+def test_ladder_size_coercion_fires_on_tested_shape_set(tmp_path, src):
+    assert _coercion_fires_on(tmp_path, src), f"expected a HIT for: {src!r}"
+
+
+@pytest.mark.parametrize("src", KNOWN_BLIND_SPOT_SHAPES)
+def test_ladder_size_coercion_known_blind_spots_are_misses(tmp_path, src):
+    # Asserting the MISSES: this is the documented hole, regression-tested so that the kb
+    # row and the warning message cannot silently overstate coverage again (L155).
+    assert not _coercion_fires_on(tmp_path, src), f"expected a MISS for: {src!r}"
+
+
+def test_ladder_size_coercion_warning_none_when_empty():
+    assert inv.ladder_size_coercion_warning([]) is None
+
+
+def test_ladder_size_coercion_warning_message_content():
+    msg = inv.ladder_size_coercion_warning(["execution/fill_models.py:147"])
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "whole_contracts_available" in msg
+    assert "L47" in msg
+
+
+def test_ladder_size_coercion_warning_never_gates_exit_code(monkeypatch, capsys):
+    # The advisory is silent on the clean tree; what is pinned here is that --full stays
+    # exit 0 and that this class can never become a gating one.
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "coerce an order-book ladder SIZE" not in captured.err
+    assert "invariants: all green" in captured.out
+
+
 # ─── raw datetime.fromisoformat advisory (L138 residue: non-gating) ───────────
 
 def test_raw_datetime_fromisoformat_sites_finds_real_sites():

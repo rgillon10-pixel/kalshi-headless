@@ -834,6 +834,155 @@ def unregistered_single_hour_leg_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
+
+# L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
+# fractional (real-tape census 2026-07-25: 747,412 / 14,756,132 levels = 5.07% fractional,
+# 5,832 with 0 < size < 1). Truncating one to int without an explicit rounding rule silently
+# corrupts a queue-depth read. The single sanctioned coercion lives in
+# `core.depth.whole_contracts_available` (documented floor rule); this advisory is a LEXICAL
+# PROXY for "a NEW site coerced a ladder size", with the tested coverage and the tested blind
+# spots both stated below. It is a proxy, not a decision procedure: it cannot know whether an
+# arbitrary `size` name is an order-book ladder size, so it is advisory, never gating.
+#
+# TESTED COVERAGE — shapes an adversarial-corpus test asserts DO fire
+# (`tests/test_invariants.py::test_ladder_size_coercion_fires_on_tested_shape_set`):
+#   * bare/attr/subscript size-ish name: `int(size)`, `round(bid_size)`, `math.floor(sizes[i])`,
+#     `ceil(rec.no_ask_size)`, `int(queue_ahead)`, `int(total_depth)`;
+#   * ladder-level pair subscript: `int(level[1])`, `int(lvl[1])`, `int(bid[1])`;
+#   * MULTI-subscript ladder-level: `int(no_bids[0][1])`, `int(ladder[i][1])` — added
+#     2026-07-25 because `analysis/observatory/features.py:160-161` already writes exactly
+#     that shape (`no_bids[0][1]` for `touch_queue`), so it is the likeliest reintroduction;
+#   * NESTED cast: `int(float(size))`, `round(float(level[1]))`;
+#   * `math.trunc(size)` / `trunc(size)`.
+#
+# KNOWN, DELIBERATE BLIND SPOTS — shapes an adversarial-corpus test asserts do NOT fire
+# (`tests/test_invariants.py::test_ladder_size_coercion_known_blind_spots_are_misses`).
+# These are documented holes, not oversights: each was considered and rejected because a
+# lexical rule wide enough to catch it would false-positive on the real tree.
+#   * bare `int(depth)` — `depth` is a legitimate ALREADY-INTEGER level COUNT field in the
+#     orderbook_depth record schema, so matching it would fire on correct code;
+#   * `int(row[1])` / `int(pair[1])` / `int(entry[1])` — `row`/`pair`/`entry` are ordinary
+#     CSV / dict-iteration names, not ladder-specific;
+#   * renamed intermediates (`for price, size in ladder: n = size; int(n)`) — needs dataflow;
+#   * size-ish PREFIX not suffix (`int(size_remaining)`), and paraphrases like
+#     `int(resting_qty_at_level)` — no high-precision lexical rule found;
+#   * multi-LINE calls (`int(\n    size\n)`) — the scan is line-by-line;
+#   * non-call coercions: `size // 1`, `'%d' % size`, `f"{size:d}"`;
+#   * the L47 row's other half, an equality check against a whole-number queue position
+#     (`size == 5`) — no site exists today and no precise lexical rule was found.
+# Closing any of these requires an AST/dataflow pass, not a wider regex.
+#
+# Precision rules (this must stay at ZERO hits on the clean tree):
+#   * the coerced expression must be a WHOLE simple argument — a bare name, an attribute
+#     chain, subscripts, or one nested float()/int()/abs() cast — so
+#     `round(size_pos[k] / n_lines, 6)` (a ratio) is NOT flagged;
+#   * ALL-CAPS names are constants, never a live ladder size, so `int(MIN_DEPTH)` is NOT
+#     flagged;
+#   * the name must be size-ish (`*size`/`*sizes`/`*_sz`/`queue_ahead*`/`*_depth`), or a
+#     `level[1]`-shaped ladder-level subscript (the second element IS the size);
+#   * a BACKTICKED prose mention (`` `int(size)` ``) inside a docstring is documentation, not
+#     code, and is skipped. NOTE the skip is a ONE-CHARACTER lookbehind on the char before the
+#     match, so it only handles the SINGLE-backtick form; a double-backticked ``` ``int(size)``
+#     ``` prose mention in a .py docstring would still be flagged. Latent precision fragility,
+#     0 hits on today's tree — left as-is rather than grown into a markdown parser;
+#   * comment lines and tests/ are skipped (fixtures deliberately construct bad shapes).
+_LADDER_SIZE_COERCION_RE = re.compile(
+    r"\b(?:int|round|floor|ceil|trunc|math\.floor|math\.ceil|math\.trunc)\s*\(\s*"
+    r"(?:(?P<cast>float|int|abs)\s*\(\s*)?"
+    r"(?P<expr>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?:\[[^\]\[]*\])*)"
+    r"\s*\)?\s*(?:,|\))"
+)
+_SIZE_ISH_NAME_RE = re.compile(r"(?:^|_)(?:size|sizes|sz)$|^queue_ahead|_depth$", re.I)
+_LADDER_LEVEL_NAME_RE = re.compile(
+    r"(?:^|_)(?:level|lvl|bid|ask|rung|ladder|book)s?$", re.I
+)
+# The ONE site allowed to turn a ladder size into an integer (L47's explicit floor rule).
+# NOTE this exempts the WHOLE FILE, not just `whole_contracts_available` — a future bare
+# `int(size)` elsewhere in core/depth.py is invisible to this advisory. Accepted deliberately
+# (file-level granularity matches every other exempt list here); tightening it to a
+# function-level exemption would need an AST pass, not a path-prefix compare.
+LADDER_SIZE_COERCION_EXEMPT = ("core/depth.py",)
+
+
+def _is_ladder_size_expr(expr: str) -> bool:
+    """True when `expr` (the whole single argument of an int()/round()/floor()/ceil()/trunc()
+    call, with any one nested float()/int()/abs() cast already stripped) denotes an order-book
+    ladder SIZE. Pure, no I/O — the precision core of the L47 advisory. See the module-level
+    block above for the tested shape set AND the deliberate blind-spot set."""
+    base = expr.partition("[")[0]
+    subs = re.findall(r"\[([^\]\[]*)\]", expr)
+    tail = base.split(".")[-1]
+    if not tail or tail.isupper():   # ALL-CAPS -> a module constant, not a live size
+        return False
+    if _SIZE_ISH_NAME_RE.search(tail):
+        return True
+    # `level[1]` / `bid[1]` / `no_bids[0][1]` / `ladder[i][1]`: the LAST index selects element
+    # 1 of a [price, size] pair, which IS the size.
+    return (
+        bool(subs)
+        and subs[-1].strip() == "1"
+        and bool(_LADDER_LEVEL_NAME_RE.search(tail))
+    )
+
+
+def _ladder_size_coercion_issues(root: Path = ROOT) -> List[str]:
+    """Production sites that coerce an order-book ladder size to an integer outside the
+    sanctioned `core.depth.whole_contracts_available` (L47). Best-effort/offline: any
+    exception skips a file and can never poison the gate. Returns sorted `path:line`."""
+    out: List[str] = []
+    try:
+        for p in _iter_source_files(root, exts=(".py",)):
+            rel = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
+            if rel in LADDER_SIZE_COERCION_EXEMPT or rel.split("/", 1)[0] == "tests":
+                continue
+            try:
+                lines = p.read_text().splitlines()
+            except Exception:
+                continue
+            for i, line in enumerate(lines, 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                for m in _LADDER_SIZE_COERCION_RE.finditer(line):
+                    if m.start() > 0 and line[m.start() - 1] == "`":
+                        continue  # backticked prose mention in a docstring, not code
+                    if _is_ladder_size_expr(m.group("expr")):
+                        out.append(f"{rel}:{i}")
+                        break
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def ladder_size_coercion_warning(sites: List[str]) -> Optional[str]:
+    """Non-gating advisory when production code int-coerces an order-book ladder size outside
+    `core.depth.whole_contracts_available`, else None. Pure.
+
+    The message states the TESTED shape set and the KNOWN blind spots, not the intent: this is
+    a lexical proxy, and reporting 0 sites is evidence of PRECISION only, never of RECALL
+    (L155)."""
+    if not sites:
+        return None
+    n = len(sites)
+    examples = ", ".join(sites[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} production site(s) coerce an order-book ladder SIZE to an "
+        f"integer outside the sanctioned `core.depth.whole_contracts_available` (e.g. "
+        f"{examples}). Persisted yes_bids/no_bids sizes are FLOATS and 5.07% of real-tape "
+        f"levels are fractional (L47); a bare int()/round() silently corrupts a queue-depth "
+        f"read. Keep sizes as floats, or call the helper's explicit floor rule. "
+        f"COVERAGE (lexical proxy, tested shapes only): int/round/floor/ceil/trunc applied to "
+        f"a size-ish name (`*size`/`*sizes`/`*_sz`/`queue_ahead*`/`*_depth`, incl. attribute "
+        f"and subscript forms), to a ladder-level pair subscript (`level[1]`, `no_bids[0][1]`, "
+        f"`ladder[i][1]`), or to one nested cast (`int(float(size))`). KNOWN BLIND SPOTS "
+        f"(deliberate, regression-tested as misses): bare `int(depth)` (`depth` is an integer "
+        f"level COUNT in the record schema), `int(row[1])`/`pair`/`entry`, renamed "
+        f"intermediates, size-ish PREFIXes (`size_remaining`), multi-line calls, `size // 1` "
+        f"and `'%d' % size` — a 0-site report does NOT mean the tree is clean. Advisory only "
+        f"— does NOT affect the exit code. See kb/lessons/00-lessons.md L47, L155."
+    )
+
+
 # ─── Raw datetime.fromisoformat advisory (L138 residue: non-gating, offline-safe) ──
 
 _DATETIME_FROMISOFORMAT_RE = re.compile(r"\bdatetime\.fromisoformat\s*\(")
@@ -1319,6 +1468,12 @@ def main() -> int:
         iso_warning = raw_datetime_fromisoformat_warning(_raw_datetime_fromisoformat_sites())
         if iso_warning:
             sys.stderr.write(iso_warning + "\n")
+        # L47 advisory: a production site coercing an order-book ladder SIZE to an integer
+        # outside core.depth.whole_contracts_available (sizes are floats, 5.07% fractional).
+        # Non-gating — stderr only, never flips the exit code.
+        ladder_warning = ladder_size_coercion_warning(_ladder_size_coercion_issues())
+        if ladder_warning:
+            sys.stderr.write(ladder_warning + "\n")
         # L147 advisory: kb/lessons/00-lessons.md assigning the same lesson ID to more than
         # one row (2026-07-24 incident: L130/L131 each collided). Non-gating — stderr only.
         dup_lesson_warning = duplicate_lesson_id_warning(_duplicate_lesson_id_issues())
