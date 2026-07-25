@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~04:1x UTC — kalshi-edge-hunter nightly: Unit 1 adversarial review (CLEAN) + Unit 2 Q21 round (3 proposed, 0 registered — 13th zero) + Unit 3 probe-prep (no-op)
+
+**Step 0a/0/0b: PASS.** History integrity clean — `kb/00-LOG.md` newest entry and newest committed
+tape both current (07-25), merged-PR chain #186→#192 all ancestors of current `main`, no rewind.
+Claim-check: open PRs are #191 (draft, invariants/dead-shadow gate — Ryan-review-only, touches
+`scripts/invariants.py`), #165/#166 (draft, Ryan-approved background-session infra), #125
+(by-design leave-open weekly-retro — repeatedly logged NOT-re-flagged) — none claim eligible queue
+work. Step 0b: **185** `tape/hourly-*` + burst remote branches (long-tail housekeeping/sweep debt,
+out of scope for one edge-hunter run — same posture as every recent audit).
+
+**Unit 1 — Adversarial review: PASS on all three last-24h findings.** Independently recomputed one
+load-bearing number per finding directly against the committed tape (not the findings' own scripts):
+(a) **Q42 funding-clamp** (`findings/2026-07-24-q42-…`) Result 1 census reproduced — 1,202/1,287
+`funding_rate_estimate` exact-zero (93.40%), **0 nonzeros in the open band (0,1e-4)**; the finding's
+1,191/1,274 (93.49%) differs only by the +13 new `dt=2026-07-25` samples; tag `broker_truth` ✓
+(never a fill price). (b) **S49 kill** (`findings/2026-07-24-q21-…`) reproduced — BTC 1/99, ETH 9/99
+nonzero ⇒ ~95% clamped even full-tape, signal degenerate as claimed (independent L88 kill also
+holds). (c) **Timestamp-hazard** (`findings/2026-07-24-tape-timestamp-…`) the newly-named 9-digit-
+nanosecond `crypto_hourly./spot/exchange_time` shape reproduced — 1,417 raw matches now vs the
+finding's 1,409 through 07-24 (+8 = new day). All three are `broker_truth`/data-integrity with no
+fillable-price claim; nothing failed re-check → **no history rewrite, no GitHub issue opened.**
+
+**Unit 2 — Q21 round (13th consecutive zero-registration).** Queue re-verified saturated (0 eligible)
+→ round fired. Producer proposed **S51/S52/S53**, deliberately probing under-explored corners rather
+than the 07-24 S48/S49/S50 slots; an independent `verifier` attacked each against committed tape and
+**KILLED all three** (two-agent rule at idea stage): **S51** cross-venue single-leg Fed taker → n=0
+settled FOMC (Kalshi Fed leg is genuinely `real_ask`, so a real reopen at ≥10 settled meetings — not
+a dead factor); **S52** settlement-ledger pooled reliability-curve → the realized settlement∩pre-close-
+ask join is 605/10,605 (5.7%, L9/L43) and 100% sports, game-bootstrap net-of-fee EV −0.033/contract
+CI [−0.044,−0.021] strictly negative (S1/S5/S7 overround wall); **S53** near-money [0.90,0.99]
+winner-certain taker → genuinely new mechanism space but event-bootstrap CI [−0.033,+0.039] straddles
+zero on a +0.76¢ point, and `crypto_hourly` has no `yes_ask_size` (depth unverifiable). Register 0,
+NO registry table change (prose-note precedent), consumed S51/S52/S53 → next free **S54**. Lesson
+candidates (pooled-family disjoint-window; crypto near-money CI-straddle; real Fed-leg reopen note)
+deferred to kb-distiller. Finding: `findings/2026-07-25-q21-idea-gen-round.md`. Binding constraint
+remains the DATA SURFACE, not idea capacity.
+
+**Unit 3 — Probe-prep: no-op (honest).** No day-count gate opens within ~72h (FOMC 07-29 is 96h out
+and its analysis needs burst tape that the Q19 fired-but-never-captured bug may never produce); Q36/Q43
+are gate-open-but-data-inadequate, not time-gated; and every relevant probe already exists
+(`fomc_zq_basis_s2.py`, `s17_leadlag_probe.py` burst mode, `q43_perp_binary_consistency_probe.py`,
+`q36_kxtempnych_settlement_basis_probe.py`). Nothing to build.
+
+**Housekeeping.** No PR flagged (#125 by-design leave-open, precedent = NOT-re-flagged; #191/#165/#166
+are Ryan-review/Ryan-action drafts, none >5 days on a Ryan action except #125 which is excluded).
+Passed-event burst triggers still present: `kalshi-burst-wcfinal-0719`, `kalshi-burst-wcsemi2-0715`
+(both still `enabled=true`, uselessly set to recur 2027 — WC 2026 over), plus disabled
+`wcsemi1-0714`/`cpi-0714` — all already named for deletion by prior runs (retro's charter);
+`fomc-0729` kept (fires 07-29). Remote branch count: **185** `tape/hourly-*`.
+
+**Gates & Step 9.** `pytest` exit 0 (~1675 passed, 0 failed/0 errors — summary line didn't flush,
+cosmetic); `scripts/invariants.py --full` exit 0 (same 4 pre-existing non-gating advisories:
+L25 dir-shape, L109 orphan-GC, L74 daily-cadence-gap, L138 raw-fromisoformat). Step 9 paper sub-pass:
+`SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD per Q34 — paper-infra validation only, NOT edge
+evidence); `paper_pass.py` processed 0 newly-eligible events (no new tape since the 00:2x run),
+ledger unchanged **+$18.15** (`broker_truth`; 984 settled contracts, 0 open). Still **0 proven edges.**
+Branch `edge-hunter/20260725-q21-round`.
+
 ## 2026-07-25 ~00:2x UTC — IDLE RUN (policy a): L152's own proposed follow-up built — stale-UNENFORCED-candidate advisory (research loop)
 
 **Step 0a/0/0b: PASS.** `main` fast-forwarded cleanly to HEAD `cebe691` (PR chain #175→#189 all
