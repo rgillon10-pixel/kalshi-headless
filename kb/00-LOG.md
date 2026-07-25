@@ -6,6 +6,147 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~08:1x UTC — IDLE RUN (policy c → a): the VPS collector died a SECOND time, 61.7h silent and nobody noticed; cloud leg independently down to 5/8 slots (research loop)
+
+**Headline.** The VPS `:23` collector leg — declared RECOVERED three days ago (L129 /
+`findings/2026-07-22-vps-collector-recovered-post-pr151.md`) — **died again**. Last capture it
+wrote anywhere in committed tape: `captured_at = 2026-07-22T17:29:49.498223+00:00` (in
+`tape/weather_books/dt=2026-07-22.jsonl`); silence **61.7h** as of `2026-07-25T07:12Z`, with
+**zero** hourly-dual-family lines in the `:20-29` minute bucket after that timestamp. The
+recovery dwelled only **18.8h** measured from L129's declared recovery moment (`22:41Z`), or
+**18.1h** from the first `:23`-cadence pass (`2026-07-21T23:23:01Z`) — **state the anchor when
+quoting this**; an earlier draft's "17h" silently dropped the `23:23:01Z` pass, which is the
+very pass L129 cited as its evidence. Do not use 17h. Attribution method that IS sound: per-line
+`captured_at` minute-of-hour bucketing (vps `:20-29`, cloud `:50-59`) **restricted to
+`kind=="hourly-dual"` families**, per `scripts/tape_gap_monitor.py`'s `COLLECTOR_MINUTE_BUCKETS`.
+
+**Nothing is stranded — the VPS is dead, not merely failing to push.** The verifier fetched all
+487 remote heads: no `vps-collector` commit exists after `2026-07-22T17:32:20Z` on any ref, and
+`origin/tape/hourly-202607250406Z:tape` tree hash == `HEAD:tape`
+(`23b44416b723b76fca0b130feba53f719d2b5676`). Step-0b sweep this run therefore found **ZERO
+missing lines** — the only branch newer than the last-swept `tape/hourly-20260724T1857Z` is
+`tape/hourly-202607250406Z`, byte-identical under `tape/`.
+
+**A second, independent failure: the cloud `:53` leg degraded.** Expected slots
+`{00,03,06,09,12,15,18,21}` UTC (`53 */3 * * *`). Realized: 07-20 **8/8**, 07-21 **7/8**,
+07-22 **6/8**, 07-23 **5/8**, 07-24 **5/8**; `orderbook_depth` only **3/8** on both 07-23 and
+07-24, `weather_books` **1/8** on 07-23. Volume collapse **07-24 vs the healthy 07-22 baseline**
+(days labelled explicitly — an earlier draft mislabelled these): `orderbook_depth` **-88.9%**,
+`weather_books` **-86.6%**, `sports_pairs` **-82.0%**, `perp_tape` **-88.0%**, `crypto_hourly`
+**-80.0%**. For **07-23 vs 07-22** the figures differ: `weather_books` **-94.9%** (worse),
+`orderbook_depth` -88.7%, `sports_pairs` -78.9%.
+
+**Detection existed but was never invoked — and the honest framing matters.**
+`scripts/tape_gap_monitor.py` names `collector_diagnosis="vps_dead"` on SIX families right now
+(`sports_pairs`, `crypto_hourly`, `orderbook_depth`, `weather_books`, `polymarket_macro_pairs`,
+`perp_tape`; 10 families alerting in total) and ends with `alerts present but no NTFY_TOPIC_URL
+/ --ntfy-url supplied — ntfy POST skipped (no-op)`. Do **not** write "the detector worked for
+61h and paged nobody": a whole-repo grep found the monitor has **no scheduled caller at all** —
+no cron, no workflow, no `collection/` call site. True statement: *the monitor would have named
+`vps_dead` at any moment in the 61h window; nothing schedules it, and its only escalation path
+is a documented no-op when `NTFY_TOPIC_URL` is unset.* That is lesson **L156**, and it is what
+this run's code milestone fixes: detection is now attached to the one command every run must run
+and read.
+
+**Downstream gate costs (all re-run live by the verifier).** Q36 part (1):
+`python3 scripts/q36_kxtempnych_settlement_basis_probe.py` →
+`{"status":"INSUFFICIENT DATA","n_settled_events":2,"min_events":10}` — exactly 2 distinct
+settled KXTEMPNYCH event-hours (`KXTEMPNYCH-26JUL1707`, `KXTEMPNYCH-26JUL2205`). That is an
+**ADVANCE** from the previously-recorded n=1, so the prior Q36 status blocks' claim that
+`settlement_ledger` held exactly one settled event across its whole git history is now **stale**
+(corrected in this run's new Q36 Status line) — but still gated 2/10. The causal link, verified:
+all 5,000 lines of `tape/settlement_ledger/dt=2026-07-22.jsonl` carry a single
+`captured_at = 2026-07-22T10:31:41.942809+00:00` — UTC hour **10**, the
+`SETTLEMENT_LEDGER_UTC_HOUR=10` gate in `collection/hourly_pass.py` (gate ~L561, constant ~L150,
+pass-start `ts` ~L365); the cloud cron starts passes at `:53` of `{0,3,6,9,12,15,18,21}` so
+`ts.hour` is NEVER 10 — **the VPS is the only writer this family can ever have**, and its second
+death re-freezes the feed. (Cite the `captured_at` hour, never a commit hash: an earlier draft
+cited `01c74de`, which the verifier proved touches no `settlement_ledger` path at all, and the
+"which commit added it" answer varies by ref set because `main` squash-merges.) Q43:
+`python3 scripts/q43_perp_binary_consistency_probe.py` → density/day vs its own advisory floor of
+10: `dt=2026-07-23`=**3**, `dt=2026-07-24`=**3**, `dt=2026-07-25`=**1**; THIN DAYS now **6 of 9**
+(was 3 of 6 on 07-23) — density-gated and *worse* than when last measured. Q42's cross-venue
+funding join legs (`perp_tape`, `hyperliquid_funding`) sit on the same starved pipe (3/3/1
+captures on 07-23/24/25 vs 25 and 17 on 07-22).
+
+**What shipped (code, by a collector-engineer in the working tree).** A **NON-GATING "dead
+collector-leg advisory"** in `scripts/invariants.py`, computed from committed tape only (no
+network, no git, no commit-author strings), importing the leg minute-signatures and family
+config from `scripts/tape_gap_monitor.py` rather than duplicating them; named thresholds
+`DEAD_LEG_SILENCE_HOURS=24.0`, `DEAD_LEG_ALIVE_HOURS=6.0`, `DEAD_LEG_LOOKBACK_DAYS=10`. It fires
+only on the "one of two staggered collectors died" signature (a leg silent >=24h while another
+produced within 6h), reports **AMBIGUOUS** and never guesses a name when both scheduled legs are
+silent (the L118/L120 attribution discipline), and prints to stderr **without ever touching the
+exit code**. Rationale for non-gating: a dead VPS cron is severe AND physically un-fixable from a
+cloud sandbox — gating would convert one silent failure into an indefinite loop halt. Plus
+`tests/test_dead_collector_leg_advisory.py` (21 tests), whose real-tape
+acceptance test is made time-bomb-proof (L140) by freezing **both** axes: injected
+`_SLICE_NOW = 2026-07-24T20:00Z` AND an input cap `max_day=2026-07-24`; the verifier attacked it
+against a true 1.2GB copy of tape and confirmed it survives a fabricated FULL VPS recovery on
+`dt=2026-07-25`/`dt=2026-07-26` and a far-future `dt=2027-06-01`. **Two honest caveats recorded:**
+(i) the test departs from L140's LETTER (it hardcodes a calendar `now`) while satisfying its
+INTENT by freezing the input slice — saying so plainly so no future reader misreads it as an L140
+violation; (ii) one narrow vector survives — a retro-APPEND of a `:20-29`-minute line into an
+already-closed `dt <= 2026-07-24` file would flip it, and L140's own prescribed fix would not
+cover that either. Live advisory output on current tape names the vps leg, its last-seen
+timestamp, the 61.4h silence, and that cloud/other are still alive.
+
+**Lessons filed: L156-L162.** L156 (a detector with no scheduled caller is not enforcement —
+**enforced by this run**); L157 (a RECOVERED declaration needs a stated dwell window, >=24h of
+observed signature, anchor named — **UNENFORCED**, candidate is a checklist/test on
+recovery-class findings); L158 (commit-author archaeology is unsound on a squash-merge repo:
+`git log HEAD --author=vps-collector` returns ZERO despite ~330 such commits on side refs —
+**enforced by construction**, the advisory reads tape only); L159 (the 09-UTC econ slot at
+09:20-09:29 is a permanent false `:2x` liveness signal, present 07-19/20/21T09 through the whole
+first outage and again 07-23T09 — **enforced by construction** via the `hourly-dual` restriction,
+but flagged that `tape_gap_monitor.py`'s own raw counts still carry the artifact; the observed
+span inside the bucket is **09:20-09:29**, e.g. `econ_prints` dt=2026-07-19 at 09:20/09:21 and
+dt=2026-07-21 at 09:23/09:24/09:28/09:29); L160
+(tree-hash equality is the cheap authoritative stranded-tape containment test, and
+`git merge-base --is-ancestor` must NEVER be used for it — squash-merge makes it false-positive
+every time — **UNENFORCED**); L161 (**44 of 192** remote `tape/*` branches fail
+`^tape/hourly-[0-9]{8}T[0-9]{4}Z$` as measured 2026-07-25 ~08:5xZ — the count DRIFTS as branches
+accumulate, so the lesson row ships the counting command rather than a frozen number; including
+`tape/hourly-Z` and `tape/hourly-` with no timestamp,
+which sort AFTER all dated branches and get silently mis-triaged as "newest" — a step-0b
+data-loss risk; triage by commit date — **UNENFORCED**); L162 (a gate result quoted mid-edit is stale by the time the run lands — this very entry first shipped `pytest 1743 collected` and "14 tests" against a final tree of 1750 and 21; re-take the gate line AFTER the last code change or write it as a floor, and inline the command behind any count-bearing lesson row — **UNENFORCED**).
+
+**Gates.** `python -m pytest -q` exit 0, **1750 collected, 0 failures** (verifier independently
+re-ran AFTER the final code change; an earlier draft of this entry quoted a mid-edit 1743 — see
+L162). `python scripts/invariants.py --full` exit **0**, unchanged from baseline. Worth one
+line: the GitHub-issue-#157 cryptography/pyo3 baseline failures (`tests/test_invariants.py`,
+`tests/test_ws_depth.py`, `tests/test_polymarket_us_live.py`) **did NOT reproduce in this
+sandbox** — those 236 tests all passed and `cryptography` imports at 41.0.7, so this run's
+baseline-failure set is **EMPTY**.
+
+**Paper sub-pass (step 9).** `SHADOW_REGISTRY` non-empty (`{s14_ladder_underwriting}`);
+`python scripts/paper_pass.py` processed **0 newly-eligible events** (178 deferred on caps, 264
+on coverage, 122 already in ledger) → **no new ledger lines**. Standing state: realized P&L
+**$+18.15** — `real_bid` fills settled at `broker_truth` (counted over `paper/ledger/dt=*.jsonl`:
+984 lines tagged `price_source_tag="real_bid"` = the fills, 984 tagged `broker_truth` = the
+settlements, plus 2,595 order lines carrying no price tag; **no synthetic price is involved**) —
+984 settled contracts, 0 open positions, open notional $0.00. Honestly: S14 is `dead ✗` at real fills per Q34 — this is paper-infrastructure
+validation, **not edge**.
+
+**Two-agent rule followed.** Producer (`tape-auditor`) → independent `verifier`. Round 1
+**REFUTED** three sub-claims (a wrong commit hash, a broken repro command, five mislabeled
+percentages) and **downgraded two framings**; all corrections are folded into the finding.
+Verdict on the outage finding: **CONFIRMED (post-correction)**. There is **no bootstrap CI, no
+price, no P&L claim and no registry change** in this run, so the real-ask bar is not implicated
+and `kb/strategies/00-index.md` is deliberately untouched. This run produced **no edge**; the
+project still has **0 proven edges**.
+
+**Process gap, flagged per step 8(c).** **No ntfy topic URL was supplied to this session**, so
+LOOP-QUEUE step 8's mandatory phone note could NOT be posted — and 8(b) requires `Priority: high`
+for a run surfacing something needing Ryan's action. This run has exactly such an item: **restart
+the VPS collector**, and **investigate the cloud cron's dropped 09/12 slots**. The retired topic
+in `config/notify.topic` was deliberately not used (nothing reads it). Weekly retro should see
+the notification-pipe gap.
+
+See `findings/2026-07-25-vps-collector-second-death-and-cloud-slot-attrition.md`.
+
+---
+
 ## 2026-07-25 ~05:2x UTC — IDLE RUN (policy a): L47 enforced — ladder-size float-to-int coercion, live violation found and fixed (research loop)
 
 **Step 0a/0/0b: PASS.** `main` fast-forwarded cleanly to HEAD `c170fa6` (PR chain #175→#190

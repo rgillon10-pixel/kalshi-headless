@@ -834,6 +834,294 @@ def unregistered_single_hour_leg_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Dead collector-leg advisory (L117/L129 recurrence: non-gating, offline-safe) ──
+#
+# The live data pipe runs TWO staggered collectors (VPS cron :23 UTC, cloud `kalshi-collector`
+# :53 UTC — ops/ROUTINES.md). When ONE of them dies the tape keeps growing, every family keeps
+# a fresh newest-capture, and nothing in the run protocol notices: the VPS leg died 2026-07-19
+# (L117), was declared RECOVERED 2026-07-22 (L129), then died again ~6h later and produced
+# nothing for ~61h while three research-loop runs and two edge-hunter runs came and went.
+# `scripts/tape_gap_monitor.py` DOES diagnose this correctly (`collector_diagnosis`:
+# "vps_dead: 0 passes in window, other collector still producing"), but nothing in the protocol
+# runs it, and in a cloud sandbox its only escalation path (an ntfy POST) is a documented no-op
+# with no NTFY_TOPIC_URL. `python scripts/invariants.py --full` is the one command every
+# autonomous run is REQUIRED to run and read — so the outage is surfaced HERE.
+#
+# NON-GATING, deliberately and permanently: a dead VPS cron is Ryan/VPS-side and physically
+# un-fixable from a cloud sandbox. Gating on it would halt the entire research loop for as long
+# as the outage lasts — trading one silent failure for a louder one. It PRINTS, it never flips
+# the exit code (same posture as every advisory above).
+#
+# Single source of truth for the leg signatures: the minute-of-hour bucket ranges
+# (`COLLECTOR_MINUTE_BUCKETS`) and the hourly family list (`FAMILY_CONFIG`, kind=="hourly-dual")
+# are IMPORTED from scripts/tape_gap_monitor.py, never re-declared here — a second copy would
+# drift the moment either is recalibrated (the same duplication trap L100 collapsed out of the
+# collectors). Attribution uses `captured_at` minute-of-hour only; git author strings are not a
+# durable contract and are never read.
+
+# Thresholds (named, documented — edit here, not in the logic).
+# 24h: a scheduled leg firing hourly that has produced NOTHING for a full day has missed ~24
+#      consecutive passes — far beyond any restart/jitter/venue-hole explanation (L15's known
+#      structural 20-UTC hole is a single hour). This is the "apparently dead", not "hiccuped",
+#      boundary.
+DEAD_LEG_SILENCE_HOURS = 24.0
+# 6h: the survivor test. Another leg capturing within 6h proves the tape pipe, the repo and the
+#     venue are all fine, which is what makes a 24h+ silence attributable to ONE leg rather than
+#     to a whole-pipe outage (the 2026-07-09 systemic case, which stays AMBIGUOUS here).
+DEAD_LEG_ALIVE_HOURS = 6.0
+# Bounded I/O: newest N day-files per family (~300MB / ~0.6s across all hourly families on
+# 2026-07-25 tape). A leg silent longer than the lookback reports last-seen "unknown" rather
+# than a fabricated timestamp — honest, and still correctly flagged dead.
+DEAD_LEG_LOOKBACK_DAYS = 10
+
+_CAPTURED_AT_RE = re.compile(rb'"captured_at"\s*:\s*"([^"]{10,40})"')
+_TAPE_GAP_MONITOR_PATH = ROOT / "scripts" / "tape_gap_monitor.py"
+
+
+def _load_tape_gap_monitor(path: Path = _TAPE_GAP_MONITOR_PATH):
+    """Import scripts/tape_gap_monitor.py by path (scripts/ is not a package) so this advisory
+    reuses its COLLECTOR_MINUTE_BUCKETS / FAMILY_CONFIG rather than copying them. Returns None
+    on ANY failure — the advisory then simply does not run, and can never poison the gate."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_inv_tape_gap_monitor", path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+def _monitored_legs() -> Tuple[str, ...]:
+    """The SCHEDULED cron legs that can be called dead — DERIVED from
+    tape_gap_monitor.COLLECTOR_MINUTE_BUCKETS, never re-listed here, so adding or renaming a
+    leg there cannot leave this advisory silently monitoring a stale set. The catch-all
+    `other` bucket (ad-hoc smoke runs, plus the secondary weather_books/perp_tape writes
+    L120/L127) is excluded by construction: it is not a key of the bucket map, it is
+    `collector_bucket`'s fallback. It counts as a survivor signal but is never accused of
+    dying — its silence is not evidence of a broken schedule. Falls back to the historical
+    pair only if tape_gap_monitor cannot be loaded at all."""
+    tgm = _load_tape_gap_monitor()
+    try:
+        legs = tuple(str(k) for k in tgm.COLLECTOR_MINUTE_BUCKETS if str(k) != "other")
+        return legs or ("vps", "cloud")
+    except Exception:
+        return ("vps", "cloud")
+
+
+DEAD_LEG_MONITORED = _monitored_legs()
+
+
+def _leg_schedule_phrase(leg: str) -> str:
+    """A non-programmer-readable description of WHEN a leg captures, rendered from the leg's
+    own `COLLECTOR_MINUTE_BUCKETS` range. Deliberately derived rather than written in prose:
+    a hardcoded ":23 UTC" sentence is a second, silent copy of the collector signature that
+    would start lying the moment the buckets are recalibrated — in the exact line a run digest
+    is told to quote verbatim. Degrades to a schedule-unknown phrase, never to a stale claim."""
+    try:
+        bucket = _load_tape_gap_monitor().COLLECTOR_MINUTE_BUCKETS[leg]
+        minutes = sorted(int(m) for m in bucket)
+        if not minutes:
+            return "schedule unknown"
+        if len(minutes) == 1:
+            return f"captures at minute {minutes[0]} of the hour"
+        return f"captures at minutes {minutes[0]}-{minutes[-1]} of the hour"
+    except Exception:
+        return "schedule unknown"
+
+
+def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
+                             lookback_days: int = DEAD_LEG_LOOKBACK_DAYS,
+                             max_day: Optional[date] = None) -> Dict[str, str]:
+    """Newest `captured_at` per collector leg ("vps"/"cloud"/"other"), scanned from committed
+    tape only (no network, no git). Legs are bucketed by minute-of-hour using
+    tape_gap_monitor.COLLECTOR_MINUTE_BUCKETS; families are its kind=="hourly-dual" entries.
+    `max_day` (optional) restricts the scan to `dt=<date>.jsonl` files on or before that day —
+    used by tests to pin a FIXED historical slice so a real-tape assertion can never rot as new
+    tape lands. Returns {leg: iso-string}; {} when nothing is readable. Best-effort: any
+    exception yields {} so it can never poison the gate."""
+    out: Dict[str, str] = {}
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None or not tape_root.is_dir():
+            return {}
+        families = [f for f, cfg in tgm.FAMILY_CONFIG.items()
+                    if cfg.get("kind") == "hourly-dual"]
+        for family in families:
+            family_dir = tape_root / family
+            if not family_dir.is_dir():
+                continue
+            days = []
+            for p in family_dir.glob("dt=*.jsonl"):
+                if not p.is_file():
+                    continue
+                try:
+                    d = date.fromisoformat(p.name[len("dt="):-len(".jsonl")])
+                except ValueError:
+                    continue
+                if max_day is not None and d > max_day:
+                    continue
+                days.append((d, p))
+            for _, path in sorted(days)[-lookback_days:]:
+                try:
+                    blob = path.read_bytes()
+                except Exception:
+                    continue
+                for raw in set(_CAPTURED_AT_RE.findall(blob)):
+                    ts = raw.decode("utf-8", "replace")
+                    dt = _parse_capture_ts(ts)
+                    if dt is None:
+                        continue
+                    leg = tgm.collector_bucket(dt)
+                    if ts > out.get(leg, ""):
+                        out[leg] = ts
+        return out
+    except Exception:
+        return {}
+
+
+def _parse_capture_ts(ts: str):
+    """Parse a tape `captured_at` via core.timeutil.parse_iso_utc (L138: never
+    datetime.fromisoformat directly). Returns None on anything unparseable."""
+    try:
+        from core.timeutil import parse_iso_utc
+        return parse_iso_utc(ts)
+    except Exception:
+        return None
+
+
+def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
+                                  now=None,
+                                  lookback_days: int = DEAD_LEG_LOOKBACK_DAYS,
+                                  max_day: Optional[date] = None) -> Optional[Dict[str, object]]:
+    """Diagnose an apparently-dead collector leg from committed tape (L117/L129). Returns None
+    when there is nothing to say (no readable tape, or every scheduled leg captured within
+    DEAD_LEG_SILENCE_HOURS). Otherwise a facts dict with `status` in:
+
+      * "dead_leg"  — exactly one of DEAD_LEG_MONITORED is silent >= DEAD_LEG_SILENCE_HOURS
+                      while some other leg captured within DEAD_LEG_ALIVE_HOURS. The leg is
+                      NAMED.
+      * "ambiguous" — BOTH scheduled legs are silent. Never guessed at a name (the L118/L120
+                      attribution discipline in tape_gap_monitor.py: both-zero stays
+                      unattributed), because a whole-pipe outage and two independent deaths are
+                      indistinguishable from minute buckets alone.
+
+    Offline and best-effort throughout; any exception returns None.
+    """
+    try:
+        from datetime import datetime as _datetime, timezone as _timezone
+        if now is None:
+            now = _datetime.now(_timezone.utc)
+        last_seen = _collector_leg_last_seen(tape_root, lookback_days=lookback_days,
+                                             max_day=max_day)
+        if not last_seen:
+            return None
+
+        def _age_h(iso: str) -> Optional[float]:
+            dt = _parse_capture_ts(iso)
+            if dt is None:
+                return None
+            return (now - dt).total_seconds() / 3600.0
+
+        ages = {leg: _age_h(iso) for leg, iso in last_seen.items()}
+        newest_leg = max(last_seen, key=lambda k: last_seen[k])
+        newest_iso = last_seen[newest_leg]
+        newest_age = ages.get(newest_leg)
+        alive = sorted(leg for leg, a in ages.items()
+                       if a is not None and a < DEAD_LEG_ALIVE_HOURS)
+        silent = [leg for leg in DEAD_LEG_MONITORED
+                  if leg not in last_seen
+                  or (ages.get(leg) is not None and ages[leg] >= DEAD_LEG_SILENCE_HOURS)]
+        if not silent:
+            return None
+        base = {
+            "newest_iso": newest_iso,
+            "newest_age_h": newest_age,
+            "alive": alive,
+            "silent": silent,
+            "last_seen": last_seen,
+            "ages": ages,
+            "lookback_days": lookback_days,
+        }
+        if len(silent) == len(DEAD_LEG_MONITORED):
+            base["status"] = "ambiguous"
+            return base
+        if not alive:
+            # A single scheduled leg is silent but nothing is producing right now either —
+            # not the staggered-death signature; stay quiet rather than mis-attribute.
+            return None
+        dead = silent[0]
+        base["status"] = "dead_leg"
+        base["dead"] = dead
+        base["dead_last_seen"] = last_seen.get(dead)
+        base["dead_silence_h"] = ages.get(dead)
+        return base
+    except Exception:
+        return None
+
+
+def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[str]:
+    """A non-gating advisory block naming a dead/stalled collector leg, else None. Pure.
+
+    Written to be quotable verbatim by a run's digest author to a non-programmer: it says which
+    leg is dead, when it was last seen, how long it has been silent, and which leg is still
+    alive. It NEVER flips the exit code."""
+    if not diag:
+        return None
+    lookback = diag.get("lookback_days")
+    newest_age = diag.get("newest_age_h")
+    newest_age_s = f"{newest_age:.1f}h ago" if isinstance(newest_age, float) else "unknown age"
+    header = "COLLECTOR HEALTH ADVISORY (non-gating): "
+    tail = (f"Newest capture anywhere in committed hourly tape: {diag.get('newest_iso')} "
+            f"({newest_age_s}). Detected from committed tape only (captured_at minute-of-hour "
+            f"buckets, last {lookback} day-files per family); leg signatures imported from "
+            f"scripts/tape_gap_monitor.py. This is ADVISORY ONLY and does NOT affect the exit "
+            f"code — a dead VPS cron cannot be fixed from a cloud run. Fix = restart the cron on "
+            f"the machine that owns it. See kb/lessons/00-lessons.md L117/L129.")
+
+    def _leg_line(leg: str) -> str:
+        seen = diag.get("last_seen", {}).get(leg)  # type: ignore[union-attr]
+        age = diag.get("ages", {}).get(leg)        # type: ignore[union-attr]
+        if seen is None:
+            return (f"  - {leg}: NO capture at all in the last {lookback} day-files "
+                    f"(silent for longer than the lookback window)")
+        age_s = f"{age:.1f}h" if isinstance(age, float) else "unknown"
+        return f"  - {leg}: last seen {seen} ({age_s} of silence)"
+
+    if diag.get("status") == "ambiguous":
+        silent = diag.get("silent", [])
+        lines = [header + "AMBIGUOUS — BOTH scheduled collector legs "
+                 f"({', '.join(DEAD_LEG_MONITORED)}) have been silent for >= "
+                 f"{DEAD_LEG_SILENCE_HOURS:.0f}h. NO leg is named: two independent deaths and a "
+                 f"whole-pipe outage are indistinguishable from capture timestamps alone, and a "
+                 f"guess here would be a false accusation (same discipline as "
+                 f"tape_gap_monitor.diagnose_collector's both-zero case)."]
+        lines += [_leg_line(leg) for leg in silent]  # type: ignore[union-attr]
+        still = diag.get("alive") or []
+        lines.append(f"  - still producing within {DEAD_LEG_ALIVE_HOURS:.0f}h: "
+                     + (", ".join(still) if still else "NOTHING (whole pipe looks dark)"))
+        lines.append("  " + tail)
+        return "\n".join(lines)
+
+    dead = diag.get("dead")
+    silence = diag.get("dead_silence_h")
+    silence_s = f"{silence:.1f}h" if isinstance(silence, float) else f">{lookback} days"
+    seen_s = diag.get("dead_last_seen") or f"not within the last {lookback} day-files"
+    alive = [leg for leg in (diag.get("alive") or []) if leg != dead]  # type: ignore[union-attr]
+    return "\n".join([
+        header + f"the '{dead}' collector leg appears DEAD.",
+        f"  - dead leg: {dead} ({_leg_schedule_phrase(str(dead))})",
+        f"  - last capture written by it: {seen_s}",
+        f"  - silent for: {silence_s} (threshold: {DEAD_LEG_SILENCE_HOURS:.0f}h)",
+        f"  - still alive: {', '.join(alive) if alive else 'none'} "
+        f"(captured within the last {DEAD_LEG_ALIVE_HOURS:.0f}h), so the tape keeps growing and "
+        f"nothing else looks broken — which is exactly why this outage stays invisible.",
+        "  " + tail,
+    ])
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -1463,6 +1751,23 @@ def main() -> int:
         leg_warning = unregistered_single_hour_leg_warning(_unregistered_single_hour_leg_issues())
         if leg_warning:
             sys.stderr.write(leg_warning + "\n")
+        # L117/L129 advisory: one of the two staggered collector legs (VPS :23 / cloud :53)
+        # apparently dead — computed from committed tape's captured_at minute buckets. Loud but
+        # NON-GATING: a dead VPS cron is un-fixable from a cloud run, so gating would halt the
+        # research loop for the whole outage.
+        # The whole stanza is wrapped in `except BaseException` — not decoration: the
+        # diagnosis self-guards, but the FORMATTER and the stderr write did not, so a raise
+        # inside either (or a non-str return, which makes `+ "\n"` a TypeError) would have
+        # reached the exit code and turned a non-gating advisory into a gate. BaseException,
+        # not Exception, because tape_gap_monitor.py is exec'd dynamically and a SystemExit
+        # raised at its module level would otherwise propagate. Degrades to one stderr note.
+        try:
+            collector_warning = dead_collector_leg_warning(_dead_collector_leg_diagnosis())
+            if collector_warning:
+                sys.stderr.write(collector_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: collector-health advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.
         iso_warning = raw_datetime_fromisoformat_warning(_raw_datetime_fromisoformat_sites())
