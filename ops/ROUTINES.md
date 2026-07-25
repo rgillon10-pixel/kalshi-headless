@@ -17,7 +17,7 @@ placeholders below say `<NTFY_TOPIC_URL>`.
 | kalshi-collector | `trig_01UCmvwtTAGDB1VqrYfr1FKp` | hourly :53 | Haiku | unchanged |
 | kalshi-weekly-retro | `trig_0147PgZMXWWXYXpb2ZdZHqfm` | Sun 12:00 | **Opus 4.8** (was Sonnet) | **LIVE** (updated 2026-07-12 18:53Z; ops-hygiene duties added) |
 | ntfy-watch | (in Ryan's account) | hourly | Haiku/Sonnet | unchanged |
-| kalshi-burst-cpi-0714 / wcsemi1-0714 / wcsemi2-0715 / wcfinal-0719 / fomc-0729 | (one-shots) | per event | — | unchanged; delete after firing |
+| kalshi-burst-cpi-0714 / wcsemi1-0714 / wcsemi2-0715 / wcfinal-0719 / fomc-0729 | (one-shots) | per event | — | unchanged; delete after firing. **`fomc-0729` pre-flight (2026-07-25):** semi1/wcfinal both fired but lost all captured tape (single-commit-at-end design); a chunked-commit replacement recipe is ready in `ops/burst_capture_chunked.md` but NOT applied — Ryan action needed before 2026-07-29 17:40Z, see `findings/2026-07-25-q19-fomc-burst-preflight.md` |
 | VPS collector (not a routine) | cron `:23` on 87.99.146.250 | hourly | — | unchanged |
 | kalshi-observatory | `trig_01PJ4ghR9GYiG2416eQUZyg8` | 03:15 daily | Sonnet 5 | **LIVE** (created 2026-07-22 03:57Z; OBS-1 pilot; fires 1h before edge-hunter so it reads fresh patterns; no-ops gracefully until the OBS-1 PR merges) |
 
