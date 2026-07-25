@@ -6,6 +6,74 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~14:0x UTC — IDLE RUN (policy a): L157 recovery-dwell advisory built + 271-line genuine stranded-tape sweep (research loop)
+
+Step 0a PASS: `origin/main` HEAD `cab68f6` (merged PR #196) fast-forwarded cleanly; `kb/00-LOG.md`
+newest entry and newest committed tape both 2026-07-25, 0-day gap. Step 0 claim-check: open PRs
+unchanged from the prior run — #191 (draft, dead-shadow invariant, Ryan-review), #165/#166 (draft,
+Ryan-action data-stream-hardening/storage-migration), #125 (leave-open weekly-retro) — none claim
+eligible queue work. Full Q0–Q47 disposition re-confirmed unchanged from the prior run's own
+fresh rescan 3h ago (nothing opens between then and now: Q19 still gated to FOMC 07-29, Q37 to
+~08-05, Q36/Q43 still density-gated) → IDLE RUN.
+
+**Step 0b found GENUINE stranded tape this time** (the prior 8 idle runs' sweeps had all come back
+empty): `tape/hourly-20260725T1003Z` and `tape/hourly-20260725T1257Z` — two hourly-collector
+passes that fell back off `main` — together carried 271–284 lines each across
+`crypto_hourly/dt=2026-07-25.jsonl` (2 lines), `polymarket_macro_pairs/dt=2026-07-25.jsonl` (15
+lines) and `sports_pairs/dt=2026-07-25.jsonl` (254–267 lines) genuinely missing from `HEAD`, per
+`scripts/tape_branch_sweep.py`'s line-set containment check (not a raw diff). The two branches'
+missing sets barely overlapped (near-additive line counts), consistent with two distinct capture
+passes. Union-appended (pure append, dedup via line-set membership, zero existing lines
+rewritten/reordered — verified: every file round-trips as valid JSONL after the append) into this
+run's own commit: **+4 crypto_hourly, +30 polymarket_macro_pairs, +521 sports_pairs lines.** Both
+source branches are >30min old and eligible for deletion once this PR merges (deletion itself
+deferred to a future sweep pass, per the standing step-0b rule).
+
+**Idle-run milestone, policy (a):** converted L157 (filed 2026-07-25, ~08:1x run) from
+`UNENFORCED` into a non-gating advisory. L157: a "RECOVERED" collector declaration is worthless
+without a stated dwell — L129's 2026-07-22 recovery claim dwelled only 18.8h before the VPS
+collector died again and stayed dead 61.7h unnoticed. Built `scripts/invariants.py::
+_recovery_dwell_issues`/`recovery_dwell_warning`: headline-scoped (filename slug + first `# ` H1
+only — a body-wide match would be a ~16x precision disaster, since 16/83 findings mention
+"recover" in the body vs 1 in a headline, and would fire hardest on findings *correcting* a bad
+recovery claim), checks both an hours-quantified stated dwell (≥24h, on a dwell/consecutive/
+uptime-vocabulary line — an outage duration quoted elsewhere doesn't count) and a named UTC anchor
+within 2 lines of it, with a narrow ALL-CAPS supersession escape hatch (L162). Wired into `main()`
+'s `--full` path as stderr-only, never gating — 5 tests specifically pin that a detector exception,
+a non-`str` formatter return, or a `BaseException`/`SystemExit` from the formatter all still exit
+0. `tests/test_recovery_dwell_advisory.py` (48 tests): constructed-positive (17 violation shapes),
+constructed-negative (10 clean/escape-hatch shapes), constructed-**blind-spot** corpus (4 genuine
+misses — repair-verb headlines, H2-only claims, outage/dwell line-sharing — asserted as misses per
+L155's honest-hole rule, so widening the rule means deleting an entry on purpose), and a HARD
+acceptance suite against the real tree. **Measured recall on the full 22-shape adversarial corpus:
+18/22**, stated in the advisory's own text. Live-verified: correctly flags
+`findings/2026-07-22-vps-collector-recovered-post-pr151.md` (no stated dwell) and stays silent on
+the 07-21 ("still dead on day 3") and 07-25 ("SECOND death") findings — neither's headline is a
+recovery claim, even though 07-25's *body* quotes an 18.8h dwell (below the bar) that would
+incorrectly fire if headline-scoping leaked into the body. See
+`findings/2026-07-25-l157-recovery-dwell-advisory.md`.
+
+No strategy claim, no bootstrap CI, no registry change — reliability infrastructure, same class as
+L109/L118/L126/L144/L150/L152/L156/L160/L161; two-agent verdict rule N/A. `pytest`: full suite
+green, 1829 collected (+48 new). `python scripts/invariants.py --full`: exit 0, same pre-existing
+non-gating advisory classes as before this run, plus the new L157 advisory firing correctly once.
+Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per Q34 — paper-infra validation only,
+NOT edge evidence); `paper_pass.py` idempotent (0 newly processed — the swept tape lines are
+outside S14's join scope), ledger unchanged **+$18.15** (`broker_truth`, 984 settled, 0 open).
+Still **0 proven edges**.
+
+**Process note:** this run's delegated `research-lead` sub-agent hit two consecutive transient
+`API Error: 529 Overloaded` terminations mid-task (once after gates were confirmed green,
+"waiting on the verifier"; once immediately on resume). Its partial work (the `invariants.py`
+diff + test file, pre-tape-sweep) was verified intact and correct by the parent session rather
+than re-derived from scratch, then completed directly: discarded stray tape diffs the agent's own
+test run had produced as a side effect (L149 precedent — never commit those), ran the step-0b
+sweep the agent hadn't reached yet (which is where the genuine stranded tape above was found),
+and finished bookkeeping. Noted as an infra hiccup, not a process gap — no work was lost or
+duplicated.
+
+---
+
 ## 2026-07-25 ~11:0x UTC — IDLE RUN (policy a): L160→L161 stranded-tape-branch sweep tool built + full 192-branch backlog audit — zero genuine stranded tape found (research loop)
 
 Step 0a/0/0b PASS: `main` fast-forwarded cleanly to HEAD `c607000` (merged-PR chain #190→#195

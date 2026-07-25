@@ -1480,6 +1480,199 @@ def stale_unenforced_candidate_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Recovery-finding dwell advisory (L157: non-gating, offline-safe) ────────
+#
+# L157: "no collector-recovery finding may be filed without >=24 consecutive hours of the
+# expected signature bucket observed post-restart, and the finding MUST state the dwell it
+# actually observed" — with a NAMED ANCHOR (L157 again: the 07-22 recovery dwelled 18.8h from
+# `2026-07-21T22:41Z` or 18.1h from `2026-07-21T23:23:01Z`, "always state which anchor you are
+# quoting"). A recovery claim with no dwell number is a hypothesis wearing a verdict's clothes,
+# and it retires the queue's attention on a live outage.
+#
+# This is a LEXICAL PROXY over prose, so per L155 its coverage is only the shape set its
+# constructed-negative corpus (`tests/test_recovery_dwell_advisory.py`) asserts FIRE — a
+# 1-issue report is evidence of PRECISION, never of recall. Deliberately NON-GATING: no regex
+# can adjudicate an English recovery claim, so it must not be able to block a run.
+
+RECOVERY_DWELL_MIN_HOURS = 24.0
+RECOVERY_ANCHOR_WINDOW_LINES = 2       # a named anchor must sit on/next to the dwell sentence
+RECOVERY_HEADLINE_LEAD_LINES = 10      # how far in we look for the H1 (front-matter tolerance)
+RECOVERY_ESCAPE_HATCH_LEAD_LINES = 40  # supersession marker must be up top, not buried
+
+# A recovery/return-to-service claim...
+_RECOVERY_TERM_RE = re.compile(
+    # "recovery TOOLING/script/plan/..." is a tooling finding, not a recovery VERDICT — the one
+    # false positive a 27-shape adversarial probe found, narrowed here rather than accepted.
+    r"(recover(?:ed|y|s|ing)?\b"
+    r"(?!\s+(?:tool|tooling|script|plan|playbook|procedure|checklist|protocol|guide|runbook))"
+    r"|restored|revived|resurrect\w*"
+    r"|back\s+(?:online|up|alive)|(?:came|comes|is|are)\s+back\b"
+    r"|(?:alive|up|online|healthy|working|producing|capturing|running|green|back)\s+again"
+    r"|resumed|self-?heal(?:ed|s|ing)?|no\s+longer\s+(?:dead|down))",
+    re.I,
+)
+# ...about a data-collection subject. Both must be in the HEADLINE for the finding to be
+# recovery-class (see `_recovery_dwell_issues.__doc__` for why the body is out of scope).
+_RECOVERY_SUBJECT_RE = re.compile(
+    r"(collector|collection|cron|captur\w*|tape|pipeline|feed|leg|vps|cloud|scheduler"
+    r"|runner|hourly[_ -]?pass|ingest\w*|sweep|pass)",
+    re.I,
+)
+# A duration quantified in HOURS ("24h", "36 hrs", "48-hour"). Days/minutes are deliberately
+# NOT accepted — L157's threshold is stated in consecutive hours and that is the unit a
+# recovery finding must report in.
+_HOURS_QTY_RE = re.compile(r"(\d+(?:\.\d+)?)\s*-?\s*(?:h\b|hrs?\b|hours?\b)", re.I)
+# ...that is claimed as an OBSERVED DWELL, not just any duration mentioned in the document
+# (a recovery finding routinely quotes the preceding OUTAGE length in hours; that is not a
+# dwell). The number must share a line with one of these.
+_DWELL_CONTEXT_RE = re.compile(
+    r"(dwell\w*|consecutive|continuous\w*|uninterrupted|unbroken|sustained|straight"
+    r"|uptime|stable|steady|no\s+gaps?|without\s+a\s+gap|gap-free"
+    r"|since\s+(?:the\s+)?(?:restart|recovery|fix|restore\w*)|post-?restart|post-?recovery)",
+    re.I,
+)
+# A named anchor: an explicit UTC moment. A bare calendar date is NOT an anchor (it names a
+# day, not the instant a dwell is measured from), and neither is a relative phrase
+# ("since the restart") — that imprecision is exactly what L157 was written about.
+_ANCHOR_TS_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
+# Escape hatch (L162 names the need for one), kept deliberately narrow: an ALL-CAPS
+# supersession/retraction/correction marker at the start of a line in the document's head,
+# naming the lesson ID or finding that supersedes it.
+_SUPERSESSION_MARKER_RE = re.compile(
+    r"^\s*(?:<!--\s*)?(?:>\s*)?\**\s*(SUPERSEDED|RETRACTED|WITHDRAWN|CORRECTED)\b"
+)
+_SUPERSESSION_REF_RE = re.compile(r"(\bL\d+\b|findings/[\w.\-/]+\.md)")
+
+
+def _recovery_headline(path: Path, lines: List[str]) -> str:
+    """The finding's HEADLINE: its filename slug plus the first `# ` H1 found in the leading
+    `RECOVERY_HEADLINE_LEAD_LINES` lines. Pure."""
+    h1 = ""
+    for line in lines[:RECOVERY_HEADLINE_LEAD_LINES]:
+        if line.startswith("# "):
+            h1 = line[2:]
+            break
+    return f"{path.stem.replace('-', ' ')} \n{h1}"
+
+
+def _recovery_dwell_issues(findings_dir: Path = ROOT / "findings") -> List[Tuple[str, str]]:
+    """Recovery-class findings that violate L157: they claim a collector recovery in their
+    HEADLINE without stating an observed dwell of >= `RECOVERY_DWELL_MIN_HOURS` hours, and/or
+    without a named anchor (an explicit UTC timestamp) the dwell is measured from.
+
+    SCOPING — headline only, on purpose. Recovery-class membership is decided from the
+    filename slug + the first `# ` H1 ONLY, never the body. Measured on the 2026-07-25 tree,
+    16 of 83 `findings/*.md` contain the substring "recover" somewhere in their body (usually
+    quoting or refuting an earlier recovery claim) while exactly ONE claims recovery in its
+    headline. A body-wide match would therefore be a ~16x precision disaster of exactly the
+    kind L155 warns about, and it would fire hardest on the findings that are CORRECTING a bad
+    recovery claim. The headline is also the right semantic unit: L157 is about a finding whose
+    VERDICT is "recovered", and a finding's verdict lives in its title.
+
+    Both halves of L157 are required, and the reason string names which is missing:
+      * a STATED DWELL — an hours-quantified duration >= the threshold, sharing a line with
+        dwell vocabulary (`dwell`/`consecutive`/`uptime`/`since the restart`/...). A bare
+        duration elsewhere in the document does not count: a recovery finding routinely quotes
+        the preceding OUTAGE length in hours, which is not a dwell. Durations stated in days or
+        minutes do not count either — L157's threshold is in consecutive hours.
+      * a NAMED ANCHOR — a `YYYY-MM-DD hh:mm` UTC moment on the dwell line or within
+        `RECOVERY_ANCHOR_WINDOW_LINES` lines of it. A bare date, or a relative phrase like
+        "since the restart", is not an anchor.
+
+    ESCAPE HATCH (narrow, L162): a finding that records its own supersession is skipped —
+    a line in its first `RECOVERY_ESCAPE_HATCH_LEAD_LINES` lines that STARTS with an ALL-CAPS
+    `SUPERSEDED`/`RETRACTED`/`WITHDRAWN`/`CORRECTED` (optionally behind `>`/`**`/`<!--`) AND
+    names the superseding lesson ID (`L\\d+`) or `findings/<file>.md` on the same line. Caps +
+    line-start + a named reference are all required so that ordinary prose ("this supersedes
+    the confidence of L129") cannot silence the check by accident.
+
+    Best-effort/offline: no network, no git, no subprocess; any per-file exception skips that
+    file and can never poison the gate. Returns sorted `(relpath, reason)` pairs."""
+    out: List[Tuple[str, str]] = []
+    try:
+        if not findings_dir.is_dir():
+            return out
+        for path in sorted(findings_dir.glob("*.md")):
+            try:
+                if not path.is_file():
+                    continue
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+                headline = _recovery_headline(path, lines)
+                if not (_RECOVERY_TERM_RE.search(headline)
+                        and _RECOVERY_SUBJECT_RE.search(headline)):
+                    continue
+                if any(_SUPERSESSION_MARKER_RE.match(ln) and _SUPERSESSION_REF_RE.search(ln)
+                       for ln in lines[:RECOVERY_ESCAPE_HATCH_LEAD_LINES]):
+                    continue
+                dwell_lines = [
+                    i for i, ln in enumerate(lines)
+                    if _DWELL_CONTEXT_RE.search(ln)
+                    and any(float(q) >= RECOVERY_DWELL_MIN_HOURS
+                            for q in _HOURS_QTY_RE.findall(ln))
+                ]
+                reasons: List[str] = []
+                if not dwell_lines:
+                    reasons.append(
+                        f"no stated dwell of >= {RECOVERY_DWELL_MIN_HOURS:g}h "
+                        f"(an hours-quantified duration on a dwell/consecutive/uptime line)"
+                    )
+                    if not any(_ANCHOR_TS_RE.search(ln) for ln in lines):
+                        reasons.append("no named anchor (no UTC timestamp anywhere in the finding)")
+                elif not any(
+                    _ANCHOR_TS_RE.search(ln)
+                    for i in dwell_lines
+                    for ln in lines[max(0, i - RECOVERY_ANCHOR_WINDOW_LINES):
+                                    i + RECOVERY_ANCHOR_WINDOW_LINES + 1]
+                ):
+                    reasons.append(
+                        f"dwell stated but no named anchor (a YYYY-MM-DD hh:mm UTC moment) "
+                        f"within +/-{RECOVERY_ANCHOR_WINDOW_LINES} lines of it"
+                    )
+                if reasons:
+                    try:
+                        # Repo-relative label when the finding lives under ROOT; otherwise
+                        # (a tmp_path corpus in tests) the plain path — `relative_to` RAISES
+                        # off-tree, and swallowing that would silently drop every issue.
+                        rel = str(path.resolve().relative_to(ROOT.resolve())).replace("\\", "/")
+                    except Exception:
+                        rel = str(path)
+                    out.append((rel, "; ".join(reasons)))
+            except Exception:
+                continue
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def recovery_dwell_warning(issues: List[Tuple[str, str]]) -> Optional[str]:
+    """Non-gating advisory when a recovery-class finding violates L157's dwell/anchor rule,
+    else None. Pure. States its TESTED scope, not its intent (L155)."""
+    if not issues:
+        return None
+    n = len(issues)
+    detail = "; ".join(f"{rel} ({why})" for rel, why in issues[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} recovery-class finding(s) declare a collector recovered "
+        f"without L157's evidence: {detail}. A point observation cannot distinguish a fixed "
+        f"collector from one that dies again tomorrow — the 2026-07-22 'RECOVERED' verdict "
+        f"dwelled 18.8h (from 2026-07-21T22:41Z) / 18.1h (from 2026-07-21T23:23:01Z) and then "
+        f"went silent 61.7h unnoticed. State >= {RECOVERY_DWELL_MIN_HOURS:g}h of observed "
+        f"post-restart dwell AND the anchor you measured it from. "
+        f"COVERAGE (lexical proxy, headline-scoped, tested shapes only): recovery-class = "
+        f"filename slug or first H1 carrying a recovery term AND a collection subject; a dwell "
+        f"= an hours-quantified duration on a dwell/consecutive/uptime line; an anchor = a "
+        f"YYYY-MM-DD hh:mm moment within +/-{RECOVERY_ANCHOR_WINDOW_LINES} lines of it. "
+        f"KNOWN BLIND SPOTS (deliberate, regression-tested as misses in "
+        f"tests/test_recovery_dwell_advisory.py): repair-verb headlines ('is fixed', "
+        f"'repaired' — too close to ordinary bug-fix titles to match safely), a recovery claim "
+        f"made only in the body or an H2 (headline-scoped by design), and an OUTAGE duration "
+        f">= the threshold sharing a line with dwell wording (read as a dwell). Measured recall "
+        f"on a 22-shape adversarial corpus: 18/22 — a 1-issue report is PRECISION evidence, "
+        f"not recall (L155). "
+        f"Advisory only — does NOT affect the exit code. See kb/lessons/00-lessons.md L157."
+    )
+
+
 # ─── Tape conflict-marker gate (GATING, not advisory) ────────────────────────
 #
 # Real incident (2026-07-23): tape/econ_prints/dt=2026-07-18.jsonl and
@@ -1790,6 +1983,18 @@ def main() -> int:
         stale_warning = stale_unenforced_candidate_warning(_stale_unenforced_candidate_issues())
         if stale_warning:
             sys.stderr.write(stale_warning + "\n")
+        # L157 advisory: a recovery-class finding (headline claims a collector recovered) with
+        # no stated >=24h post-restart dwell and/or no named anchor. Non-gating by construction
+        # — no regex can adjudicate an English recovery claim — and wrapped like the collector
+        # -health stanza so neither the formatter raising nor a non-str return can reach the
+        # exit code (the DEFECT-1 lesson from the L156 advisory).
+        try:
+            dwell_warning = recovery_dwell_warning(_recovery_dwell_issues())
+            if dwell_warning:
+                sys.stderr.write(dwell_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: recovery-dwell advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
         # code — cheap and unambiguous to catch.
