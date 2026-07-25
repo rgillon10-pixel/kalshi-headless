@@ -958,3 +958,104 @@ def test_tape_invalid_jsonl_gates_exit_code(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert rc == 2
     assert "[tape_invalid_jsonl]" in captured.err
+
+
+# ─── raw datetime.fromisoformat ratchet (L136/L150: GATING, allowlisted) ─────
+
+def _raw_iso_failures_over_real_tree():
+    """Every failure message the ratchet produces over the REAL repo source tree."""
+    out = []
+    for p in inv._iter_source_files():
+        if p.suffix != ".py":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        msg = inv.inv_no_raw_datetime_fromisoformat(p, text)
+        if msg:
+            out.append(msg)
+    return out
+
+
+def test_acceptance_raw_iso_ratchet_real_tree_is_clean():
+    # HARD acceptance test, anchored to the REAL tree: the pins in
+    # LEGACY_RAW_FROMISOFORMAT_SITES exactly cover today's legacy debt, so the ratchet is
+    # green NOW and any new/grown raw call site turns it red. This is the load-bearing test —
+    # the 3.9-vs-3.11 blind spot (L136/L150) means nothing else can see this hazard.
+    assert _raw_iso_failures_over_real_tree() == []
+
+
+def test_raw_iso_ratchet_fires_on_new_unlisted_file():
+    # The point of the ratchet: a brand-new file (not on the allowlist) with a raw call fails.
+    src = "from datetime import datetime\nts = datetime.fromisoformat(s)\n"
+    msg = inv.inv_no_raw_datetime_fromisoformat(GENERIC, src)
+    assert msg is not None
+    assert "NEW raw datetime.fromisoformat call site" in msg
+    assert "core.timeutil.parse_iso_utc" in msg
+    assert "L136" in msg and "L150" in msg
+    assert "3.9" in msg and "3.11" in msg
+
+
+def test_raw_iso_ratchet_fires_when_legacy_file_exceeds_pin():
+    # Debt growth in an ALREADY-allowlisted file must also fail — the pin is a ceiling.
+    rel = "collection/crypto_hourly.py"
+    pin = inv.LEGACY_RAW_FROMISOFORMAT_SITES[rel]
+    src = "".join(f"t{i} = datetime.fromisoformat(x)\n" for i in range(pin + 1))
+    msg = inv.inv_no_raw_datetime_fromisoformat(ROOT / rel, src)
+    assert msg is not None
+    assert f"{pin + 1} > pinned {pin}" in msg
+
+
+def test_raw_iso_ratchet_silent_when_legacy_file_shrinks():
+    # Migration must always be allowed: fewer sites than the pin passes (lower the pin then).
+    rel = "collection/sports_history.py"
+    pin = inv.LEGACY_RAW_FROMISOFORMAT_SITES[rel]
+    assert pin >= 2
+    src = "".join(f"t{i} = datetime.fromisoformat(x)\n" for i in range(pin - 1))
+    assert inv.inv_no_raw_datetime_fromisoformat(ROOT / rel, src) is None
+
+
+def test_raw_iso_ratchet_does_not_fire_on_date_fromisoformat():
+    # False-positive regression: a bare YYYY-MM-DD day token has no fractional field and no
+    # `Z`, so date.fromisoformat carries none of the 3.9 hazard and must never be flagged.
+    src = 'd = date.fromisoformat("2026-07-24")\n'
+    assert inv.inv_no_raw_datetime_fromisoformat(GENERIC, src) is None
+
+
+def test_raw_iso_ratchet_does_not_fire_on_parse_iso_utc():
+    # False-positive regression: the SANCTIONED call shape is what we want people writing.
+    src = "from core.timeutil import parse_iso_utc\nts = parse_iso_utc(row['ts'])\n"
+    assert inv.inv_no_raw_datetime_fromisoformat(GENERIC, src) is None
+
+
+def test_raw_iso_ratchet_skips_comment_lines():
+    # Prose/docstring mentions of the hazard (this repo is full of them) are not call sites.
+    src = "# datetime.fromisoformat(x) is a 3.9 crash — use parse_iso_utc\n"
+    assert inv.inv_no_raw_datetime_fromisoformat(GENERIC, src) is None
+
+
+def test_raw_iso_ratchet_exempts_core_timeutil_but_fires_elsewhere():
+    # Both directions (the L148 precedent): core/timeutil.py legitimately calls the stdlib
+    # parser after zero-padding the fractional field, and is exempt; the IDENTICAL line in a
+    # non-sanctioned file still fires.
+    src = "return datetime.fromisoformat(normalized)\n"
+    assert inv.inv_no_raw_datetime_fromisoformat(ROOT / "core" / "timeutil.py", src) is None
+    assert inv.inv_no_raw_datetime_fromisoformat(GENERIC, src) is not None
+
+
+def test_raw_iso_ratchet_registered_in_static_invariants():
+    assert any(name == "no_raw_datetime_fromisoformat" for name, _ in inv.STATIC_INVARIANTS)
+
+
+def test_raw_iso_allowlist_hygiene():
+    # Every pinned path must still exist, and its ACTUAL count must be <= its pin — a pin that
+    # outlives its file (or over-states the debt) silently widens the ratchet.
+    for rel, pin in inv.LEGACY_RAW_FROMISOFORMAT_SITES.items():
+        p = ROOT / rel
+        assert p.is_file(), f"stale allowlist entry: {rel}"
+        text = p.read_text(encoding="utf-8")
+        actual = sum(1 for _, ln in inv._scan_lines(text)
+                     if not ln.lstrip().startswith("#")
+                     and inv._DATETIME_FROMISOFORMAT_RE.search(ln))
+        assert actual <= pin, f"{rel}: {actual} raw sites > pinned {pin}"
