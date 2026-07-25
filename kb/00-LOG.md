@@ -6,6 +6,51 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~18:0x UTC — IDLE RUN (policy a): L162→L163 fresh-gate-line protocol rule (research loop)
+
+Step 0a PASS: `origin/main` HEAD `ed4422c` (merged PR #198); `kb/00-LOG.md` newest entry and
+newest committed tape both 2026-07-25, no rewind. Step 0 claim-check: open PRs #191/#166/#165/
+#125 unchanged, none claim eligible queue work. Step 0b: `tape/hourly-*`/`tape/burst-*` branch
+sweep found nothing new beyond the backlog PR #196/#197 already cleared. Full Q0-Q47 re-scan
+still saturated (Q19 FOMC gate 2026-07-29, Q36/Q37/Q42-pt3/Q43/Q47 still density/calendar/cred-
+gated) → IDLE RUN.
+
+**Milestone (idle-run policy a):** re-derived the full open `**UNENFORCED**` lesson set in
+`kb/lessons/00-lessons.md` — every row through L161 is closed by a later superseding row, and
+**L47**/**L52** (this morning's two earlier idle runs, PR #194/#198) are also closed, leaving
+**L162 as the sole genuinely open row.** L162 (filed this morning, a correction round that
+found a run had quoted a mid-edit `pytest 1743 collected`/"14 tests" gate line that had drifted
+to 1750/21 by the time the tree actually landed) named its own fix but left it unbuilt. Built
+its cheaper candidate (b): (1) `LOOP-QUEUE.md` step 4 gained an inline dated rule — any pytest/
+invariants count quoted in a finding, this log, or a "Log of runs" line must be taken AFTER the
+commit's last code change, never a mid-edit snapshot, with a floor (`>=N collected, 0 failed`)
+as the honest fallback when an exact re-count isn't practical before commit; (2)
+`.claude/agents/kb-distiller.md`'s Ledger step gained the row's second half — a count-bearing
+lesson row must inline the exact command + measurement time that produced it. Candidate (a) (a
+scanner diffing a quoted count against a live re-run) stays deferred, per L162's own text, on
+the missing superseded-mention escape hatch.
+
+New lesson **L163** (`UNENFORCED`→`protocol, encoded`) supersedes L162's enforcement column.
+Documentation/protocol-tier closure — no production code path touched, so no new test file;
+this run's own gate numbers below were taken after this diff's last edit (practicing the rule
+it ships). See `findings/2026-07-25-l162-fresh-gate-line-protocol-rule.md`.
+
+No strategy claim, no registry change — two-agent verdict rule N/A (non-gating protocol/
+documentation addition, same posture as L106/L107/L109/L116/L118/L126/L144/L150/L152/L156/
+L157/L160/L161). `pytest -q`: 1954 collected, exit 0, 0 failed/errored (full-suite run taken
+after this diff's last edit; this diff added no test files, so the collected count is
+unchanged from `main`'s pre-run baseline — cross-checked via `pytest --collect-only -q`
+summing to 1954 across 84 files) · `python scripts/invariants.py --full`:
+exit 0, `invariants: all green` (same pre-existing non-gating advisory classes as `main` before
+this run — no new advisory class, since this diff touches no scanned production code). Step 9:
+`SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per Q34, paper-infra validation only, NOT
+edge evidence); `paper_pass.py` idempotent (0 newly eligible — this diff touches no tape),
+ledger unchanged **+$18.15** (`broker_truth`; 984 settled, 0 open). Still **0 proven edges**.
+Separately noted, not actioned: the VPS collector leg advisory now reads 72.7h silent
+(worsening, Ryan-side, non-gating).
+
+---
+
 ## 2026-07-25 ~16:2x UTC — IDLE RUN (policy a): L52 settlement-binary helper + non-gating advisory, 6 live sites found (research loop)
 
 Step 0a PASS: `origin/main` HEAD `0941f4d` (merged PR #197) fast-forwarded cleanly; ancestry of

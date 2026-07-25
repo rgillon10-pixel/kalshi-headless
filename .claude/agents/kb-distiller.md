@@ -23,7 +23,11 @@ lesson-candidates):
    - `protocol` — encoded in LOOP-QUEUE.md/CLAUDE.md text (cite the section)
    - `UNENFORCED` — nothing stops a repeat yet
    Never edit or delete an existing lesson; supersede with a new entry that
-   references the old ID.
+   references the old ID. **(L162, 2026-07-25)** Any lesson row asserting a
+   count over refs/files/branches/tape lines must inline the exact command
+   that produced it, plus the measurement time — a bare number with no
+   command is unfalsifiable and (per L161) can silently drift as the repo
+   grows between the count and the commit.
 2. **Escalate** — for each lesson still `UNENFORCED` (new or pre-existing),
    decide whether it is assertable. If yes, implement the smallest honest
    enforcement: a static check in `scripts/invariants.py` (follow its
