@@ -6,6 +6,63 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-25 ~00:2x UTC — IDLE RUN (policy a): L152's own proposed follow-up built — stale-UNENFORCED-candidate advisory (research loop)
+
+**Step 0a/0/0b: PASS.** `main` fast-forwarded cleanly to HEAD `cebe691` (PR chain #175→#189 all
+confirmed ancestors via `git merge-base --is-ancestor`, no rewind); `kb/00-LOG.md`'s newest entry
+(~21:0x UTC 2026-07-24) and the newest committed tape (`dt=2026-07-24`) both current — 0-day gap.
+Claim-check: open PRs are #125 (weekly-retro, leave-open-for-Ryan) and #165/#166 (draft,
+Ryan-approved background-session infra) — none claim eligible queue work. Stranded-tape sweep:
+the newest branch, `tape/hourly-20260724T1857Z`, was already swept by the immediately-prior
+merged PR #189 — nothing new to sweep this run.
+
+**Queue re-verified saturated.** Full Q0–Q47 header/status scan: every item DONE / cred-or-auth-
+BLOCKED (Q1-odds, Q32/Q33/Q35-build, Q42-pt3, Q47) / calendar-gated-not-open (Q19 FOMC 07-29,
+Q37 ~08-05) / gate-open-but-data-inadequate (Q36 both legs still frozen/under-powered, Q43
+`perp_tape` density unchanged) → IDLE RUN.
+
+**What it found.** `kb/lessons/00-lessons.md`'s own L152 (added by yesterday's Q42 run) had
+already named the next concrete, well-scoped idle-run unit: an advisory that flags an
+`UNENFORCED` lesson row whose own candidate names a `function_name()` that already exists
+in the tree — a high-precision proxy for the exact stale-marker class L74/L109/L123 hit.
+Confirmed it was genuinely unbuilt (`grep`-checked `scripts/invariants.py` for any existing
+"unenforced"/"stale" check — none), then scoped it precisely: parsed all 151 lesson rows,
+found 19 rows genuinely still open (enforcement column starts with the bold `**UNENFORCED**`
+marker — 43 rows mention the word somewhere, most as an already-built row's partial-candidate
+or historical-text footnote, which must NOT be flagged), and confirmed by hand that scanning
+LESSON text (not just enforcement text) for candidate names produces a real false positive:
+L105's lesson text cites the pre-existing `_segment_bounds()` from `scripts/anomaly_sweep.py`
+as background context for why a proposal dies, not as its own candidate — the built check
+therefore only ever reads the enforcement column. Bare script-path matching (e.g.
+`scripts/invariants.py`) was deliberately excluded too: nearly every open candidate names an
+already-existing file as the site where a new check should be ADDED, so path-existence alone
+would flag almost every row and carry zero signal — only backtick `function_name()` tokens
+containing an underscore (the codebase's private-helper convention) are matched.
+
+**What shipped.** `scripts/invariants.py::_parse_lesson_rows` / `_stale_unenforced_candidate_issues`
+/ `stale_unenforced_candidate_warning`, wired into `main()`'s non-gating `--full` advisory list
+alongside L147's duplicate-lesson-ID check. 10 new tests in `tests/test_invariants.py`, including
+a HARD real-tree acceptance test (currently 0 issues — a legitimately clean state, not a
+tautology: the L105 false-positive shape is specifically regression-tested to confirm it stays
+silent) and a fixture test proving the detector actually fires on a synthetic match. No verdict,
+no registry change, no P&L claim — two-agent rule N/A (non-gating invariant/test addition, same
+posture as L109/L118/L126/L144 precedent).
+
+## Gates
+`pytest`: 1665 → **1675 passed, 0 failed** (independently re-run in full by the orchestrating
+session, not just self-reported — 1675 collected, exit 0). `python scripts/invariants.py --full`:
+exit 0, same 4 pre-existing non-gating advisory classes (L25 dir-shape, L109 orphan-GC, L74
+daily-cadence-gap, L138 raw-fromisoformat) — the new advisory did not fire (confirming the real
+tree is currently clean, per the acceptance test above).
+
+## Step 9 (paper sub-pass)
+`SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD-at-real-fills per Q34 — paper-infra validation
+only, NOT edge evidence). `scripts/paper_pass.py` advanced over tape merged since the ledger's
+last entry: 10 newly-eligible events processed, ledger unchanged in kind, realized P&L
+**+$15.69 → +$18.15** (`broker_truth`; 984 settled contracts, 0 open). Still **0 proven edges**.
+
+---
+
 ## 2026-07-24 ~21:0x UTC — Q42 part-1 residual: forward funding-estimate clamp-formula inference is UNDECIDABLE (the queue was NOT actually saturated) + L136 ratchet (research loop)
 
 **The queue's "saturated" streak broke.** Ten-plus consecutive prior runs (kb log above, PRs #175-#188) rescanned Q0-Q47 and found every item DONE/BLOCKED/gated. This run's independent rescan found the same for every item EXCEPT **Q42's part-1 residual** — the clamp-FORMULA inference thread, whose own stated gate ("≥7 days of forward `funding_estimate` tape") had quietly opened (8 day-files now committed in `tape/perp_tape/`). It stayed invisible because Q42's LOOP-QUEUE.md entry has since accumulated several newer Status lines about *different* sub-legs (part 2's cross-venue join, part 3's auth block), and nobody re-read the original part-1 line's gate condition against current tape. New lesson **L152** names this failure mode: a stale/superseded-looking Status line can still hide a live gate, and a distiller correcting `UNENFORCED` markers should also grep for this shape.

@@ -578,6 +578,113 @@ def test_duplicate_lesson_id_warning_never_gates_exit_code(monkeypatch, capsys):
     assert "lesson ID(s)" not in captured.err
 
 
+# ─── stale-UNENFORCED-candidate advisory (L152: L74/L109/L123 marker-drift class) ──
+
+def test_stale_unenforced_candidate_real_tree_is_currently_clean():
+    # HARD acceptance test anchored to the real tree: as of this run, no genuinely-open
+    # (enforcement column starting "**UNENFORCED**") lesson row names a backtick
+    # `function_name()` candidate that already exists anywhere in the tree. This is the
+    # currently-clean state, not a tautology — L105's row names an EXISTING function
+    # (`_segment_bounds()`) but only in its LESSON text (background context, not a
+    # candidate), which the lesson-text-exclusion below specifically must not flag.
+    assert inv._stale_unenforced_candidate_issues() == []
+
+
+def test_stale_unenforced_candidate_issues_finds_real_match(tmp_path):
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | some lesson | src | "
+        "**UNENFORCED** -- candidate: a `_iter_source_files()` helper | \n"
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "helper.py").write_text("def _iter_source_files(root=None):\n    return []\n")
+    issues = inv._stale_unenforced_candidate_issues(lessons, source_root=src)
+    assert len(issues) == 1
+    assert "L1" in issues[0]
+    assert "_iter_source_files()" in issues[0]
+    assert "helper.py" in issues[0]
+
+
+def test_stale_unenforced_candidate_issues_ignores_lesson_text_mentions(tmp_path):
+    # L105's exact real-world shape: the candidate function is named in the LESSON
+    # column (existing code cited as context), not the enforcement column -- must not fire.
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | this cites the existing `_iter_source_files()` helper | src | "
+        "**UNENFORCED** -- candidate: a new docstring note, no function proposed | \n"
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "helper.py").write_text("def _iter_source_files(root=None):\n    return []\n")
+    assert inv._stale_unenforced_candidate_issues(lessons, source_root=src) == []
+
+
+def test_stale_unenforced_candidate_issues_ignores_non_unenforced_rows(tmp_path):
+    # Enforcement column mentions "UNENFORCED" but does not START with the bold marker
+    # (the L74/L109/L123 corrected shape: "**test** (BUILT ...); ... UNENFORCED ...").
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | some lesson | src | "
+        "**test** (BUILT) -- `_iter_source_files()` implements this; UNENFORCED as a "
+        "broader static check | \n"
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "helper.py").write_text("def _iter_source_files(root=None):\n    return []\n")
+    assert inv._stale_unenforced_candidate_issues(lessons, source_root=src) == []
+
+
+def test_stale_unenforced_candidate_issues_ignores_generic_names_without_underscore(tmp_path):
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | some lesson | src | "
+        "**UNENFORCED** -- candidate: a `run()` entry point | \n"
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "helper.py").write_text("def run():\n    return None\n")
+    assert inv._stale_unenforced_candidate_issues(lessons, source_root=src) == []
+
+
+def test_stale_unenforced_candidate_issues_no_match_when_function_absent(tmp_path):
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | some lesson | src | "
+        "**UNENFORCED** -- candidate: a `_not_built_yet()` helper | \n"
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "helper.py").write_text("def _iter_source_files(root=None):\n    return []\n")
+    assert inv._stale_unenforced_candidate_issues(lessons, source_root=src) == []
+
+
+def test_stale_unenforced_candidate_issues_missing_file_is_safe(tmp_path):
+    assert inv._stale_unenforced_candidate_issues(tmp_path / "does-not-exist.md") == []
+
+
+def test_stale_unenforced_candidate_warning_none_when_empty():
+    assert inv.stale_unenforced_candidate_warning([]) is None
+
+
+def test_stale_unenforced_candidate_warning_message_content():
+    msg = inv.stale_unenforced_candidate_warning(["L1: candidate `_foo()` already defined in bar.py"])
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "L1" in msg
+    assert "L152" in msg
+
+
+def test_stale_unenforced_candidate_warning_never_gates_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "invariants: all green" in captured.out
+    # The real tree is clean, so the advisory should not fire at all here.
+    assert "UNENFORCED lesson row(s)" not in captured.err
+
+
 # ─── DB invariants ────────────────────────────────────────────────────────────
 
 def _db(tmp_path, name, ddl, rows_sql=()):
