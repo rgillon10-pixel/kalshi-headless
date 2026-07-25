@@ -933,6 +933,116 @@ def duplicate_lesson_id_warning(dupes: List[str]) -> Optional[str]:
     )
 
 
+_BACKTICK_SPAN_RE = re.compile(r"`([^`]+)`")
+_FUNC_CALL_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\(\)")
+
+
+def _parse_lesson_rows(
+    lessons_path: Path = ROOT / "kb" / "lessons" / "00-lessons.md",
+) -> List[Tuple[str, str, str]]:
+    """(id, lesson_text, enforcement_text) for every table row in
+    kb/lessons/00-lessons.md. Best-effort/offline: a read failure returns []."""
+    try:
+        lines = lessons_path.read_text().splitlines()
+    except Exception:
+        return []
+    rows: List[Tuple[str, str, str]] = []
+    for line in lines:
+        m = _LESSON_ID_ROW_RE.match(line)
+        if not m:
+            continue
+        cols = line.split("|")
+        if len(cols) < 6:
+            continue
+        rows.append((m.group(1), cols[3].strip(), cols[5].strip()))
+    return rows
+
+
+def _stale_unenforced_candidate_issues(
+    lessons_path: Path = ROOT / "kb" / "lessons" / "00-lessons.md",
+    source_root: Path = ROOT,
+) -> List[str]:
+    """L152's proposed follow-up: a WEAKER but assertable proxy for a stale `UNENFORCED`
+    marker in kb/lessons/00-lessons.md -- a row whose enforcement was actually built by a
+    later run but whose status was never flipped (the L74/L109/L123 incident).
+
+    Scope, deliberately narrow: only rows whose ENFORCEMENT column still starts with the
+    bold `**UNENFORCED**` marker (the ledger's own definition of its standing work queue,
+    00-lessons.md line 9) are candidates. Within that column only (never the lesson-text
+    column -- a row's own narrative often names an EXISTING function as background context,
+    not as its candidate; L105 names `_segment_bounds()` from `scripts/anomaly_sweep.py` as
+    the reason a proposal dies, and that would be a pure false positive if lesson text were
+    in scope), extract backtick-quoted `function_name()` tokens. A bare script/module PATH
+    (e.g. `scripts/invariants.py`) is deliberately NOT matched -- nearly every candidate names
+    an already-existing file as the site where a new check should be ADDED, so path-existence
+    alone would flag almost every open row and carry no signal. A function name is matched
+    only when it contains an underscore (the codebase's private-helper naming convention),
+    to skip generic single-word names (`run()`, `main()`) that would false-positive on
+    unrelated same-named functions elsewhere in the tree.
+
+    For each such candidate function name, search every tracked `.py`/`.sql` file for a
+    `def <name>(` definition. A hit means the row's own proposed enforcement already exists
+    somewhere in the tree -- the marker is a HIGH-PRECISION candidate for stale, though not
+    proof (a same-named function could coincidentally exist for an unrelated reason; a human/
+    kb-distiller pass still confirms before flipping the row, same as the L74/L109/L123
+    corrections). Best-effort/offline: any failure returns [] and can never poison the gate.
+    Returns one formatted string per (lesson id, function name, defining file) hit."""
+    try:
+        rows = _parse_lesson_rows(lessons_path)
+        if not rows:
+            return []
+        candidates: List[Tuple[str, str]] = []  # (lesson_id, func_name)
+        for lesson_id, _lesson_text, enforcement in rows:
+            if not enforcement.startswith("**UNENFORCED**"):
+                continue
+            names = set()
+            for span in _BACKTICK_SPAN_RE.findall(enforcement):
+                for fn in _FUNC_CALL_RE.findall(span):
+                    if "_" in fn:
+                        names.add(fn)
+            for fn in sorted(names):
+                candidates.append((lesson_id, fn))
+        if not candidates:
+            return []
+        def_res = {fn: re.compile(rf"^\s*def\s+{re.escape(fn)}\s*\(") for _lid, fn in candidates}
+        hits: Dict[str, List[str]] = {}
+        for path in _iter_source_files(source_root):
+            try:
+                text = path.read_text(errors="replace")
+            except Exception:
+                continue
+            for fn, pat in def_res.items():
+                if fn in hits:
+                    continue
+                if any(pat.match(ln) for ln in text.splitlines()):
+                    hits.setdefault(fn, []).append(_rel(path))
+        issues = []
+        for lesson_id, fn in candidates:
+            if fn in hits:
+                for defining_file in hits[fn]:
+                    issues.append(f"{lesson_id}: candidate `{fn}()` already defined in {defining_file}")
+        return issues
+    except Exception:
+        return []
+
+
+def stale_unenforced_candidate_warning(issues: List[str]) -> Optional[str]:
+    """Non-gating advisory when an UNENFORCED lesson row's own candidate function name
+    already exists in the tree -- a likely-stale marker per L152. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = "; ".join(issues[:5]) + (", ..." if n > 5 else "")
+    return (
+        f"warning (non-gating): {n} UNENFORCED lesson row(s) in kb/lessons/00-lessons.md "
+        f"name a candidate function that already exists in the tree (e.g. {examples}) -- "
+        f"likely a stale marker (L74/L109/L123 precedent: the enforcement was built by a "
+        f"later run but the row's status was never flipped). Confirm before flipping -- a "
+        f"same-named function can exist for an unrelated reason. Advisory only -- does NOT "
+        f"affect the exit code. See kb/lessons/00-lessons.md L152."
+    )
+
+
 # ─── Tape conflict-marker gate (GATING, not advisory) ────────────────────────
 #
 # Real incident (2026-07-23): tape/econ_prints/dt=2026-07-18.jsonl and
@@ -1214,6 +1324,12 @@ def main() -> int:
         dup_lesson_warning = duplicate_lesson_id_warning(_duplicate_lesson_id_issues())
         if dup_lesson_warning:
             sys.stderr.write(dup_lesson_warning + "\n")
+        # L152 advisory: an UNENFORCED lesson row whose own candidate function name already
+        # exists in the tree (a high-precision proxy for a stale marker — the L74/L109/L123
+        # incident). Non-gating — stderr only.
+        stale_warning = stale_unenforced_candidate_warning(_stale_unenforced_candidate_issues())
+        if stale_warning:
+            sys.stderr.write(stale_warning + "\n")
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
         # code — cheap and unambiguous to catch.
