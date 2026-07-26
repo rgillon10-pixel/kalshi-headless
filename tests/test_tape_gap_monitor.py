@@ -797,3 +797,130 @@ def test_acceptance_10_l139_anomalies_would_be_caught_if_it_ever_froze():
     assert r["alert"] is True, r
     assert "stale" in r["alert_reason"], r["alert_reason"]
     assert r["age_hours"] > 48.0, r["age_hours"]
+
+
+# --------------------------------------------------------------------------- #
+# Retrospective-list family coverage (L171, 2026-07-26)
+# --------------------------------------------------------------------------- #
+def test_retrospective_coverage_unregistered_family_returns_none(tmp_path):
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-15", [10])
+    assert tgm.retrospective_coverage(tmp_path, "crypto_hourly") is None
+
+
+def test_retrospective_coverage_no_tape_at_all(tmp_path):
+    assert tgm.retrospective_coverage(tmp_path, "hyperliquid_funding") == {
+        "family": "hyperliquid_funding",
+        "n_observations": 0,
+        "span_start": None,
+        "span_end": None,
+        "step_seconds": 3600,
+        "n_missing_steps": None,
+    }
+
+
+def _hl_record(cid, captured_at, coin, hours_ms):
+    return {
+        "capture_id": cid,
+        "captured_at": captured_at,
+        "coin": coin,
+        "prints": [{"coin": coin, "time_ms": t} for t in hours_ms],
+    }
+
+
+def test_retrospective_coverage_manufactures_no_false_gap_across_day_file_hole(tmp_path):
+    """The exact L171 shape: dt=18..21 have NO committed file (a naive day-file
+    coverage read sees a 4-day hole) but the embedded prints[].time_ms union,
+    written entirely by a catch-up pass on dt=22, is a complete hourly grid with
+    zero missing steps."""
+    hour_ms = 3600 * 1000
+    base = 1784448000000  # 2026-07-19T00:00:00Z, arbitrary anchor
+    pre_gap = [base - 2 * hour_ms, base - hour_ms]  # dt=07-17-ish
+    catch_up = [base + i * hour_ms for i in range(0, 5)]  # backfills 07-18..22 in one record
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-17",
+                 [_hl_record("a", "2026-07-17T06:20:03+00:00", "BTC", pre_gap)])
+    # dt=18, dt=19, dt=20, dt=21: deliberately NO files written (the freeze window).
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-22",
+                 [_hl_record("b", "2026-07-22T02:43:22+00:00", "BTC", catch_up)])
+
+    cov = tgm.retrospective_coverage(tmp_path, "hyperliquid_funding")
+    assert cov["n_observations"] == len(set(pre_gap + catch_up)) == 7
+    assert cov["n_missing_steps"] == 0, cov
+    assert cov["span_start"] == datetime.fromtimestamp(
+        min(pre_gap) / 1000.0, tz=UTC).isoformat()
+    assert cov["span_end"] == datetime.fromtimestamp(
+        max(catch_up) / 1000.0, tz=UTC).isoformat()
+
+    # And the naive "day-file presence" read a human/future tool might reach for
+    # WOULD have seen a gap — proving this function is not a no-op relative to it.
+    present_days = {p.name for p in (tmp_path / "hyperliquid_funding").iterdir()}
+    assert "dt=2026-07-18.jsonl" not in present_days
+    assert "dt=2026-07-21.jsonl" not in present_days
+
+
+def test_retrospective_coverage_detects_a_real_gap(tmp_path):
+    hour_ms = 3600 * 1000
+    base = 1784448000000
+    # A genuine hole: hours 0,1,2 then a jump to hour 5 (3,4 missing for real).
+    hours = [base, base + hour_ms, base + 2 * hour_ms, base + 5 * hour_ms]
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-17",
+                 [_hl_record("a", "2026-07-17T06:20:03+00:00", "BTC", hours)])
+    cov = tgm.retrospective_coverage(tmp_path, "hyperliquid_funding")
+    assert cov["n_observations"] == 4
+    assert cov["n_missing_steps"] == 2, cov
+
+
+def test_retrospective_coverage_skips_malformed_items_never_fabricates(tmp_path):
+    rec = {
+        "capture_id": "a", "captured_at": "2026-07-17T06:20:03+00:00", "coin": "BTC",
+        "prints": [{"coin": "BTC", "time_ms": 1784448000000},
+                   {"coin": "BTC"},                      # missing time_ms
+                   {"coin": "BTC", "time_ms": "bad"},     # wrong type
+                   {"coin": "BTC", "time_ms": True},      # bool must not count as int
+                   "not-a-dict"],
+    }
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-17", [rec])
+    cov = tgm.retrospective_coverage(tmp_path, "hyperliquid_funding")
+    assert cov["n_observations"] == 1, cov
+
+
+def test_evaluate_family_attaches_retrospective_coverage_when_tape_root_given(tmp_path):
+    hour_ms = 3600 * 1000
+    base = 1784448000000
+    hours = [base, base + hour_ms]
+    _write_lines(tmp_path, "hyperliquid_funding", "2026-07-17",
+                 [_hl_record("a", "2026-07-17T06:20:03+00:00", "BTC", hours)])
+    now = _dt(2026, 7, 17, 7, 0)
+    agg = tgm.aggregate_family(tmp_path, "hyperliquid_funding", now)
+    r = tgm.evaluate_family(agg, now, tape_root=tmp_path)
+    assert r["retrospective_coverage"]["n_observations"] == 2
+    assert r["retrospective_coverage"]["n_missing_steps"] == 0
+
+    # Without tape_root, the field is present but None — never fabricated.
+    r_no_root = tgm.evaluate_family(agg, now)
+    assert r_no_root["retrospective_coverage"] is None
+
+    # A family NOT in RETROSPECTIVE_LIST_FAMILIES stays None even WITH tape_root.
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-17", [6])
+    agg2 = tgm.aggregate_family(tmp_path, "crypto_hourly", now)
+    r2 = tgm.evaluate_family(agg2, now, tape_root=tmp_path)
+    assert r2["retrospective_coverage"] is None
+
+
+@_real
+def test_acceptance_11_l171_hyperliquid_funding_real_tape_zero_missing_steps():
+    """HARD acceptance, real committed tape: hyperliquid_funding's dt=2026-07-18
+    .. dt=2026-07-21 files are genuinely absent (the L127 VPS-freeze window) —
+    a naive day-file coverage read sees a 4-day hole — but retrospective_coverage's
+    embedded-time_ms union has zero missing hourly steps, matching
+    findings/2026-07-26-hyperliquid-funding-tape-audit.md's finding exactly."""
+    fam_dir = _REAL_TAPE / "hyperliquid_funding"
+    present = {p.name for p in fam_dir.iterdir() if p.is_file()}
+    for gap_day in ("dt=2026-07-18.jsonl", "dt=2026-07-19.jsonl",
+                    "dt=2026-07-20.jsonl", "dt=2026-07-21.jsonl"):
+        assert gap_day not in present, \
+            f"{gap_day} now exists — L171's worked example day-file hole has closed; " \
+            "this test's premise (file presence looks like a gap) needs re-verifying, " \
+            "not just re-pinning the missing-steps assertion below."
+    cov = tgm.retrospective_coverage(_REAL_TAPE, "hyperliquid_funding")
+    assert cov["n_observations"] > 1000, cov
+    assert cov["n_missing_steps"] == 0, cov
