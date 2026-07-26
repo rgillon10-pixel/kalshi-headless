@@ -119,6 +119,23 @@ def test_collect_hl_dedups_and_skips_none():
     assert table["BTC"][hi] == 0.0000125       # first wins
 
 
+def test_collect_hl_dedups_cross_branch_duplicate_records():
+    """kb/lessons/00-lessons.md L170 / findings/2026-07-26-hyperliquid-funding-tape-audit.md:
+    `collection.hyperliquid_funding._committed_time_ms` dedups against the LOCAL working
+    tree only, so two collector passes racing on unmerged `tape/hourly-*` branches can each
+    independently archive the SAME (coin, time_ms) print in TWO SEPARATE `funding_history`
+    records (confirmed on real tape: `('BTC', 1784725200052)` written by both commit
+    `d845dfb` and `2235aa3`). This pins that `collect_hl_hourly` — the only current
+    consumer that aggregates raw `prints` rows — is robust to that: reading the two
+    records back-to-back must still yield exactly one hour_index entry, not a double-count."""
+    dup_ms = 1780444800000
+    rec_a = _hl_record("BTC", [{"coin": "BTC", "time_ms": dup_ms, "funding_rate": 0.0000125}])
+    rec_b = _hl_record("BTC", [{"coin": "BTC", "time_ms": dup_ms, "funding_rate": 0.0000125}])
+    table = J.collect_hl_hourly([rec_a, rec_b], ["BTC"])
+    assert len(table["BTC"]) == 1
+    assert table["BTC"][J._hour_index(dup_ms)] == 0.0000125
+
+
 # --------------------------------------------------------------------------- #
 # join
 # --------------------------------------------------------------------------- #

@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~12:5xZ UTC — Idle-run: `tape/hyperliquid_funding/` data-quality audit + branch-local dedup fix (L170/L171)
+
+**What:** queue still fully drained (Q0-Q48 re-scanned fresh: Q48 burst-gated to 07-29,
+everything else DONE/BLOCKED/calendar-gated/density-gated, unchanged from the prior three
+runs) and the lessons ledger's `UNENFORCED` backlog re-confirmed empty (L167, re-derived by
+whole-word grep tracing every historical `UNENFORCED` row to a later `supersedes`/
+`generalizes`/`Formal disposition of` row — all genuinely closed) — idle-run policies (a) and
+(b) both unavailable. This morning's earlier idle run already covered `tape/orderbook_depth/`
+under policy (c), so this run picked a different, never-yet-audited family:
+`tape/hyperliquid_funding/` (feeds Q42's cross-venue funding-basis work but had only ever
+been consumed, never itself audited).
+
+A `tape-auditor` subagent found the family in unusually clean shape (56/56 lines valid,
+0 null fields across 2566 print rows, 100% correctly tagged `broker_truth`, fully append-only
+history, no exposure to the L119/L45/L137 defect classes already caught elsewhere in this
+repo) but surfaced two genuine, citable results: (1) **F1 — a real, low-blast-radius
+dedup hole**: `collection/hyperliquid_funding.py::_committed_time_ms` dedups a pass's
+"already archived" set against the LOCAL working tree only, so two collectors racing on
+this repo's routinely-unmerged `tape/hourly-*` branches (189 on `origin` at audit time) can
+each independently archive the SAME `(coin, time_ms)` print — confirmed on real tape,
+`('BTC', 1784725200052)` and `('ETH', 1784725200052)` each written twice by commits that
+landed out of capture order (`git log -S` trace). The module's docstring overclaimed
+unconditional global idempotency; the one current consumer (`collect_hl_hourly`) already
+re-dedups on `(coin, hour_index)` so today's blast radius is nil, but a future raw-row
+consumer wouldn't be protected. (2) **the day-file-is-not-coverage trap**: `dt=2026-07-18`
+through `dt=2026-07-21` have no committed file (the L127 VPS-freeze window), which reads as
+a 4-day hole by file-count, but the union of every record's embedded `prints[].time_ms` is a
+perfect 1282/coin hourly series with 0 gaps — the post-freeze catch-up pass backfilled the
+whole window in one paginated call. Retrospective-payload families need coverage measured
+on their embedded timestamps, not on `dt=` file presence.
+
+**Fixed this run (main context, beyond the read-only audit):** corrected
+`collection/hyperliquid_funding.py`'s docstring to state the branch-local dedup caveat
+honestly (citing this finding), and added a regression test
+(`tests/test_q42_crossvenue_funding_join.py::
+test_collect_hl_dedups_cross_branch_duplicate_records`) that reproduces the exact real-tape
+scenario and pins `collect_hl_hourly`'s existing robustness to it. The tape's own two
+duplicate lines are untouched (append-only — this closes the code/doc gap, not the historical
+data point). New lessons **L170** (protocol+test tier, the fix above) and **L171**
+(`UNENFORCED` — a `tape_gap_monitor.py` family-kind flag for retrospective-list families,
+not built this run).
+
+No strategy claim, no P&L, no registry change — two-agent rule N/A (data-quality audit +
+documentation/test fix, not a verdict). Gates: `pytest -q --collect-only` sums to **2018
+collected** across 88 files (taken fresh after this run's last edit, per L162); full
+`pytest -q` run: **2 pre-existing failures** (both
+`test_q42_funding_estimate_path_inference.py`, the same real-tape-drift class every run this
+week has reported, unrelated to this diff — window counts 42→47 and a hard-gap rate drifted
+outside its `pytest.approx` tolerance as more `dt=` tape has landed since that test's numbers
+were pinned). `python scripts/invariants.py --full`: exit 0, same pre-existing non-gating
+advisory classes (VPS leg dead 91.3h, hollow-ladder L168/L169, stranded local tape refs,
+etc — none new). Step 9: `SHADOW_REGISTRY`={s14_ladder_underwriting} (`dead ✗` per Q34,
+paper-infra-only), `paper_pass.py` idempotent (0 newly processed — this diff touches no
+tape), ledger unchanged **+$19.56** (`broker_truth`, 1059 settled, 0 open). Still **0 proven
+edges**. See `findings/2026-07-26-hyperliquid-funding-tape-audit.md`.
+
+---
+
 ## 2026-07-26 ~11:0xZ UTC — Idle-run: `tape/orderbook_depth/` hollow crypto-ladder finding (L168/L169)
 
 **What:** queue fully drained again (Q0-Q48; Q48 burst-gated to 07-29), lessons ledger's

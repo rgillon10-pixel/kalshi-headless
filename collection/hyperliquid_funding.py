@@ -42,9 +42,17 @@ Two run modes (L127/L128 close-out, 2026-07-21):
     the 2026-07-17 backfill date. Steady-state cost is 1 short page (~1 new hourly print) per
     coin => 1-2 POSTs per pass; the first post-freeze pass catches the whole gap in one page
     (< PAGE_LIMIT for any gap under ~20 days). Idempotent across the two staggered collectors
-    (VPS + cloud) and across re-runs: whichever pass runs first after a new hourly print
-    archives it, the next finds nothing new — the per-print dedup makes double-collection a
-    no-op, never a duplicate line.
+    (VPS + cloud) and across re-runs ONLY WHEN their prior work is already merged into the
+    tape dir each pass reads: `_committed_time_ms` dedups against the LOCAL working tree, not
+    against in-flight sibling branches, so two collectors racing on unmerged tape (the normal
+    state of this repo's `tape/hourly-*`/`tape/burst-*` fallback branches, per LOOP-QUEUE.md
+    step 0b) CAN each independently see "nothing new" and both archive the same print —
+    confirmed on committed tape 2026-07-26 (audit, `findings/2026-07-26-hyperliquid-funding-
+    tape-audit.md`): `('BTC', 1784725200052)` and `('ETH', 1784725200052)` each appear twice,
+    written by two commits (`d845dfb`, `2235aa3`) that landed out of capture order. Harmless
+    today because every current consumer (`scripts/q42_crossvenue_funding_join.py::
+    collect_hl_hourly`) re-dedups on `(coin, hour_index)` before use — but a future consumer
+    that sums/averages raw `prints` rows without doing so would silently double-count.
 
 Run one pass / backfill since launch:
     python -m collection.hyperliquid_funding                       # incremental forward refresh (default)
