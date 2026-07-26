@@ -1669,6 +1669,48 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
    use `Priority: high` (instead of the default) and name the specific blocking action once,
    so a stuck item doesn't stay silent indefinitely.
 
+## Retro amendments — proposed 2026-07-26 (LEAVE OPEN for Ryan)
+
+Drafted by the weekly-retro run (Sun 2026-07-26 12:00 UTC) from the 2026-07-19 → 2026-07-26
+week's "Log of runs". **Two additive process clarifications. Leave open — do not self-merge.**
+Nothing here relaxes an invariant or Stop rule, deletes or reorders a queue item, or touches
+source code. Adopt/edit/reject each independently. Deliberately **not** re-proposed here because
+an open PR already carries them: VPS silent-failure escalation + collector-leg ROUTINES discipline
++ dead-shadow P&L labelling (all in the still-open **PR #125**, last week's retro), gap-monitor
+scheduling + daily-leg catch-up (**PR #165**), bulk-tape-out-of-git (**PR #166**), and the
+dead-shadow gate (**PR #191**). The biggest lever this week is Ryan reviewing those four, not
+adding a fifth — these two clauses cover only the genuinely-new gaps none of them touch.
+
+1. **A detected `Priority: high` condition must reach a durable channel even when a session has
+   no ntfy topic URL.** The week's single most severe finding — the VPS collector's *second*
+   death (silent from 2026-07-22T17:29Z, 61.7h at detection, 81.9h+ by 07-26) — was correctly
+   detected by the 2026-07-25 ~08:1xZ research-loop run, which then **could not post its mandatory
+   `Priority: high` phone note because no `NTFY_TOPIC_URL` was supplied to that cloud session**
+   (recorded in that run's own log line, step 8(c)). A correctly-diagnosed, actionable, severe
+   condition reached nobody. The de-dup policy in PR #125 #1 assumes the URL exists; this is the
+   different failure where it doesn't. Proposed addition to step 8: when a run detects a
+   `Priority: high` condition but the step-8 ntfy POST is unavailable (no topic in env, or the POST
+   fails), before ending the run it must record the alert on a durable channel — open, or append to,
+   a GitHub issue titled `ALERT: <condition>` (deduped against an already-open one) — so a
+   high-severity signal is never silently dropped. Separately flagged for Ryan (env config, Ryan-side,
+   no loop can fix it): ensure `NTFY_TOPIC_URL` is present in **every** routine's environment, not
+   just the edge-hunter/collector legs.
+
+2. **Idea-gen anti-treadmill: when the data surface hasn't changed, stop generating to quota.** The
+   nightly edge-hunter's Unit-2 has now produced ~13 consecutive zero-registration Q21 rounds
+   (candidates S43–S56 all killed at the idea or data-adequacy stage). Each round re-skins a factor
+   the strategy graveyard already forecloses, because **no genuinely new tape family/surface has
+   appeared to test against** — the runs themselves keep concluding "never pad to quota," so this
+   just formalises that. Proposed clarification to the edge-hunter Unit-2 spec (process only; the
+   two-agent kill discipline and the "0 registered is a valid, honest outcome" rule are unchanged):
+   after **≥3 consecutive** zero-registration Q21 rounds with no new tape family/surface since the
+   last registration, Unit-2 converts from "propose 3–5 candidates" to one of — (a) advance the
+   data-prep of the single highest-value collect-and-revisit item (currently S55's FOMC burst
+   collector), or (b) write a one-paragraph "what new data surface would open a testable edge" memo
+   addressed to Ryan — rather than spend the nightly thinking budget proposing re-skins that die at
+   the idea stage. This redirects wasted generation effort; it does not lower the bar for what counts
+   as an edge.
+
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
