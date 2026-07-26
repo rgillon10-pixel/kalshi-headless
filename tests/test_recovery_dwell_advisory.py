@@ -344,11 +344,16 @@ def test_acceptance_real_tree_does_not_flag_the_non_recovery_collector_findings(
 
 
 @_real
-def test_acceptance_exactly_one_real_finding_is_recovery_class():
-    """The headline-only scoping claim, pinned against the real corpus: 1 headline recovery
-    claim vs 16 findings with "recover" somewhere in the body (2026-07-25 census). A body-wide
-    matcher would be ~16x less precise — and would fire hardest on the findings CORRECTING a
-    bad recovery claim."""
+def test_acceptance_recovery_class_findings_are_a_small_headline_scoped_subset():
+    """The headline-only scoping claim, pinned against the real corpus as a RATIO rather than a
+    frozen membership list (2026-07-26 correction, issue #205 — PR #203 legitimately added a
+    second recovery-class finding, `2026-07-26-stranded-tape-recovery-...md`, and a frozen
+    `== [one item]` pin broke on every future legitimate recovery finding). The known-defective
+    2026-07-22 finding must ALWAYS be a member (it is the true positive L157 exists because of);
+    the set is otherwise allowed to grow. What must hold is precision: recovery-class findings
+    stay a small minority of the findings whose BODY merely mentions "recover" — a body-wide
+    matcher would be far less precise, and would fire hardest on findings CORRECTING a bad
+    recovery claim."""
     md = sorted(_REAL_FINDINGS.glob("*.md"))
     recovery_class = [
         p.name for p in md
@@ -357,10 +362,14 @@ def test_acceptance_exactly_one_real_finding_is_recovery_class():
         and inv._RECOVERY_SUBJECT_RE.search(inv._recovery_headline(p, p.read_text(
             encoding="utf-8", errors="replace").splitlines()))
     ]
-    assert recovery_class == ["2026-07-22-vps-collector-recovered-post-pr151.md"], recovery_class
+    assert "2026-07-22-vps-collector-recovered-post-pr151.md" in recovery_class, recovery_class
     body_hits = [p.name for p in md if "recover" in p.read_text(
         encoding="utf-8", errors="replace").lower()]
     assert len(body_hits) >= 10, "the body-wide precision hazard this scoping avoids"
+    assert 0 < len(recovery_class) <= len(body_hits) // 2, (
+        "recovery-class findings must stay a small minority of body-level 'recover' hits",
+        recovery_class, body_hits,
+    )
 
 
 # ─── the advisory can NEVER change the exit code ────────────────────────────
