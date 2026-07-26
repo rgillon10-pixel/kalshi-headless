@@ -6,6 +6,79 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~04:2xZ UTC — EDGE-HUNTER (nightly): Q21 idea-gen (S54/S56 killed, S55 queued as Q48) + FOMC recipe re-verified + 188-line stranded-tape recovery + adversarial-review catch (main RED on a prior run's test)
+
+Nightly kalshi-edge-hunter run. Step 0a PASS (`origin/main` HEAD `f75b4fe`, tape-recovery PR #203;
+newest committed tape and newest LOG entry both 2026-07-26, no rewind). Step 0 claim-check: open PRs
+#191/#166/#165 (Ryan-review/Ryan-action drafts) + #125 (leave-open retro) — none claim eligible queue
+work (unchanged). Housekeeping: no PR flagged (#125 by-design leave-open, established
+NOT-re-flagged precedent; #191 1d / #165-#166 3d old, all < the 5-day bar).
+
+**Unit 1 — adversarial review of the last-24h findings.** The last 24h produced only infra/lessons
+findings (no strategy verdict with a bootstrap-CI/price-provenance load-bearing number — the queue
+is drained). Re-checked the two consequential numbers that DO exist: (a) the imminent, unrepeatable
+**FOMC seam-safe chunk recipe** — `scripts/burst_chunk_plan.py --protect 2026-07-29T18:00:00Z`
+reproduces `[16,14,14,14,14,12]` exactly (chunk 1 = 16 ticks × 90s ends 18:02:30Z, safely past the
+18:00:00Z release) → **PASS**; (b) the prior run's 235-line recovery is documented pure-append →
+consistent. **Catch:** running the full gate revealed `main` is currently **RED** on
+`tests/test_recovery_dwell_advisory.py::test_acceptance_exactly_one_real_finding_is_recovery_class`
+— the prior run (PR #203) added a second legitimate recovery-class finding
+(`2026-07-26-stranded-tape-recovery-hourly20260725T2157Z.md`), which trips that test's hard-coded
+`== [exactly the one vps finding]` acceptance pin. Confirmed pre-existing via `git stash` (fails
+identically with this run's changes removed) — NOT caused by this diff, and the prior run's digest
+did not report it. `invariants --full` itself is exit 0 and correctly lists BOTH recovery findings
+as a non-gating L157 advisory, so the matcher fires by design and the acceptance pin is simply stale;
+the right fix (loosen the test to a precision-ratio pin, OR refine the matcher to separate
+collector-recovery from tape-recovery in `scripts/invariants.py`) is Ryan-review-adjacent → opened a
+GitHub issue rather than guess-fix, flagged `Priority: high`.
+
+**Unit 2 — pipeline replenishment (Q21 idea-gen round).** 0 eligible queue items (< 2) → ran a Q21
+round. Producer (main context) proposed 3 candidates; independent `verifier` (two-agent rule at the
+idea stage) attacked each against committed tape BEFORE registration. **S54 (overround
+liquidity-cycle conditioning) → KILL** — overround does NOT compress by hour (flat 1–2¢ on 2-way
+sports books; the fat 9–21¢ overround is a **multi-bracket-ladder** property, a standing-misconception
+correction), and the lowest-overround decile (n=138 games) nets **−$0.0131, 95% block-boot-by-game CI
+[−0.0234, −0.0017]**, upper bound below zero (L27 CI-falsified) — the ~2–3¢ taker fee sinks it where
+the book is most efficient. **S55 (post-release single-leg Kalshi-lag taker on FOMC via burst tape) →
+COLLECT-AND-REVISIT** — fed leg confirmed `real_ask`, no burst tape exists yet (n=0), not pre-killed
+(S9=cadence, S34/S51=two-fee), registered as a new index row + **queued as Q48** gated on the 07-29
+FOMC burst (honesty caveats: steady-state gap 0.6¢ ≪ 7¢ fee, one burst = n=1, revisit horizon
+months). **S56 (weather near-certain-winner taker) → KILL** — no intraday realized-temp feed exists
+in tape (signal unreconstructable ex-ante), and even granting ex-post winner identity the population
+is L41-degenerate (75/75 clusters positive, `no_opposing_unit` inadmissible, S20 shape). Consumed
+S54/S55/S56 → next free **S57**. 14th consecutive round with no *live* registration, but the first in
+13 to add a genuine forward candidate. See `findings/2026-07-26-q21-idea-gen-round.md`.
+
+**Unit 3 — probe-prep.** The one gate unblocking within 72h is Q19 FOMC (07-29). Its probe-prep is
+already complete (PR #200-#202: chunked-commit recipe built, verifier-corrected, offline-tested; recipe
+re-verified above). Nothing to build; the sole remaining step is **Ryan-side** — apply the seam-safe
+recipe to the live `kalshi-burst-fomc-0729` trigger (`trig_01L9RysFtWUUjj3BgQmNKw7g`) before
+2026-07-29T17:40Z, per the standing precedent that live account-triggers are Ryan's domain.
+
+**Housekeeping — burst triggers.** 4 `kalshi-burst-*` triggers have passed event dates and are named
+for deletion (all cron, would misfire in 2027 on stale tickers): `kalshi-burst-wcfinal-0719`,
+`kalshi-burst-cpi-0714`, `kalshi-burst-wcsemi1-0714`, `kalshi-burst-wcsemi2-0715`. Only
+`kalshi-burst-fomc-0729` is live (keep). Named, not deleted (live-trigger = Ryan's domain precedent).
+
+**Step 0b — stranded-tape recovery.** `tape/hourly-20260726T0356Z` (the 03:56Z hourly pass that fell
+off `main`) carried **188 lines genuinely absent from HEAD** — `crypto_hourly`+2 / `polymarket_macro_pairs`+15
+/ `sports_pairs`+171, all `dt=2026-07-26`, all valid JSON, pure-append verified (HEAD is an exact
+prefix of the branch on all 3 files). Union-appended into this run's commit. Branch deletable once
+this PR merges. Remote `tape/hourly-*` branch count: **189**.
+
+Two-agent rule satisfied at the idea stage (producer + independent verifier, all numbers re-run
+against tape). No registry status is a *live/tested* flip (S55 is collect-and-revisit, non-registerable
+by the real-ask bar) so no verdict-class change requires the full commit-gate; still **0 proven edges**.
+`pytest`: ≥1990 collected, **3 pre-existing failures** (2× `test_q42_funding_estimate_path_inference`
+real-tape-drift window-count 42→44; 1× `test_recovery_dwell_advisory` acceptance pin, prior-run
+regression above) — all three reproduce byte-identical on base `main` via `git stash`, **0 introduced by
+this diff**. `python scripts/invariants.py --full`: exit 0 (same pre-existing non-gating advisory
+classes; VPS collector leg still silent, Ryan-side). Step 9: `SHADOW_REGISTRY` = {s14_ladder_underwriting}
+(`dead ✗` per Q34 — paper-infra validation only, NOT edge evidence); `paper_pass.py` idempotent, ledger
+unchanged **+$19.56** (`broker_truth`, 1059 settled / 0 open). See `findings/2026-07-26-q21-idea-gen-round.md`.
+
+---
+
 ## 2026-07-26 ~03:3xZ UTC — IDLE RUN: stranded-tape recovery, `tape/hourly-20260725T2157Z` (235 lines) + 13 false-positive sweep hits triaged and left alone (research loop)
 
 Step 0a PASS: `origin/main` HEAD `561b936` (tape hourly-pass commit only, no PR since
