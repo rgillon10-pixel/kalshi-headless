@@ -6,6 +6,125 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~2x:xxZ UTC — Idle-run (policy b): Q48/S55 FOMC-lag probe prepped ahead of its gate (L173-L177)
+
+**What:** Full Q0-Q48 re-scan found no eligible numbered item (Q48 burst-gated to 07-29;
+everything else DONE / cred-BLOCKED / calendar- or density-gated) → IDLE RUN. Policy (a) is
+exhausted — the `UNENFORCED` backlog is empty (L45 closed by L49, L27/L28/L32 by L34's
+edge-prober house-style encoding, L171 by L172 last run). **Policy (b) became available for the
+first time in days because Q48 was added earlier today**, so this run wrote and offline-tested
+the probe for the next time-gated item, so it fires the day its gate opens. This is **prep
+infrastructure, NOT a verdict**: no CI, no registry STATUS flip (S55 stays
+`collect-and-revisit`), no `findings/` file (same precedent as the Q37/Q43 prep runs, which
+recorded to the queue Status + this log only).
+
+**Built:** `scripts/q48_s55_fomc_lag_probe.py` + `tests/test_q48_s55_fomc_lag_probe.py`
+(40 tests) — read-only, no network, no `execution/` import, a single **Kalshi taker** fee via
+`core.pricing.fee_per_contract` (`TAKER_FEE_RATE`=0.07; Polymarket is an exogenous SIGNAL,
+never a traded leg — that is S55's whole premise versus the two-fee-dead S34/S51), Hard Rule #3
+normalization via `core.pricing.bracket_sum`/`normalized_ask`, bootstrap resampled BY BURST
+(L6), a `MIN_BURSTS_FOR_CI=3` refusal, L25 file-shape gating, and `core.timeutil` timestamp
+parsing (no bare `fromisoformat`).
+
+**Verified** (independent `verifier` re-derived every number with its own throwaway stdlib
+parser — zero imports from `core/` or `scripts/` — confirmed them bit-for-bit, then found 8
+defects; the producer fixed all 8 and a second verifier round re-checked the fixes; two-agent
+rule SATISFIED). Every price below is `real_ask` on BOTH legs, 9000/9000 records tagged, zero
+`synthetic`/`midpoint` contamination.
+
+- Steady-state NON-BURST front-meeting (2026-07) `price_gap_yes_ask`, n=2400: signed mean
+  **+0.553¢**, median **+0.600¢** (`real_ask`) — *this* is the "≈0.6¢" that Q48/S55 quote, a
+  **SIGNED** statistic. mean|gap| is **+0.743¢**, a different statistic; the two must never be
+  conflated.
+- **52% of front-meeting Kalshi asks (1248/2400) sit at the 1¢ floor and contribute 43.3% of the
+  aggregate |gap| mass**; on those rows the gap is essentially one-signed (1239 `>0`, 8 `=0`,
+  1 `<0` → 99.9% non-negative; signed mean **+0.6190¢** ≈ mean|gap| **+0.6192¢**) because Kalshi
+  cannot tick below 1¢ while Polymarket's mean `best_ask` (`real_ask`) there is 0.38¢. **Excluding
+  them the mean|gap| RISES to +0.877¢** (n=1152) — the floor is a **composition effect**, not an
+  inflation of the 0.743¢ headline. *(Corrects this entry's own first-draft wording, which had the
+  direction inverted — 43.3% is a share of aggregate |gap| MASS, not a share of the mean that
+  removing it would shrink. See L178-L184 block, and the derivation command cited on the L184 row,
+  measured 2026-07-26.)*
+- ALL-meetings pooled mean|gap| **+2.031¢** is explicitly **NOT** a valid headline — dominated
+  by back meetings the 07-29 statement does not decide (2026-09 +1.935¢, 2026-10 +3.413¢).
+- The tape holds **1 cadence-qualified burst window** (2026-07-14, 101 passes, median inter-pass
+  gap 60.09s) plus 7 sub-300s recurring-cadence coincidences, and **0** covering the
+  2026-07-29T18:00Z release → `python3 scripts/q48_s55_fomc_lag_probe.py` correctly returns
+  **`INSUFFICIENT DATA`** today, exactly as designed.
+- **2026-07-14 CPI burst dry-run** (`python3 scripts/q48_s55_fomc_lag_probe.py --release-ts
+  2026-07-14T12:30:00Z`; n=1 release, **DESCRIPTIVE ONLY, no CI, not a verdict**):
+  `2026-07|no_change` last pre-release capture 12:29:19.631Z at Kalshi `yes_ask` 0.70
+  (`real_ask`) / Polymarket 0.70 (`real_ask`); first post-release capture 12:30:13.189Z (13.2s
+  after the print) at Kalshi 0.71 (`real_ask`) / Polymarket 0.80 (`real_ask`) → raw gap −0.09,
+  one Kalshi taker fee $0.02, `gap_net_fee` **+$0.0700** — a **mark-to-signal entry gap, NOT
+  settled P&L**. **Kalshi reached 0.87 at the NEXT capture, 12:31:10.662Z — 57.5s after the first
+  post-release capture and 70.7s after the 12:30:00Z release. That 57.5s is an UPPER BOUND set by
+  the capture cadence (no capture exists in between), not a measured convergence time.** Baselined
+  persistent-stale-window units **4 of 15** (the unbaselined absolute rule said 12).
+
+**Corrections to prior prose** (originals left intact; superseded in a new Q48 Status line and an
+appended S55 clause): the recurring `polymarket_macro_pairs` leg does **not** run "~2 captures/day"
+— **29.1 passes/day** over 20.6 days (median inter-pass gap 1,856.3s ≈ 31 min), **9.4/day** since
+2026-07-19 (median gap 10,778s ≈ 3.0h), wrong by 5-15x; the S9-cadence-wall conclusion survives
+(a 3h cadence still cannot see a seconds-to-minutes reprice).
+
+**Lessons:** **L173** (a duration-gated persistence statistic with no pre-event baseline measures
+the venue pair's permanent overround, not the event's lag — 12→4 of 15 once baselined; extends
+L76), **L174** (a refusal floor keyed to an operator-supplied instant is advisory, not structural:
+the verifier reached `n_bursts=7`, `ci95=[+0.00372,+0.00915]` on fabricated `--release-ts`
+instants), **L175** (a hardcoded `[real_ask both legs]` in a summary line reopens CLAUDE.md's
+untagged→synthetic hole at the copy-paste surface; provenance must render from the observed tag
+set), **L176** (a strict `> 0` edge gate with no tick floor booked 9 of 24 "trades" at edge
+8.67e-18 into the bootstrap), **L177** (L165 recurrence: "~2 captures/day" propagated unverified
+across four artifacts — each hop of a citation chain must re-measure, not re-copy). All five are
+`test`-enforced by named tests in `tests/test_q48_s55_fomc_lag_probe.py`.
+
+**Verifier round 2 verdict: CONFIRMED-WITH-CORRECTIONS** (producer + independent `verifier`, both rounds
+against the FINAL probe; two-agent rule SATISFIED; **no registry status flipped** — S55 stays
+`collect-and-revisit`). Seven further lessons, **L178-L184**: **L178** corrects L174 (after the
+`MIN_ENTRY_EDGE` fix the fabricated-`--release-ts` attack prints `clears_tick_magnitude = True` —
+`ci95 = [+1.125¢, +1.833¢]` on a deterministic reconstruction; the surviving guards are
+`admissible = False`, `n_covering_burst_windows_cadence_qualified = 0`, `bootstrap_cadence_warning`);
+**L179** corrects L176's count (**11** sub-tick candidates dropped, 24 → **13** fired: 9 float dust +
+2 genuinely sub-tick but real, smallest surviving edge exactly 0.01, no candidate ≥ 1 tick lost);
+**L180** (**`UNENFORCED`, a LIVE residual defect**) — a baseline needs its own n-adequacy guard
+(`n_pre=1` confines the pre-fraction to {0,1}, flipping a permanent overround back into a
+"release-caused" dislocation: same 6¢ overround, `n_pre=1` → `True`, `n_pre=23` → `False`), plus a
+missing epsilon on the `excess_max >= 0.01` stale-window comparison (`2026-10|cut_25` clears at
+`0.010000000000000009` off a `pre_max` of `-5.2e-18`); neither affects any number reported today (all 15
+dry-run units have `n_pre=23`) but **both are live for the 07-29 firing** and are the next idle run's
+named policy-(a) candidate; **L181** (tightening one gate can LOOSEN another — L27's magnitude gate
+filters economic insignificance, never population legitimacy); **L182** (`protocol` — freeze the artifact
+once a verifier round is dispatched; a mid-run edit made `inspect.getsource` return the wrong function
+body and produced a PHANTOM test failure); **L183** (a cross-venue "steady-state gap" is meaningless
+without its tenor cut — front +0.743¢ vs pooled +2.031¢, 2.7×); **L184** (on a complete two-venue ladder
+the pooled MEAN normalized gap is exactly 0 by construction — `max |sum| = 3.30e-16` across 1,439
+complete non-burst groups; only `mean_abs`/`median_abs` and the per-bucket sign carry information, and
+those are NOT degenerate: front per-bucket means span −1.488¢ to +0.766¢). Each row carries the exact
+command and measurement time that produced its numbers (L162). The two corrections at the top of this
+entry (floor-pin direction, ~57s anchor) are those same round-2 findings applied in place.
+
+**Gates** (re-taken after this entry's last edit, 2026-07-26): `python -m pytest -q --collect-only 2>&1 |
+grep -cE '^tests/\S+\.py::'` — or, per-file, `python -m pytest -q --collect-only` and sum the
+`tests/<file>.py: <n>` lines — → **2065 tests collected across 88 files**; `python -m pytest -q`:
+**exactly 2 failures** (the repo's `-q` config suppresses the summary line, so the total is quoted as the
+collect-only sum per L162; `tail -1` on the collect-only output gives only the LAST file's count, not a
+total);
+`python -m pytest -q tests/test_q48_s55_fomc_lag_probe.py`: **40 passed**. The 2 failures are
+`tests/test_q42_funding_estimate_path_inference.py`, PRE-EXISTING on base `main` (real-tape
+drift, documented in the prior run's entry), unrelated to this diff.
+`python scripts/invariants.py --full`: exit **0**, all green (unchanged before and after).
+
+**Step 9 paper sub-pass:** `SHADOW_REGISTRY` = `{s14_ladder_underwriting}` (`dead ✗` per Q34 —
+paper infrastructure only). `python3 scripts/paper_pass.py`: 0 processed, 165 deferred(caps),
+266 deferred(coverage), 135 already-in-ledger; **0 open positions, 1059 settled contracts,
+realized P&L $+19.56 (`broker_truth`), cash $+19.56, open notional $0.00** — unchanged and
+idempotent (this diff touches no tape). Ledger 4913 lines, unmodified.
+
+Still **0 proven edges**.
+
+---
+
 ## 2026-07-26 ~18:4xZ UTC — Idle-run: L171 formal disposition — `tape_gap_monitor.py` retrospective-list family coverage (L172)
 
 **What:** Full Q0-Q48 re-scan still saturated (Q48 burst-gated to 07-29, everything else
