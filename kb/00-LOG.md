@@ -6,6 +6,34 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~06:3xZ UTC — Gate repair: issue #205, `test_recovery_dwell_advisory` acceptance pin fixed (main RED → green)
+
+**What:** the prior nightly run's adversarial review (PR #204) found `main` RED on
+`tests/test_recovery_dwell_advisory.py::test_acceptance_exactly_one_real_finding_is_recovery_class`
+and opened issue #205 rather than guess-fixing it (the frozen-list pin broke when PR #203
+legitimately added a 2nd recovery-class finding). This run applied issue #205's option 1
+(test-only fix, not the Ryan-review-gated invariants-matcher option): renamed the test to pin a
+**precision-ratio + membership** claim instead of a frozen list — the known-defective
+2026-07-22 finding must always be a member; recovery-class findings must stay ≤ half of
+body-level "recover" hits (2 of 20 today). `python scripts/invariants.py --full` was already
+exit 0 (the L157 advisory fires correctly by design on both findings); only the test's stale
+pin was wrong.
+
+Step 0a/0/0b: `origin/main` HEAD `9d8f4ce`, no rewind; open PRs #191/#166/#165/#125 unchanged,
+none eligible; newest stranded-tape branch (`tape/hourly-20260726T0356Z`) already recovered by
+the prior run, nothing new to sweep. Full Q0-Q48 re-scan: still saturated (everything DONE /
+cred-or-auth-BLOCKED / calendar-gated / density-gated per the prior run's own re-derivation,
+re-verified unchanged 2h later) — this gate repair is the run's real-work unit, ranking above
+the standard idle-run menu since it restores a broken protocol dependency (step 4's own
+"pytest green" gate). No verdict, no registry change — two-agent rule N/A. `pytest -q`:
+**1990 collected** (`--collect-only -q` summed across 86 files, post-edit), **2 failed**
+(both `test_q42_funding_estimate_path_inference.py`, real-tape-drift, confirmed
+byte-identical on base `main` via `git stash`) — the recovery-dwell test itself now 0 failed.
+`invariants --full`: exit 0, same pre-existing advisories. Step 9: `SHADOW_REGISTRY`=
+{s14_ladder_underwriting} (DEAD, paper-infra-only), `paper_pass.py` idempotent, ledger
+unchanged **+$19.56** (1059 settled, 0 open). Still **0 proven edges**. See
+`findings/2026-07-26-issue-205-recovery-dwell-acceptance-pin-fix.md`.
+
 ## 2026-07-26 ~04:2xZ UTC — EDGE-HUNTER (nightly): Q21 idea-gen (S54/S56 killed, S55 queued as Q48) + FOMC recipe re-verified + 188-line stranded-tape recovery + adversarial-review catch (main RED on a prior run's test)
 
 Nightly kalshi-edge-hunter run. Step 0a PASS (`origin/main` HEAD `f75b4fe`, tape-recovery PR #203;
