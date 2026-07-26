@@ -6,6 +6,52 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~00:2xZ UTC — IDLE RUN (policy a): L164→L166 burst-chunk `--protect` seam guard + L165→L167 citation-discipline house style (research loop)
+
+Step 0a PASS: `origin/main` HEAD `1714dc6` (merged PR #201) fast-forwarded cleanly; `kb/00-LOG.md`
+newest entry and newest committed tape both 2026-07-25, no rewind. Step 0 claim-check: open PRs
+#191/#166/#165 (Ryan-review drafts) and #125 (leave-open retro) claim no eligible queue work.
+Step 0b: fresh full run of `scripts/tape_branch_sweep.py` over the 487-branch remote backlog —
+zero genuinely-missing lines, consistent with PR #196/#197's prior clean sweeps. Full Q0-Q47
+re-scan: 0 eligible TODO/IN-PROGRESS (all DONE/GATED/BLOCKED, unchanged from the last several
+idle runs) → IDLE RUN.
+
+Re-derived the lessons ledger's open `**UNENFORCED**` set: L163's "backlog empty" snapshot left
+**L164** (chunk-seam protection) and **L165** (citation provenance) as the two rows filed after
+it in the same 2026-07-25 correction round — the only genuinely open rows. Built both of their
+own named candidates:
+
+**L164 → L166.** `scripts/burst_chunk_plan.py` gained `first_chunk_ticks_protecting_instant()` +
+`chunk_max_ticks_sequence_protecting()` + a CLI `--protect ISO_INSTANT` flag (default margin one
+`--interval`, overridable via `--margin-seconds`): grows chunk 1 only so its last tick lands
+strictly past the protected instant with margin, then chunks the remainder normally. Feeding the
+FOMC's own numbers back through it (`--protect 2026-07-29T18:00:00Z` on the existing window)
+reproduces the hand-verified `[16, 14, 14, 14, 14, 12]` recipe from `ops/burst_capture_chunked.md`
+**exactly** — the tool now generates what a human had to hand-check after PR #200's verifier
+catch. Scope kept honest: ONE protected instant, must fall after window start by more than the
+margin; an instant needing the whole window collapses to one chunk (documented, not silently
+wrong); a second decisive moment in the same window still needs a hand check, as L164 itself
+flagged as future work.
+
+**L165 → L167.** No static scanner can verify a citation is accurate without re-reading the cited
+artifact (that's what the `verifier` agent already does by charter), so this closes at the
+protocol tier: `.claude/agents/edge-prober.md` gained a house-style bullet (grep-verify a cited
+artifact before writing a count into a "facts, not new claims" section) and
+`.claude/agents/verifier.md` gained a numbered attack step ("Attack citations, not just numbers").
+
+**The lessons ledger's UNENFORCED backlog is empty again as of L167.** Two-agent rule N/A (tool
+build + lesson-conversion + documentation, no registry/CI/kill decision). `pytest -q`: exit 0, 0
+failed, 1990 collected (`pytest --collect-only -q` summed, re-verified after the last edit — 14
+new tests in `tests/test_burst_chunk_plan.py`). `python scripts/invariants.py --full`: exit 0,
+same pre-existing non-gating advisory classes, no new class. Step 9: `SHADOW_REGISTRY` =
+{s14_ladder_underwriting} (`dead ✗` per Q34 — paper-infra validation only, NOT edge evidence);
+`paper_pass.py` processed 13 newly-eligible events, realized P&L **+$19.56** (`broker_truth`, up
+from +$18.15), 1059 settled / 0 open, new lines under `paper/ledger/dt=2026-07-26.jsonl`. Still
+**0 proven edges**. See
+`findings/2026-07-26-l164-l165-burst-chunk-protect-and-citation-discipline.md`.
+
+---
+
 ## 2026-07-25 ~21:5x UTC — Correction round: verifier caught two citation errors + a seam-risk design flaw in the Q19 FOMC pre-flight (PR #200 follow-up)
 
 After PR #200 (the FOMC burst-capture pre-flight below) merged, an independent `verifier` pass
