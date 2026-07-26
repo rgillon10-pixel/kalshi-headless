@@ -6,6 +6,53 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~03:3xZ UTC — IDLE RUN: stranded-tape recovery, `tape/hourly-20260725T2157Z` (235 lines) + 13 false-positive sweep hits triaged and left alone (research loop)
+
+Step 0a PASS: `origin/main` HEAD `561b936` (tape hourly-pass commit only, no PR since
+L167) fast-forwarded cleanly; `kb/00-LOG.md` newest entry and newest committed tape both
+2026-07-26, no rewind. Step 0 claim-check: open PRs #191/#166/#165 (Ryan-review drafts)
+and #125 (leave-open retro) claim no eligible queue work — unchanged. Full Q0-Q47 re-scan:
+0 eligible TODO/IN-PROGRESS (all DONE/GATED/BLOCKED, unchanged from the last several idle
+runs); UNENFORCED lessons backlog still empty since L167 → policy (a) exhausted, policy
+(b)'s time-gated items (Q19 FOMC, Q37) already self-activating/prepped → **took step 0b's
+own sweep further than a routine check**, since this run's fresh unfiltered
+`scripts/tape_branch_sweep.py` (195 branches, no `--limit`) found something the prior
+run's sweep (3h earlier) reported clean: 14 "missing lines" hits, one more branch than
+before.
+
+**Triaged all 14 by hand before touching anything** (the tool's own docstring warns a raw
+hit is not proof of genuine loss): 13 were false positives — 8 branches' `tape/cloud-env-check.md`
+"missing" 2 lines that `HEAD` deliberately dropped in an intentional prose condensation
+(not an accidental loss), and 5 branches' `tape/anomalies` + `tape/econ_prints`
+`dt=2026-07-18` "missing" lines that turned out to be literal git conflict markers —
+the exact corruption the 2026-07-23 L142 gate already found and repaired; `HEAD` is
+correct to exclude them, re-adding would reintroduce fixed corruption. Both classes left
+untouched.
+
+**One genuine recovery:** `tape/hourly-20260725T2157Z` (a `hourly_pass` run from
+2026-07-25T21:57Z that fell back off `main` per the known push-permission-boundary
+pattern) carried **235 lines genuinely absent from `HEAD`** — `crypto_hourly/dt=2026-07-25`
++2, `polymarket_macro_pairs/dt=2026-07-25` +15, `sports_pairs/dt=2026-07-25` +218 — all
+valid JSON, all pure gap-fill into files `HEAD` already has. Union-appended, verified
+byte-for-byte pure-append (pre-recovery content is an exact prefix of post-recovery
+content on all 3 files, nothing reordered/touched/deduped). See
+`findings/2026-07-26-stranded-tape-recovery-hourly20260725T2157Z.md`.
+
+No strategy claim, no registry change, two-agent rule N/A (data recovery + false-positive
+triage, same posture as the 07-23/07-25 stranded-tape recoveries). `pytest -q`: 1990
+collected, **2 pre-existing failures** in `tests/test_q42_funding_estimate_path_inference.py`
+(real-tape-drift — a `perp_tape` window count pinned at 42 on 07-24 has since grown to 44
+as more forward tape committed; verified byte-identical on base `main` via `git stash`,
+unrelated to this diff), 1988/1990 pass. `python scripts/invariants.py --full`: exit 0,
+same pre-existing non-gating advisory classes (VPS collector leg now **81.9h** silent,
+worsening, Ryan-side — no cloud-run fix possible). Step 9: `SHADOW_REGISTRY` =
+{s14_ladder_underwriting} (`dead ✗` per Q34 — paper-infra validation only, NOT edge
+evidence); `paper_pass.py` idempotent (0 newly eligible events since L167's sub-pass),
+ledger unchanged **+$19.56** (`broker_truth`, 1059 settled / 0 open). Still **0 proven
+edges**.
+
+---
+
 ## 2026-07-26 ~00:2xZ UTC — IDLE RUN (policy a): L164→L166 burst-chunk `--protect` seam guard + L165→L167 citation-discipline house style (research loop)
 
 Step 0a PASS: `origin/main` HEAD `1714dc6` (merged PR #201) fast-forwarded cleanly; `kb/00-LOG.md`
