@@ -82,9 +82,12 @@ Replace step 3 of the existing prompt (`Run: python -m collection.burst_capture 
 with:
 
 ```
-3. Use this hand-verified, seam-safe chunk sequence (do NOT regenerate it with
-   scripts/burst_chunk_plan.py's default --chunk-minutes 20 — that produces a uniform plan
-   whose first seam lands on the 18:00:00Z release instant; see ops/burst_capture_chunked.md):
+3. Use this seam-safe chunk sequence (do NOT regenerate it with scripts/burst_chunk_plan.py's
+   PLAIN default --chunk-minutes 20 with no --protect — that produces a uniform plan whose first
+   seam lands on the 18:00:00Z release instant; see ops/burst_capture_chunked.md). As of L164
+   (2026-07-26) it is reproducible by machine, not just by hand:
+   python scripts/burst_chunk_plan.py --start 2026-07-29T17:40:00Z --until 2026-07-29T19:45:00Z
+     --interval 90 --chunk-minutes 20 --protect 2026-07-29T18:00:00Z
    max_ticks_sequence = [16, 14, 14, 14, 14, 12]  (6 chunks, sums to the window's 84 ticks;
    chunk 1's extra 2 ticks push its boundary to ~18:02:30Z, safely past the release with margin).
    For EACH value N in that sequence, in order:

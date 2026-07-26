@@ -224,6 +224,11 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   the illusion of an extra data point.
 - Offline unit tests for any nontrivial parsing/matching logic; pure read-only
   analysis scripts may follow the 0-new-tests precedent, but say which you did.
+- Before writing a count/fact into a "documented facts, not new claims" section,
+  grep-verify the cited artifact actually contains it (L165) — "I recall reading
+  this earlier in the session" is not a citation; if the real source is a live
+  tool-call result rather than a committed file, say so explicitly instead of
+  pointing at the nearest plausible-looking document.
 
 Deliverables per milestone: the script under `scripts/`, a dated writeup in
 `findings/` (numbers with source tags, n, CI, verdict), and a short list of

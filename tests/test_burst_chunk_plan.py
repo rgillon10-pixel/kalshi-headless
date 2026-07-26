@@ -1,12 +1,16 @@
 """scripts.burst_chunk_plan — offline unit tests. Pure arithmetic, no network/tape/clock."""
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from scripts.burst_chunk_plan import (
     ChunkPlan,
     chunk_max_ticks_sequence,
+    chunk_max_ticks_sequence_protecting,
     chunk_plan,
+    first_chunk_ticks_protecting_instant,
     main,
     ticks_per_chunk,
     window_minutes,
@@ -174,6 +178,133 @@ def test_hand_verified_seam_safe_fomc_recipe_keeps_release_inside_first_chunk():
     release_s = 20 * 60
     # release instant must fall STRICTLY inside chunk 1 (not within one interval of its edge).
     assert 90 < release_s < first_chunk_last_tick_s - 90
+
+
+# --------------------------------------------------------------------------- #
+# L164 enforcement: first_chunk_ticks_protecting_instant / chunk_max_ticks_sequence_protecting
+# replace the hand-verification above with a computed, tested equivalent.
+# --------------------------------------------------------------------------- #
+def test_first_chunk_ticks_protecting_instant_reproduces_the_hand_verified_fomc_first_chunk():
+    # FOMC: interval=90s, ticks_per_chunk=14 (chunk_minutes=20), release at +20min=1200s.
+    # Hand-verified recipe used 16 ticks for chunk 1 -- this must match exactly.
+    n = first_chunk_ticks_protecting_instant(
+        protect_offset_seconds=1200.0, ticks_per_chunk_=14, interval_seconds=90, total_ticks=84
+    )
+    assert n == 16
+
+
+def test_first_chunk_ticks_protecting_instant_never_shrinks_below_ticks_per_chunk():
+    # protect instant early enough that no growth is needed -- must not shrink chunk 1.
+    n = first_chunk_ticks_protecting_instant(
+        protect_offset_seconds=200.0, ticks_per_chunk_=14, interval_seconds=90, total_ticks=84
+    )
+    assert n == 14
+
+
+def test_first_chunk_ticks_protecting_instant_caps_at_total_ticks():
+    # protect instant very late in a short window -- chunk 1 may absorb the whole window,
+    # never grow past it.
+    n = first_chunk_ticks_protecting_instant(
+        protect_offset_seconds=5000.0, ticks_per_chunk_=14, interval_seconds=90, total_ticks=20
+    )
+    assert n == 20
+
+
+@pytest.mark.parametrize("margin_seconds", [0.0, 45.0, 90.0, 180.0])
+def test_first_chunk_ticks_protecting_instant_honors_custom_margin(margin_seconds):
+    n = first_chunk_ticks_protecting_instant(
+        protect_offset_seconds=1200.0, ticks_per_chunk_=14, interval_seconds=90,
+        total_ticks=84, margin_seconds=margin_seconds,
+    )
+    last_tick_s = (n - 1) * 90
+    assert last_tick_s > 1200.0 + margin_seconds
+
+
+def test_first_chunk_ticks_protecting_instant_rejects_instant_too_close_to_window_start():
+    with pytest.raises(ValueError):
+        first_chunk_ticks_protecting_instant(
+            protect_offset_seconds=30.0, ticks_per_chunk_=14, interval_seconds=90, total_ticks=84
+        )
+    # exactly at the margin boundary is also rejected (strict >, not >=)
+    with pytest.raises(ValueError):
+        first_chunk_ticks_protecting_instant(
+            protect_offset_seconds=90.0, ticks_per_chunk_=14, interval_seconds=90, total_ticks=84
+        )
+
+
+def test_chunk_max_ticks_sequence_protecting_reproduces_the_hand_verified_fomc_recipe():
+    # the exact recipe ops/burst_capture_chunked.md recommends, now computed rather than
+    # hand-derived: [16, 14, 14, 14, 14, 12].
+    seq = chunk_max_ticks_sequence_protecting(
+        total_minutes=125, chunk_minutes=20, interval_seconds=90, protect_offset_minutes=20.0
+    )
+    assert seq == [16, 14, 14, 14, 14, 12]
+    assert sum(seq) == 84
+
+
+def test_chunk_max_ticks_sequence_protecting_sums_to_total_ticks_across_cases():
+    cases = [
+        (125, 20, 90, 20.0),   # FOMC
+        (155, 20, 120, 25.0),  # WC-final-shaped: release near start
+        (100, 15, 60, 40.0),   # release inside a LATER naive chunk
+        (37, 10, 45, 5.0),
+    ]
+    for total_minutes, chunk_minutes, interval_seconds, protect_offset_minutes in cases:
+        seq = chunk_max_ticks_sequence_protecting(
+            total_minutes, chunk_minutes, interval_seconds, protect_offset_minutes
+        )
+        total_ticks = max(1, math.ceil((total_minutes * 60.0) / interval_seconds))
+        assert sum(seq) == total_ticks, (total_minutes, chunk_minutes, interval_seconds)
+        # every chunk after the first is exactly ticks_per_chunk except a shorter last one.
+        tpc = ticks_per_chunk(chunk_minutes, interval_seconds)
+        assert all(t == tpc for t in seq[1:-1])
+        assert 0 < seq[-1] <= tpc
+
+
+def test_chunk_max_ticks_sequence_protecting_release_lands_strictly_inside_chunk_one():
+    seq = chunk_max_ticks_sequence_protecting(
+        total_minutes=125, chunk_minutes=20, interval_seconds=90, protect_offset_minutes=20.0
+    )
+    first_chunk_last_tick_s = (seq[0] - 1) * 90
+    release_s = 20 * 60
+    assert 90 < release_s < first_chunk_last_tick_s - 90  # same margin the hand-verified test checks
+
+
+def test_chunk_max_ticks_sequence_protecting_rejects_instant_at_or_past_window_end():
+    with pytest.raises(ValueError):
+        chunk_max_ticks_sequence_protecting(
+            total_minutes=60, chunk_minutes=20, interval_seconds=90, protect_offset_minutes=60.0
+        )
+    with pytest.raises(ValueError):
+        chunk_max_ticks_sequence_protecting(
+            total_minutes=60, chunk_minutes=20, interval_seconds=90, protect_offset_minutes=75.0
+        )
+
+
+def test_protect_cli_flag_reproduces_the_hand_verified_fomc_recipe(capsys):
+    rc = main([
+        "--start", "2026-07-29T17:40:00Z",
+        "--until", "2026-07-29T19:45:00Z",
+        "--interval", "90",
+        "--chunk-minutes", "20",
+        "--protect", "2026-07-29T18:00:00Z",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "[16, 14, 14, 14, 14, 12]" in out
+    assert "total_ticks=84" in out
+
+
+def test_protect_cli_flag_omitted_keeps_prior_uniform_behavior_unchanged(capsys):
+    rc = main([
+        "--start", "2026-07-29T17:40:00Z",
+        "--until", "2026-07-29T19:45:00Z",
+        "--interval", "90",
+        "--chunk-minutes", "20",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "[14, 14, 14, 14, 14, 14]" in out
 
 
 def test_main_smoke(capsys):

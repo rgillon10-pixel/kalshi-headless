@@ -33,6 +33,12 @@ Given a claim (a CI, a verdict, a measured gap, a completeness statement):
    startup artifacts.
 6. **Check the lessons ledger** (`kb/lessons/00-lessons.md`) — if the claim
    repeats a documented failure mode, cite the lesson ID.
+7. **Attack citations, not just numbers** (L165). A "facts, not new claims"
+   section citing `kb/00-LOG.md`/a finding/a script is a specific, checkable
+   claim — grep the cited artifact and confirm the number is actually there.
+   A true number cited to the wrong source is still a REFUTED-class defect
+   (fix the citation before it ships); if the real source is a live tool-call
+   result rather than a committed file, the writeup must say so.
 
 Output exactly one verdict: **CONFIRMED** (re-ran, provenance and stats hold —
 state what you re-ran and the numbers you got), or **REFUTED** (state the
