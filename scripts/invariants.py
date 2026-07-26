@@ -1123,6 +1123,108 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
     ])
 
 
+# ─── Hollow crypto-ladder advisory (L168/L169: non-gating, offline-safe) ────────
+
+# 2026-07-26 finding (tape-auditor + verifier, two-agent-confirmed):
+# `tape/orderbook_depth/` can produce a record that is present, well-formed, and tagged
+# `real_ask`/`real_bid` yet completely HOLLOW (`yes_bids=[]`, `no_bids=[]`, `depth=0`) because
+# the fetch reached its ticker after that ticker's own close time. `completeness_ok` (computed
+# in collection/orderbook_depth.py, never persisted to the tape line) cannot see this — a
+# 200-OK empty book is not a fetch failure. `scripts/orderbook_depth_hollow_ladder_audit.py`
+# is the read-only reproducer; this advisory surfaces its per-day crypto hollow rate so a run
+# with 0 usable crypto ladders for a whole day (verified real: 2026-07-23, 2026-07-25) is
+# visible in the one place every run is required to read, not just in a findings/ doc nobody
+# re-opens. Non-gating: the mechanism is a pass-duration/discovery-timing issue outside this
+# script's control, not a data-integrity violation, and a legitimate deep-OTM wing can also be
+# empty (L23) — this is a rate signal for a human to watch, not a correctness assert.
+HOLLOW_CRYPTO_DAY_LOOKBACK = 10
+HOLLOW_CRYPTO_ALERT_FRACTION = 0.5  # a day where >=50% of that day's crypto records are hollow
+_ORDERBOOK_DEPTH_HOLLOW_AUDIT_PATH = ROOT / "scripts" / "orderbook_depth_hollow_ladder_audit.py"
+
+
+def _load_orderbook_depth_hollow_audit(path: Path = _ORDERBOOK_DEPTH_HOLLOW_AUDIT_PATH):
+    """Import scripts/orderbook_depth_hollow_ladder_audit.py by path (scripts/ is not a
+    package). Returns None on ANY failure so this advisory can never poison the gate."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_inv_odh_audit", path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+def _hollow_crypto_ladder_issues(tape_root: Path = ROOT / "tape",
+                                 lookback_days: int = HOLLOW_CRYPTO_DAY_LOOKBACK,
+                                 max_day: Optional[date] = None
+                                 ) -> List[Dict[str, object]]:
+    """Per-day crypto hollow-ladder rate over the most recent `lookback_days` committed
+    `tape/orderbook_depth/dt=*.jsonl` files, restricted to days at/above
+    `HOLLOW_CRYPTO_ALERT_FRACTION`. Read-only, no network. Best-effort: any exception yields [].
+
+    `max_day` (optional) restricts the scan to `dt=<date>.jsonl` files on or before that day —
+    same convention as `_collector_leg_last_seen`'s own `max_day`, so a test pinning a real-tape
+    day-set can freeze the "most recent lookback_days" window and never rot as new tape lands
+    (L140's time-bomb discipline)."""
+    try:
+        mod = _load_orderbook_depth_hollow_audit()
+        if mod is None:
+            return []
+        family_dir = tape_root / "orderbook_depth"
+        if not family_dir.is_dir():
+            return []
+        candidates = sorted(family_dir.glob("dt=*.jsonl"))
+        if max_day is not None:
+            candidates = [p for p in candidates
+                          if p.stem.split("=", 1)[1] <= max_day.isoformat()]
+        wanted_days = {p.stem.split("=", 1)[1] for p in candidates[-lookback_days:]}
+        if not wanted_days:
+            return []
+        records, _ = mod.load_records(family_dir)  # one pass over the directory, not one per day
+        by_day: Dict[str, Dict[str, int]] = {}
+        for rec in records:
+            day = rec["_day"]
+            if day not in wanted_days or not mod.is_crypto_ticker(rec.get("ticker", "")):
+                continue
+            bucket = by_day.setdefault(day, {"total": 0, "hollow": 0})
+            bucket["total"] += 1
+            bucket["hollow"] += mod.is_hollow(rec)
+        issues: List[Dict[str, object]] = []
+        for day in sorted(wanted_days):
+            bucket = by_day.get(day)
+            if not bucket or not bucket["total"]:
+                continue
+            frac = bucket["hollow"] / bucket["total"]
+            if frac >= HOLLOW_CRYPTO_ALERT_FRACTION:
+                issues.append({"day": day, "crypto_total": bucket["total"],
+                               "crypto_hollow": bucket["hollow"], "fraction": frac})
+        return issues
+    except Exception:
+        return []
+
+
+def hollow_crypto_ladder_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """A non-gating advisory naming any recent day where a large share of
+    `tape/orderbook_depth/`'s crypto records are hollow (empty book, fetched post-close or
+    mid-overrun). Pure. NEVER flips the exit code. See kb/lessons/00-lessons.md L168/L169."""
+    if not issues:
+        return None
+    lines = [f"warning (non-gating): {len(issues)} day(s) in "
+             f"tape/orderbook_depth/ have >= {HOLLOW_CRYPTO_ALERT_FRACTION:.0%} of their crypto "
+             f"(KXBTC/KXETH) records HOLLOW (empty book, depth=0) — a 200-OK fetch that reached "
+             f"its ticker after close, not a collector failure `completeness_ok` can see:"]
+    for issue in issues:
+        lines.append(f"  - dt={issue['day']}: {issue['crypto_hollow']}/{issue['crypto_total']} "
+                     f"crypto records hollow ({issue['fraction']:.0%})")
+    lines.append("  Computed from committed tape only via "
+                 "scripts/orderbook_depth_hollow_ladder_audit.py. Advisory only — does NOT "
+                 "affect the exit code. See kb/lessons/00-lessons.md L168/L169.")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -2114,6 +2216,17 @@ def main() -> int:
                 sys.stderr.write(collector_warning + "\n")
         except BaseException:
             sys.stderr.write("note: collector-health advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L168/L169 advisory: tape/orderbook_depth/ crypto records that are present,
+        # well-formed, and HOLLOW (empty book) because the fetch landed after the ticker's
+        # own close — invisible to completeness_ok. Non-gating, same BaseException-wrapped
+        # posture as the collector-health advisory above.
+        try:
+            hollow_warning = hollow_crypto_ladder_warning(_hollow_crypto_ladder_issues())
+            if hollow_warning:
+                sys.stderr.write(hollow_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: hollow crypto-ladder advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.

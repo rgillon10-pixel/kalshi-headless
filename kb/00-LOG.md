@@ -6,6 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~11:0xZ UTC — Idle-run: `tape/orderbook_depth/` hollow crypto-ladder finding (L168/L169)
+
+**What:** queue fully drained again (Q0-Q48; Q48 burst-gated to 07-29), lessons ledger's
+`UNENFORCED` backlog empty (L167), both known time-gated probes (Q19 FOMC, Q37 weather)
+already prepped — idle-run policies (a) and (b) both unavailable, so this run took **policy
+(c): a data-quality deep-dive on one tape family.** Picked `tape/orderbook_depth/`, the
+largest tape family by volume (Q46: ~83% of tape bytes) and one of the two families fed by
+both collector legs.
+
+A `tape-auditor` subagent found something genuinely new: crypto (`KXBTC`/`KXETH`) records in
+this family can be completely **hollow** (`yes_bids=[]`, `no_bids=[]`, `depth=0`) while still
+tagged `real_ask`/`real_bid` and passing every existing validity check — because the fetch
+reached the ticker at or after its own close. `completeness_ok` (computed in
+`collection/orderbook_depth.py`, never persisted to the tape line) can't see this: an empty
+book is a valid HTTP 200, not a fetch failure.
+
+An independent `verifier` subagent then re-derived every number from the raw `.jsonl` files
+and REFUTED the auditor's causal framing — it had attributed the defect to "the cloud
+collector leg degrading" using a hand-rolled minute-of-hour split that silently dropped
+clean records from its own denominator. Using the project's real `tape_gap_monitor.py`
+`collector_bucket()` function instead, and checking an off-schedule cloud-hour capture with
+long runway (0% hollow), showed leg identity and runway-to-close are collinear under the
+current cron schedule — runway-to-close is the actual mechanism, not which leg fetched it.
+The verifier also found two further failure modes the auditor missed: a pass-start
+`captured_at` timestamp that silently backdates late-pass fetches by up to the whole pass
+duration, and hollow records fetched from an already-stale (post-rollover) ticker universe.
+
+**Built:** `scripts/orderbook_depth_hollow_ladder_audit.py`, the read-only reproducer (+27
+offline tests, `tests/test_orderbook_depth_hollow_ladder_audit.py`), and a non-gating
+`scripts/invariants.py::hollow_crypto_ladder_warning` advisory (+9 tests) that now surfaces
+any recent day where >=50% of this family's crypto records are hollow. Both HARD
+real-tape acceptance tests are deliberately **frozen at `dt<=2026-07-25`** (the last
+fully-closed day) rather than pinned to "today" — a live hourly pass grew
+`dt=2026-07-26.jsonl` from 976 to 1,464 crypto lines in the middle of this very run, which
+would have broken an unfrozen pin on its very next execution. Two new lessons, **L168**
+(the mechanism; detection is `test`-enforced, the collector repair itself stays
+`UNENFORCED`/Ryan-gated) and **L169** (the leg-collinearity methodology catch).
+
+**Why it matters:** any future probe joining `orderbook_depth` to `crypto_hourly` (or any
+liquidity/market-making analysis over this family) that doesn't drop `depth==0` crypto
+records, or that trusts `captured_at` as a precise per-record fetch time, will manufacture
+phantom signals — e.g. pairing a live pre-close BBO from `crypto_hourly` with a hollow
+post-close ladder here reads as a "tight quote, zero depth" opportunity that isn't real.
+
+No strategy claim, no P&L, no registry change. Gates: `pytest` 2017 collected (2
+pre-existing `test_q42_funding_estimate_path_inference.py` real-tape-drift failures,
+unrelated); `python scripts/invariants.py --full` exit 0. Paper sub-pass idempotent,
+`s14_ladder_underwriting` ledger unchanged +$19.56 (dead-strategy paper-infra validation,
+not edge evidence). See `findings/2026-07-26-orderbook-depth-hollow-crypto-ladders.md`.
+
+---
+
 ## 2026-07-26 ~06:3xZ UTC — Gate repair: issue #205, `test_recovery_dwell_advisory` acceptance pin fixed (main RED → green)
 
 **What:** the prior nightly run's adversarial review (PR #204) found `main` RED on
