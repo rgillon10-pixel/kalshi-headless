@@ -6,6 +6,50 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-26 ~18:4xZ UTC — Idle-run: L171 formal disposition — `tape_gap_monitor.py` retrospective-list family coverage (L172)
+
+**What:** Full Q0-Q48 re-scan still saturated (Q48 burst-gated to 07-29, everything else
+DONE/BLOCKED/calendar-gated/density-gated, unchanged from the prior several runs) → IDLE RUN.
+Re-derived the open `UNENFORCED` lesson set fresh by whole-word grep tracing every historical
+row to a later `supersedes`/`Formal disposition of` closure — **L171 was the sole open row**
+(the prior run's `tape/hyperliquid_funding/` audit filed it, unbuilt). Idle-run policy (a):
+converted it.
+
+**Built:** `scripts/tape_gap_monitor.py` gained `RETROSPECTIVE_LIST_FAMILIES` (a small explicit
+per-family map — embedded-list key, per-item timestamp key, grid step-size — seeded with
+`hyperliquid_funding`: `prints`/`time_ms`/3600s) and `retrospective_coverage(tape_root, family)`,
+which computes real coverage as the union of every embedded observation timestamp across ALL
+committed `dt=*.jsonl` files instead of day-file presence (which cannot represent this record
+shape — a catch-up pass can backfill an entire missing window into one record on the catch-up
+day). `evaluate_family()` gained an optional `tape_root` parameter (default `None`, backward
+compatible with every existing call site) that attaches the reading to a registered family's
+health record; `build_report()` threads it through automatically. Does not touch the STALE/
+UNDER-CAPTURE alert path — `hyperliquid_funding`'s forward-cadence freeze detection (L127/L128)
+was already correct; this adds a new, structurally-necessary signal for the family's
+*historical* completeness.
+
+**Verified:** live over the real committed tape, `retrospective_coverage()` returns **1,289
+distinct hourly `time_ms` values, 0 missing steps**, while `dt=2026-07-18`..`dt=2026-07-21`
+are independently confirmed still genuinely absent as files — reproducing and closing exactly
+the gap L171 named. New lesson **L172** (formal disposition of L171: `UNENFORCED` → `test`,
+same disposition shape as L163/L166/L167). **The lessons ledger's `UNENFORCED` backlog is
+empty again as of this row.**
+
+No strategy claim, no P&L, no registry change — two-agent rule N/A (monitor/tooling extension,
+not a verdict-class change). Step 0b: fresh `tape_branch_sweep.py` full run, 13 "missing lines"
+hits, all individually re-confirmed benign (8 `cloud-env-check.md` prose-condensation, 5
+already-fixed L142 conflict-marker artifacts) — same 13 as the last several runs, nothing new
+to recover. `pytest -q`: **2025 collected** (`--collect-only -q` summed across 87 files,
+post-edit), 2 pre-existing failures (`test_q42_funding_estimate_path_inference.py`, real-tape-
+drift, byte-identical on base `main` via `git stash`). `python scripts/invariants.py --full`:
+exit 0, same pre-existing non-gating advisory classes (VPS collector leg now 96.8h silent,
+worsening, Ryan-side; no cloud-run fix possible). Step 9: `SHADOW_REGISTRY` =
+`{s14_ladder_underwriting}` (`dead ✗` per Q34, paper-infra-only), `paper_pass.py` idempotent
+(this diff touches no tape), ledger unchanged **+$19.56** (`broker_truth`, 1059 settled, 0
+open). Still **0 proven edges**. See `findings/2026-07-26-l171-retrospective-list-coverage.md`.
+
+---
+
 ## 2026-07-26 ~12:5xZ UTC — Idle-run: `tape/hyperliquid_funding/` data-quality audit + branch-local dedup fix (L170/L171)
 
 **What:** queue still fully drained (Q0-Q48 re-scanned fresh: Q48 burst-gated to 07-29,

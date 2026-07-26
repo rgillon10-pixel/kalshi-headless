@@ -131,6 +131,30 @@ the constant's own comment for the 07-18..20 numbers). For a MAPPED family,
 an UNMAPPED family keeps L118's exact vps/cloud logic (no regression). Both
 expected buckets zero, or both non-zero, still stay unattributed — L118's
 "no false attribution" discipline is preserved.
+
+Retrospective-list family coverage (L171, 2026-07-26)
+-------------------------------------------------------
+Every detector above measures ``dt=`` day-FILE presence/cadence, which assumes
+a family's records are point-in-time observations (one capture, one moment).
+That assumption breaks for a family whose record instead embeds a
+RETROSPECTIVE LIST of historical observations —
+``hyperliquid_funding``'s ``prints[].time_ms`` is the current example: a
+catch-up pass after a freeze backfills the ENTIRE missing window into one
+record on the catch-up day, so the family can show a multi-day hole in
+``dt=`` file presence (``dt=2026-07-18``..``dt=2026-07-21`` absent, the L127
+VPS-freeze window) while its actual historical coverage — the union of every
+``prints[].time_ms`` across ALL committed files — has zero gaps
+(``findings/2026-07-26-hyperliquid-funding-tape-audit.md``). Counting
+day-files as coverage for such a family manufactures a false gap finding.
+``RETROSPECTIVE_LIST_FAMILIES`` names which families carry this shape (the
+embedded list key + per-item timestamp key + the grid's step size);
+``retrospective_coverage()`` computes real coverage — span + missing
+fixed-step slots — over that embedded-timestamp union instead of file
+presence, and ``evaluate_family`` attaches it to a registered family's health
+record (informational; does not feed the STALE/UNDER-CAPTURE alert path,
+which already correctly reads this family via its forward collector cadence
+per L127/L128). A family NOT registered here is unaffected — this is purely
+additive.
 """
 from __future__ import annotations
 
@@ -303,6 +327,16 @@ EXPECTED_COLLECTOR_BUCKETS: Dict[str, Dict[str, str]] = {
 # arises rather than re-deriving the detector.
 JOIN_CRITICAL_ONE_SHOT: Dict[str, Dict[str, Any]] = {}
 
+# Retrospective-list family coverage map (L171, 2026-07-26). See module
+# docstring. ``list_key``: the record field holding the embedded observation
+# list. ``time_key``: the per-item epoch-milliseconds timestamp field.
+# ``step_seconds``: the list's own fixed grid spacing (used only to size the
+# expected-slot count between the observed min/max — never to infer a family
+# NOT registered here).
+RETROSPECTIVE_LIST_FAMILIES: Dict[str, Dict[str, Any]] = {
+    "hyperliquid_funding": {"list_key": "prints", "time_key": "time_ms", "step_seconds": 3600},
+}
+
 # The one benign-silence allowlist entry (see module docstring for full rationale).
 KNOWN_BENIGN_SILENCES: List[Dict[str, str]] = [
     {
@@ -442,6 +476,77 @@ def _family_files(tape_root: Path, family: str) -> List[Tuple[date, Path]]:
             out.append((d, p))
     out.sort(key=lambda t: t[0])
     return out
+
+
+def retrospective_coverage(tape_root: Path, family: str) -> Optional[Dict[str, Any]]:
+    """Real coverage for a retrospective-list family (L171): the union of every
+    embedded per-observation timestamp across ALL of the family's committed
+    ``dt=*.jsonl`` files, NOT ``dt=`` day-file presence — a catch-up pass can
+    backfill a whole missing window into one record on the catch-up day, which
+    file-presence coverage would misread as a gap on the days the collector
+    itself was silent (see module docstring, ``findings/2026-07-26-hyperliquid-
+    funding-tape-audit.md``).
+
+    Returns ``None`` for a family not registered in
+    ``RETROSPECTIVE_LIST_FAMILIES`` — this function makes no claim about a
+    family it wasn't told carries this shape. Malformed/missing embedded
+    timestamps are skipped (never fabricated into the union), mirroring
+    ``extract_completeness``'s "no signal, never a guess" discipline.
+    """
+    cfg = RETROSPECTIVE_LIST_FAMILIES.get(family)
+    if cfg is None:
+        return None
+    list_key = cfg["list_key"]
+    time_key = cfg["time_key"]
+    step_s = cfg["step_seconds"]
+
+    seen_ms: set = set()
+    for _d, path in _family_files(tape_root, family):
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                items = rec.get(list_key)
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    t = item.get(time_key)
+                    if isinstance(t, (int, float)) and not isinstance(t, bool):
+                        seen_ms.add(int(t))
+
+    if not seen_ms:
+        return {
+            "family": family,
+            "n_observations": 0,
+            "span_start": None,
+            "span_end": None,
+            "step_seconds": step_s,
+            "n_missing_steps": None,
+        }
+
+    lo, hi = min(seen_ms), max(seen_ms)
+    step_ms = step_s * 1000
+    n_expected_steps = (hi - lo) // step_ms + 1
+    n_missing = max(0, int(n_expected_steps) - len(seen_ms))
+    return {
+        "family": family,
+        "n_observations": len(seen_ms),
+        "span_start": datetime.fromtimestamp(lo / 1000.0, tz=timezone.utc).isoformat(),
+        "span_end": datetime.fromtimestamp(hi / 1000.0, tz=timezone.utc).isoformat(),
+        "step_seconds": step_s,
+        "n_missing_steps": n_missing,
+    }
 
 
 def _scan_file_max_captured_at(path: Path, now: datetime) -> Optional[datetime]:
@@ -599,8 +704,17 @@ def _benign_match(family: str, newest: Optional[datetime]) -> Optional[Dict[str,
 
 
 def evaluate_family(agg: FamilyAggregate, now: datetime,
-                    window_hours: float = DEFAULT_WINDOW_HOURS) -> Dict[str, Any]:
-    """Turn an aggregate into the machine-readable per-family health record."""
+                    window_hours: float = DEFAULT_WINDOW_HOURS,
+                    tape_root: Optional[Path] = None) -> Dict[str, Any]:
+    """Turn an aggregate into the machine-readable per-family health record.
+
+    ``tape_root``, when given and the family is registered in
+    ``RETROSPECTIVE_LIST_FAMILIES``, attaches the L171 ``retrospective_coverage``
+    reading to the record (informational — file presence stays unused as a
+    coverage signal for this family class; the STALE/UNDER-CAPTURE alert path
+    above is untouched). ``tape_root=None`` (e.g. a caller building a record
+    straight from an aggregate) simply omits it — never fabricated.
+    """
     cfg = FAMILY_CONFIG.get(agg.family, {"interval_h": None, "passes_per_day": None, "kind": "unconfigured"})
     interval_h = cfg["interval_h"]
     ppd = cfg["passes_per_day"]
@@ -692,6 +806,10 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
         if would_alert:
             collector_diagnosis = diagnose_collector(agg.family, collectors)
 
+    retro_coverage = None
+    if tape_root is not None and agg.family in RETROSPECTIVE_LIST_FAMILIES:
+        retro_coverage = retrospective_coverage(tape_root, agg.family)
+
     benign = _benign_match(agg.family, newest) if would_alert else None
     if would_alert and benign is not None:
         alert = False
@@ -727,6 +845,7 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
         "alert_reason": alert_reason,
         "collectors": collectors,
         "collector_diagnosis": collector_diagnosis,
+        "retrospective_coverage": retro_coverage,
     }
 
 
@@ -738,7 +857,7 @@ def build_report(tape_root: Path, now: datetime,
     report: Dict[str, Dict[str, Any]] = {}
     for fam in fam_list:
         agg = aggregate_family(tape_root, fam, now, window_hours)
-        report[fam] = evaluate_family(agg, now, window_hours)
+        report[fam] = evaluate_family(agg, now, window_hours, tape_root=tape_root)
     return report
 
 
