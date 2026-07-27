@@ -6,6 +6,45 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~00:2xZ UTC — Idle-run: stranded-tape recovery (134 lines) + VPS-collector fresh re-check (still dead, 102.9h)
+
+**What:** Full Q0-Q48 re-scan found no eligible numbered item (Q48 burst-gated to 07-29;
+everything else DONE / cred-BLOCKED / calendar- or density-gated) → IDLE RUN. Step 0b's fresh
+`scripts/tape_branch_sweep.py` (198 branches) found 14 "missing lines" hits — 13 the same two
+recurring false-positive classes prior runs already triaged (stale `cloud-env-check.md` prose,
+L142 conflict-marker artifacts on old branches), left untouched, and **1 genuine recovery**:
+`tape/hourly-20260726T2204Z` carried 134 lines absent from `HEAD` across `crypto_hourly` (+2),
+`hyperliquid_funding` (+2), `perp_tape` (+17), `polymarket_macro_pairs` (+15), and
+`sports_pairs` (+98), all `dt=2026-07-26`, union-appended (pure append, 0 malformed JSON).
+
+Policy (a) was unavailable (`UNENFORCED` backlog still empty per L172); policy (b) was already
+covered for the sole open time-gated item (Q48/S55) last run; so this run took **policy (c)**: a
+fresh, independently-derived live re-check of the already-known VPS `:23` collector outage
+(rather than trusting the 2026-07-25 finding as still-current — same discipline as the prior
+07-21/07-22/07-25 re-checks). Result: **still dead, no self-healing.** Newest VPS-signature
+(`captured_at` minute-of-hour 20-29) capture across the four `hourly-dual` families is unchanged
+at `2026-07-22T17:24:00.000505+00:00` — silence is now **102.9h** (tape-derived) / **103.1h**
+(`scripts/invariants.py --full`'s own non-gating collector-health advisory), up from the 61.7h
+the 2026-07-25 finding measured, an unbroken continuation not a new event. `tape_gap_monitor.py
+--no-notify` independently confirms `vps_dead` on all four families; `weather_actuals` (107.1h)
+and `settlement_ledger` (109.7h) remain frozen for the same already-diagnosed reason (VPS is
+their sole writer at the relevant UTC hour). This is Ryan/VPS-side only — no code change, the
+existing L156/L159 advisory infrastructure already surfaces it correctly.
+
+**Gates:** `pytest -q` 2065 collected (88 files, post-edit), 2 pre-existing failures
+(`test_q42_funding_estimate_path_inference.py`, real-tape-drift, byte-identical on base `main`
+via `git stash`). `python scripts/invariants.py --full` exit 0, same pre-existing advisory
+classes (VPS-dead now 103.1h). No verdict, no registry change, two-agent rule N/A. See
+`findings/2026-07-27-stranded-tape-recovery-hourly20260726T2204Z-and-vps-dead-102h.md`.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY`={s14_ladder_underwriting} (`dead ✗` per Q34,
+paper-infra validation only, not edge evidence). `paper_pass.py` processed 11 newly-eligible
+fills off tape committed since the last sub-pass; realized P&L **+$19.56 → +$20.06**
+(`broker_truth`, 1132 settled, 0 open), ledger line appended to `paper/ledger/dt=2026-07-27.jsonl`.
+Still **0 proven edges**.
+
+---
+
 ## 2026-07-26 ~2x:xxZ UTC — Idle-run (policy b): Q48/S55 FOMC-lag probe prepped ahead of its gate (L173-L177)
 
 **What:** Full Q0-Q48 re-scan found no eligible numbered item (Q48 burst-gated to 07-29;
