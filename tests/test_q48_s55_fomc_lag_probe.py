@@ -338,6 +338,100 @@ def test_immediate_reprice_sets_kill_condition_met(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# L180 (closed 2026-07-27): baseline n-adequacy guard + tick-excess epsilon.
+# The stale-window baseline must not be trusted on too few pre-release captures, and the
+# excess-over-tick comparison must not flip on one float ulp. Both are LIVE for the 07-29 firing.
+# --------------------------------------------------------------------------- #
+def _obs(t, k_yes, pm_ask):
+    """Minimal observation dict in the shape analyze_unit consumes (matches L180's demo)."""
+    return {"captured_at": t, "kalshi_yes_price": k_yes, "kalshi_no_price": round(1.0 - k_yes, 4),
+            "poly_ask_signal": pm_ask, "poly_bid_signal": round(pm_ask - 0.01, 4),
+            "raw_gap": k_yes - pm_ask, "normalized_gap": k_yes - pm_ask}
+
+
+def test_thin_pre_release_baseline_is_none_not_true_L180():
+    """L180 core: with n_pre=1 the pre-fraction is confined to {0,1}, so ONE momentarily-tight
+    pre-capture would flip a PERMANENT 6c overround into a 'release-caused' window. The same
+    permanent overround with an ADEQUATE baseline correctly reads False. Only the pre-capture
+    COUNT differs between the two units."""
+    from scripts.q48_s55_fomc_lag_probe import MIN_PRE_CAPTURES_FOR_BASELINE
+    post = [_obs(RELEASE_DT + timedelta(seconds=60 * i), 0.50, 0.44) for i in range(1, 25)]
+    pre1 = [_obs(RELEASE_DT - timedelta(seconds=60), 0.50, 0.50)]        # one tight capture
+    pre_many = ([_obs(RELEASE_DT - timedelta(seconds=60 * (23 - i)), 0.50, 0.44)
+                 for i in range(22)] + pre1)                              # standing overround
+    u1 = analyze_unit(pre1, post, RELEASE_DT)
+    um = analyze_unit(pre_many, post, RELEASE_DT)
+    assert MIN_PRE_CAPTURES_FOR_BASELINE == 2
+    assert u1["n_pre_captures"] == 1
+    assert u1["thin_baseline"] is True
+    assert u1["has_persistent_stale_window"] is None       # was True before the L180 fix
+    assert um["thin_baseline"] is False
+    assert um["has_persistent_stale_window"] is False       # adequate baseline sees the standing overround
+
+
+def test_thin_baseline_is_counted_and_excluded_from_persistent_L180(tmp_path):
+    """A covering burst whose only pre-release capture is ONE pass -> its persistent-looking unit
+    is thin-baselined out of `n_units_with_persistent_stale_window` and surfaced as thin, both in
+    kill_condition and at the report header. Biases toward the KILL (stated)."""
+    shocked_poly = {"cut_50plus": 0.02, "cut_25": 0.80, "no_change": 0.12,
+                    "hike_25": 0.03, "hike_50plus": 0.02}
+    tape = tmp_path / "tape"
+    _burst_tape(tape, n_pre=1, post_kalshi_by_step=[FLAT_K] * 6, post_poly=[shocked_poly] * 6)
+    rep = run_probe(tape, release_ts=RELEASE)
+    assert rep["status"] == "ANALYSIS"
+    kc = rep["kill_condition"]
+    assert kc["n_units_thin_baseline"] >= 1
+    assert rep["n_units_thin_baseline"] == kc["n_units_thin_baseline"]   # surfaced at header too
+    assert rep["min_pre_captures_for_baseline"] == 2
+    unit = rep["bursts"][0]["units"][f"{MEETING}|cut_25"]
+    assert unit["n_pre_captures"] == 1 and unit["thin_baseline"] is True
+    assert unit["has_persistent_stale_window"] is None            # thin -> unmeasurable, not True
+    # absolute (unbaselined) persistence is still visible for a reader who wants it
+    assert unit["has_persistent_stale_window_absolute_unbaselined"] is True
+    assert kc["n_units_with_persistent_stale_window"] == 0        # thin unit excluded
+
+
+def test_excess_epsilon_admits_a_genuine_one_tick_widening_lost_to_float_dust_L180():
+    """L180 second residual: `excess_max` is a difference of (|gap|-fee) floats. A genuine
+    one-tick widening can land at 0.00999999999999995 (one tick minus float dust); a bare `>=`
+    wrongly REJECTS it and the headline persistent-unit count flips on one ulp. The epsilon
+    admits it. Constructed so the excess is provably JUST below a full tick."""
+    from scripts.q48_s55_fomc_lag_probe import STALE_WINDOW_MIN_EXCESS_DOLLARS
+    R = RELEASE_DT
+    # pre: one row defines pre_max (poly 0.47, gap-net-fee ~ +tick above nothing) + three below-fee
+    #      rows so the pre >fee-fraction stays below post's; post: three >fee rows spanning >60s.
+    pre = ([_obs(R - timedelta(seconds=240), 0.50, 0.47)]
+           + [_obs(R - timedelta(seconds=60 * (3 - j)), 0.50, 0.50) for j in range(3)])
+    post = [_obs(R + timedelta(seconds=60 * s), 0.50, 0.46) for s in (1, 2, 3)]
+    u = analyze_unit(pre, post, R)
+    e = u["excess_max_abs_gap_net_fee"]
+    assert u["thin_baseline"] is False                       # adequate baseline (n_pre=4)
+    assert u["has_persistent_stale_window_absolute_unbaselined"] is True
+    assert (u["excess_frac_gap_net_fee_positive"] or 0) > 0
+    # the excess is a GENUINE one tick lost to float dust: strictly below the bare threshold ...
+    assert e < STALE_WINDOW_MIN_EXCESS_DOLLARS
+    assert 0 < STALE_WINDOW_MIN_EXCESS_DOLLARS - e < 1e-9
+    # ... which a bare `>=` would reject (-> None/False) but the epsilon correctly admits.
+    assert u["has_persistent_stale_window"] is True
+
+
+def test_excess_epsilon_still_rejects_a_clear_subtick_widening_L180():
+    """The epsilon is float-dust-sized, not a free half-tick: a widening clearly under a tick
+    (0.005) is still NOT a persistent stale window."""
+    R = RELEASE_DT
+    # pre_max defined by poly 0.44 (gap-net-fee 0.04); post at poly 0.435 (gap-net-fee 0.045) ->
+    # excess ~ 0.005, half a tick, clearly below the epsilon-widened threshold.
+    pre = ([_obs(R - timedelta(seconds=240), 0.50, 0.44)]
+           + [_obs(R - timedelta(seconds=60 * (3 - j)), 0.50, 0.50) for j in range(3)])
+    post = [_obs(R + timedelta(seconds=60 * s), 0.50, 0.435) for s in (1, 2, 3)]
+    u = analyze_unit(pre, post, R)
+    assert u["thin_baseline"] is False
+    assert u["has_persistent_stale_window_absolute_unbaselined"] is True   # an absolute >fee run exists
+    assert (u["excess_max_abs_gap_net_fee"] or 0) < 0.01 - 1e-6   # clearly sub-tick excess
+    assert u["has_persistent_stale_window"] is False
+
+
+# --------------------------------------------------------------------------- #
 # (d) n_bursts >= MIN_BURSTS_FOR_CI -> bootstrap runs, unit is the BURST
 # --------------------------------------------------------------------------- #
 def test_non_covering_bursts_never_enter_the_bootstrap(tmp_path):

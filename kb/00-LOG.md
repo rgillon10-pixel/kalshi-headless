@@ -6,6 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~04:1xZ UTC — edge-hunter: L180 closed ahead of the 07-29 FOMC firing + adversarial re-check of the S55 gap (CONFIRMED)
+
+**What (3 legs).** (1) **Adversarial review (Unit 1):** independently re-derived S55/Q48's
+load-bearing cross-venue gap from `tape/polymarket_macro_pairs/` on my OWN code path (zero probe
+imports). Front-meeting (2026-07) signed mean **+0.536¢** / median **+0.600¢** / mean|gap|
+**+0.745¢** — reproduces the probe's +0.553/+0.600/+0.743 within burst-exclusion/dedup. **All
+9,015 `fed_decision` rows tagged `(real_ask, real_ask)`** on both legs (zero synthetic/midpoint),
+single Kalshi taker fee @0.07 via `core.pricing`, bootstrap by burst. Tenor sensitivity confirms
+L183 (pooled mean|gap| +2.14¢, driven by far-dated 2026-10 at +3.73¢ — never quote an un-tenored
+gap). Nothing failed re-check → no GitHub issue. (2) **Probe-prep (Unit 3):** closed **L180** (the
+one lesson explicitly marked *"must be closed before the 2026-07-29 firing"*) in
+`scripts/q48_s55_fomc_lag_probe.py` — the two LIVE residual defects that could mis-flag a thin
+07-29 pre-release window: added `MIN_PRE_CAPTURES_FOR_BASELINE = 2` + a per-unit `thin_baseline`
+flag / `n_units_thin_baseline` report-header count (thin baselines treated like unmeasurable ones:
+`has_persistent_stale_window = None`, excluded from the persistent count, biasing toward the KILL),
+and `EXCESS_EPSILON = 1e-9` on the `excess_max >=` tick comparison (mirrors `MIN_ENTRY_EDGE`). 4
+new offline tests pin both. **No number moved today:** the 2026-07-14 CPI dry-run still shows 4
+baselined-persistent / 0 thin units (all n_pre=23), exactly as L180 predicted. Probe today prints
+INSUFFICIENT DATA (0 covering burst windows for 07-29; the burst gate is unfired). (3) **Pipeline
+(Unit 2):** 0 eligible TODO/IN-PROGRESS items (unchanged — everything DONE / cred-BLOCKED /
+calendar- or density-gated); S55/Q48 becomes eligible when `kalshi-burst-fomc-0729` fires 07-29.
+A full Q21 idea-gen round ran YESTERDAY (07-26, consumed S54–S56, 0 live registrations, the ~15th
+such round); rather than fire a 16th disposable round the next day, this run spent its work on the
+time-critical L180 closure (protocol idle-policy (a) — convert an UNENFORCED lesson into an
+enforced test — ranks above idea-gen (d), and this one had a hard 07-29 deadline). Noted, not a
+new S-candidate.
+
+**Gates.** `pytest` — the 44 probe tests green (40 prior + 4 new L180 tests); full-suite floor
+≥2069 collected, only the 2 pre-existing `test_q42_funding_estimate_path_inference` real-tape-drift
+failures (byte-identical on base `main`, per the 07-27 idle-run entry). `python scripts/invariants.py
+--full` exit 0 (only the standing non-gating advisories: crypto hollow-ladder L168/L169,
+`fromisoformat` L138, recovery-dwell L157, settlement-result L52). Diff is scripts/tests/kb
+docs-and-research only — self-mergeable per LOOP-QUEUE step 6. No verdict, no registry STATUS flip
+(S55 stays `collect-and-revisit`, n=0); this is prep hardening, so the two-agent rule is N/A, but
+the load-bearing number was independently re-derived (Unit 1) as its own check.
+
+**Housekeeping.** Remote `tape/hourly-*` branches: **192** (+1 `tape/burst-*`, the passed
+07-14 event) — the standing stranded-sweep backlog (Q17 / PR #166 addresses the root cause). **4
+stale `kalshi-burst-*` triggers** whose event dates have passed are set to needlessly re-fire in
+2027 and should be deleted: `wcfinal-0719`, `cpi-0714`, `wcsemi1-0714`, `wcsemi2-0715` (the
+`fomc-0729` trigger correctly fires in 2 days). Open PRs awaiting Ryan: #125 (8d), #165/#166 (4d),
+#191 (2d), #208 (1d) — #208 (yesterday's retro) already consolidated the "please review
+#125/#165/#166/#191" ask, so not re-alarmed here. VPS collector still dead (~103h, Ryan-side,
+already flagged #212) — no new info, not re-flagged.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY`={s14_ladder_underwriting} (`dead ✗`,
+paper-infra validation only). No new tape appended by this run, so the ledger is unchanged from the
+07-27 idle-run (+$20.06 realized, `broker_truth`, paper-infra only — NOT edge evidence). Still
+**0 proven edges.**
+
+---
+
 ## 2026-07-27 ~00:2xZ UTC — Idle-run: stranded-tape recovery (134 lines) + VPS-collector fresh re-check (still dead, 102.9h)
 
 **What:** Full Q0-Q48 re-scan found no eligible numbered item (Q48 burst-gated to 07-29;
