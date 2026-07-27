@@ -6,6 +6,103 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~05:5xZ UTC — IDLE RUN (policy a): L180 CLOSED before the 07-29 FOMC firing + step-0b sweep hardened (13 false positives) + 1,798-line recovery
+
+**What:** Full Q0-Q48 rescan found **0 eligible TODO/IN-PROGRESS** items (all DONE /
+cred-or-auth-BLOCKED [Q32/Q33/Q42-pt3/Q47] / calendar-gated [Q19 FOMC 07-29, Q37 ~08-05] /
+density-gated [Q36, Q43]; Q24's topmost `Status: TODO` line is stale — its own second line records
+DONE/DEAD-by-data-adequacy) → **IDLE RUN, policy (a)**: convert an `UNENFORCED` lesson into
+enforcement. Policy (a) was available *contrary to the prior run's claim* — see the L193 note below.
+
+**Unit 1 (primary): L180 CLOSED.** `scripts/q48_s55_fomc_lag_probe.py` (the S55/Q48 FOMC probe that
+fires live 2026-07-29T17:40Z) — both named residuals repaired plus three verifier-found defects:
+`MIN_PRE_CAPTURES_FOR_BASELINE = 5` with a per-unit `thin_baseline` / `stale_window_baseline_adequate`
+pair (thin units join the existing unmeasurable `None` class and are counted in a new
+`n_units_with_thin_stale_window_baseline` that PARTITIONS the `None` flags with
+`n_units_stale_window_baseline_unmeasurable`; the value 5 is justified in-code — max of n draws ≈ the
+n/(n+1) quantile, 0.20 fraction resolution, and reachable by design since the 07-29 burst opens 17:40Z
+at 90s against an 18:00Z statement ⇒ ~13 expected pre-passes, 2.6× the floor), and
+`STALE_WINDOW_EXCESS_EPSILON = 1e-9` on the threshold side. **The headline moves:
+`n_units_with_persistent_stale_window` 4 → 3** on the 2026-07-14 CPI dry-run, solely via
+`2026-10|cut_25`. Verifier-found and repaired: **(2A)** the "one ulp / float dust" justification was
+**FALSE**; **(2B)** the report surface still asserted `>= 1 tick` semantics the code no longer
+implemented; **(3)** a **vacuous-kill surface** — with every unit thin, `kill_condition_met` returned a
+hard `True` ("S55 is dead") from zero measurable evidence; it is now `None`. Tests **40 → 51**.
+
+**CORRECTION to this file's own 2026-07-26 entry (`kb/00-LOG.md:133`, left in place per append-only;
+this supersedes it).** That entry frames the epsilon residual as "a missing epsilon on the
+`excess_max >= 0.01` stale-window comparison (`2026-10|cut_25` clears at `0.010000000000000009` off a
+`pre_max` of `-5.2e-18`)" — i.e. the same float-dust class as `MIN_ENTRY_EDGE`. **That framing is
+wrong.** That unit's excess is **exactly one tick in exact arithmetic** (`pre: kalshi 0.11 / poly 0.12
+→ |gap| 0.01`, `fee_per_contract(0.11) = 0.01` → net `0.00`; `post: 0.11 / 0.09 → 0.02 − 0.01 = 0.01`;
+`Decimal('0.01') − Decimal('0.00') = 0.01`), carrying **5.0 ulps** of margin — and it still clears with
+`pre_max` forced to exactly `0.0` (2.0 ulps). Repro (2026-07-27):
+`python3 -c "import math;u=math.ulp(0.01);post=0.010000000000000004;pre=-5.204170427930421e-18;print(round(((post-pre)-0.01)/u,2),'ulps'); print(post-0.0>=0.01, round((post-0.01)/u,2))"`
+→ `5.0 ulps` / `True 2.0`. So the 4 → 3 move is a **deliberate rule tightening** from `>= 1 tick` to
+`> 1 tick`, NOT a de-dusting: under the documented `>= 1 tick` rule the answer was and remains **4**
+(measured counterfactual, 2026-07-27: shipped/strict **3**, bare `>=` **4**, tolerant **4**). The
+direction is kill-biased on purpose (`kill_condition_met = reprices_fast and no_persistent`, so
+`has_persistent_stale_window = True` is the alive-favouring outcome). Recorded as **L186**.
+
+**Unit 2 (step 0b hardening).** `scripts/tape_branch_sweep.py`: this run's sweep reported "13 branches
+carry genuinely MISSING lines" — **all 13 were false positives**, and following step 0b literally would
+have **corrupted committed tape**. Class A: 8 branches × edited prose in `tape/cloud-env-check.md` (a
+`.md`, not an append-only day-file). Class B: 5 branches × unresolved git conflict markers
+(`<<<<<<< HEAD` / `=======` / `>>>>>>> 58145d7 (tape: hourly pass 2026-07-18T09:30:28Z (vps))`)
+committed into `tape/anomalies/dt=2026-07-18.jsonl` and `tape/econ_prints/dt=2026-07-18.jsonl` (`main`
+is clean, `grep -c` → 0). Guards: line-set recovery restricted to append-only capture files, and
+non-JSON-object candidates reclassified as `corrupt_lines` with conflict markers named explicitly. A
+verifier then found the FIRST whitelist was itself a **recall hole** — blind to the real committed
+shapes `tape/sports_pairs/dt=<date>/pass-<ts>.jsonl` and `_manifest.jsonl` (the latter genuinely
+append-mode per `collection/capture_orderbooks.py:205`); fixed and validated shape-by-shape against
+`git ls-tree -r HEAD tape` (**13,656 blobs**). Tests **31 → 60**.
+
+**Unit 3 (step 0b recovery).** `tape/hourly-20260727T0356Z` (committed 2026-07-27T04:03:55Z) landed
+mid-run: **1,798 lines union-appended across 8 files**, all a brand-new tape day absent from `main` —
+`crypto_hourly +2`, `hyperliquid_funding +2`, `orderbook_depth +987`, `perp_tape +17`,
+`polymarket_macro_pairs +15`, `sports_pairs +186`, `weather_books +542`, `weather_books/meta +47`.
+1798/1798 parse as JSON objects, 0 malformed, 0 conflict markers, result byte-identical to the branch
+blobs. Post-append sweep: 0 genuinely missing.
+
+**Step 9 (paper sub-pass) — INFRA-VALIDATION ONLY, NOT edge evidence.**
+`SHADOW_REGISTRY = ['s14_ladder_underwriting']` (**proven DEAD at real queue fills by Q34**).
+`scripts/paper_pass.py`: 0 processed, 154 deferred(caps), 266 deferred(coverage), 146 already-in-ledger;
+`daily_summary()` = `paper: 0 open position(s), 1132 settled contract(s), realized P&L $+20.06, cash
+$+20.06, open notional $0.00`. Idempotent no-op, no new ledger lines. That P&L is not evidence of edge.
+
+**Gates (fresh, verifier-retaken after the last code change):** `pytest -q` → 2105 collected across 88
+files, **2103 passed / 2 failed**, both `tests/test_q42_funding_estimate_path_inference.py` (real-tape
+drift, **PRE-EXISTING on base `main`**, unrelated — 8 prior runs recorded the same pair).
+`python scripts/invariants.py --full` → **exit 0**, "invariants: all green" (non-gating advisories only).
+
+**Verification:** two independent verifier rounds. Round 1 **CONFIRMED-WITH-CAVEATS** → the 3 defects
+above (2A/2B/3); round 2 **CONFIRMED**, "safe to fire on 2026-07-29: **YES**", after 11 adversarial
+cases beyond the producer's. Two-agent rule SATISFIED.
+
+**No registry change** — S55 stays `collect-and-revisit`, no CI, no verdict, `kb/strategies/00-index.md`
+untouched. **Still 0 proven edges.**
+
+**Lessons L185-L193:** **L185** (L180's formal disposition: CLOSED, and the epsilon is a rule
+tightening `>= 1 tick` → `> 1 tick`, not a de-dusting); **L186** (superseding retraction of L180's own
+float-dust diagnosis — exactly one tick, 5.0 ulps of margin); **L187** (an "ulp accident"/"float dust"
+claim is itself a MEASUREMENT — publish the ulp margin AND the `Decimal` value; extends L177 from
+magnitudes to float-fragility claims); **L188** (a retraction is complete only when every artifact in
+the citation chain is corrected — grep the repo, and the chain runs BACKWARDS into the ledger row that
+motivated the fix); **L189** (an n-adequacy FLOOR does not remove vacuity, it RELOCATES it — an
+"absence of evidence" statistic must be gated on the count of units that COULD have produced evidence);
+**L190** (line-set containment is valid only for append-only files with unique per-line capture
+identity, eligibility by FILENAME SHAPE not directory depth); **L191** (a "missing" line that is not a
+JSON object is CORRUPTION, not recoverable tape — different operator action); **L192** (a filename
+whitelist is a RECALL decision, not a safety decision — validate against `git ls-tree`, and every
+exclusion reason must be TRUE OF THAT SHAPE); **L193** (**L152 recurrence** — policy-(a) availability
+must be re-derived every run: the ~00:2xZ run cited L172's "backlog empty" from PR #210, which predates
+PR #211's `UNENFORCED` **L180**, a row that named itself the next policy-(a) candidate with a hard
+07-29 deadline; 23 rows carried the `**UNENFORCED**` marker before this run's own were appended).
+L185/L186/L189/L190/L191/L192 are `test`-enforced by named tests; L187/L188/L193 record their honest
+terminal/unenforced state with the reason.
+
+---
+
 ## 2026-07-27 ~00:2xZ UTC — Idle-run: stranded-tape recovery (134 lines) + VPS-collector fresh re-check (still dead, 102.9h)
 
 **What:** Full Q0-Q48 re-scan found no eligible numbered item (Q48 burst-gated to 07-29;

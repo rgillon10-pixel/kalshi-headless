@@ -21,11 +21,27 @@ standing overround is not a release-caused lag) with an UNMEASURABLE baseline re
 the magnitude-qualified companion to the magnitude-blind first-move statistic, advisory burst
 CADENCE qualification, and the two empty-population guards (zero units -> kill_condition_met
 None, not a vacuous True; zero priced observations -> INSUFFICIENT DATA, never ANALYSIS).
+
+L180 closure (2026-07-27) adds the two numerical-adequacy properties of the BASELINE itself:
+a THIN pre-release baseline (1 <= n_pre < MIN_PRE_CAPTURES_FOR_BASELINE) is unmeasurable-class
+(None) and can never create a persistent-stale-window count, and the excess-over-baseline tick
+test is TIGHTENED from `>= 1 tick` to `> 1 tick` (an exactly-one-tick excess is scored to the
+kill side). NOTE, because the first version of this file said otherwise: the unit that
+tightening drops (`2026-10|cut_25`, 2026-07-14 CPI dry-run) was NOT float dust — its excess is
+exactly one tick in exact arithmetic with 5.0 ulps of float margin, and under the documented
+`>= 1 tick` rule the answer was and remains 4.
+
+Verifier round 3 (2026-07-27) adds the third property, which the FLOOR itself created: an
+n-adequacy floor relocates vacuity rather than removing it, so `no_persistent_stale_window` /
+`kill_condition_met` are None whenever ZERO units carry a measurable baseline — a hard kill may
+never be fired from a population in which nothing was measurable.
 """
 import json
+import math
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -39,6 +55,9 @@ from scripts.q48_s55_fomc_lag_probe import (
     MIN_BURSTS_FOR_CI,
     MIN_ENTRY_EDGE,
     MIN_PASSES_PER_BURST_WINDOW,
+    MIN_PRE_CAPTURES_FOR_BASELINE,
+    STALE_WINDOW_EXCESS_EPSILON,
+    STALE_WINDOW_MIN_EXCESS_DOLLARS,
     analyze_unit,
     build_observations,
     covering_release,
@@ -137,9 +156,15 @@ def _sparse_tape(tape_dir: Path, n_passes=6):
 
 
 def _burst_tape(tape_dir: Path, *, release=RELEASE_DT, post_kalshi_by_step=None,
-                post_poly=None, n_pre=3, cadence_s=90, day_offset_days=0):
+                post_poly=None, n_pre=MIN_PRE_CAPTURES_FOR_BASELINE, cadence_s=90,
+                day_offset_days=0):
     """A covering burst window: `n_pre` passes at 90s cadence before the release and
-    len(post_kalshi_by_step) passes after it."""
+    len(post_kalshi_by_step) passes after it.
+
+    `n_pre` defaults to `MIN_PRE_CAPTURES_FOR_BASELINE` so the DEFAULT fixture has an ADEQUATE
+    stale-window baseline (L180) and its `has_persistent_stale_window` is a real True/False.
+    Tests that want the thin-baseline path pass `n_pre` below the floor explicitly — never by
+    accident, which is exactly how the defect shipped."""
     recs = []
     for i in range(n_pre, 0, -1):
         recs.extend(_pass(release - timedelta(seconds=cadence_s * i) +
@@ -614,14 +639,16 @@ def test_subtick_candidates_are_reported_by_run_probe(tmp_path):
 def test_stale_window_is_baselined_against_the_units_own_pre_release_gap():
     """A unit that ALREADY carried a >fee cross-venue gap before the release has not been
     dislocated BY the release: the absolute flag fires, the baselined one does not."""
-    base = datetime(2026, 7, 29, 17, 55, tzinfo=UTC)
+    base = datetime(2026, 7, 29, 17, 50, tzinfo=UTC)
 
     def row(when, k_yes=0.30, pm=0.50):
         return {"captured_at": when, "kalshi_yes_price": k_yes, "kalshi_no_price": 0.72,
                 "poly_ask_signal": pm, "poly_bid_signal": pm - 0.005,
                 "raw_gap": k_yes - pm, "normalized_gap": -0.2}
 
-    pre = [row(base + timedelta(seconds=90 * i)) for i in range(3)]
+    # an ADEQUATE baseline (>= MIN_PRE_CAPTURES_FOR_BASELINE, L180), so the flag under test is a
+    # genuine False rather than the unmeasurable-class None a thin baseline would produce
+    pre = [row(base + timedelta(seconds=90 * i)) for i in range(MIN_PRE_CAPTURES_FOR_BASELINE)]
     post = [row(RELEASE_DT + timedelta(seconds=90 * i)) for i in range(1, 5)]
     unit = analyze_unit(pre, post, RELEASE_DT)
     assert unit["has_persistent_stale_window_absolute_unbaselined"] is True
@@ -836,3 +863,342 @@ def test_fabricated_release_list_reaches_the_ci_path_but_is_flagged_not_burst_ca
     assert rep["bootstrap_verdict_admissible"]["admissible"] is False
     assert isinstance(rep["clears_tick_magnitude"], bool)
     assert "bootstrap_statistic" in rep["bootstrap"]
+
+
+# --------------------------------------------------------------------------- #
+# (L180-1) the BASELINE's own n-adequacy guard: a thin pre-period is not a baseline
+# --------------------------------------------------------------------------- #
+def _perm_overround_rows(release, *, n_pre, tight_last_pre):
+    """L180's reproduction fixture, verbatim in shape: an identical PERMANENT 6c cross-venue
+    overround before and after the release, except that the LAST pre-release capture is
+    momentarily tight. With a thick pre-period that lone tight capture is one draw among many;
+    with n_pre=1 it IS the entire baseline."""
+    def row(when, k, p):
+        return {"captured_at": when, "kalshi_yes_price": k, "kalshi_no_price": 1 - k,
+                "poly_ask_signal": p, "poly_bid_signal": p - 0.01,
+                "raw_gap": k - p, "normalized_gap": k - p}
+
+    post = [row(release + timedelta(seconds=60 * i), 0.50, 0.44) for i in range(1, 25)]
+    pre = [row(release - timedelta(seconds=60 * (n_pre - i)), 0.50, 0.44)
+           for i in range(n_pre - 1)]
+    pre.append(row(release - timedelta(seconds=60), 0.50, 0.50 if tight_last_pre else 0.44))
+    return pre, post
+
+
+def test_thin_pre_release_baseline_is_none_never_a_persistent_true():
+    """L180: differencing against a pre-event period does not remove vacuity if the pre-period
+    can be n=1. Identical permanent overround, identical post-release rows: at n_pre=1 the
+    pre-release fraction is confined to {0,1} and the pre-release max is a single draw, so ONE
+    momentarily-tight pre-capture used to flip a standing overround into a 'release-caused
+    dislocation' (the old code returned True here). It must now be the unmeasurable-class None —
+    never True (which would credit the lag thesis), never False (which would assert the opposite
+    on the same inadequate evidence)."""
+    release = datetime(2026, 7, 14, 12, 30, tzinfo=UTC)
+    pre1, post = _perm_overround_rows(release, n_pre=1, tight_last_pre=True)
+    thick, _ = _perm_overround_rows(release, n_pre=23, tight_last_pre=True)
+
+    thin_unit = analyze_unit(pre1, post, release)
+    thick_unit = analyze_unit(thick, post, release)
+
+    assert thin_unit["n_pre_captures"] == 1
+    assert thin_unit["thin_baseline"] is True
+    assert thin_unit["stale_window_baseline_measurable"] is True      # rows exist...
+    assert thin_unit["stale_window_baseline_adequate"] is False       # ...but are not enough
+    assert thin_unit["has_persistent_stale_window"] is None
+    # the absolute (unbaselined) statistic is untouched — the fix removes a CLAIM, not a number
+    assert thin_unit["has_persistent_stale_window_absolute_unbaselined"] is True
+
+    assert thick_unit["n_pre_captures"] == 23
+    assert thick_unit["thin_baseline"] is False
+    assert thick_unit["stale_window_baseline_adequate"] is True
+    assert thick_unit["has_persistent_stale_window"] is False         # standing overround
+    assert thin_unit["min_pre_captures_for_baseline"] == MIN_PRE_CAPTURES_FOR_BASELINE
+
+
+def test_thin_baseline_boundary_is_exactly_min_pre_captures_for_baseline():
+    """One capture below the floor is thin; the floor itself is adequate. Pins the comparison
+    direction so the constant cannot drift into an off-by-one."""
+    release = datetime(2026, 7, 14, 12, 30, tzinfo=UTC)
+    below, post = _perm_overround_rows(release, n_pre=MIN_PRE_CAPTURES_FOR_BASELINE - 1,
+                                       tight_last_pre=True)
+    at, _ = _perm_overround_rows(release, n_pre=MIN_PRE_CAPTURES_FOR_BASELINE,
+                                 tight_last_pre=True)
+    assert analyze_unit(below, post, release)["thin_baseline"] is True
+    assert analyze_unit(below, post, release)["has_persistent_stale_window"] is None
+    assert analyze_unit(at, post, release)["thin_baseline"] is False
+    assert analyze_unit(at, post, release)["has_persistent_stale_window"] is False
+    assert MIN_PRE_CAPTURES_FOR_BASELINE > 1     # the whole point: n=1 is not a baseline
+
+
+def test_thin_baseline_can_never_create_a_persistent_stale_window_count():
+    """The invariant that must hold no matter how the flag is represented: a thin baseline
+    cannot CONTRIBUTE to `n_units_with_persistent_stale_window`. The two None causes (thin vs
+    zero-pre-capture) are counted separately and PARTITION the None flags — no double count, and
+    the pre-existing `n_units_stale_window_baseline_unmeasurable` keeps its original meaning."""
+    units = {
+        "thin": {"has_persistent_stale_window": None, "thin_baseline": True,
+                 "captures_until_first_kalshi_move": 1, "has_pre_release_observation": True},
+        "absent": {"has_persistent_stale_window": None, "thin_baseline": False,
+                   "captures_until_first_kalshi_move": 1, "has_pre_release_observation": False},
+        "real": {"has_persistent_stale_window": True, "thin_baseline": False,
+                 "captures_until_first_kalshi_move": 1, "has_pre_release_observation": True},
+    }
+    kc = kill_condition([{"units": units}])
+    assert kc["n_units"] == 3
+    assert kc["n_units_with_persistent_stale_window"] == 1            # only the real one
+    assert kc["n_units_with_thin_stale_window_baseline"] == 1
+    assert kc["n_units_stale_window_baseline_unmeasurable"] == 1
+    assert (kc["n_units_with_thin_stale_window_baseline"]
+            + kc["n_units_stale_window_baseline_unmeasurable"]
+            + kc["n_units_with_persistent_stale_window"]) <= kc["n_units"]
+    assert kc["min_pre_captures_for_baseline"] == MIN_PRE_CAPTURES_FOR_BASELINE
+    assert "thin" in kc["stale_window_note"].lower()
+    # the partition this test exists to protect, restated against the measurable count
+    assert kc["n_units_with_measurable_stale_window_baseline"] == 1
+
+    # and with EVERY unit thin, the persistent count is 0 — but that 0 is NOT evidence of an
+    # absence: see `test_all_units_unmeasurable_makes_the_kill_none_not_a_vacuous_true`.
+    all_thin = kill_condition([{"units": {"a": units["thin"], "b": dict(units["thin"])}}])
+    assert all_thin["n_units_with_persistent_stale_window"] == 0
+    assert all_thin["n_units_with_thin_stale_window_baseline"] == 2
+    assert all_thin["no_persistent_stale_window"] is None
+
+
+def test_all_units_unmeasurable_makes_the_kill_none_not_a_vacuous_true():
+    """DEFECT 3 — an n-adequacy FLOOR does not remove vacuity, it RELOCATES it.
+
+    Raising `MIN_PRE_CAPTURES_FOR_BASELINE` from 1 to 5 moved units out of the measurable set
+    (into the None class). If the kill still gated on `n_units`, a population in which EVERY
+    unit is None would satisfy `n_persistent == 0` and fire a hard "S55 is dead" from zero
+    measurable evidence. That is live at the 90s burst cadence: a window opening < 7.5 min
+    before the 18:00Z statement leaves every unit below the floor. So the guard must be the
+    count of MEASURABLE units, not the count of units — the same convention `kill_condition`
+    already applies at `n_units == 0`."""
+    thin = {"has_persistent_stale_window": None, "thin_baseline": True,
+            "captures_until_first_kalshi_move": 1, "has_pre_release_observation": True}
+    absent = {"has_persistent_stale_window": None, "thin_baseline": False,
+              "captures_until_first_kalshi_move": 1, "has_pre_release_observation": False}
+
+    all_thin = kill_condition([{"units": {"a": thin, "b": dict(thin)}}])
+    assert all_thin["n_units"] == 2
+    assert all_thin["n_units_with_measurable_stale_window_baseline"] == 0
+    assert all_thin["reprices_within_one_capture"] is True     # the OTHER component still fires
+    assert all_thin["no_persistent_stale_window"] is None
+    assert all_thin["kill_condition_met"] is None
+
+    # the zero-pre-capture None class behaves identically, and so does a mix of the two
+    all_absent = kill_condition([{"units": {"a": absent, "b": dict(absent)}}])
+    assert all_absent["no_persistent_stale_window"] is None
+    assert all_absent["kill_condition_met"] is None
+    mixed_none = kill_condition([{"units": {"a": thin, "b": absent}}])
+    assert mixed_none["n_units_with_measurable_stale_window_baseline"] == 0
+    assert mixed_none["kill_condition_met"] is None
+
+    # ...and ONE measurable unit is enough to make the statement again — the guard is not a
+    # blanket disabling of the kill
+    measurable = {"has_persistent_stale_window": False, "thin_baseline": False,
+                  "captures_until_first_kalshi_move": 1, "has_pre_release_observation": True}
+    revived = kill_condition([{"units": {"a": thin, "b": dict(thin), "c": measurable}}])
+    assert revived["n_units_with_measurable_stale_window_baseline"] == 1
+    assert revived["no_persistent_stale_window"] is True
+    assert revived["kill_condition_met"] is True
+
+
+def test_all_thin_baseline_run_reports_no_kill_verdict_end_to_end(tmp_path):
+    """The Defect-3 guard on the REPORT surface, not just on the aggregator: a whole burst whose
+    every unit has a 1-capture baseline reaches ANALYSIS but must not print a kill."""
+    shocked_poly = {"cut_50plus": 0.02, "cut_25": 0.80, "no_change": 0.12,
+                    "hike_25": 0.03, "hike_50plus": 0.02}
+    tape = tmp_path / "tape"
+    _burst_tape(tape, n_pre=1, post_kalshi_by_step=[FLAT_K] * 6, post_poly=[shocked_poly] * 6)
+    kc = run_probe(tape, release_ts=RELEASE)["kill_condition"]
+    assert kc["n_units"] == 5
+    assert kc["n_units_with_thin_stale_window_baseline"] == 5
+    assert kc["n_units_with_measurable_stale_window_baseline"] == 0
+    assert kc["no_persistent_stale_window"] is None
+    assert kc["kill_condition_met"] is None
+
+
+def test_dry_run_headline_units_stay_measurable_under_the_defect_3_guard():
+    """The guard must not touch the 2026-07-14 CPI dry-run: all 15 units carry n_pre=23, so the
+    measurable count equals the unit count and the headline is unchanged."""
+    units = {f"u{i}": {"has_persistent_stale_window": i < 3, "thin_baseline": False,
+                       "captures_until_first_kalshi_move": 1,
+                       "has_pre_release_observation": True} for i in range(15)}
+    kc = kill_condition([{"units": units}])
+    assert kc["n_units"] == 15
+    assert kc["n_units_with_measurable_stale_window_baseline"] == 15
+    assert kc["n_units_with_persistent_stale_window"] == 3
+    assert kc["no_persistent_stale_window"] is False
+    assert kc["kill_condition_met"] is False
+
+
+def test_run_probe_surfaces_the_thin_baseline_count_in_the_report_header(tmp_path):
+    """The fact has to be visible on the report surface, not just inside a unit dict: a run whose
+    every unit has a 1-capture baseline must say so in the header block, in the kill-condition
+    block, and in the one-liner that gets pasted into a log."""
+    shocked_poly = {"cut_50plus": 0.02, "cut_25": 0.80, "no_change": 0.12,
+                    "hike_25": 0.03, "hike_50plus": 0.02}
+    tape = tmp_path / "tape"
+    _burst_tape(tape, n_pre=1, post_kalshi_by_step=[FLAT_K] * 6, post_poly=[shocked_poly] * 6)
+    rep = run_probe(tape, release_ts=RELEASE)
+
+    assert rep["status"] == "ANALYSIS"
+    assert rep["min_pre_captures_for_baseline"] == MIN_PRE_CAPTURES_FOR_BASELINE
+    assert rep["stale_window_excess_epsilon"] == STALE_WINDOW_EXCESS_EPSILON
+    kc = rep["kill_condition"]
+    assert kc["n_units"] == 5
+    assert kc["n_units_with_thin_stale_window_baseline"] == 5
+    assert kc["n_units_with_persistent_stale_window"] == 0
+    # the ABSOLUTE statistic still sees the dislocation — nothing was hidden, only un-claimed
+    assert kc["n_units_with_persistent_stale_window_absolute_unbaselined"] >= 1
+    assert all(u["thin_baseline"] is True for u in rep["bursts"][0]["units"].values())
+    assert "thin baseline=5" in human_one_liner(rep)
+
+    # the SAME tape with an adequate baseline does produce the claim -> the guard is not a no-op
+    tape2 = tmp_path / "tape2"
+    _burst_tape(tape2, n_pre=MIN_PRE_CAPTURES_FOR_BASELINE,
+                post_kalshi_by_step=[FLAT_K] * 6, post_poly=[shocked_poly] * 6)
+    rep2 = run_probe(tape2, release_ts=RELEASE)
+    assert rep2["kill_condition"]["n_units_with_thin_stale_window_baseline"] == 0
+    assert rep2["kill_condition"]["n_units_with_persistent_stale_window"] >= 1
+
+
+# --------------------------------------------------------------------------- #
+# (L180-2) the excess-over-baseline tick test needs an explicit epsilon
+# --------------------------------------------------------------------------- #
+def _excess_unit(release, pre_prices, post_prices):
+    """A unit whose pre/post gap_net_fee values are chosen off the 1c grid so the excess lands
+    on a named float. `*_prices` are (kalshi_yes, polymarket_ask) pairs."""
+    def rows(start, prices, n):
+        k, p = prices
+        return [{"captured_at": start + timedelta(seconds=90 * i), "kalshi_yes_price": k,
+                 "kalshi_no_price": round(1 - k, 4), "poly_ask_signal": p,
+                 "poly_bid_signal": max(0.0, p - 0.005), "raw_gap": k - p,
+                 "normalized_gap": -0.2} for i in range(n)]
+
+    pre = rows(release - timedelta(seconds=90 * MIN_PRE_CAPTURES_FOR_BASELINE), pre_prices,
+               MIN_PRE_CAPTURES_FOR_BASELINE)
+    post = rows(release + timedelta(seconds=90), post_prices, 3)
+    return analyze_unit(pre, post, release)
+
+
+def test_stale_window_excess_tick_test_has_an_explicit_epsilon():
+    """L180 closure, on the 1c grid: `excess_max` comes out at 0.010000000000000009 — the EXACT
+    value the real `2026-10|cut_25` unit carried on the 2026-07-14 CPI dry-run — and this code
+    drops it. IT IS NOT FLOAT DUST. The justification this file previously carried (an "ulp
+    accident": "one ulp the other way and the same tape reports a different headline") was an
+    INHERITED, never-re-measured claim — L177's citation-chain failure applied to a
+    float-fragility claim. Measured: the excess is EXACTLY one tick in exact arithmetic
+    (`Decimal('0.01') - Decimal('0.00')`), it carries 5.0 ulps of float margin over 0.01, and it
+    still clears one tick with the pre-release max forced to exactly 0.0 (2.0 ulps to spare).
+    What drops it is a deliberate threshold TIGHTENING from `>= 1 tick` to `> 1 tick` — the
+    epsilon moves the boundary case, it does not de-dust anything. See
+    `test_the_dropped_unit_is_exactly_one_tick_not_float_dust`."""
+    release = RELEASE_DT
+    boundary = _excess_unit(release, (0.01, 0.01), (0.06, 0.07))
+    # the float form is the documented one
+    assert repr(boundary["excess_max_abs_gap_net_fee"]) == "0.010000000000000009"
+    # the documented ">= 1 tick" rule passed on this value, and was RIGHT to under that rule
+    assert boundary["excess_max_abs_gap_net_fee"] > STALE_WINDOW_MIN_EXCESS_DOLLARS
+    assert boundary["has_persistent_stale_window_absolute_unbaselined"] is True
+    assert boundary["stale_window_baseline_adequate"] is True
+    # ...and the tightened "> 1 tick" rule scores it to the kill side
+    assert boundary["has_persistent_stale_window"] is False
+
+    # a genuinely large excess (8c over the baseline) still clears -> the epsilon is not a
+    # blanket kill of the statistic
+    real = _excess_unit(release, (0.01, 0.01), (0.06, 0.15))
+    assert real["excess_max_abs_gap_net_fee"] > STALE_WINDOW_MIN_EXCESS_DOLLARS
+    assert real["has_persistent_stale_window"] is True
+
+
+def test_stale_window_excess_epsilon_is_named_sub_tick_and_kill_biased():
+    """The epsilon must be a NAMED constant (the `MIN_ENTRY_EDGE` pattern, L176/L179), orders of
+    magnitude below one tick so it can never filter an economically real excess, and orders above
+    the ~1e-17 residues this arithmetic produces. Its direction is documented and deliberate: an
+    excess of EXACTLY one tick does not clear, which biases toward the KILL."""
+    assert 0 < STALE_WINDOW_EXCESS_EPSILON < STALE_WINDOW_MIN_EXCESS_DOLLARS / 1e6
+    assert STALE_WINDOW_EXCESS_EPSILON > 1e-15
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "q48_s55_fomc_lag_probe.py").read_text()
+    assert "STALE_WINDOW_MIN_EXCESS_DOLLARS = PRICE_TICK" in src        # threshold unchanged
+    assert "excess_max >= STALE_WINDOW_MIN_EXCESS_DOLLARS\n" not in src  # the bare `>=` is gone
+    assert "biases toward the KILL" in src or "biases toward the kill" in src
+
+    # the exact-one-tick boundary resolves to the kill side, deterministically (not by ulp)
+    exact = _excess_unit(RELEASE_DT, (0.01, 0.02), (0.02, 0.04))
+    assert exact["excess_max_abs_gap_net_fee"] == STALE_WINDOW_MIN_EXCESS_DOLLARS
+    assert exact["has_persistent_stale_window"] is False
+
+
+def test_the_dropped_unit_is_exactly_one_tick_not_float_dust():
+    """The "ulp accident" justification was FALSE, and a claim about float fragility is itself a
+    MEASUREMENT — it must be re-derived at every hop, not inherited (L177 extended).
+
+    Reconstructed from the real `2026-10|cut_25` prices of the 2026-07-14 CPI dry-run
+    (pre: kalshi 0.11 / poly 0.12; post-max: kalshi 0.11 / poly 0.09). In EXACT arithmetic the
+    pre-release max is |0.01| - fee(0.11) = 0.00, the post-release max is |0.02| - fee(0.11) =
+    0.01, and the excess is `Decimal('0.01') - Decimal('0.00')` = exactly ONE TICK. In float it
+    carries 5.0 ulps of margin over 0.01, and even with the pre-release max forced to exactly 0.0
+    it still clears one tick with 2.0 ulps to spare. So it was never one ulp from the boundary:
+    it is dropped by the deliberate `>= 1 tick` -> `> 1 tick` TIGHTENING, not by de-dusting."""
+    unit = _excess_unit(RELEASE_DT, (0.11, 0.12), (0.11, 0.09))
+
+    # (1) the float forms, reproduced exactly from the real prices
+    assert repr(unit["pre_release_max_abs_gap_net_fee"]) == "-5.204170427930421e-18"
+    assert repr(unit["max_abs_gap_net_fee"]) == "0.010000000000000004"
+    assert repr(unit["excess_max_abs_gap_net_fee"]) == "0.010000000000000009"
+
+    # (2) the EXACT arithmetic behind those floats — one tick, not dust
+    assert fee_per_contract(0.11) == 0.01
+    exact_pre = Decimal("0.01") - Decimal("0.01")          # |0.11-0.12| - fee(0.11)
+    exact_post = Decimal("0.02") - Decimal("0.01")         # |0.11-0.09| - fee(0.11)
+    assert exact_pre == Decimal("0.00")
+    assert exact_post == Decimal("0.01")
+    assert exact_post - exact_pre == Decimal(str(STALE_WINDOW_MIN_EXCESS_DOLLARS))
+
+    # (3) the float margin is 5 ulps, and 2 ulps even with pre_max pinned to exactly 0.0 —
+    #     i.e. the outcome under the documented ">= 1 tick" rule is robust, not ulp-decided
+    ulp = math.ulp(STALE_WINDOW_MIN_EXCESS_DOLLARS)
+    margin = (unit["excess_max_abs_gap_net_fee"] - STALE_WINDOW_MIN_EXCESS_DOLLARS) / ulp
+    assert round(margin, 2) == 5.0
+    assert unit["max_abs_gap_net_fee"] - 0.0 >= STALE_WINDOW_MIN_EXCESS_DOLLARS
+    assert round((unit["max_abs_gap_net_fee"] - STALE_WINDOW_MIN_EXCESS_DOLLARS) / ulp, 2) == 2.0
+
+    # (4) and the tightened rule — not a de-duster — is what drops it
+    assert unit["stale_window_baseline_adequate"] is True
+    assert unit["has_persistent_stale_window_absolute_unbaselined"] is True
+    assert unit["has_persistent_stale_window"] is False
+
+    # (5) the retracted claim is GONE from the probe, not merely softened
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "q48_s55_fomc_lag_probe.py").read_text()
+    assert "one ulp the other way" not in src
+    assert "so float dust cannot clear it" not in src
+    assert "gave 4 by ulp" not in src
+    # ...and the corrected statement is present, with the strict-vs-tolerant counterfactual kept
+    assert "DELIBERATE TIGHTENING" in src or "deliberate tightening" in src
+    assert "one full tick in exact arithmetic" in src
+    assert "= 3" in src and "gives 4" in src
+
+
+def test_report_surface_states_the_effective_strictly_greater_than_one_tick_rule():
+    """DEFECT 2B: `stale_window_note` is the ONLY statement of the rule a JSON-report reader
+    sees. It must not advertise `>= 1 tick` while the code enforces `> 1 tick`."""
+    kc = kill_condition([{"units": {"u": {"has_persistent_stale_window": False,
+                                          "thin_baseline": False,
+                                          "captures_until_first_kalshi_move": 1,
+                                          "has_pre_release_observation": True}}}])
+    note = kc["stale_window_note"]
+    assert "STRICTLY MORE THAN ONE TICK" in note
+    assert "EXACTLY one tick is scored to the KILL side" in note
+    assert "> 1 tick" in note
+    assert "by >= 1 tick" not in note          # the superseded wording is gone
+    assert "float dust cannot clear it" not in note
+    # the published strict-vs-tolerant counterfactual survives on the report surface
+    assert "3 units (this code) and 4" in note
+
+    doc = " ".join(__import__("scripts.q48_s55_fomc_lag_probe", fromlist=["x"]).__doc__.split())
+    assert "an excess of EXACTLY one tick does NOT clear" in doc
+    assert "by at least `STALE_WINDOW_MIN_EXCESS_DOLLARS`" not in doc

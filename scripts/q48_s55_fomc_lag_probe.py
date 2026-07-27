@@ -169,13 +169,36 @@ Per (burst window, meeting, bucket) unit, all off `real_ask` quotes:
   and the flag the kill condition consumes, `has_persistent_stale_window`, requires an EXCESS
   over that baseline: the absolute run must clear `STALE_WINDOW_MIN_SECONDS`, AND the
   post-release fraction of >fee captures must exceed the unit's own pre-release fraction, AND
-  the post-release max must exceed the pre-release max by at least
+  the post-release max must exceed the pre-release max by MORE THAN
   `STALE_WINDOW_MIN_EXCESS_DOLLARS` (one tick — a sub-tick "excess" is not a fillable
-  difference, L27). All three components plus the raw absolutes are emitted separately so a
-  reader can disagree with the conjunction. A unit with NO pre-release capture has an
-  UNMEASURABLE baseline: its `has_persistent_stale_window` is None (never True, never False),
-  it is counted in `n_units_stale_window_baseline_unmeasurable`, and it does not contribute to
-  `no_persistent_stale_window` — which biases toward the kill, stated rather than hidden.
+  difference, L27). The comparison is `excess_max >= STALE_WINDOW_MIN_EXCESS_DOLLARS +
+  STALE_WINDOW_EXCESS_EPSILON`, and since BOTH legs quote on a 1c grid the on-grid consequence
+  is simply: an excess of EXACTLY one tick does NOT clear; two ticks does. That is a DELIBERATE
+  TIGHTENING of the originally documented ">= 1 tick" rule (see the constants block for the
+  measured consequence and the rejected alternative) — it is NOT a de-dusting of a float
+  residue, and the one unit it drops on the 2026-07-14 CPI dry-run carried an excess of exactly
+  one tick in exact arithmetic, not dust (L180 closure). All three components plus the raw
+  absolutes are emitted separately so a reader can disagree with the conjunction. A unit with NO
+  pre-release capture has an UNMEASURABLE baseline: its `has_persistent_stale_window` is None
+  (never True, never False), it is counted in `n_units_stale_window_baseline_unmeasurable`, and
+  it does not contribute to `no_persistent_stale_window` — which biases toward the kill, stated
+  rather than hidden.
+
+  THE BASELINE NEEDS ITS OWN n-ADEQUACY GUARD (L180). Differencing against a pre-event period
+  does not remove vacuity if the pre-period can be n=1: with one pre-capture
+  `pre_release_frac_gap_net_fee_positive` is confined to {0, 1} and
+  `pre_release_max_abs_gap_net_fee` is a single draw, so ONE momentarily-tight pre-capture
+  turns a PERMANENT standing cross-venue overround back into a "release-caused
+  dislocation" — the exact failure the
+  baseline exists to prevent (identical fixture, identical post-release rows: `n_pre=1` ->
+  True, `n_pre=23` -> False). A unit with `1 <= n_pre < MIN_PRE_CAPTURES_FOR_BASELINE` is
+  therefore THIN-BASELINED: it carries `thin_baseline = True`, its `has_persistent_stale_window`
+  is None (the SAME unmeasurable-class convention as a zero-pre-capture unit — never True,
+  never False), it is counted in `n_units_with_thin_stale_window_baseline` (reported beside
+  `n_units_stale_window_baseline_unmeasurable`, which keeps its original zero-pre-capture
+  meaning, so the two counts partition the None flags without double-counting), and it can
+  never CREATE a `n_units_with_persistent_stale_window` count. Same kill-biased direction as
+  the unmeasurable case, stated rather than hidden.
 
 Q48's kill condition, emitted as the named field `kill_condition_met`: True iff NO unit showed a
 BASELINED persistent positive gap-net-of-fee window AND the median captures-until-first-move is
@@ -184,6 +207,18 @@ and there is no stale window wide enough to lift. Its two components are printed
 reader can disagree with the conjunction. With ZERO units in scope both
 `no_persistent_stale_window` and `kill_condition_met` are None, never a vacuous boolean: "no
 unit showed a stale window" is not a finding when there were no units.
+
+THE SAME GUARD RUNS ON THE COUNT OF **MEASURABLE** UNITS, NOT THE COUNT OF UNITS. An n-adequacy
+FLOOR does not remove vacuity, it RELOCATES it: raising `MIN_PRE_CAPTURES_FOR_BASELINE` from 1 to
+5 converts thin-baselined units into None-flagged units, and a population in which EVERY unit is
+None would otherwise satisfy `n_persistent == 0` and fire a hard "S55 is dead" off zero
+measurable evidence. So `no_persistent_stale_window` — and therefore `kill_condition_met` — is
+None whenever `n_units_with_measurable_stale_window_baseline == 0`, the same
+None-means-unmeasurable convention this file uses everywhere else. This is LIVE, not
+hypothetical: at the burst's 90s cadence any window that opens < 7.5 min before the 18:00Z
+statement leaves every unit below the floor, and the chunked-commit recipe for
+`kalshi-burst-fomc-0729` (`ops/ROUTINES.md`) is prepared but not yet applied, so a truncated
+window on 2026-07-29 is a real possibility.
 
 ── L28 PRECHECK, AND WHAT L32 DOES *NOT* APPLY TO HERE ──────────────────────────────────────────
 `core.bootstrap.floor_pinned_fraction` runs on the EARLIEST (pre-release) Kalshi asks before the
@@ -303,6 +338,58 @@ MIN_ENTRY_EDGE = PRICE_TICK
 # tick of max gap and by a strictly larger fraction of >fee captures. A permanent cross-venue
 # overround is not a release lag.
 STALE_WINDOW_MIN_EXCESS_DOLLARS = PRICE_TICK
+# ── ...and that comparison carries an EPSILON on the THRESHOLD side, in the family of
+# `MIN_ENTRY_EDGE` on the entry side (L176/L179/L180). READ WHAT IT ACTUALLY DOES, NOT WHAT AN
+# EPSILON USUALLY DOES: because both legs quote on a 1c grid, an on-grid excess is a multiple of
+# 0.01 in intent, and adding 1e-9 to a 0.01 threshold changes exactly ONE outcome — an excess of
+# EXACTLY one tick no longer clears. This is a DELIBERATE TIGHTENING of the rule from ">= 1 tick"
+# to "> 1 tick". It is NOT de-dusting: no float residue is removed by it, because the residues
+# this arithmetic produces (~1e-17..1e-18) never came within 7 orders of magnitude of deciding a
+# 0.01 comparison in the first place.
+# THE ONE UNIT IT DROPS, MEASURED RATHER THAN INHERITED (correcting the "ulp accident" claim this
+# comment carried on 2026-07-27, which propagated through three artifacts unre-measured — the
+# L177 citation-chain failure applied to a float-fragility claim). `2026-10|cut_25` of the
+# 2026-07-14 CPI dry-run has pre-release kalshi 0.11 / poly 0.12 -> |gap| = 0.01 and
+# fee_per_contract(0.11) = 0.01, so its pre-release max is 0.00 and its excess is
+# Decimal('0.01') - Decimal('0.00') = 0.01 EXACTLY — one full tick in exact arithmetic. In float
+# it lands at post_max - pre_max = 0.010000000000000009 (post_max = 0.010000000000000004,
+# pre_max = -5.204170427930421e-18), which carries 5.0 ulps of margin over 0.01; forcing pre_max
+# to exactly 0.0 STILL clears one tick, with 2.0 ulps to spare. It was therefore never one ulp
+# from the boundary and is NOT dust: it is dropped BY THE NEW RULE, not by de-dusting.
+#   python3 -c "import math;u=math.ulp(0.01);post=0.010000000000000004;\
+#     pre=-5.204170427930421e-18;print(round(((post-pre)-0.01)/u,2),'ulps');\
+#     print(post-0.0>=0.01, round((post-0.01)/u,2))"   -> `5.0 ulps` / `True 2.0`
+# WHY THE TIGHTENING IS THE RIGHT DIRECTION — SAY IT OUT LOUD, IT IS A REAL CHOICE.
+# `has_persistent_stale_window = True` is the ALIVE-favouring outcome (it blocks Q48's kill
+# condition), an excess of exactly one tick is one grid step of quantization apart from no excess
+# at all on either leg, and every other conservative choice in this statistic already biases
+# toward the KILL (unmeasurable baseline -> None, thin baseline -> None, magnitude-blind first
+# move). The REJECTED alternative was a tolerant epsilon (`>= threshold - eps`), which keeps the
+# documented ">= 1 tick" semantics and is ulp-invariant, but snaps the boundary case to the ALIVE
+# side. Measured consequence on the 2026-07-14 CPI dry-run, published so the choice can be
+# overruled with full information: strict (this code) gives n_units_with_persistent_stale_window
+# = 3; the documented ">= 1 tick" rule — whether spelled as a bare `>=` or as a tolerant epsilon
+# — gives 4. The 4th unit is `2026-10|cut_25`, and under the ">= 1 tick" rule its inclusion was
+# and remains CORRECT; this code deliberately asks for more than that rule did.
+# WHY 1e-9 (dollars = 1e-7 cents) rather than some other small number: it is 7 orders BELOW one
+# tick, so it can never filter an economically real excess, and it is the tolerance
+# `core.bootstrap.floor_pinned_fraction`/`clears_tick_magnitude` already use for dollar-price
+# comparisons, so this probe does not invent a new convention.
+STALE_WINDOW_EXCESS_EPSILON = 1e-9
+# ── the baseline's own n-adequacy floor (L180). At n_pre = 1 the pre-release fraction is
+# confined to {0, 1} and the pre-release MAX is a single draw, so a lone momentarily-tight
+# pre-capture manufactures a "release-caused" excess out of a permanent overround. WHY 5:
+# (i) the max of n draws estimates about the n/(n+1) quantile of the unit's quiet-state gap
+# distribution — n=1 is the median, n=3 the ~75th, n=4 the ~80th, n=5 the ~83rd percentile, so 5
+# is the first value at which the baseline max is a genuinely upper-tail statistic rather than a
+# coin flip; (ii) it gives the fraction a resolution of 0.20 instead of 1.00 (n=1) or 0.33 (n=3);
+# (iii) it is REACHABLE BY DESIGN in the burst it gates — `kalshi-burst-fomc-0729` opens at
+# 17:40Z at 90s cadence against an 18:00Z statement, so ~13 pre-release passes are expected
+# (2.6x the floor), and the 2026-07-14 CPI dry-run carries n_pre = 23 on all 15 units (4.6x) —
+# so this floor cannot silently disqualify the very run it exists to protect. It is a floor on
+# ADEQUACY, not on truth: a thin baseline is reported as unmeasurable-class (None), never as a
+# False that would license the opposite claim.
+MIN_PRE_CAPTURES_FOR_BASELINE = 5
 # ── the magnitude-qualified first-move companion: Kalshi must close >= this share of the
 # Polymarket move, and Polymarket must itself have moved >= one tick for the statistic to exist.
 KALSHI_CATCHUP_FRACTION = 0.5
@@ -767,15 +854,28 @@ def analyze_unit(pre_rows: Sequence[Dict[str, Any]], post: List[Dict[str, Any]],
                    if (pre_frac_positive is not None and post_frac_positive is not None) else None)
     excess_max = (post_max - pre_max
                   if (pre_max is not None and post_max is not None) else None)
-    if not pre_rows:
-        # baseline UNMEASURABLE -> None, never a boolean. Not counted as persistent anywhere,
-        # which biases toward the kill; that bias is reported, not hidden.
+    # ── THIN baseline (L180): a pre-period that exists but is too small to estimate either
+    # baseline statistic. n_pre=1 confines the fraction to {0,1} and makes the max a single
+    # draw, so one momentarily-tight pre-capture flips a PERMANENT overround into a
+    # "release-caused" dislocation. Handled in the SAME unmeasurable class as no-pre-capture-at-
+    # all (flag None, never True/False) plus its own explicit flag, so a thin baseline can never
+    # CREATE a persistent-stale-window count.
+    thin_baseline = bool(pre_rows) and len(pre_rows) < MIN_PRE_CAPTURES_FOR_BASELINE
+    if not pre_rows or thin_baseline:
+        # baseline UNMEASURABLE (absent) or INADEQUATE (thin) -> None, never a boolean. Not
+        # counted as persistent anywhere, which biases toward the kill; that bias is reported,
+        # not hidden.
         persistent_excess: Optional[bool] = None
     else:
         persistent_excess = bool(persistent_absolute
                                  and excess_frac is not None and excess_frac > 0.0
                                  and excess_max is not None
-                                 and excess_max >= STALE_WINDOW_MIN_EXCESS_DOLLARS)
+                                 # STRICTLY more than one tick on the 1c grid: the epsilon sits
+                                 # on the THRESHOLD side, so an exactly-one-tick excess is scored
+                                 # to the KILL side. A deliberate tightening of the ">= 1 tick"
+                                 # rule, NOT a de-dusting — see the constants block (L180).
+                                 and excess_max >= (STALE_WINDOW_MIN_EXCESS_DOLLARS
+                                                    + STALE_WINDOW_EXCESS_EPSILON))
 
     first_move: Optional[int] = None
     if pre is not None:
@@ -820,6 +920,10 @@ def analyze_unit(pre_rows: Sequence[Dict[str, Any]], post: List[Dict[str, Any]],
         "excess_max_abs_gap_net_fee": excess_max,
         "excess_frac_gap_net_fee_positive": excess_frac,
         "stale_window_baseline_measurable": bool(pre_rows),
+        # ── the baseline's own n-adequacy (L180): present but too thin to difference against
+        "thin_baseline": thin_baseline,
+        "min_pre_captures_for_baseline": MIN_PRE_CAPTURES_FOR_BASELINE,
+        "stale_window_baseline_adequate": bool(pre_rows) and not thin_baseline,
         # ── the flag the kill condition consumes: excess over baseline, None if unmeasurable
         "has_persistent_stale_window": persistent_excess,
         "captures_until_first_kalshi_move": first_move,
@@ -882,13 +986,20 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     is visible.
 
     With ZERO units, `no_persistent_stale_window` and `kill_condition_met` are None, never a
-    vacuous True/False — an empty population is not evidence of anything."""
+    vacuous True/False — an empty population is not evidence of anything. THE SAME APPLIES WITH
+    ZERO **MEASURABLE** UNITS: an n-adequacy floor (`MIN_PRE_CAPTURES_FOR_BASELINE`) does not
+    remove vacuity, it relocates it — every thin-baselined unit becomes a None flag, and a
+    population that is entirely None would otherwise satisfy `n_persistent == 0` and fire a hard
+    "S55 is dead" from a population in which nothing was measurable. The guard is therefore on
+    `n_units_with_measurable_stale_window_baseline` (units whose flag is a real True/False), not
+    on `n_units`."""
     first_moves: List[int] = []
     half_moves: List[int] = []
     n_units = 0
     n_persistent = 0
     n_persistent_absolute = 0
     n_baseline_unmeasurable = 0
+    n_thin_baseline = 0
     n_never_moved = 0
     n_never_closed_half = 0
     for b in bursts:
@@ -898,7 +1009,13 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
                 n_persistent_absolute += 1
             flag = unit["has_persistent_stale_window"]
             if flag is None:
-                n_baseline_unmeasurable += 1
+                # the two None causes PARTITION the None flags (a thin baseline always has
+                # >= 1 pre-capture, an unmeasurable one has zero), so nothing is double-counted
+                # and neither can ever land in `n_persistent`.
+                if unit.get("thin_baseline"):
+                    n_thin_baseline += 1
+                else:
+                    n_baseline_unmeasurable += 1
             elif flag:
                 n_persistent += 1
             fm = unit["captures_until_first_kalshi_move"]
@@ -917,12 +1034,19 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     median_half_move = statistics.median(half_moves) if half_moves else None
     reprices_fast = (median_first_move is not None
                      and median_first_move <= KILL_MAX_CAPTURES_TO_REPRICE)
-    no_persistent = (n_persistent == 0) if n_units else None
+    # units whose `has_persistent_stale_window` is a real True/False. `n_units` is NOT the right
+    # denominator for the kill: raising MIN_PRE_CAPTURES_FOR_BASELINE moved units OUT of the
+    # measurable set (into None), so gating on `n_units` would let an all-thin population report
+    # `n_persistent == 0` as a hard "no stale window anywhere".
+    n_measurable = n_units - n_thin_baseline - n_baseline_unmeasurable
+    no_persistent = (n_persistent == 0) if n_measurable else None
     return {
         "n_units": n_units,
+        "n_units_with_measurable_stale_window_baseline": n_measurable,
         "n_units_with_persistent_stale_window": n_persistent,
         "n_units_with_persistent_stale_window_absolute_unbaselined": n_persistent_absolute,
         "n_units_stale_window_baseline_unmeasurable": n_baseline_unmeasurable,
+        "n_units_with_thin_stale_window_baseline": n_thin_baseline,
         "n_units_never_repriced_in_window": n_never_moved,
         "n_units_never_closed_half_of_polymarket_move": n_never_closed_half,
         "median_captures_until_first_kalshi_move": median_first_move,
@@ -939,18 +1063,39 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         "stale_window_note": (
             "`n_units_with_persistent_stale_window` is BASELINED: it counts only units whose "
             "post-release >fee window EXCEEDS that unit's own pre-release fraction of >fee "
-            "captures AND whose post-release max gap exceeds its pre-release max by >= 1 tick. "
-            "The unbaselined count is reported beside it; on the 2026-07-14 CPI burst the "
-            "absolute rule flagged 12 units of which 7 had a >fee gap on 100% of their "
-            "PRE-release captures — a standing overround, not a release lag. Units with no "
-            "pre-release capture have an UNMEASURABLE baseline (flag None) and are excluded "
-            "from the persistent count, which biases toward the kill."),
+            "captures AND whose post-release max gap exceeds its pre-release max by STRICTLY "
+            "MORE THAN ONE TICK. The implementation is `excess_max >= "
+            f"STALE_WINDOW_MIN_EXCESS_DOLLARS ({STALE_WINDOW_MIN_EXCESS_DOLLARS}) + "
+            f"STALE_WINDOW_EXCESS_EPSILON ({STALE_WINDOW_EXCESS_EPSILON})`, and because both "
+            "legs quote on a 1c grid the EFFECTIVE requirement is `> 1 tick`: an excess of "
+            "EXACTLY one tick is scored to the KILL side (flag False), not counted here. That "
+            "is a deliberate tightening of the earlier '>= 1 tick' rule — the epsilon removes no "
+            "float dust (the residues this arithmetic produces are ~1e-17, seven orders below "
+            "the threshold), it moves the boundary case. On the 2026-07-14 CPI dry-run the "
+            "tightening is the whole difference between 3 units (this code) and 4 (the '>= 1 "
+            "tick' rule); the 4th, `2026-10|cut_25`, carried an excess of exactly one tick in "
+            "exact arithmetic. The unbaselined count is reported beside this one; on that same "
+            "burst the absolute rule flagged 12 units of which 7 had a >fee gap on 100% of "
+            "their PRE-release captures — a standing overround, not a release lag. Units with "
+            "no pre-release capture have an UNMEASURABLE baseline (flag None) and are excluded "
+            "from the persistent count, which biases toward the kill. So are units with a THIN "
+            f"baseline (1 <= n_pre < MIN_PRE_CAPTURES_FOR_BASELINE={MIN_PRE_CAPTURES_FOR_BASELINE}"
+            "), counted separately as `n_units_with_thin_stale_window_baseline`: at n_pre=1 the "
+            "pre-release fraction is confined to {0,1} and the pre-release max is a single "
+            "draw, so one momentarily-tight pre-capture would turn a permanent overround into a "
+            "'release-caused' dislocation (L180). A thin baseline can never CREATE a persistent "
+            "count — and, symmetrically, it can never create an ABSENCE of one: "
+            "`no_persistent_stale_window` (and so `kill_condition_met`) is None whenever "
+            "`n_units_with_measurable_stale_window_baseline` is 0, because a floor on baseline "
+            "adequacy relocates vacuity rather than removing it."),
         "reprices_within_one_capture": reprices_fast,
         "no_persistent_stale_window": no_persistent,
         "kill_condition_met": (bool(reprices_fast and no_persistent)
                                if no_persistent is not None else None),
         "stale_window_min_seconds": STALE_WINDOW_MIN_SECONDS,
         "stale_window_min_excess_dollars": STALE_WINDOW_MIN_EXCESS_DOLLARS,
+        "stale_window_excess_epsilon": STALE_WINDOW_EXCESS_EPSILON,
+        "min_pre_captures_for_baseline": MIN_PRE_CAPTURES_FOR_BASELINE,
         "kill_max_captures_to_reprice": KILL_MAX_CAPTURES_TO_REPRICE,
         "kalshi_catchup_fraction": KALSHI_CATCHUP_FRACTION,
     }
@@ -1090,6 +1235,9 @@ def run_probe(tape_dir: Path = DEFAULT_TAPE_DIR, *, release_ts: str = DEFAULT_RE
         "burst_cadence_min_duration_s": BURST_CADENCE_MIN_DURATION_S,
         "min_bursts_for_ci": min_bursts_for_ci,
         "min_entry_edge": MIN_ENTRY_EDGE,
+        # the two exit-side numerical-adequacy constants, on the face of every report (L180)
+        "min_pre_captures_for_baseline": MIN_PRE_CAPTURES_FOR_BASELINE,
+        "stale_window_excess_epsilon": STALE_WINDOW_EXCESS_EPSILON,
         "load_skips": dict(skips, n_records_without_capture_time=n_no_time),
         "burst_windows": [{
             "burst_id": w["burst_id"], "start": w["start"].isoformat(),
@@ -1245,6 +1393,10 @@ def human_one_liner(rep: Dict[str, Any]) -> str:
             f"({rep['n_covering_burst_windows_cadence_qualified']} cadence-qualified), "
             f"fired={rep.get('n_fired_trades')} (sub-tick dropped="
             f"{rep.get('n_subtick_candidates_dropped')}), "
+            f"persistent_stale_windows={kc['n_units_with_persistent_stale_window']}/"
+            f"{kc['n_units']} (thin baseline="
+            f"{kc['n_units_with_thin_stale_window_baseline']}, baseline unmeasurable="
+            f"{kc['n_units_stale_window_baseline_unmeasurable']}), "
             f"kill_condition_met={kc['kill_condition_met']}, {prov}, "
             f"verdict={rep.get('verdict')}")
 
