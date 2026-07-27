@@ -6,6 +6,68 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~20:1xZ UTC — research loop: stranded-tape recovery (249 lines) + perp_tape data-quality audit
+
+Cloud research-loop run, protocol v3. **Step 0a:** local sandbox `main` ref was stale
+(50 commits behind); reset to `origin/main` HEAD `f0fe206` and re-verified — `6a3cfd8`
+(the stale local ref) is NOT an ancestor of `f0fe206` only because it's an earlier point on
+the SAME line of history (PR merge commits ac8a758/ad6b95e chain directly into `f0fe206`,
+`kb/00-LOG.md`'s newest entry and newest committed tape both 2026-07-27) — no rewind. **Step
+0:** open PRs #208 (retro, leave-open), #191/#166/#165 (drafts, Ryan-review-only) — none claim
+eligible queue work. **Step 0b:** `tape/hourly-20260727T1303Z` (5.3h+ old, past the 30-min
+freshness rule) carried **249 genuinely-missing lines** across 6 files, all `dt=2026-07-27`
+(`crypto_hourly`+2, `hyperliquid_funding`+2, `perp_tape`+17, `polymarket_macro_pairs`+15,
+`sports_pairs`+193, `weather_actuals`+20 — the last a brand-new file, that leg hadn't landed
+on `main` yet today) — union-appended, pure-append verified (`git diff --numstat`: 0
+deletions on every modified file), every line JSON-validated before commit; count matches
+`scripts/tape_branch_sweep.py`'s own report exactly.
+
+**Queue re-scan → IDLE RUN.** Full Q0-Q48 re-scan: still saturated (Q48/S55 burst-gated to
+2026-07-29, 2 days out; everything else DONE/DEAD/BLOCKED/calendar- or density-gated). Idle
+policy (a) unavailable — `kb/lessons/00-lessons.md`'s `UNENFORCED` backlog confirmed empty
+(L186/L187 both landed `test`-enforced with L185's close-out, PR #215). Policy (b)
+unavailable — both live time-gated probes (Q48/S55 FOMC, Q37 weather) already fully prepped.
+**Policy (c):** dispatched a `tape-auditor` subagent at `tape/perp_tape/` — the collector
+feeding Q42 (funding-clamp, monitoring-only) and Q43 (binary-vs-perp consistency, STILL
+GATED), never given a dedicated audit before. Numbers spot-checked independently in the main
+context before write-up: line counts per day (`wc -l` matches exactly), the int64-max
+sentinel's presence (`grep` confirmed), and the q43 probe's guard code (direct read confirmed
+it only screens `<= 0.0`, not sentinel magnitudes).
+
+**Findings** (`findings/2026-07-27-perp-tape-audit.md`). Quality is clean: 1,837/1,837 lines
+valid JSON, 0 nulls, 0 unsanctioned source tags, 0 fetch errors, append-only intact. Three NEW
+defects: **PERP-F1** — 4 of 33 8h funding windows have zero capture passes and are
+structurally invisible to `q42_funding_estimate_path_inference.py`'s per-window density stat
+(a survivorship statistic, not a coverage one); **PERP-F2** — an int64-max no-quote sentinel
+(`ask=922337203685477.6`, 5 non-BTC/ETH contracts, one 07-23 pass) passes `_f()`'s coercion
+and would clear `q43_perp_binary_consistency_probe.py`'s zero/negative guard if it ever hit
+BTC/ETH; **PERP-F3** — `capture_id` collides across a same-second backfill+regular pass,
+explaining a previously-unreconciled 30-vs-31 count discrepancy across two existing docs.
+Q43 verdict: **gate is not closer to opening, it's further away** — 8/11 days now below the
+probe's own density-advisory floor, trailing-7-day captures/day `[9,25,3,3,1,5,4]` (6/7
+thin); density collapse is Ryan-side collector health, not a tape-quality defect. No registry
+change, no strategy claim, no bootstrap, no P&L — two-agent verdict rule N/A (data-quality
+audit, same posture as the hyperliquid_funding/settlement_ledger precedents). Three new
+lessons, **L208/L209/L210, all UNENFORCED** (coverage-adequacy judgments, not yet statically
+assertable — candidates recorded in the ledger; renumbered from an initial L188-L190 draft
+after rebasing onto the concurrently-merged PR #216, which claimed L188-L207 first).
+
+**Gates.** `python3.11 -m pytest -q`: **2,087 collected, 2,085 passed, 2 failed** — both in
+`tests/test_q42_funding_estimate_path_inference.py`, confirmed byte-identical via `git stash`
+(re-ran against clean `origin/main` tape, same two assertions fail with the same obtained
+values) — pre-existing real-tape-drift, 0 introduced by this diff (expected: this diff *did*
+append 17 lines to `perp_tape/dt=2026-07-27.jsonl`, which is exactly the kind of tape growth
+that drifts these window-count assertions; the drift is the same phenomenon PERP-F1 diagnoses
+structurally). `python3.11 scripts/invariants.py --full`: **exit 0**, only pre-existing
+non-gating advisories (VPS collector now 120.8h+ silent, worsening — Ryan-side; L168/L169
+hollow-crypto-ladder; L138 `fromisoformat`; L157 recovery-dwell; L25 directory-shaped
+day-files; L74 daily-cadence gaps).
+
+**Step 9 (paper).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34 —
+paper-infra validation only, NOT edge evidence). `paper_pass.py`: 0 newly processed, ledger
+unchanged **+$20.06** (`broker_truth`, 1,132 settled, 0 open).
+
+Still **0 proven edges**.
 ## 2026-07-27 ~17:1xZ UTC — research loop: 21 stale UNENFORCED rows disposed + a `dt=*` tape pin had red-lined main — then a verifier REFUTED the run's own numbers
 
 Cloud research-loop run, protocol v3, **IDLE RUN**, policy (a). Two units of work, then a
