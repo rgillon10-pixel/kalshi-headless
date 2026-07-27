@@ -745,14 +745,20 @@ def test_duplicate_lesson_id_warning_never_gates_exit_code(monkeypatch, capsys):
 
 # ─── stale-UNENFORCED-candidate advisory (L152: L74/L109/L123 marker-drift class) ──
 
-def test_stale_unenforced_candidate_real_tree_is_currently_clean():
-    # HARD acceptance test anchored to the real tree: as of this run, no genuinely-open
-    # (enforcement column starting "**UNENFORCED**") lesson row names a backtick
-    # `function_name()` candidate that already exists anywhere in the tree. This is the
-    # currently-clean state, not a tautology — L105's row names an EXISTING function
-    # (`_segment_bounds()`) but only in its LESSON text (background context, not a
-    # candidate), which the lesson-text-exclusion below specifically must not flag.
-    assert inv._stale_unenforced_candidate_issues() == []
+def test_stale_unenforced_candidate_real_tree_func_matcher_is_clean():
+    # HARD acceptance test anchored to the real tree, NARROWED 2026-07-27: no genuinely-open
+    # (enforcement column starting "**UNENFORCED**", not formally disposed) lesson row names a
+    # backtick `function_name()` candidate that already exists anywhere in the tree. This is
+    # the M0 matcher's state only — L105's row names an EXISTING function (`_segment_bounds()`)
+    # but only in its LESSON text (background context, not a candidate), which the
+    # lesson-text-exclusion below specifically must not flag.
+    #
+    # It is NOT a clean-queue statement: the M0-only detector reached 0 of 21 open rows while
+    # all 21 were already-built stale markers. The widened matchers (M1 path::symbol,
+    # M2 script+CLI flag, M3 agent charter) and the recall record that fixed that false
+    # assurance are pinned in tests/test_stale_unenforced_advisory.py.
+    rep = inv.stale_unenforced_recall_report()
+    assert dict(rep.by_matcher)["func"] == 0
 
 
 def test_stale_unenforced_candidate_issues_finds_real_match(tmp_path):
@@ -841,13 +847,31 @@ def test_stale_unenforced_candidate_warning_message_content():
 
 
 def test_stale_unenforced_candidate_warning_never_gates_exit_code(monkeypatch, capsys):
+    # ABSENCE OF EFFECT only, deliberately. A real-tree run must NEVER assert this advisory's
+    # TEXT: whether it prints depends on LIVE kb/lessons/00-lessons.md state that another agent
+    # (the kb-distiller) may write during the same run — on 2026-07-27 an L188 `DISPOSES:` row
+    # took the open queue to 0, the formatter correctly returned None, and this test's two
+    # text-presence assertions went red for a reason unrelated to the code under test.
+    # Text-presence belongs on the FROZEN fixture: see the test below and
+    # tests/test_stale_unenforced_advisory.py.
     monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
     rc = inv.main()
     captured = capsys.readouterr()
     assert rc == 0, captured.err
     assert "invariants: all green" in captured.out
-    # The real tree is clean, so the advisory should not fire at all here.
-    assert "UNENFORCED lesson row(s)" not in captured.err
+
+
+def test_stale_unenforced_advisory_text_on_the_frozen_fixture():
+    # The TEXT half of the split above, over an artifact no other agent rewrites: the frozen
+    # 21-row copy of the pre-disposition ledger.
+    fixture = ROOT / "tests" / "fixtures" / "lessons_unenforced_21_2026-07-27.md"
+    rep = inv.stale_unenforced_recall_report(fixture, source_root=ROOT)
+    msg = inv.stale_unenforced_candidate_warning(
+        inv._stale_unenforced_candidate_issues(fixture, source_root=ROOT), rep
+    )
+    assert msg is not None
+    assert "UNENFORCED lesson row(s)" in msg
+    assert "does NOT affect the exit code" in msg
 
 
 # ─── DB invariants ────────────────────────────────────────────────────────────
@@ -1396,13 +1420,38 @@ def test_capped_pagination_span_warning_message_content_L185(tmp_path):
 
 
 def test_capped_pagination_span_warning_never_gates_exit_code_L185(monkeypatch, capsys):
-    # The real committed tape DOES trip this advisory (see the acceptance test below), so
-    # --full must stay exit 0 with the warning present on stderr.
+    # ABSENCE OF EFFECT only. Whether this advisory prints on a real-tree run depends on LIVE
+    # tape/settlement_ledger/ state that an hourly collector pass may write during the same run
+    # (the same failure mode that turned the L152 advisory's real-tree text assertions red on
+    # 2026-07-27, one ledger away). Its TEXT is pinned deterministically just below, and the
+    # real-tape FACT it reports has its own acceptance test at the end of this section.
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_capped_pagination_span_advisory_is_wired_to_stderr_L185(monkeypatch, capsys):
+    # The WIRING half of the split above, made deterministic: when the detector reports an
+    # issue, --full prints the formatted advisory to STDERR and still exits 0.
+    monkeypatch.setattr(
+        inv, "_capped_pagination_span_issues",
+        lambda *a, **kw: [{
+            "family": "fake_family", "cap": 200, "cadence_hours": 24.0, "time_key": "close_time",
+            "n_captures": 1, "n_captures_judged": 1, "n_captures_narrow": 1,
+            "n_captures_not_judged": 0,
+            "narrow_captures": [{"capture_id": "FAKECAP", "n_rows_with_time": 200,
+                                 "span_hours": 1.0, "rows_per_hour": 200.0,
+                                 "coverage_ceiling_fraction": 0.0417}],
+        }],
+    )
     monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
     rc = inv.main()
     captured = capsys.readouterr()
     assert rc == 0, captured.err
     assert "capped-pagination collector family" in captured.err
+    assert "fake_family" in captured.err
     assert "invariants: all green" in captured.out
 
 
