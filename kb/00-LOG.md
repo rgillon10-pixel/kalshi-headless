@@ -6,6 +6,55 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~21:1xZ UTC — research loop: L209→L211 disposition, perp_tape int64-max sentinel guard
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `bbe4b4e` (PR #217);
+`kb/00-LOG.md` newest entry and newest committed tape both 2026-07-27, no rewind. **Step 0:**
+open PRs #208 (retro, leave-open), #191/#166/#165 (drafts, Ryan-review-only) — none claim
+eligible queue work. **Step 0b:** no `tape/hourly-*`/`tape/burst-*` branch newer than
+`tape/hourly-20260727T1303Z`, already recovered by PR #217 — nothing new to sweep.
+
+**Queue re-scan → IDLE RUN.** Full Q0-Q48 re-scan: still saturated (Q48/S55 burst-gated to
+2026-07-29, 2 days out; everything else DONE/DEAD/BLOCKED/calendar- or density-gated). Re-derived
+the open `UNENFORCED` lesson set fresh: 8 rows (L145 is a Ryan policy call, correctly untouched;
+L192/L200/L205/L207 are each explicitly flagged UNENFORCED-but-frozen by their own authors for a
+concurrent verifier round; L208/L210 need more design work than one milestone allows). **L209**
+was the one concretely-specified, in-scope candidate.
+
+**What was built.** `scripts/q43_perp_binary_consistency_probe.py::load_perp_bbo()` gained a
+`NO_QUOTE_SENTINEL_FLOOR = 1e6` constant and a magnitude guard alongside its existing
+`bid <= 0.0 or ask <= 0.0` filter, dropping the venue's int64-max no-quote sentinel
+(`922337203685477.6` = `9223372036854775807/1e4`, PERP-F2 from the 2026-07-27 perp_tape audit)
+before it can reach the BBO mid / perp-implied-underlying computation — the exact live-risk path
+PERP-F2 flagged (a BTC/ETH occurrence would wreck `mid ≈ 4.6e14` in the lead-lag correlation).
+Two new tests in `tests/test_q43_perp_binary_consistency_probe.py`: one reproduces the exact
+committed sentinel value on a joinable BTC contract in the same pass as a clean quote and asserts
+only the sentinel is dropped; the other pins the floor's headroom (strictly between `1e5` and the
+real venue sentinel) so neither bound can silently drift into the gap. New lesson **L211**
+(`kb/lessons/00-lessons.md`) formally disposes L209 (`UNENFORCED` → `test`) via the `DISPOSES:`
+marker, per L188/L190's grammar — L209's own row is unedited. `UNENFORCED` backlog: 8 → 7.
+
+No registry change, no strategy claim, no bootstrap CI, no P&L — two-agent verdict rule N/A (a
+guard-gap closure with test coverage, not a verdict-class change, same posture as the
+L117/L121/L124/L172 precedents).
+
+**Gates** (taken after this diff's last edit, per L162). `python3.11 -m pytest -q`: **2161
+collected, 2161 passed, 0 failed** — baseline pre-diff was already fully green (2159/2159; the
+two `test_q42_funding_estimate_path_inference.py` failures every recent run reported were fixed
+by PR #216's ratchet, independently re-confirmed still green here). `python3.11
+scripts/invariants.py --full`: exit 0, same pre-existing non-gating advisory classes (VPS
+collector leg now 124.2h silent, worsening, Ryan-side; L168/L169 hollow-crypto-ladder; L185
+capped-pagination; L138 raw-`fromisoformat`; L157 recovery-dwell; L52 unguarded-settlement).
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34 —
+paper-infra validation only, NOT edge evidence). `paper_pass.py` idempotent this run (0 newly
+processed — this diff touches no tape), ledger unchanged **+$20.06** (`broker_truth`, 1132
+settled, 0 open).
+
+Still **0 proven edges**.
+
+---
+
 ## 2026-07-27 ~20:1xZ UTC — research loop: stranded-tape recovery (249 lines) + perp_tape data-quality audit
 
 Cloud research-loop run, protocol v3. **Step 0a:** local sandbox `main` ref was stale
