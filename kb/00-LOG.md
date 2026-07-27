@@ -6,6 +6,51 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~09:3xZ UTC — research loop: stranded-tape recovery (1,798 lines) + settlement_ledger data-quality audit (L185)
+
+Cloud research-loop run, protocol v3. Step 0a: `origin/main` HEAD `1ab3918`; `kb/00-LOG.md`
+newest entry and newest committed tape both 2026-07-27, no rewind. Step 0: open PRs #208
+(retro, leave-open), #191/#166/#165 (drafts, Ryan-review) — none claim eligible queue work.
+Full Q0-Q48 re-scan: still saturated (Q48 burst-gated to 07-29; everything else DONE/
+BLOCKED/calendar-gated/density-gated, unchanged from this morning's edge-hunter run) →
+IDLE RUN.
+
+**Step 0b:** `scripts/tape_branch_sweep.py` found `tape/hourly-20260727T0356Z` carrying
+1,798 genuinely-missing lines across 8 files (all `dt=2026-07-27`: `crypto_hourly`+2,
+`hyperliquid_funding`+2, `orderbook_depth`+987, `perp_tape`+17, `polymarket_macro_pairs`+15,
+`sports_pairs`+186, `weather_books`+542, `weather_books/meta`+47) — union-appended,
+pure-append verified (0 deletions on any file), every appended line validated as parseable
+JSON before commit. The other 13 flagged branches were re-confirmed as the same
+previously-triaged false positives (stale `cloud-env-check.md` prose condensation / already-
+fixed conflict-marker artifacts) prior runs already identified — left untouched.
+
+**Idle-run policy (c):** `UNENFORCED` lesson backlog re-confirmed empty (L180 closed this
+morning; L32/L39/L51/L59/L65/L66/L68/L86 all independently re-verified as already
+dispositioned via `Supersedes`/closure rows) → policy (a) unavailable. Both known
+time-gated probes (Q19 FOMC, Q37 weather) already fully prepped → policy (b) unavailable.
+Dispatched a `tape-auditor` subagent at `tape/settlement_ledger/` (Q45's harvester) — the
+one large, heavily-joined-against family with no dedicated audit on record. Found a real,
+high-blast-radius coverage defect: the daily live harvest reaches back only ~1.3-3.8h of
+`close_time` per pass (`MAX_SETTLED_MARKETS=5000` + newest-first pagination, no time-window
+parameter), a ~13.5% ceiling on any day's true settlement population — independently
+re-derived in the main context (800/1.26h, 4,200/3.83h, 5,000/3.25h against a
+~1,100-1,540/hour settlement rate). Traced end-to-end: Q21/S52's 5.7% join-rate finding
+(`findings/2026-07-25-q21-idea-gen-round.md`) is entirely the 605 migrated legacy rows —
+zero of the 10,000 live-harvested rows are joinable, so accumulating more days will not
+raise that rate. What's clean: 10,605/10,605 valid JSON, 100% `broker_truth`-tagged, L52
+binary-result discipline holds (0 `scalar` leakage), zero null rates on all key fields, zero
+`result`/`settlement_value` contradictions, append-only history confirmed, no stranded
+`settlement_ledger` tape on any of the 43 remote branches. New lesson **L185**
+(`UNENFORCED`). No registry change, no strategy claim, no CI — two-agent verdict rule N/A
+(data-quality audit, not a verdict-class change, same posture as the hyperliquid_funding/
+orderbook_depth audit precedents). See `findings/2026-07-27-settlement-ledger-tape-audit.md`.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per
+Q34 — paper-infra validation only, NOT edge evidence). `paper_pass.py` run against tape
+appended this run.
+
+Still **0 proven edges**.
+
 ## 2026-07-27 ~04:1xZ UTC — edge-hunter: L180 closed ahead of the 07-29 FOMC firing + adversarial re-check of the S55 gap (CONFIRMED)
 
 **What (3 legs).** (1) **Adversarial review (Unit 1):** independently re-derived S55/Q48's
