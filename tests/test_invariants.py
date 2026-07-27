@@ -1331,3 +1331,118 @@ def test_raw_iso_allowlist_hygiene():
                      if not ln.lstrip().startswith("#")
                      and inv._DATETIME_FROMISOFORMAT_RE.search(ln))
         assert actual <= pin, f"{rel}: {actual} raw sites > pinned {pin}"
+
+
+# ─── capped-pagination span-vs-cadence advisory (L185: non-gating) ────────────
+
+def _sl_line(cid, close_time):
+    return {"capture_id": cid, "captured_at": "2026-07-22T10:31:41.942809+00:00",
+            "close_time": close_time, "source": "live_settled_markets",
+            "price_source_tag": "broker_truth"}
+
+
+def _write_settlement_tape(tape_root, day, records):
+    fam = tape_root / "settlement_ledger"
+    fam.mkdir(parents=True, exist_ok=True)
+    import json as _json
+    with open(fam / f"dt={day}.jsonl", "a", encoding="utf-8") as f:
+        for rec in records:
+            f.write(_json.dumps(rec) + "\n")
+
+
+def _narrow_capture(cid, start_hour, span_hours, n_rows):
+    """n_rows rows spread over span_hours of close_time on 2026-07-22, bare-Z formatted."""
+    import datetime as _dt
+    start = _dt.datetime(2026, 7, 22, start_hour, 0, tzinfo=_dt.timezone.utc)
+    out = []
+    for i in range(n_rows):
+        ts = start + _dt.timedelta(hours=span_hours * i / max(1, n_rows - 1))
+        out.append(_sl_line(cid, ts.strftime("%Y-%m-%dT%H:%M:%SZ")))
+    return out
+
+
+def test_capped_pagination_span_issues_missing_tape_root_is_empty_L185(tmp_path):
+    assert inv._capped_pagination_span_issues(tmp_path / "nope") == []
+
+
+def test_capped_pagination_span_issues_wide_span_is_no_issue_L185(tmp_path):
+    _write_settlement_tape(tmp_path, "2026-07-22", _narrow_capture("wide", 0, 20.0, 200))
+    assert inv._capped_pagination_span_issues(tmp_path) == []
+
+
+def test_capped_pagination_span_issues_finds_narrow_capture_L185(tmp_path):
+    _write_settlement_tape(tmp_path, "2026-07-22", _narrow_capture("narrow", 7, 3.25, 200))
+    issues = inv._capped_pagination_span_issues(tmp_path)
+    assert len(issues) == 1
+    assert issues[0]["family"] == "settlement_ledger"
+    assert issues[0]["n_captures_narrow"] == 1
+    assert issues[0]["cadence_hours"] == 24.0
+
+
+def test_capped_pagination_span_warning_none_when_empty_L185():
+    assert inv.capped_pagination_span_warning([]) is None
+
+
+def test_capped_pagination_span_warning_message_content_L185(tmp_path):
+    _write_settlement_tape(tmp_path, "2026-07-22", _narrow_capture("narrow", 7, 3.25, 200))
+    msg = inv.capped_pagination_span_warning(inv._capped_pagination_span_issues(tmp_path))
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "settlement_ledger" in msg
+    assert "close_time" in msg
+    assert "24h" in msg
+    assert "coverage ceiling" in msg
+    assert "L185" in msg
+
+
+def test_capped_pagination_span_warning_never_gates_exit_code_L185(monkeypatch, capsys):
+    # The real committed tape DOES trip this advisory (see the acceptance test below), so
+    # --full must stay exit 0 with the warning present on stderr.
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "capped-pagination collector family" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_capped_pagination_span_advisory_raise_cannot_flip_exit_code_L185(monkeypatch, capsys):
+    """The L156 DEFECT-1 posture: even if the ISSUES COLLECTOR or the FORMATTER raises,
+    the stanza's `except BaseException` guard keeps the advisory non-gating."""
+    def _boom(*a, **kw):
+        raise RuntimeError("detector exploded")
+
+    monkeypatch.setattr(inv, "_capped_pagination_span_issues", _boom)
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "capped-pagination span advisory could not be computed" in captured.err
+    assert "invariants: all green" in captured.out
+
+    # And a non-str FORMATTER return, which makes the stanza's `+ "\n"` a TypeError — the
+    # exact shape the L156 DEFECT-1 comment in main() warns about.
+    monkeypatch.setattr(inv, "_capped_pagination_span_issues", lambda *a, **kw: [{"x": 1}])
+    monkeypatch.setattr(inv, "capped_pagination_span_warning", lambda issues: 12345)
+    assert inv.main() == 0
+
+
+def test_acceptance_l185_settlement_ledger_real_tape_advisory_fires():
+    """HARD acceptance against the real committed tape: settlement_ledger's 3 live
+    captures span ~1.3-3.8h of close_time against a 24h firing interval, so the advisory
+    fires and names them; the 605-row legacy backfill (span ~8 days) is NOT named."""
+    fam = ROOT / "tape" / "settlement_ledger"
+    if not fam.is_dir():
+        pytest.skip("committed tape/settlement_ledger/ not present")
+    issues = inv._capped_pagination_span_issues()
+    assert len(issues) == 1, issues
+    issue = issues[0]
+    assert issue["family"] == "settlement_ledger"
+    assert issue["n_captures"] == 4
+    assert issue["n_captures_narrow"] == 3
+    flagged = {c["capture_id"] for c in issue["narrow_captures"]}
+    assert flagged == {"20260717T122243Z", "20260717T122302Z", "20260722T103141Z"}
+    assert "20260717T122238Z" not in flagged  # the ~8-day legacy backfill
+    msg = inv.capped_pagination_span_warning(issues)
+    assert "20260722T103141Z" in msg
+    assert "20260717T122238Z" not in msg

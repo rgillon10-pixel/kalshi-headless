@@ -924,3 +924,215 @@ def test_acceptance_11_l171_hyperliquid_funding_real_tape_zero_missing_steps():
     cov = tgm.retrospective_coverage(_REAL_TAPE, "hyperliquid_funding")
     assert cov["n_observations"] > 1000, cov
     assert cov["n_missing_steps"] == 0, cov
+
+
+# --------------------------------------------------------------------------- #
+# Capped-pagination span-vs-cadence coverage (L185, 2026-07-27)
+# --------------------------------------------------------------------------- #
+def _sl_record(cid, close_time, ticker="KX-A", source="live_settled_markets"):
+    """A minimal settlement_ledger.v1-shaped row (only the fields the check reads)."""
+    return {
+        "capture_id": cid,
+        "captured_at": "2026-07-22T10:31:41.942809+00:00",
+        "close_time": close_time,
+        "ticker": ticker,
+        "source": source,
+        "price_source_tag": "broker_truth",
+        "schema_version": "settlement_ledger.v1",
+    }
+
+
+def _sl_capture(cid, start: datetime, span_hours: float, n_rows: int, **kw):
+    """n_rows rows whose close_time is spread evenly over span_hours, bare-Z formatted
+    exactly like committed tape (`2026-07-22T10:30:00Z`)."""
+    out = []
+    for i in range(n_rows):
+        frac = 0.0 if n_rows == 1 else i / (n_rows - 1)
+        ts = start + timedelta(hours=span_hours * frac)
+        out.append(_sl_record(cid, ts.strftime("%Y-%m-%dT%H:%M:%SZ"), **kw))
+    return out
+
+
+def test_capped_pagination_unregistered_family_returns_none_L185(tmp_path):
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-15", [10])
+    assert tgm.capped_pagination_span_coverage(tmp_path, "crypto_hourly") is None
+
+
+def test_capped_pagination_no_tape_at_all_makes_no_claim_L185(tmp_path):
+    cov = tgm.capped_pagination_span_coverage(tmp_path, "settlement_ledger")
+    assert cov["n_captures"] == 0
+    assert cov["n_captures_judged"] == 0
+    assert cov["n_captures_narrow"] == 0
+    assert cov["captures"] == []
+
+
+def test_capped_pagination_narrow_span_vs_cadence_is_flagged_L185(tmp_path):
+    """The exact L185 shape: a 5000-row daily pass whose close_time span is ~3.25h
+    against a 24h firing interval — every cadence detector reads green, but only
+    ~13.5% of the day's settlements can possibly be in it."""
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-22",
+                 _sl_capture("c_narrow", _dt(2026, 7, 22, 7, 15), 3.25, 500))
+    cov = tgm.capped_pagination_span_coverage(tmp_path, "settlement_ledger")
+    assert cov["n_captures"] == 1
+    assert cov["n_captures_judged"] == 1
+    assert cov["n_captures_not_judged"] == 0
+    assert cov["n_captures_narrow"] == 1
+    rec = cov["narrow_captures"][0]
+    assert rec["capture_id"] == "c_narrow"
+    assert rec["n_rows_with_time"] == 500
+    assert abs(rec["span_hours"] - 3.25) < 1e-6
+    assert abs(rec["span_ratio"] - 3.25 / 24.0) < 1e-6
+    assert rec["coverage_ceiling_fraction"] == rec["span_ratio"]
+    assert abs(rec["rows_per_hour"] - 500 / 3.25) < 0.05
+    assert rec["not_judged_reason"] is None
+
+
+def test_capped_pagination_wide_span_is_not_flagged_L185(tmp_path):
+    """A capture whose span EXCEEDS the firing interval (the migrated legacy-backfill
+    shape) is judged and explicitly NOT narrow — the asymmetry that proves the check
+    measures span, not merely row count."""
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-17",
+                 _sl_capture("c_wide", _dt(2026, 7, 7, 1, 39), 24 * 8, 300,
+                             source="migrated:q26_settlement_cache"))
+    # And one sitting just above the threshold (0.5 * 24h = 12h) — boundary, still ok.
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-18",
+                 _sl_capture("c_boundary", _dt(2026, 7, 18, 0, 0), 13.0, 300))
+    cov = tgm.capped_pagination_span_coverage(tmp_path, "settlement_ledger")
+    assert cov["n_captures_judged"] == 2
+    assert cov["n_captures_narrow"] == 0, cov["narrow_captures"]
+    wide = [c for c in cov["captures"] if c["capture_id"] == "c_wide"][0]
+    assert wide["judged"] is True and wide["narrow"] is False
+    assert wide["span_ratio"] > 1.0
+
+
+def test_capped_pagination_thin_capture_is_not_judged_never_flagged_L185(tmp_path):
+    """A capture below `min_rows_for_span` has a narrow span for legitimate reasons.
+    It must be reported as NOT-JUDGED — never flagged, never folded into 'ok'."""
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-23",
+                 _sl_capture("c_thin", _dt(2026, 7, 23, 9, 0), 0.05, 3))
+    cov = tgm.capped_pagination_span_coverage(tmp_path, "settlement_ledger")
+    assert cov["n_captures"] == 1
+    assert cov["n_captures_judged"] == 0
+    assert cov["n_captures_not_judged"] == 1
+    assert cov["n_captures_narrow"] == 0
+    rec = cov["captures"][0]
+    assert rec["judged"] is False and rec["narrow"] is False
+    assert rec["not_judged_reason"] == "below_min_rows_for_span"
+    # The span is still reported (informational), but no ratio/ceiling claim is made.
+    assert rec["span_ratio"] is None and rec["coverage_ceiling_fraction"] is None
+
+
+def test_capped_pagination_malformed_times_are_skipped_not_fabricated_L185(tmp_path):
+    """Missing/malformed close_time rows are skipped rather than invented, and the
+    resulting under-count is visible in n_rows vs n_rows_with_time. A capture with NO
+    parseable time at all is NOT-JUDGED, never silently 'ok'."""
+    rows = _sl_capture("c_mixed", _dt(2026, 7, 24, 8, 0), 2.0, 60)
+    rows.append(_sl_record("c_mixed", None))
+    rows.append(_sl_record("c_mixed", "not-a-timestamp"))
+    rows.append({"capture_id": "c_mixed", "ticker": "KX-Z"})  # close_time absent entirely
+    rows.append({"close_time": "2026-07-24T08:00:00Z"})       # no capture_id -> unattributable
+    rows.extend([_sl_record("c_blind", "garbage") for _ in range(80)])
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-24", rows)
+    # A non-JSON line in the file must not kill the scan either.
+    with open(tmp_path / "settlement_ledger" / "dt=2026-07-24.jsonl", "a",
+              encoding="utf-8") as f:
+        f.write("{not json\n")
+
+    cov = tgm.capped_pagination_span_coverage(tmp_path, "settlement_ledger")
+    by_id = {c["capture_id"]: c for c in cov["captures"]}
+    assert set(by_id) == {"c_mixed", "c_blind"}
+    assert by_id["c_mixed"]["n_rows"] == 63
+    assert by_id["c_mixed"]["n_rows_with_time"] == 60
+    assert by_id["c_mixed"]["judged"] is True
+    assert by_id["c_blind"]["n_rows"] == 80
+    assert by_id["c_blind"]["n_rows_with_time"] == 0
+    assert by_id["c_blind"]["judged"] is False
+    assert by_id["c_blind"]["not_judged_reason"] == "no_parseable_event_times"
+    assert by_id["c_blind"]["span_hours"] is None
+    assert cov["n_captures_not_judged"] == 1
+    assert cov["n_captures_narrow"] == 1  # c_mixed only
+
+
+def test_capped_pagination_zero_span_rows_per_hour_is_none_not_infinity_L185(tmp_path):
+    """All rows sharing one instant: genuinely maximally narrow, but the observed
+    event rate is UNDEFINED — reported as None, never an invented infinity."""
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-25",
+                 [_sl_record("c_zero", "2026-07-25T10:00:00Z") for _ in range(100)])
+    cov = tgm.capped_pagination_span_coverage(tmp_path, "settlement_ledger")
+    rec = cov["captures"][0]
+    assert rec["judged"] is True and rec["narrow"] is True
+    assert rec["span_hours"] == 0.0
+    assert rec["rows_per_hour"] is None
+
+
+def test_evaluate_family_attaches_capped_pagination_span_when_tape_root_given_L185(tmp_path):
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-22",
+                 _sl_capture("c_narrow", _dt(2026, 7, 22, 7, 15), 3.25, 200))
+    now = _dt(2026, 7, 22, 11, 0)
+    agg = tgm.aggregate_family(tmp_path, "settlement_ledger", now)
+    r = tgm.evaluate_family(agg, now, tape_root=tmp_path)
+    assert r["capped_pagination_span"]["n_captures_narrow"] == 1
+
+    # Without tape_root the field is present but None — never fabricated.
+    assert tgm.evaluate_family(agg, now)["capped_pagination_span"] is None
+
+    # A family NOT in CAPPED_PAGINATION_FAMILIES stays None even WITH tape_root.
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-22", [6])
+    agg2 = tgm.aggregate_family(tmp_path, "crypto_hourly", now)
+    assert tgm.evaluate_family(agg2, now, tape_root=tmp_path)["capped_pagination_span"] is None
+
+
+def test_capped_pagination_span_never_touches_the_alert_path_L185(tmp_path):
+    """The check is INFORMATIONAL: a family with 100% narrow captures whose collector
+    is otherwise healthy must still report alert=False / alert_reason='ok'."""
+    _write_lines(tmp_path, "settlement_ledger", "2026-07-22",
+                 _sl_capture("c_narrow", _dt(2026, 7, 22, 7, 15), 3.25, 200))
+    now = _dt(2026, 7, 22, 11, 0)
+    agg = tgm.aggregate_family(tmp_path, "settlement_ledger", now)
+    with_root = tgm.evaluate_family(agg, now, tape_root=tmp_path)
+    without_root = tgm.evaluate_family(agg, now)
+    assert with_root["capped_pagination_span"]["n_captures_narrow"] == 1
+    assert with_root["alert"] is False
+    assert with_root["alert_reason"] == "ok"
+    # Byte-for-byte identical alert path with and without the new computation.
+    for key in ("alert", "alert_reason", "age_hours", "missed_passes_estimate",
+                "capture_ratio", "passes_in_window"):
+        assert with_root[key] == without_root[key]
+
+
+@_real
+def test_acceptance_12_l185_settlement_ledger_real_tape_span_vs_cadence():
+    """HARD acceptance, real committed tape: settlement_ledger's 4 committed captures.
+    The 3 live `live_settled_markets` harvests each span 1-4h of close_time against a
+    24h firing interval (ratio < 0.2) and are flagged narrow; the 605-row
+    `migrated:q26_settlement_cache` legacy backfill spans ~8 DAYS and is NOT flagged.
+    That asymmetry is the self-check that the span, not the row count, is what is
+    being measured."""
+    cov = tgm.capped_pagination_span_coverage(_REAL_TAPE, "settlement_ledger")
+    assert cov is not None
+    by_id = {c["capture_id"]: c for c in cov["captures"]}
+    expected = {"20260717T122238Z", "20260717T122243Z",
+                "20260717T122302Z", "20260722T103141Z"}
+    assert set(by_id) == expected, sorted(by_id)
+    assert cov["n_captures"] == 4
+    assert cov["n_captures_judged"] == 4
+    assert cov["n_captures_not_judged"] == 0
+    assert cov["n_captures_narrow"] == 3, cov["narrow_captures"]
+
+    legacy = by_id["20260717T122238Z"]
+    assert legacy["n_rows"] == 605
+    assert legacy["narrow"] is False, legacy
+    assert legacy["span_hours"] > 24.0 * 7, legacy  # ~8.07 days
+    assert legacy["span_ratio"] > 1.0, legacy
+
+    for cid, n_rows in (("20260717T122243Z", 800),
+                        ("20260717T122302Z", 4200),
+                        ("20260722T103141Z", 5000)):
+        rec = by_id[cid]
+        assert rec["n_rows"] == n_rows, rec
+        assert rec["narrow"] is True, rec
+        assert 1.0 <= rec["span_hours"] <= 4.0, rec
+        assert rec["span_ratio"] < 0.2, rec
+        # L185's arithmetic: the observed event rate the 5000-row cap is spent against.
+        assert rec["rows_per_hour"] > 500, rec
+        assert rec["coverage_ceiling_fraction"] == rec["span_ratio"]
