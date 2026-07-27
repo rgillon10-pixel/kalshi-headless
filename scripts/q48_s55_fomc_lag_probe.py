@@ -176,6 +176,12 @@ Per (burst window, meeting, bucket) unit, all off `real_ask` quotes:
   UNMEASURABLE baseline: its `has_persistent_stale_window` is None (never True, never False),
   it is counted in `n_units_stale_window_baseline_unmeasurable`, and it does not contribute to
   `no_persistent_stale_window` — which biases toward the kill, stated rather than hidden.
+  L180 (closed 2026-07-27): a baseline PRESENT but thinner than
+  `MIN_PRE_CAPTURES_FOR_BASELINE` (n_pre=1 confines the pre-fraction to {0,1}, so one
+  momentarily-tight pre-capture manufactures a "release-caused" window out of a permanent
+  overround) is treated the SAME as unmeasurable — flag None, carried as `thin_baseline` per
+  unit and `n_units_thin_baseline` in the report — and the `excess_max >=` tick comparison now
+  subtracts `EXCESS_EPSILON` so one float ulp cannot flip the persistent-unit count.
 
 Q48's kill condition, emitted as the named field `kill_condition_met`: True iff NO unit showed a
 BASELINED persistent positive gap-net-of-fee window AND the median captures-until-first-move is
@@ -303,6 +309,22 @@ MIN_ENTRY_EDGE = PRICE_TICK
 # tick of max gap and by a strictly larger fraction of >fee captures. A permanent cross-venue
 # overround is not a release lag.
 STALE_WINDOW_MIN_EXCESS_DOLLARS = PRICE_TICK
+# ── L180 (closed 2026-07-27): a baseline built on too FEW pre-release captures is fragile. With
+# n_pre = 1 the pre-release fraction-of->fee-captures is confined to {0, 1}, so one momentarily-
+# tight pre-capture flips a PERMANENT standing cross-venue overround back into a "release-caused"
+# window — exactly the failure the baseline was built to prevent (verifier demo, L180: identical
+# permanent 6c overround + post rows, n_pre=1 -> True, n_pre=23 -> False). A unit whose baseline
+# is thinner than this is treated like an UNMEASURABLE baseline: `has_persistent_stale_window` is
+# None, it is EXCLUDED from `n_units_with_persistent_stale_window`, and it carries a `thin_baseline`
+# flag counted in the report — biasing toward the KILL (stated, not hidden), like the existing
+# no-pre-capture handling.
+MIN_PRE_CAPTURES_FOR_BASELINE = 2
+# ── L180 (closed 2026-07-27): `excess_max` is a difference of (|gap| - fee) floats and lands e.g.
+# at 0.010000000000000009 / 0.009999999999999995 for a genuine one-tick widening; a bare `>=`
+# lets one ulp flip the headline persistent-unit count (L180: `2026-10|cut_25` cleared only
+# because its pre_max was -5.2e-18). This epsilon mirrors `MIN_ENTRY_EDGE` on the entry side
+# (L176/L179): admit an excess within one float-dust of a full tick, reject genuine sub-tick.
+EXCESS_EPSILON = 1e-9
 # ── the magnitude-qualified first-move companion: Kalshi must close >= this share of the
 # Polymarket move, and Polymarket must itself have moved >= one tick for the statistic to exist.
 KALSHI_CATCHUP_FRACTION = 0.5
@@ -767,15 +789,17 @@ def analyze_unit(pre_rows: Sequence[Dict[str, Any]], post: List[Dict[str, Any]],
                    if (pre_frac_positive is not None and post_frac_positive is not None) else None)
     excess_max = (post_max - pre_max
                   if (pre_max is not None and post_max is not None) else None)
-    if not pre_rows:
-        # baseline UNMEASURABLE -> None, never a boolean. Not counted as persistent anywhere,
-        # which biases toward the kill; that bias is reported, not hidden.
+    thin_baseline = 0 < len(pre_rows) < MIN_PRE_CAPTURES_FOR_BASELINE
+    if not pre_rows or thin_baseline:
+        # baseline UNMEASURABLE (no pre-capture) OR too THIN to trust (n_pre <
+        # MIN_PRE_CAPTURES_FOR_BASELINE, L180) -> None, never a boolean. Not counted as
+        # persistent anywhere, which biases toward the kill; that bias is reported, not hidden.
         persistent_excess: Optional[bool] = None
     else:
         persistent_excess = bool(persistent_absolute
                                  and excess_frac is not None and excess_frac > 0.0
                                  and excess_max is not None
-                                 and excess_max >= STALE_WINDOW_MIN_EXCESS_DOLLARS)
+                                 and excess_max >= STALE_WINDOW_MIN_EXCESS_DOLLARS - EXCESS_EPSILON)
 
     first_move: Optional[int] = None
     if pre is not None:
@@ -820,7 +844,13 @@ def analyze_unit(pre_rows: Sequence[Dict[str, Any]], post: List[Dict[str, Any]],
         "excess_max_abs_gap_net_fee": excess_max,
         "excess_frac_gap_net_fee_positive": excess_frac,
         "stale_window_baseline_measurable": bool(pre_rows),
+        # ── L180: a baseline present but thinner than MIN_PRE_CAPTURES_FOR_BASELINE is treated
+        # as unmeasurable (flag None) — a single {0,1}-confined pre-fraction cannot separate a
+        # standing overround from a release lag.
+        "thin_baseline": thin_baseline,
+        "min_pre_captures_for_baseline": MIN_PRE_CAPTURES_FOR_BASELINE,
         # ── the flag the kill condition consumes: excess over baseline, None if unmeasurable
+        # (no pre-capture) OR thin (below the baseline-adequacy floor)
         "has_persistent_stale_window": persistent_excess,
         "captures_until_first_kalshi_move": first_move,
         "captures_until_kalshi_closed_half_of_polymarket_move": half_move,
@@ -889,6 +919,7 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     n_persistent = 0
     n_persistent_absolute = 0
     n_baseline_unmeasurable = 0
+    n_thin_baseline = 0
     n_never_moved = 0
     n_never_closed_half = 0
     for b in bursts:
@@ -899,6 +930,8 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
             flag = unit["has_persistent_stale_window"]
             if flag is None:
                 n_baseline_unmeasurable += 1
+                if unit.get("thin_baseline"):
+                    n_thin_baseline += 1
             elif flag:
                 n_persistent += 1
             fm = unit["captures_until_first_kalshi_move"]
@@ -923,6 +956,8 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         "n_units_with_persistent_stale_window": n_persistent,
         "n_units_with_persistent_stale_window_absolute_unbaselined": n_persistent_absolute,
         "n_units_stale_window_baseline_unmeasurable": n_baseline_unmeasurable,
+        "n_units_thin_baseline": n_thin_baseline,
+        "min_pre_captures_for_baseline": MIN_PRE_CAPTURES_FOR_BASELINE,
         "n_units_never_repriced_in_window": n_never_moved,
         "n_units_never_closed_half_of_polymarket_move": n_never_closed_half,
         "median_captures_until_first_kalshi_move": median_first_move,
@@ -944,7 +979,12 @@ def kill_condition(bursts: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
             "absolute rule flagged 12 units of which 7 had a >fee gap on 100% of their "
             "PRE-release captures — a standing overround, not a release lag. Units with no "
             "pre-release capture have an UNMEASURABLE baseline (flag None) and are excluded "
-            "from the persistent count, which biases toward the kill."),
+            "from the persistent count, which biases toward the kill. L180: a baseline present "
+            f"but THINNER than MIN_PRE_CAPTURES_FOR_BASELINE={MIN_PRE_CAPTURES_FOR_BASELINE} is "
+            "treated the same way (flag None, counted in `n_units_thin_baseline`) — a pre-fraction "
+            "confined to {0,1} cannot tell a standing overround from a release lag; and the "
+            "excess-over-tick comparison now carries a float-dust epsilon so one ulp cannot flip "
+            "the count."),
         "reprices_within_one_capture": reprices_fast,
         "no_persistent_stale_window": no_persistent,
         "kill_condition_met": (bool(reprices_fast and no_persistent)
@@ -1149,6 +1189,10 @@ def run_probe(tape_dir: Path = DEFAULT_TAPE_DIR, *, release_ts: str = DEFAULT_RE
     report["status"] = "ANALYSIS"
     report["bursts"] = bursts
     report["kill_condition"] = kill_condition(bursts)
+    # ── L180: surface the thin-baseline count in the report header too (not only inside
+    # kill_condition), so a firing whose pre-release window is thin is visible at the top level.
+    report["n_units_thin_baseline"] = report["kill_condition"]["n_units_thin_baseline"]
+    report["min_pre_captures_for_baseline"] = MIN_PRE_CAPTURES_FOR_BASELINE
 
     unit_values: Dict[str, List[float]] = {}
     n_subtick = 0
