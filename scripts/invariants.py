@@ -1225,6 +1225,89 @@ def hollow_crypto_ladder_warning(issues: List[Dict[str, object]]) -> Optional[st
     return "\n".join(lines)
 
 
+# ─── Capped-pagination span-vs-cadence advisory (L185: non-gating) ─────────────
+#
+# L185: a capped, newest-first-paginated harvest with NO time-window request parameter has a
+# coverage ceiling of `cap / event_rate`, independent of how often the leg fires — and it does
+# NOT improve as the ledger accumulates days (each pass just restarts the cursor from "now").
+# `collection/settlement_ledger.py` is the worked example: 5000 rows/pass, no min_close_ts /
+# max_close_ts, once a day, reaching back only ~1.3-3.8h of close_time against a 24h interval.
+# Every existing cadence detector reads this family GREEN while that hole is wide open.
+#
+# NON-GATING, deliberately: a cap/window mismatch is a collector DESIGN property. Fixing it
+# means changing the request shape (or the cadence) and re-collecting — nothing a cloud research
+# run can repair mid-loop, and the condition is true of every committed pass ever written, so
+# gating would halt the loop indefinitely over an unfixable state. Same posture as the
+# hollow-ladder and dead-collector-leg advisories: it PRINTS to stderr, it never flips the exit
+# code.
+#
+# Single source of truth: `CAPPED_PAGINATION_FAMILIES` and the check itself are IMPORTED from
+# scripts/tape_gap_monitor.py via `_load_tape_gap_monitor`, never re-declared here — a second
+# copy of the cadence/cap/threshold table would drift the moment either is recalibrated (the
+# duplication trap L100 collapsed out of the collectors).
+
+
+def _capped_pagination_span_issues(tape_root: Path = ROOT / "tape"
+                                   ) -> List[Dict[str, object]]:
+    """One issue dict per registered family with >=1 NARROW capture (event-time span far below
+    the leg's firing interval), computed from committed tape only — read-only, no network.
+    Best-effort: any exception yields [], so it can never poison the gate."""
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None or not tape_root.is_dir():
+            return []
+        issues: List[Dict[str, object]] = []
+        for family in sorted(getattr(tgm, "CAPPED_PAGINATION_FAMILIES", {})):
+            cov = tgm.capped_pagination_span_coverage(tape_root, family)
+            if not cov or not cov.get("n_captures_narrow"):
+                continue
+            issues.append({
+                "family": family,
+                "cadence_hours": cov["cadence_hours"],
+                "cap": cov["cap"],
+                "time_key": cov["time_key"],
+                "n_captures": cov["n_captures"],
+                "n_captures_judged": cov["n_captures_judged"],
+                "n_captures_not_judged": cov["n_captures_not_judged"],
+                "n_captures_narrow": cov["n_captures_narrow"],
+                "narrow_captures": cov["narrow_captures"],
+            })
+        return issues
+    except Exception:
+        return []
+
+
+def capped_pagination_span_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """A non-gating advisory naming any capped-pagination family whose per-pass captured
+    event-time window is far narrower than its own firing interval (L185). Pure. NEVER flips
+    the exit code. See kb/lessons/00-lessons.md L185."""
+    if not issues:
+        return None
+    lines = [f"warning (non-gating): {len(issues)} capped-pagination collector family(ies) "
+             f"capture a per-pass event-time window far NARROWER than their firing interval "
+             f"— a `cap / event_rate` coverage ceiling that MORE DAYS CANNOT FIX (L185):"]
+    for issue in issues:
+        narrow = issue["narrow_captures"] or []
+        lines.append(
+            f"  - {issue['family']}: cap={issue['cap']} rows/pass, no time-window parameter, "
+            f"fires every {float(issue['cadence_hours']):.0f}h; "
+            f"{issue['n_captures_narrow']}/{issue['n_captures_judged']} judged capture(s) narrow "
+            f"({issue['n_captures_not_judged']} not judged — too few rows / no parseable "
+            f"{issue['time_key']}, reported, never assumed ok)")
+        for cap_rec in narrow:
+            rph = cap_rec.get("rows_per_hour")
+            rph_s = f"{rph:.0f} rows/h" if isinstance(rph, (int, float)) else "rows/h undefined"
+            lines.append(
+                f"      {cap_rec['capture_id']}: {cap_rec['n_rows_with_time']} rows spanning "
+                f"{cap_rec['span_hours']:.2f}h of {issue['time_key']} ({rph_s}) => coverage "
+                f"ceiling {float(cap_rec['coverage_ceiling_fraction']):.1%} of the "
+                f"{float(issue['cadence_hours']):.0f}h interval")
+    lines.append("  Computed from committed tape only via "
+                 "scripts/tape_gap_monitor.py::capped_pagination_span_coverage. Advisory only "
+                 "— does NOT affect the exit code. See kb/lessons/00-lessons.md L185.")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -2227,6 +2310,21 @@ def main() -> int:
                 sys.stderr.write(hollow_warning + "\n")
         except BaseException:
             sys.stderr.write("note: hollow crypto-ladder advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L185 advisory: a capped, newest-first-paginated collector whose per-pass captured
+        # event-time window is far narrower than its own firing interval (settlement_ledger:
+        # 5000 rows, no min/max_close_ts, ~1.3-3.8h reached per 24h fire). Non-gating — the
+        # mismatch is a collector DESIGN property no cloud run can repair mid-loop, so gating
+        # would halt the loop indefinitely. Wrapped in `except BaseException` for the same
+        # reason as the collector-health stanza above: the detector self-guards, but a raise in
+        # the FORMATTER or a non-str return (making `+ "\n"` a TypeError) would otherwise reach
+        # the exit code and turn a non-gating advisory into a gate (the L156 DEFECT-1 lesson).
+        try:
+            capped_span_warning = capped_pagination_span_warning(_capped_pagination_span_issues())
+            if capped_span_warning:
+                sys.stderr.write(capped_span_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: capped-pagination span advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.

@@ -6,6 +6,88 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~17:0xZ UTC — research loop: L185 CLOSED — capped-pagination span-vs-cadence advisory (settlement_ledger)
+
+Cloud research-loop run, protocol v3. **Steps 0a/0/0b were already completed by the calling
+session:** history-integrity clean (no rewind), `origin/main` HEAD `ac8a758`; open PRs
+#208/#191/#166/#165 claim nothing eligible; the newest committed tape branch
+`tape/hourly-20260727T0356Z` had already been swept by PR #214 — **nothing stranded**. Full
+Q0-Q48 re-scan: still saturated (everything DONE/DEAD/BLOCKED/calendar-gated; Q48/S55's FOMC
+probe is burst-gated to **2026-07-29**, 2 days out) → **IDLE RUN**. Policy (b) unavailable
+(both time-gated probes fully prepped). **Policy (a) available for the first time in days:**
+**L185** — added hours earlier by PR #214 out of
+`findings/2026-07-27-settlement-ledger-tape-audit.md` — was the **sole** open `UNENFORCED`
+lesson. Converted it into enforcement.
+
+**Built** (a `collector-engineer` worker, diff reviewed line-by-line by the lead).
+`scripts/tape_gap_monitor.py`: new docstring section "Capped-pagination span-vs-cadence
+coverage (L185, 2026-07-27)"; a `CAPPED_PAGINATION_FAMILIES` config (one entry today —
+`settlement_ledger`: `time_key="close_time"`, `cadence_hours=24.0`, `cap=5000`,
+`min_rows_for_span=50`, `span_ratio_alert=0.5`; **a second capped-pagination collector is one
+dict entry, nothing is settlement_ledger-specific**); `capped_pagination_span_coverage(tape_root,
+family)`, which groups every committed line by `capture_id` and reports per-capture `span_hours`,
+`span_ratio` (= `coverage_ceiling_fraction`) and `rows_per_hour` — **L185's `cap / event_rate`
+arithmetic made computable**; a private `_parse_event_time` bare-`Z` helper (see L187). Attached
+to the family health record under the new key `"capped_pagination_span"` in `evaluate_family`,
+**informational only — the STALE/UNDER-CAPTURE `alert`/`alert_reason` path is byte-identical**,
+key-by-key test-pinned. `scripts/invariants.py`: `_capped_pagination_span_issues()` + pure
+`capped_pagination_span_warning()`, wired into `main()` as a **stderr-only,
+`except BaseException`-wrapped, NON-GATING** advisory (same posture as
+`hollow_crypto_ladder_warning` / `dead_collector_leg_warning`), importing the config and check
+from tape_gap_monitor through the existing `_load_tape_gap_monitor` path-import rather than
+re-declaring them. **Non-gating is deliberate:** a cap/window mismatch is a collector DESIGN
+property that no cloud run can repair mid-loop and that is true of every pass ever committed, so
+gating would halt the loop indefinitely (the L156 reasoning). Tests: +10 in
+`tests/test_tape_gap_monitor.py`, +8 in `tests/test_invariants.py`.
+
+**Real committed tape** (`tape/settlement_ledger/`, 4 `capture_id`s across 2 day-files) —
+independently re-derived by the lead BEFORE the build and reproduced exactly by the check
+afterwards:
+
+| capture_id | rows | close_time span | span_hours | span_ratio (coverage ceiling) | rows/h | narrow |
+|---|---|---|---|---|---|---|
+| 20260717T122238Z | 605 | 2026-07-07T01:39:33Z → 2026-07-15T03:15:51Z | 193.605 | 8.066875 | 3.12 | **False** (`migrated:q26_settlement_cache` legacy backfill) |
+| 20260717T122243Z | 800 | 2026-07-17T11:00:00Z → 12:15:21Z | 1.2558 | 0.052326 | 637.03 | True |
+| 20260717T122302Z | 4200 | 2026-07-17T08:15:00Z → 12:04:41Z | 3.8281 | 0.159502 | 1097.16 | True |
+| 20260722T103141Z | 5000 | 2026-07-22T07:15:00Z → 10:30:05Z | 3.2514 | 0.135475 | 1537.80 | True |
+
+`n_captures=4, n_captures_judged=4, n_captures_not_judged=0, n_captures_narrow=3`. The
+un-flagged capture has the FEWEST rows — that asymmetry, inside a single family, is what shows
+the check measures span rather than row count.
+
+**Gates (lead-verified, independently re-run).** `python3.11 scripts/invariants.py --full` →
+**exit 0**, `invariants: all green` on stdout with the new advisory on stderr. Baseline on clean
+`origin/main` (`ac8a758`) in a separate worktree: **2069 collected, 2 failed** (both the known
+pre-existing `tests/test_q42_funding_estimate_path_inference.py` real-tape-drift failures,
+`test_tape_leave_one_out_67_drops_decomposes_as_7_18_42` and
+`test_tape_random_same_size_subsets_reproduce_the_dense_cuts_hard_gap`). After this diff:
+**2087 collected, 2085 passed, 2 failed** — the same two, **0 introduced failures**, **+18 tests**.
+
+**Ledger.** **L185 → CLOSED**, tier **test** (enforcement is the unit test written WITH the fix,
+the L180 precedent). Two new lessons: **L186** — *a coverage detector needs a NEGATIVE CONTROL
+drawn from the same family, not just a positive hit* (a detector validated only on examples that
+all flag is indistinguishable from `return True`); **L187** — *a bare-`Z` timestamp is a SILENT
+per-family blind spot for any shared ISO helper of the defensive `return None` kind* (sibling of
+L136/L138, which are about the CRASH; this is about the silent skip producing a confident wrong
+count). Both **test**-enforced; each row states honestly which part of the general rule is not
+statically assertable.
+
+**Two-agent verdict rule: N/A** — a tooling/monitoring extension, not a verdict-class change (no
+registry status flip, no bootstrap CI, no kill decision); same posture logged for L156/L168/L172.
+Noted honestly that the load-bearing empirical numbers were nevertheless derived **twice
+independently** (the lead's own pre-build measurement, then the check's output). **No source-tag
+movement:** every `settlement_ledger` field touched is already `broker_truth`; the diff produces
+**no price and no P&L**. `kb/strategies/00-index.md` is **unchanged** — there is no strategy claim
+in this run. `collection/settlement_ledger.py` is **unmodified**: this run built the DETECTOR, not
+the fix; the cap/window design call remains open for Ryan (Q45 verdict unchanged, DONE).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34 —
+paper-infra validation only, **NOT** edge evidence). This diff appends **ZERO** lines to `tape/`,
+so `execution/paper_broker` has no new tape to process — **step 9 is a genuine no-op this run, not
+a skipped step**.
+
+Still **0 proven edges**.
+
 ## 2026-07-27 ~09:3xZ UTC — research loop: stranded-tape recovery (1,798 lines) + settlement_ledger data-quality audit (L185)
 
 Cloud research-loop run, protocol v3. Step 0a: `origin/main` HEAD `1ab3918`; `kb/00-LOG.md`

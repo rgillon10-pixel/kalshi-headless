@@ -155,6 +155,46 @@ record (informational; does not feed the STALE/UNDER-CAPTURE alert path,
 which already correctly reads this family via its forward collector cadence
 per L127/L128). A family NOT registered here is unaffected — this is purely
 additive.
+
+Capped-pagination span-vs-cadence coverage (L185, 2026-07-27)
+--------------------------------------------------------------
+Every detector above asks "did the pass RUN?". None of them asks "how much
+CALENDAR did the pass actually reach?" — and for a capped, newest-first
+paginated harvest with no time-window parameter, those are different
+questions with different answers. ``collection/settlement_ledger.py`` pulls
+``MAX_SETTLED_MARKETS=5000`` newest-first with no ``min_close_ts``/
+``max_close_ts`` once per day (``SETTLEMENT_LEDGER_UTC_HOUR=10``), so each
+pass reaches back only ``cap / event_rate`` — ~1.3-3.8h of ``close_time``
+against a 24h firing interval, a structural ~13.5% coverage ceiling that MORE
+DAYS CANNOT FIX (the cursor just restarts from "now" each day). Every STALE /
+UNDER-CAPTURE / completeness signal reads perfectly green while that hole is
+wide open.
+
+``CAPPED_PAGINATION_FAMILIES`` names which families carry this shape (the
+per-row event-time key, the leg's firing cadence, the cap, a thin-capture
+adequacy floor and the flag threshold); ``capped_pagination_span_coverage()``
+groups ALL committed lines by ``capture_id`` and reports each capture's
+event-time span, its ``span_hours / cadence_hours`` ratio (= the implied
+coverage ceiling fraction) and the observed ``rows_per_hour`` that makes
+L185's ``cap / event_rate`` arithmetic checkable. ``evaluate_family`` attaches
+it to a registered family's record under ``capped_pagination_span``, purely
+INFORMATIONALLY — it does not touch ``alert``/``alert_reason`` at all (this is
+a design-time cap/window mismatch, not a pipe outage, and it is un-fixable by
+a cloud run mid-loop; ``scripts/invariants.py`` surfaces it as a NON-GATING
+stderr advisory for the same reason).
+
+What it refuses to guess. A capture with fewer than ``min_rows_for_span``
+timestamped rows is reported as NOT-JUDGED, never narrow: a 3-row capture has
+a short span for entirely legitimate reasons (thin hour, tail page), and
+calling that a coverage failure would be a fabricated finding — the same "no
+signal, never a guess" discipline as ``extract_completeness``. Rows with a
+missing/malformed event time are skipped (never fabricated to now), and a
+capture with no parseable time at all is NOT-JUDGED, not silently "ok". A
+family not registered here gets ``None`` — this function makes no claim about
+a shape it wasn't told about. The self-check that the measurement is real: the
+``settlement_ledger`` family's own 605-row ``migrated:q26_settlement_cache``
+legacy backfill spans ~8 days and is correctly NOT flagged, while the three
+live ``live_settled_markets`` captures on the same tape are.
 """
 from __future__ import annotations
 
@@ -335,6 +375,43 @@ JOIN_CRITICAL_ONE_SHOT: Dict[str, Dict[str, Any]] = {}
 # NOT registered here).
 RETROSPECTIVE_LIST_FAMILIES: Dict[str, Dict[str, Any]] = {
     "hyperliquid_funding": {"list_key": "prints", "time_key": "time_ms", "step_seconds": 3600},
+}
+
+# Capped-pagination span-vs-cadence map (L185, 2026-07-27). See module docstring.
+# A family listed here harvests newest-first under a row CAP with NO time-window
+# request parameter, so each pass reaches back only `cap / event_rate` of calendar
+# regardless of how often the leg fires. Registering a second such collector is one
+# entry here — nothing about this check is settlement_ledger-specific.
+#   time_key         : the per-row EVENT-time field (NOT `captured_at` — the point is
+#                      the gap between when the pass ran and how far back it reached).
+#   cadence_hours    : the leg's firing interval, i.e. the calendar each pass must cover
+#                      to have no hole.
+#   cap              : the collector's own row cap, quoted for the advisory text.
+#   min_rows_for_span: adequacy floor. Below this many timestamped rows a capture is
+#                      NOT-JUDGED, never flagged — a thin capture has a short span for
+#                      legitimate reasons and calling that a coverage failure would be
+#                      a fabricated finding.
+#   span_ratio_alert : flag when span_hours / cadence_hours falls below this.
+# settlement_ledger provenance (measured on committed tape, 2026-07-27):
+#   MAX_SETTLED_MARKETS = 5000 (collection/settlement_ledger.py:84), no min_close_ts /
+#   max_close_ts anywhere in the request; fires once/day at SETTLEMENT_LEDGER_UTC_HOUR
+#   = 10 (collection/hourly_pass.py:150). Observed live spans 800 rows/1.26h,
+#   4200/3.83h, 5000/3.25h => ratios 0.053/0.160/0.135 against a 24h interval.
+#   min_rows_for_span=50: an order of magnitude below the smallest observed live
+#   capture (800) and below the 605-row legacy backfill, so it excludes only genuinely
+#   thin/one-off captures, never a real harvest. span_ratio_alert=0.5: half a firing
+#   interval — a pass covering less than half the calendar it is responsible for has a
+#   structural hole; the observed live ratios sit ~3-10x below it, and the ~8-day
+#   legacy backfill (ratio ~8.1) sits far above, so the threshold is not load-bearing
+#   for either verdict on today's tape.
+CAPPED_PAGINATION_FAMILIES: Dict[str, Dict[str, Any]] = {
+    "settlement_ledger": {
+        "time_key": "close_time",
+        "cadence_hours": 24.0,
+        "cap": 5000,
+        "min_rows_for_span": 50,
+        "span_ratio_alert": 0.5,
+    },
 }
 
 # The one benign-silence allowlist entry (see module docstring for full rationale).
@@ -546,6 +623,158 @@ def retrospective_coverage(tape_root: Path, family: str) -> Optional[Dict[str, A
         "span_end": datetime.fromtimestamp(hi / 1000.0, tz=timezone.utc).isoformat(),
         "step_seconds": step_s,
         "n_missing_steps": n_missing,
+    }
+
+
+def _parse_event_time(ts: Optional[str]) -> Optional[datetime]:
+    """``_parse_iso`` with a bare-``Z`` suffix normalization.
+
+    Committed ``settlement_ledger`` rows write ``close_time`` as
+    ``2026-07-22T10:30:00Z`` (bare ``Z``), which ``datetime.fromisoformat`` —
+    and therefore ``_parse_iso`` — cannot parse on Python < 3.11. Rewriting the
+    suffix to ``+00:00`` is a pure string normalization, not a second parser:
+    this file keeps exactly ONE ``datetime.fromisoformat`` call site (the
+    gating ``inv_no_raw_datetime_fromisoformat`` allowance), and anything still
+    unparseable stays ``None`` rather than being guessed at."""
+    if isinstance(ts, str) and ts.endswith("Z"):
+        ts = ts[:-1] + "+00:00"
+    return _parse_iso(ts)
+
+
+def capped_pagination_span_coverage(tape_root: Path,
+                                    family: str) -> Optional[Dict[str, Any]]:
+    """Per-``capture_id`` event-time SPAN vs the leg's firing CADENCE (L185).
+
+    A capped, newest-first-paginated harvest with no time-window request
+    parameter reaches back only ``cap / event_rate`` of calendar per pass,
+    independent of how often the leg runs and NOT improvable by accumulating
+    more days. This groups every committed line of ``family`` by ``capture_id``,
+    measures each capture's min/max of the configured event-time field, and
+    flags the captures whose span is small relative to the firing interval.
+
+    Returns ``None`` for a family not registered in
+    ``CAPPED_PAGINATION_FAMILIES`` — no claim is made about a shape this
+    function wasn't told the family has (same refusal as
+    ``retrospective_coverage``).
+
+    What it refuses to guess (mirrors ``extract_completeness``'s "no signal,
+    never a guess"):
+
+    * a capture with fewer than ``min_rows_for_span`` PARSEABLE-time rows is
+      ``judged=False`` with ``not_judged_reason="below_min_rows_for_span"`` —
+      counted in ``n_captures_not_judged``, never in ``n_captures_narrow`` and
+      never folded into "ok";
+    * a row whose event time is absent/malformed is skipped, never fabricated;
+      a capture with zero parseable times is
+      ``not_judged_reason="no_parseable_event_times"``;
+    * a judged capture with an exactly-zero span is genuinely narrow (all rows
+      share one instant), but its ``rows_per_hour`` is ``None`` — undefined, not
+      an invented infinity.
+
+    Per-capture fields: ``capture_id``, ``n_rows`` (all lines),
+    ``n_rows_with_time``, ``span_start``/``span_end``, ``span_hours``,
+    ``span_ratio`` (= span/cadence = ``coverage_ceiling_fraction``, L185's
+    ceiling made computable), ``rows_per_hour`` (the observed event rate the cap
+    is being spent against), ``judged``, ``narrow``, ``not_judged_reason``.
+    """
+    cfg = CAPPED_PAGINATION_FAMILIES.get(family)
+    if cfg is None:
+        return None
+    time_key = cfg["time_key"]
+    cadence_h = float(cfg["cadence_hours"])
+    min_rows = int(cfg["min_rows_for_span"])
+    ratio_alert = float(cfg["span_ratio_alert"])
+
+    # capture_id -> [n_rows, n_rows_with_time, min_dt, max_dt]. Only 4 scalars per
+    # capture are retained, so a 10k+-line family stays memory-bounded (L10).
+    by_capture: Dict[str, Dict[str, Any]] = {}
+    for _d, path in _family_files(tape_root, family):
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                cid = rec.get("capture_id")
+                if not isinstance(cid, str) or not cid:
+                    # No capture_id => no pass to attribute the row to. Skipped
+                    # honestly rather than lumped into a synthetic bucket.
+                    continue
+                slot = by_capture.setdefault(
+                    cid, {"n_rows": 0, "n_rows_with_time": 0, "lo": None, "hi": None})
+                slot["n_rows"] += 1
+                dt = _parse_event_time(rec.get(time_key))
+                if dt is None:
+                    continue
+                slot["n_rows_with_time"] += 1
+                if slot["lo"] is None or dt < slot["lo"]:
+                    slot["lo"] = dt
+                if slot["hi"] is None or dt > slot["hi"]:
+                    slot["hi"] = dt
+
+    captures: List[Dict[str, Any]] = []
+    for cid in sorted(by_capture):
+        slot = by_capture[cid]
+        rec_out: Dict[str, Any] = {
+            "capture_id": cid,
+            "n_rows": slot["n_rows"],
+            "n_rows_with_time": slot["n_rows_with_time"],
+            "span_start": slot["lo"].isoformat() if slot["lo"] is not None else None,
+            "span_end": slot["hi"].isoformat() if slot["hi"] is not None else None,
+            "span_hours": None,
+            "span_ratio": None,
+            "coverage_ceiling_fraction": None,
+            "rows_per_hour": None,
+            "judged": False,
+            "narrow": False,
+            "not_judged_reason": None,
+        }
+        if slot["n_rows_with_time"] == 0:
+            rec_out["not_judged_reason"] = "no_parseable_event_times"
+            captures.append(rec_out)
+            continue
+        if slot["n_rows_with_time"] < min_rows:
+            rec_out["not_judged_reason"] = "below_min_rows_for_span"
+            span_h = (slot["hi"] - slot["lo"]).total_seconds() / 3600.0
+            rec_out["span_hours"] = round(span_h, 4)
+            captures.append(rec_out)
+            continue
+
+        span_h = (slot["hi"] - slot["lo"]).total_seconds() / 3600.0
+        ratio = span_h / cadence_h if cadence_h > 0 else None
+        rec_out["judged"] = True
+        rec_out["span_hours"] = round(span_h, 4)
+        rec_out["span_ratio"] = round(ratio, 6) if ratio is not None else None
+        rec_out["coverage_ceiling_fraction"] = rec_out["span_ratio"]
+        if span_h > 0:
+            rec_out["rows_per_hour"] = round(slot["n_rows_with_time"] / span_h, 2)
+        rec_out["narrow"] = ratio is not None and ratio < ratio_alert
+        captures.append(rec_out)
+
+    judged = [c for c in captures if c["judged"]]
+    narrow = [c for c in judged if c["narrow"]]
+    return {
+        "family": family,
+        "time_key": time_key,
+        "cadence_hours": cadence_h,
+        "cap": cfg["cap"],
+        "min_rows_for_span": min_rows,
+        "span_ratio_alert": ratio_alert,
+        "n_captures": len(captures),
+        "n_captures_judged": len(judged),
+        "n_captures_not_judged": len(captures) - len(judged),
+        "n_captures_narrow": len(narrow),
+        "captures": captures,
+        "narrow_captures": narrow,
     }
 
 
@@ -810,6 +1039,14 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
     if tape_root is not None and agg.family in RETROSPECTIVE_LIST_FAMILIES:
         retro_coverage = retrospective_coverage(tape_root, agg.family)
 
+    # L185: per-capture event-time span vs firing cadence. INFORMATIONAL only —
+    # deliberately computed after `reasons` is closed and never appended to it, so it
+    # cannot touch `alert`/`alert_reason`. A cap/window mismatch is a collector DESIGN
+    # property, not a pipe outage; paging on it would fire every single day forever.
+    capped_span = None
+    if tape_root is not None and agg.family in CAPPED_PAGINATION_FAMILIES:
+        capped_span = capped_pagination_span_coverage(tape_root, agg.family)
+
     benign = _benign_match(agg.family, newest) if would_alert else None
     if would_alert and benign is not None:
         alert = False
@@ -846,6 +1083,7 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
         "collectors": collectors,
         "collector_diagnosis": collector_diagnosis,
         "retrospective_coverage": retro_coverage,
+        "capped_pagination_span": capped_span,
     }
 
 
