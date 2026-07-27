@@ -1,8 +1,9 @@
 """Offline unit tests for scripts/q42_funding_estimate_path_inference.py.
 
-Offline throughout — no network. Synthetic fixtures except for the four TAPE-PINNED
-tests in the `=== correction round 2 ===` block at the bottom, which read the COMMITTED
-`tape/perp_tape/dt=*.jsonl` read-only (and skip, rather than silently pass, if it is
+Offline throughout — no network. Synthetic fixtures except for the TAPE-PINNED tests in
+the `=== correction round 2 ===` block at the bottom, which read the COMMITTED
+`tape/perp_tape/` read-only over an EXPLICIT FROZEN DAY-SLICE (see
+`_FROZEN_TAPE_SLICE_DAYS`; they skip, rather than silently pass, if the family is
 absent): a claim the writeup quotes as a number must be re-runnable from the shipped
 artifact, and round 1 published a leave-one-out result that lived only in a throwaway
 session. The load-bearing cases:
@@ -992,14 +993,67 @@ def test_analyze_emits_the_round2_outputs():
 # --------------------------------------------------------------------------- #
 # TAPE-PINNED (read-only, offline, committed tape) — the two round-2 MANDATORY
 # numbers. Skipped, never silently passed, if the committed tape is absent.
+#
+# 2026-07-27 GATE REPAIR — THE FROZEN TAPE SLICE (L140-class time bomb).
+# ----------------------------------------------------------------------------
+# These tests originally globbed `tape/perp_tape/dt=*.jsonl` — OPEN-ENDED over a LIVE,
+# STILL-GROWING collected family. `perp_tape` gained dt=2026-07-25/26/27 after the
+# 2026-07-24 finding was written, which changed the POPULATION the pinned statistics
+# describe, so the pins went red on `main` with no code change anywhere:
+#
+#   statistic                     2026-07-24 (dt=17..24)   2026-07-27 (dt=*, 17..27)
+#   n_joined_windows                     286                       364
+#   n_discriminating (LOO n_windows)      42                        58
+#   LOO n_tickers_dropped                  7                         8
+#   LOO n_funding_times_dropped           18                        23
+#   LOO n_drops                           67                        89
+#   p_hard_gap(size=11, 20k draws)     0.2057                    0.3655
+#   p_hard_gap(size=14, 20k draws)     0.1042                    0.2390
+#
+# DIAGNOSIS (2026-07-27, this repair): the day-files that existed at the finding commit
+# cebe691 — dt=2026-07-17 .. dt=2026-07-24 — are BYTE-IDENTICAL between cebe691 and HEAD
+# (verified blob-by-blob with `git rev-parse <rev>:<path>`), and
+# `scripts/q42_funding_estimate_path_inference.py` is likewise byte-identical. The
+# stranded-tape recovery in ac8a758 union-appended only into `dt=2026-07-27.jsonl` within
+# this family, i.e. it added a NEW day, it did not mutate an old one. So the drift is
+# PURELY TAPE GROWTH: restricted to the frozen slice below, all four tape pins reproduce
+# EXACTLY (67 / 7 / 18 / 42, p11=0.20565, p14=0.10420). NOTHING WAS RE-PINNED — no
+# number in this file moved; the population was made explicit instead.
+#
+# The slice is the exact `dt=` day set committed at cebe691 (2026-07-24), which is what
+# `findings/2026-07-24-q42-funding-estimate-path-inference.md` was computed over. Every
+# member is a CLOSED, append-only historical day-file. Do NOT extend it to keep pace with
+# the collector: a statistic pinned to a growing population is not a reproducible claim.
+# Re-measuring Q42 on more tape is a NEW milestone with its OWN dated numbers, not an
+# edit to these constants.
 # --------------------------------------------------------------------------- #
 _TAPE_DIR = ROOT / "tape" / "perp_tape"
 _real_tape = pytest.mark.skipif(not _TAPE_DIR.is_dir(),
                                 reason="committed tape/perp_tape/ not present")
 
+#: The `dt=` days committed at cebe691 (the 2026-07-24 Q42 part-1-residual finding).
+_FROZEN_TAPE_SLICE_DAYS = (
+    "2026-07-17", "2026-07-18", "2026-07-19", "2026-07-20",
+    "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24",
+)
+
+
+def _frozen_tape_paths():
+    """The frozen slice's day-file paths, in order. Never a glob."""
+    return [_TAPE_DIR / ("dt=%s.jsonl" % d) for d in _FROZEN_TAPE_SLICE_DAYS]
+
+
+def _load_frozen_tape():
+    """All records in the frozen slice. Read-only; a missing member is NOT silently
+    skipped-over as an empty file — `test_frozen_tape_slice_is_intact` names it."""
+    recs = []
+    for p in _frozen_tape_paths():
+        recs.extend(Q.load_records(str(p)))
+    return recs
+
 
 def _tape_discriminating():
-    recs = Q.load_records(str(_TAPE_DIR / "dt=*.jsonl"))
+    recs = _load_frozen_tape()
     ests = Q.collect_funding_estimates(recs)
     idx, _ = Q.collect_finalized_prints(recs)
     wins, _ = Q.build_windows(Q.group_estimates(ests), idx)
@@ -1007,9 +1061,45 @@ def _tape_discriminating():
 
 
 @_real_tape
+def test_frozen_tape_slice_is_intact_and_its_population_is_unchanged():
+    """The RATCHET behind the frozen slice: if a future stranded-line recovery ever
+    union-appends into one of these eight CLOSED day-files (the failure mode this repair
+    checked for and did NOT find), the pinned statistics below would move silently. This
+    test fires first, with the population cell that moved, instead.
+
+    The eight cells are `Q.EXPECTED_INTEGRITY`, which the writeup and the probe's own
+    integrity gate both quote — so drift here is drift in the published claim."""
+    missing = [p.name for p in _frozen_tape_paths() if not p.is_file()]
+    assert missing == [], "frozen tape slice is incomplete: %s" % missing
+
+    recs = _load_frozen_tape()
+    assert len(recs) == 1667, "frozen-slice record count moved (old day-file mutated?)"
+
+    ests = Q.collect_funding_estimates(recs)
+    idx, _ = Q.collect_finalized_prints(recs)
+    wins, _ = Q.build_windows(Q.group_estimates(ests), idx)
+    disc = [w for w in wins if w.has_nonzero_estimate]
+    observed = {
+        "n_estimate_groups": len(Q.group_estimates(ests)),
+        "n_finalized_prints_dedup": len(idx),
+        "n_joined_windows": len(wins),
+        "n_joined_tickers": len({w.ticker for w in wins}),
+        "n_joined_funding_times": len({w.funding_time for w in wins}),
+        "n_joined_ge3_samples": sum(1 for w in wins if w.n_samples >= 3),
+        "n_discriminating": len(disc),
+        "n_discriminating_finalized_zero": sum(1 for w in disc if w.finalized_is_zero),
+    }
+    assert observed == Q.EXPECTED_INTEGRITY
+
+
+@_real_tape
 def test_tape_leave_one_out_67_drops_decomposes_as_7_18_42():
     """MANDATORY round-2 fix: 67 = 7 DISCRIMINATING tickers + 18 DISCRIMINATING
-    funding_times + 42 windows. Round 1's finding wrote '13 + 22 + 42' = 77."""
+    funding_times + 42 windows. Round 1's finding wrote '13 + 22 + 42' = 77.
+
+    Over the FROZEN SLICE (dt=2026-07-17..24). On today's full dt=* glob the same code
+    gives 89 = 8 + 23 + 58 — a POPULATION change from three more collected days, not a
+    code change; see the frozen-slice block above."""
     loo = Q.leave_one_out_gap_scan(_tape_discriminating(), Q.g_last)
     assert loo["n_windows"] == 42
     assert loo["n_tickers_dropped"] == 7
@@ -1040,7 +1130,15 @@ def test_tape_leave_one_out_max_gap_is_still_negative():
 def test_tape_random_same_size_subsets_reproduce_the_dense_cuts_hard_gap():
     """ROUND-2: the statistic that replaces the tautological monotonicity flag. A hard gap
     on 11 of 42 happens ~20% of the time at RANDOM, and on 14 of 42 ~10% — so neither
-    post-hoc dense cut beats an arbitrary same-size cut."""
+    post-hoc dense cut beats an arbitrary same-size cut.
+
+    Over the FROZEN SLICE (dt=2026-07-17..24): p11 = 0.20565, p14 = 0.10420 at 20,000
+    draws, seed PERMUTATION_SEED. The `abs=0.02` tolerance is the Monte-Carlo band for a
+    20k-draw binomial (se = sqrt(p(1-p)/20000) ~= 0.0029 at p=0.2, so 0.02 is ~7 se) —
+    it is NOT slack for population drift. On today's full dt=* glob (58 discriminating
+    windows, not 42) the same code gives p11 = 0.3655 / p14 = 0.2390; those are ~55 se
+    and ~47 se away, i.e. a POPULATION change, and widening the tolerance to absorb them
+    would have been papering over it."""
     disc = _tape_discriminating()
     p11 = Q.random_subset_hard_gap_rate(disc, Q.g_last, size=11, n_draws=20_000,
                                         seed=Q.PERMUTATION_SEED)["p_hard_gap"]

@@ -6,6 +6,255 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-27 ~17:1xZ UTC — research loop: 21 stale UNENFORCED rows disposed + a `dt=*` tape pin had red-lined main — then a verifier REFUTED the run's own numbers
+
+Cloud research-loop run, protocol v3, **IDLE RUN**, policy (a). Two units of work, then a
+verifier round that overturned part of both.
+
+**The shape of this run, honestly:** idle-run policy (a) → the audit **refuted its own premise**
+(the standing work queue was stale, not open) → built the recall fix → discovered `main`'s
+**pre-existing RED gate** and repaired it (tape GROWTH, no pin moved) → an independent `verifier`
+**REFUTED** both the published gate line and the "queue is now empty" conclusion → remediation →
+final green gate. Numbers: baseline **2087 collected / 2085 passed / 2 failed** on `ad6b95e`;
+final **2159 passed, 0 failed**, `invariants --full` exit 0.
+
+**Unit 1 — idle-policy (a) had no target among the rows it could see.**
+An independent `verifier` classified every row in `kb/lessons/00-lessons.md` whose enforcement
+column starts `**UNENFORCED**` — the file's own declared work queue (header line 9).
+**185 rows parsed · 21 marked `**UNENFORCED**` · ALL 21 already-BUILT stale markers with
+file:line evidence · 0 genuinely open · 0 terminal-as-protocol-unbuilt.** *(That census was later
+shown to be short by two rows — see the verifier paragraph below; the true live reading is 190
+rows / 23 markers / 21 disposed / **2 genuinely open**, `L145` and `L192`.)* Meanwhile
+`scripts/invariants.py::_stale_unenforced_candidate_issues()` — L152's own follow-up, whose
+entire job is detecting exactly this — extracted **0 candidate tokens from those 21 rows and
+reported 0 issues, printing nothing at all**. It reported green on a 100%-stale queue: its
+silence was byte-identical to the silence of a clean queue.
+
+Terminal tiers (all 21, evidence in the finding): **test** — L22, L27, L28, L32, L39, L45, L51,
+L59, L64, L76, L86, L119, L164; **protocol** — L65, L66, L68, L69, L105, L162, L165;
+**test/invariant** — L117. One **residual recorded, not closed**: L59's `core/reversal.py:30
+direction_precheck()` has ZERO callers outside its own test and no `L59` mention in any
+`.claude/agents/*.md`, so a future momentum probe can still hand-roll a frequency-only
+classification without tripping anything.
+
+**The fix** (`scripts/invariants.py` + `tests/`, built this run, reviewed line-by-line): three new
+candidate matchers, **enforcement-column-only**, plus a machine-readable close marker
+(`DISPOSES:`, grammar documented and test-pinned at `_lesson_disposed_ids`) and a **published
+recall figure in the warning text itself**. Measured against a frozen fixture of the 21 rows
+(`tests/fixtures/lessons_unenforced_21_2026-07-27.md`, byte-identical copies): **reaches 7 of 21,
+8 hits — `func=0, path_symbol=1` (L76), `script_flag=1` (L164), `agent_charter=5`
+(L28/L32/L51/L105/L165)** — **FIXTURE-MEASURED, and fixture-scoped only**: on the LIVE ledger the
+same detector reads `0 flagged, extraction reached 0 of 2 open UNENFORCED rows (21 formally
+disposed)`. The 14 not reached are enumerated as a named constant in the tests and
+are deliberate blind spots (prose candidates naming no artifact; L22 names only a constant + a
+bare path; L117 names a script but no CLI flag; L162 names non-`.py` files; L39 mentions the
+charter without backticking its path; L65/L66/L68 are idea-stage writeup rules with no artifact to
+find). A **measured precision cost** is published too: of the 164 non-`UNENFORCED` rows, **22**
+name a charter that does not cite their own ID, so the `agent_charter` matcher misses them.
+New tests: `tests/test_stale_unenforced_advisory.py` — published here as "49 tests"; it was
+**48** at that moment, was **65** after remediation, and is **69** after the run's FINAL code fix.
+`tests/test_invariants.py` collects **193**; whole suite **2159**. (Measured 2026-07-27 19:18Z:
+`python -m pytest -o addopts="" --collect-only -q <file> | tail -3`. Corrections filed as **L199**
+and, for the 2155→2159 / 65→69 movement, **L206**; L189's and L199's rows are NOT edited —
+append-only.)
+
+**Unit 2 — `main`'s binding pytest gate was RED, pre-existing, from tape GROWTH ONLY.**
+Baseline on `main` HEAD `ad6b95e`: **2087 collected, 2085 passed, 2 FAILED**, both in
+`tests/test_q42_funding_estimate_path_inference.py`
+(`test_tape_leave_one_out_67_drops_decomposes_as_7_18_42`,
+`test_tape_random_same_size_subsets_reproduce_the_dense_cuts_hard_gap`); the previous run
+(PR #215, entry below) recorded them honestly as known pre-existing real-tape drift and left them
+red. Root cause established by **blob comparison** (`git rev-parse <rev>:<path>`), NOT mtime: all
+8 files `tape/perp_tape/dt=2026-07-17..24.jsonl` are **byte-identical** between commit `cebe691`
+(where the pins were written) and HEAD, and `scripts/q42_funding_estimate_path_inference.py` is
+byte-identical too; `ac8a758`'s 1,798 recovered stranded lines touched **ONLY**
+`dt=2026-07-27.jsonl` in this family — the "recovery mutated old day-files" hypothesis is
+**FALSIFIED** for `perp_tape`. The four `@_real_tape` pins globbed `tape/perp_tape/dt=*.jsonl`, an
+**open-ended glob over a live, still-growing family**, so three routine days of capture
+(07-25/26/27) moved the population with **zero code change anywhere**:
+
+| statistic | frozen slice `dt=2026-07-17..24` (as pinned) | today's full `dt=*` glob |
+|---|---|---|
+| records | 1667 | 1803 |
+| n_estimate_groups | 299 | 377 |
+| n_joined_windows | 286 | 364 |
+| n_discriminating | 42 | 58 |
+| LOO n_tickers_dropped | 7 | 8 |
+| LOO n_funding_times_dropped | 18 | 23 |
+| LOO n_drops | 67 | 89 |
+| p_hard_gap(11) | 0.2057 | 0.3655 |
+| p_hard_gap(14) | 0.1042 | 0.2390 |
+
+At 20,000 draws the binomial se at p≈0.2 is ≈0.0029, so **0.2057 → 0.3655 is ≈55 se** — a
+population change, not Monte-Carlo noise. **No pin was moved and no tolerance was widened:** the
+population was made explicit (`_FROZEN_TAPE_SLICE_DAYS`) plus a ratchet test
+`::test_frozen_tape_slice_is_intact_and_its_population_is_unchanged` that fires if a future
+stranded-line recovery ever union-appends into one of those 8 closed day-files. **Two of the four
+pins were passing BY LUCK** (`..._no_leave_one_out_drop_restores_a_hard_gap`,
+`..._leave_one_out_max_gap_is_still_negative` — extreme-order statistics that happened not to
+move), so a green tape pin over an open glob is **not** evidence of a stable population. A
+tree-wide audit found these four were the ONLY pinned-statistic-over-open-ended-live-glob tests
+(other real-tape tests are already frozen — `tests/test_dead_collector_leg_advisory.py::_SLICE_MAX_DAY`,
+`tests/test_orderbook_depth_hollow_ladder_audit.py::_FROZEN_MAX_DAY` — or assert
+properties/ratios rather than statistics). `findings/2026-07-24-q42-funding-estimate-path-inference.md`'s
+numbers all still reproduce EXACTLY from the frozen slice; its *Artifacts* footer named the slice
+correctly but its *Reproduce* section said `dt=*`, so the published repro command had stopped
+reproducing the published numbers — corrected in place this run.
+**Q42's own verdict is UNCHANGED: still H1 UNDECIDABLE, no CI, no registry change.**
+
+**Gates.** After the last code/test edit and BEFORE the ledger rows:
+`python -m pytest -o addopts="" -q` was quoted as **2136 passed, 0 failed**, EXIT 0 — **that gate
+line was FALSE at the instant it was written** (the suite was `2 failed, 2134 passed`); see
+**L199**, and the TRUE final gate for this run is **2159 passed, 0 failed** with
+`python scripts/invariants.py --full` exit 0. **Then writing L188
+turned two tests RED** (see L192): disposing of all 21 rows drove `n_open_unenforced` to 0, the
+advisory correctly went silent, and the two tests that assert it FIRES on the real tree
+(`tests/test_stale_unenforced_advisory.py::test_advisory_is_non_gating_on_the_real_tree`,
+`tests/test_invariants.py::test_stale_unenforced_candidate_warning_never_gates_exit_code`) failed
+— **2134 passed, 2 failed, 0 other regressions**. Appending **L192** itself (an open
+`**UNENFORCED**` row naming no machine-checkable artifact) restored the coverage-only note and
+with it both asserted substrings, so both passed again — **but that green was ACCIDENTAL: it held
+only while the queue was non-empty.** The two-line test fix was written out verbatim in L192 and
+left to the research-lead; `scripts/invariants.py` and `tests/` were frozen for the concurrent
+`verifier` round (the L182 rule), so the distiller did not touch them. The remediation pass has
+since applied the split (absence-of-effect on the real tree, TEXT on the frozen fixture), so the
+current green no longer depends on the queue's contents.
+**TRUE FINAL GATE, taken after the LAST edit of the run:** `python -m pytest -o addopts="" -q` →
+**2159 passed in 1152.67s (0:19:12), 0 failed**; `python scripts/invariants.py --full` → **exit 0**,
+`invariants: all green`; `git status --porcelain -- tape/ paper/` → empty. The stale-marker
+advisory then read `Extraction reached 0 of 2 open UNENFORCED row(s) (21 formally disposed via
+`DISPOSES:`)`.
+
+**Verifier round — several of this run's own numbers were REFUTED.** An independent `verifier`
+re-derived Unit 1's claims and overturned four of them. (1) **L188's central conclusion — "the
+ledger's `**UNENFORCED**` work queue is empty" — is FALSIFIED.** It was never empty: two
+independent defects hid the same row. `_parse_lesson_rows` split on a naive `|`, misaligning the
+enforcement column on **14 of 190 rows** (L25, L37, L62, L89, L109, L145, L147, L161, L173, L177,
+L179, L180, L183, L184) — and the seductive repair `cols[-2]` is ALSO wrong, on L147, whose
+embedded pipe sits inside the enforcement cell itself; only a delimiter-aware splitter is right
+for 190/190. Independently, the membership test `startswith("**UNENFORCED**")` missed **L145**,
+whose cell reads `**UNENFORCED — UNRESOLVED COLLISION, flagged to parent/Ryan …**` with the em
+dash INSIDE the bold span. **True measured state: 190 rows, 23 carrying an UNENFORCED marker, 21
+disposed by L188, exactly 2 genuinely OPEN — `L145` (the `collection/ws_depth.py` vs
+`inv_order_endpoints_confined` policy collision, flagged to Ryan) and `L192`.** L188's 21-row
+audit stands; its closure claim does not, and L145 was never audited into the 21. (2) **The L76
+evidence was the right verdict cited to the WRONG artifact**: it matched
+`tests/test_probe_ladder_coherence.py::test_runs_single_deep_snapshot_fails_duration_gate`, whose
+NAME says "duration gate" but whose BODY asserts snapshot COUNT (`MIN_SNAPS=2`) — the exact
+mechanism L76's text says is NOT a duration gate (L76 is genuinely stale, but because **L93** built
+`core.bootstrap.collapse_duration_gated_runs`). That is **L165 recurring inside the fix for L152**;
+all emitted evidence was reworded to claim only "the cell NAMES an artifact that EXISTS in the tree
+— a NAME match, never proof the enforcement is built", test-pinned, with L76 as the worked hazard.
+(3) **The gate line and the test count** (above). (4) `n_disposed=0` before L188 was **not** a
+measurement — the ledger's real supersession convention was already prose, and **L107 enumerates
+the full closure map** while L163/L166/L167 each already state the backlog is empty; a supersession
+grammar that matches zero existing rows is a claim about the future, report coverage of the
+convention already in use first. **Disclosed relaxation:** one HARD real-tree assertion in
+`tests/test_invariants.py` was **narrowed** (`assert _stale_unenforced_candidate_issues() == []` →
+per-matcher → structural arithmetic). Honestly commented and the correct response to L192, but it
+IS a relaxation and is named as one. **Flagged, not fixed:**
+`scripts/gen_problems_dashboard.py::cells` holds a SECOND, independently-buggy copy of the
+lessons-row parser (handles `\|`, not code-span pipes) that still mis-buckets **3 of 190 rows —
+L89, L161, L173**; the L138 residual real-tree TEXT assertion; and the `DISPOSES:` grammar being
+undocumented in `.claude/agents/kb-distiller.md` (no `.claude/` file touched — Ryan-owned).
+
+**Ledger.** Five rows in the first pass (L188-L192), then **eight correction rows after the
+verifier round: L193-L200** (see the paragraph below the list). **L188** — the formal disposition of all 21 rows at once (the
+L116/L118/L124/L163/L172 shape, but whole-queue), carrying the canonical machine-readable
+`DISPOSES:` marker so the advisory suppresses them permanently; **no existing row was edited**,
+per the ledger's own append-only rule. **L189** (tier `test`) — *a detector that reports 0 issues
+must PUBLISH its recall, not merely have one*; the stronger form of L155 (a low count is precision
+evidence, not recall): the figure must be emitted in the warning text, or "found nothing" is
+indistinguishable from "cannot see most of the population". **L190** (tier `invariant (advisory)
++ test`) — *a queue only a machine can close needs a machine-readable close marker*, because
+enforcement status flipped in prose is unparseable; and a precision requirement has a measurable
+recall cost (the 22-of-164 charter-citation cost) that must be published with it. **L191** (tier
+`test`) — *a tape-pinned acceptance test must name the exact `dt=` day-slice its number was
+measured over*; sibling of L140 (which froze the `now` of a real-tape alert test — this freezes
+the POPULATION of a real-tape statistic test), including the rule that growth-vs-mutation must be
+settled by blob comparison BEFORE any re-pin, since re-pinning a number that moved only because
+the glob widened destroys the original claim. **L192** (tier `UNENFORCED` — one of the queue's
+**two** genuinely-open rows; the "one open row" phrasing was retracted by **L193**, `L145` being
+the other) — *an acceptance test that asserts a
+LIVE-DOCUMENT advisory FIRES on the real tree binds the gate to that document's current content,
+and the advisory exists to change that content*; discovered by this run's own gate, with the
+two-line repair written out verbatim and deliberately NOT applied (frozen artifacts, L182). Each
+row states plainly which part is not statically assertable.
+
+**Correction rows filed after the verifier round.** **L193** (tier `test`) — formal CORRECTION of
+**L188**: its 21-row audit stands, its "work queue is empty" conclusion is falsified, true open
+queue = 2 (`L145`, `L192`); a whole-queue emptiness claim is strictly stronger than the per-row
+audit that produced it and must be re-derived by a second party against the live artifact.
+**L194** (tier `test`) — a markdown ledger row is not `str.split("|")`; 14/190 misparse and
+`cols[-2]` is the seductive wrong fix that survives a spot-check of 13 of the 14. **L195** (tier
+`test`) — a status-marker detector must match the marker's SHAPE, not one literal spelling.
+**L196** (tier `test`, partial) — two independent invisibilities can hide the same row twice, so
+verify a count's own extraction path before quoting the count as evidence of an empty queue.
+**L197** (tier `test`) — a detector's emitted EVIDENCE must claim only what the matcher showed; a
+name match is not an enforcement match, L76 the worked counterexample, L165 recurring inside the
+L152 fix. **L198** (tier `protocol + test`) — a supersession grammar that matches zero existing
+rows is a claim about the future, not a measurement. **L199** (tier `protocol`) — correction of
+the gate line (`2136/0` was false; true final `2159 passed, 0 failed` — L199 itself said 2155,
+corrected by **L206** after the run's final code fix), of L189's "49 tests"
+(**48** then, **69** now, `test_invariants.py` 193), and of the scope of "7 of 21"
+(**fixture-measured only**); L189's own row is NOT edited. **L200** (tier `UNENFORCED`) — the
+three flagged-not-fixed items: the duplicate dashboard parser (3-row divergence), the L138
+real-tree TEXT residual, and the `.claude/agents/kb-distiller.md` `DISPOSES:` documentation gap
+for Ryan. Every row carries its command and its measurement time per L161/L162.
+
+**Two-agent verdict rule.** This run contains **no registry status flip, no bootstrap CI and no
+kill decision**, so the rule is N/A by its own terms — but the ledger-disposition claim and the
+recall / root-cause numbers are kb-destined, so they were **produced by one agent and put through
+an independent `verifier` round — which REFUTED several of them** (the gate line, the test count,
+and L188's queue-empty conclusion). **The corrected state, not the original claim, is what is
+recorded here and in the ledger.** The 7-of-21 recall figure is **fixture-scoped**, measured on
+`tests/fixtures/lessons_unenforced_21_2026-07-27.md`, and is not a live-ledger property.
+
+**`kb/strategies/00-index.md` is UNCHANGED** — no strategy status moved this run; there is no
+strategy claim in either unit, no bootstrap CI and no kill decision. Still **0 proven edges**.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` non-empty (1 entry, `s14_ladder_underwriting`,
+`dead ✗` per Q34 — paper-infra validation only, **NOT** edge evidence).
+`python3 scripts/paper_pass.py` ran deterministically over committed tape: **0 processed, 154
+deferred(caps), 266 deferred(coverage), 146 already-in-ledger**; `daily_summary()`: `paper: 0 open
+position(s), 1132 settled contract(s), realized P&L $+20.06, cash $+20.06, open notional $0.00`.
+No new ledger lines (idempotent re-run — the day's `MAX_DAILY_ORDERS` budget was already spent by
+the earlier run today); `git status` shows nothing under `paper/`.
+
+**Final code fix — the gate had become a hostage of lesson PROSE (L201-L207).** After the kb pass
+above, one more fix landed, and it is the most important thing this run learned. The L152 repair
+had shipped a test asserting, against the LIVE ledger, that a named set of rows contains pipe
+characters and that **no other row does**. It went red twice in one day and forced a kb-distiller
+to **REWORD ITS OWN LESSON TEXT** to get the binding gate green — a gate editing the knowledge it
+exists to protect. Every content-enumerating assertion was moved onto a second frozen fixture,
+`tests/fixtures/lessons_pipe_split_2026-07-27.md` (**49** rows, byte-identical copies: all 14
+misparsing rows **plus** a 35-row sample of correctly-parsing rows — every immediate neighbour of a
+misparsing row, the L188 `DISPOSES:` row, a 1-in-20 spaced sample, and the first/last rows). The
+live-tree coverage is now purely STRUCTURAL
+(`tests/test_stale_unenforced_advisory.py::test_live_ledger_is_wholly_parsed_and_never_truncated`:
+nothing dropped, split lossless, every enforcement cell starts at the head of the 5th cell and runs
+to end-of-row, `n_rows >= 190`), and the identical contract is re-run over the fixture so the live
+check is demonstrably non-vacuous. That fixture is **deliberately never identity-checked against
+the live ledger** — such a check would re-couple the gate to live prose and recreate the defect one
+level up. Proven by executable mutation: five rows covering every pipe shape (escaped, code-span,
+escaped-inside-the-enforcement-cell, bare unescaped, and a `DISPOSES:`-carrying mixed row) appended
+to a **scratch copy** leave the suite green, where the retired enumeration test failed on all five.
+Also learned: a guard must not be STRICTER than the parser it guards (`len(fields) == 7` was
+rejected for the parser's own `>= 6` admission threshold), and `::test_name` node ids are cited as
+enforcement evidence by ledger rows, so a rename in the test lane silently breaks a citation the
+kb lane cannot repair. Rows filed: **L201** (`test`, structure-not-enumeration), **L202** (`test`,
+freeze the negative population too), **L203** (`test`, never stricter than the parser), **L204**
+(`test`, parameterise a live-tree assertion on its path), **L205** (`UNENFORCED`, grep for
+`::test_` citations before renaming), **L206** (`protocol`, the 2155→**2159** / 65→**69**
+correction of L199), **L207** (`UNENFORCED`, the residual: `test_invariants.py:748` still asserts
+`by_matcher["func"] == 0` on the live tree — a coupling to the tree's SYMBOLS rather than to prose,
+verified green against all five mutation rows).
+
+**The open `**UNENFORCED**` queue is NOT empty**: `L145`, `L192`, `L200`, and now `L205` and
+`L207`.
+
+Finding: `findings/2026-07-27-stale-unenforced-queue-audit-and-tape-pinned-gate-repair.md`.
+
 ## 2026-07-27 ~17:0xZ UTC — research loop: L185 CLOSED — capped-pagination span-vs-cadence advisory (settlement_ledger)
 
 Cloud research-loop run, protocol v3. **Steps 0a/0/0b were already completed by the calling

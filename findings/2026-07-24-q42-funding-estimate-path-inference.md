@@ -2,7 +2,8 @@
 
 `2026-07-24` · LOOP-QUEUE.md **Q42**, part-1 residual (the clamp-FORMULA inference) ·
 script `scripts/q42_funding_estimate_path_inference.py` ·
-tests `tests/test_q42_funding_estimate_path_inference.py` (87, offline; synthetic fixtures plus
+tests `tests/test_q42_funding_estimate_path_inference.py` (87 at publication, **88** after the
+2026-07-27 frozen-slice gate repair; offline; synthetic fixtures plus
 4 read-only tape pins) · read-only over committed tape, **no network**.
 
 > Corrected **twice**, by two independent verifiers. Read the round-1 correction immediately
@@ -508,6 +509,28 @@ Reads `tape/perp_tape/dt=*.jsonl` (committed), offline, no network. Runtime ~8s 
 prints first; if any cell mismatches, the run says so and the inference below it must not be
 read as this milestone.
 
+> **Provenance note (added 2026-07-27, gate repair — a POPULATION change, not a correction
+> to any number above).** Every number in this file was computed over the **eight** day-files
+> committed on 2026-07-24: `dt=2026-07-17.jsonl` … `dt=2026-07-24.jsonl`, **1,667 records**
+> (see *Artifacts* below). `perp_tape` is a **live, still-growing** family and has since
+> gained `dt=2026-07-25/26/27`, so the default `--tape` glob above **no longer selects this
+> milestone's population**: it now reads 11 day-files / 1,803 records and yields 364 joined
+> windows and **58** discriminating windows instead of 286 / **42**, with the leave-one-out
+> decomposition at 89 = 8 + 23 + 58 (not 67 = 7 + 18 + 42) and the random-subset baselines at
+> p11 = 0.3655 / p14 = 0.2390 (not 0.2056 / 0.1042). The old day-files were verified
+> **byte-identical** between the finding commit `cebe691` and 2026-07-27 `HEAD` (blob-by-blob),
+> as was `scripts/q42_funding_estimate_path_inference.py` — the drift is pure tape growth, and
+> every number here still reproduces **EXACTLY** on the frozen eight-day slice. To re-run it,
+> either pass a slice-restricted `--tape` pattern or run the tape pins, which now hold the
+> slice as an explicit constant (`_FROZEN_TAPE_SLICE_DAYS`):
+>
+> ```
+> python -m pytest -q tests/test_q42_funding_estimate_path_inference.py -k tape
+> ```
+>
+> The integrity gate is the thing that catches this: on the full glob it reports MISMATCH and
+> tells you not to read the inference as this milestone — exactly as designed.
+
 ## Artifacts
 
 - `scripts/q42_funding_estimate_path_inference.py` — emits the density-stratified separation
@@ -516,10 +539,14 @@ read as this milestone.
   leave-one-out scan**, the misclassification/density contrast **with separate permutation
   p's for lead and sample count**, the exact hard-gap permutation p, and BOTH the naive and
   cluster-robust independence p-values.
-- `tests/test_q42_funding_estimate_path_inference.py` (87 tests; 24 in the `=== correction ===`
-  block, 19 in the `=== correction round 2 ===` block, of which 4 are read-only tape pins for
-  the leave-one-out and random-subset numbers quoted above)
-- tape read: `tape/perp_tape/dt=2026-07-17.jsonl` … `dt=2026-07-24.jsonl` (1,667 records)
+- `tests/test_q42_funding_estimate_path_inference.py` (87 tests at publication, **88** after
+  the 2026-07-27 gate repair; 24 in the `=== correction ===` block, 19 in the
+  `=== correction round 2 ===` block, of which **5** are read-only tape pins for the
+  leave-one-out and random-subset numbers quoted above — 4 originals plus the new
+  frozen-slice population ratchet)
+- tape read: `tape/perp_tape/dt=2026-07-17.jsonl` … `dt=2026-07-24.jsonl` (1,667 records) —
+  now pinned as `_FROZEN_TAPE_SLICE_DAYS` in the test module, not an open-ended `dt=*` glob
+  (see the *Provenance note* under **Reproduce**)
 
 ---
 

@@ -40,7 +40,7 @@ import subprocess
 import sys
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1559,12 +1559,93 @@ def duplicate_lesson_id_warning(dupes: List[str]) -> Optional[str]:
 _BACKTICK_SPAN_RE = re.compile(r"`([^`]+)`")
 _FUNC_CALL_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\(\)")
 
+# M1: a backticked `dir/file.py::symbol` (or `::Class.method`) inside an enforcement cell.
+_PATH_SYMBOL_SPAN_RE = re.compile(
+    r"^([A-Za-z0-9_][A-Za-z0-9_./-]*\.py)::"
+    r"([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?$"
+)
+# M2: a backticked repo-relative `*.py` path, plus a backticked `--flag` token in the SAME cell.
+_PY_PATH_SPAN_RE = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_./-]*\.py)$")
+_CLI_FLAG_RE = re.compile(r"--[A-Za-z][A-Za-z0-9-]*")
+# M3: a backticked agent-charter path (the "encode it in the house style" enforcement family).
+_AGENT_CHARTER_SPAN_RE = re.compile(r"^(\.claude/agents/[A-Za-z0-9_.-]+\.md)$")
+
+# The formal supersession marker — see _lesson_disposed_ids' docstring for the exact grammar.
+# `\bDISPOSES:` gives the token a LEFT word boundary (`XDISPOSES: L22` must not fire) and each
+# ID carries a RIGHT one (`L22abc` is not `L22`) — both holes found by the 2026-07-27 verifier.
+_DISPOSES_RE = re.compile(r"\bDISPOSES:\s*(L\d+\b(?:(?:\s*,\s*|[ \t]+)L\d+\b)*)")
+_DISPOSES_ID_RE = re.compile(r"L\d+")
+
+# The ledger's standing work-queue marker, as it is actually written (00-lessons.md line 9).
+# BOTH shapes must be caught -- the 2026-07-27 verifier found L145 invisible to the old
+# `startswith("**UNENFORCED**")` test because its em dash sits INSIDE the bold span:
+#     **UNENFORCED** — candidate: ...
+#     **UNENFORCED — UNRESOLVED COLLISION, flagged to parent/Ryan ...**
+# i.e. a bold span whose FIRST WORD is UNENFORCED. Kept precise on purpose: the `\b` refuses
+# `**UNENFORCEDISH**` / `**UNENFORCED_X**`, and anchoring at `^\*\*` refuses a mid-cell mention
+# and the mixed-tier shape `**test (detection) + UNENFORCED (repair)**` (L168), whose enforced
+# half is real. A bare unbolded `UNENFORCED ...` is likewise NOT the marker.
+_UNENFORCED_MARKER_RE = re.compile(r"^\*\*UNENFORCED\b")
+
+
+def _split_lesson_row(line: str) -> List[str]:
+    """Split one markdown table row on its CELL delimiters only.
+
+    `str.split("|")` is wrong for this ledger: 14 of the 190 rows on 2026-07-27 carry a pipe
+    INSIDE a cell -- escaped (`\\|`, e.g. L145's `SIGNATURE\\|TIMESTAMP` header name) or inside a
+    backticked code span (L161's `sed 's|refs/heads/||'`) -- so a naive split shifts every later
+    column left and `cols[5]` silently becomes a FRAGMENT OF THE LESSON TEXT (measured: L25, L37,
+    L62, L89, L109, L145, L147, L161, L173, L177, L179, L180, L183, L184). Two cells were then
+    mis-read as enforcement, one of which (L145) hid a genuinely-open UNENFORCED row.
+
+    `cols[-2]` is NOT a fix either: L147's own ENFORCEMENT cell contains the escaped pipe, so
+    the last-but-one field is a tail fragment of that cell with its `**invariant ...**` tier
+    marker cut off. Only a delimiter-aware split is correct for every row.
+
+    Rules: a `\\|` is literal; a `|` inside a backtick span is literal; anything else delimits.
+    Pure, never raises. Returns the raw (unstripped) fields, including the empty leading/trailing
+    ones a well-formed row has."""
+    fields: List[str] = []
+    cur: List[str] = []
+    in_code = False
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and i + 1 < len(line) and line[i + 1] == "|":
+            cur.append("\\|")
+            i += 2
+            continue
+        if ch == "`":
+            in_code = not in_code
+            cur.append(ch)
+            i += 1
+            continue
+        if ch == "|" and not in_code:
+            fields.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(ch)
+        i += 1
+    fields.append("".join(cur))
+    return fields
+
+# Matcher labels for the recall report (stable strings — tests and the advisory text use them).
+STALE_MATCHERS = ("func", "path_symbol", "script_flag", "agent_charter")
+
 
 def _parse_lesson_rows(
     lessons_path: Path = ROOT / "kb" / "lessons" / "00-lessons.md",
 ) -> List[Tuple[str, str, str]]:
     """(id, lesson_text, enforcement_text) for every table row in
-    kb/lessons/00-lessons.md. Best-effort/offline: a read failure returns []."""
+    kb/lessons/00-lessons.md. Best-effort/offline: a read failure returns [].
+
+    Cells are split by `_split_lesson_row` (escape- and code-span-aware) -- a naive
+    `line.split("|")` mis-aligned 14 of the 190 rows on 2026-07-27, handing the detectors a
+    fragment of the LESSON TEXT as the enforcement column. Any residual field beyond the
+    canonical 5th column is re-joined rather than dropped: an unknown pipe shape must never
+    TRUNCATE an enforcement cell, because its leading tier marker (`**UNENFORCED**`,
+    `**test**`, ...) is exactly what every ledger detector keys on."""
     try:
         lines = lessons_path.read_text().splitlines()
     except Exception:
@@ -1574,11 +1655,254 @@ def _parse_lesson_rows(
         m = _LESSON_ID_ROW_RE.match(line)
         if not m:
             continue
-        cols = line.split("|")
+        cols = _split_lesson_row(line)
         if len(cols) < 6:
             continue
-        rows.append((m.group(1), cols[3].strip(), cols[5].strip()))
+        tail = cols[5:-1] if cols[-1].strip() == "" else cols[5:]
+        rows.append((m.group(1), cols[3].strip(), "|".join(tail).strip()))
     return rows
+
+
+def _lesson_disposed_ids(rows: List[Tuple[str, str, str]]) -> Set[str]:
+    """Lesson IDs formally DISPOSED of by some row's ENFORCEMENT column, per the one canonical
+    machine-readable supersession marker. A disposed ID is permanently skipped by
+    `_stale_unenforced_candidate_issues` even if its own row still reads `**UNENFORCED**`.
+
+    EXACT GRAMMAR (the kb-distiller writes this verbatim; nothing else suppresses a row):
+
+        DISPOSES: L22, L27, L28
+
+    - The literal, case-SENSITIVE token `DISPOSES:` (uppercase, immediately followed by a
+      colon) appearing anywhere inside a row's ENFORCEMENT column -- the 5th pipe-delimited
+      column. `disposes:`, `Disposes:` and a `DISPOSES:` in the lesson-text column do NOT count.
+    - Then one or more lesson IDs of the form `L<digits>`, separated by a comma (with optional
+      surrounding spaces) or by one or more spaces/tabs.
+    - The list TERMINATES at the first thing that is not `<separator><L\\d+>`: end-of-cell, a
+      period, semicolon, em dash, or any prose word. So
+      `DISPOSES: L22, L27. Audited in findings/... which also revisits L39` disposes of
+      exactly {L22, L27} -- the trailing prose mention of L39 does not join the list.
+    - A bare prose mention of an ID anywhere ("see L22", "supersedes L22") NEVER suppresses;
+      only the marker does. Several markers may appear in one cell / across several rows;
+      their lists union.
+
+    Best-effort: never raises. Pure over the already-parsed rows."""
+    disposed: Set[str] = set()
+    for _lesson_id, _lesson_text, enforcement in rows:
+        for m in _DISPOSES_RE.finditer(enforcement):
+            disposed.update(_DISPOSES_ID_RE.findall(m.group(1)))
+    return disposed
+
+
+def _safe_repo_path(source_root: Path, rel: str) -> Optional[Path]:
+    """`source_root / rel` for a repo-relative token, or None if the token is absolute or
+    escapes the root (`..`). Never touches the filesystem beyond the join."""
+    if not rel or rel.startswith("/") or ".." in rel.split("/"):
+        return None
+    return source_root / rel
+
+
+def _extract_stale_candidates(enforcement: str) -> List[Tuple[str, Tuple[str, ...]]]:
+    """(matcher, args) candidate tokens extracted from ONE enforcement cell. Pure lexical --
+    no filesystem access, no judgement about whether the named artifact exists. See
+    `_stale_unenforced_candidate_issues` for each matcher's rationale and blind spots."""
+    spans = [s.strip() for s in _BACKTICK_SPAN_RE.findall(enforcement)]
+    out: List[Tuple[str, Tuple[str, ...]]] = []
+    seen: Set[Tuple[str, Tuple[str, ...]]] = set()
+
+    def add(matcher: str, args: Tuple[str, ...]) -> None:
+        key = (matcher, args)
+        if key not in seen:
+            seen.add(key)
+            out.append(key)
+
+    for span in spans:
+        for fn in _FUNC_CALL_RE.findall(span):
+            if "_" in fn:                                   # M0 (original matcher)
+                add("func", (fn,))
+        m = _PATH_SYMBOL_SPAN_RE.match(span)
+        if m:                                               # M1
+            add("path_symbol", (m.group(1), m.group(2), m.group(3) or ""))
+        m = _AGENT_CHARTER_SPAN_RE.match(span)
+        if m:                                               # M3
+            add("agent_charter", (m.group(1),))
+    py_paths = [s for s in spans if _PY_PATH_SPAN_RE.match(s)]
+    flags = [f for s in spans for f in _CLI_FLAG_RE.findall(s)]
+    for p in py_paths:                                      # M2 (same-cell path + flag)
+        for f in flags:
+            add("script_flag", (p, f))
+    return out
+
+
+def _resolve_stale_candidate(
+    lesson_id: str,
+    matcher: str,
+    args: Tuple[str, ...],
+    source_root: Path,
+    func_defs: Dict[str, List[str]],
+) -> List[str]:
+    """Evidence strings for one candidate that RESOLVES to an artifact already in the tree
+    (empty list if it does not). Reads files; never raises.
+
+    WORDING CONTRACT (2026-07-27 verifier, L165 class): each string claims ONLY what the
+    matcher actually showed -- the enforcement cell NAMES an artifact, and that artifact EXISTS
+    in the tree. It must NOT claim the candidate is built/enforced: L76's cell backticks
+    `tests/test_probe_ladder_coherence.py::test_runs_single_deep_snapshot_fails_duration_gate`,
+    which exists, but that test asserts on snapshot COUNT (`MIN_SNAPS=2`) -- the very mechanism
+    L76's lesson text says is NOT a wall-clock duration gate. A true hit, a NAME COINCIDENCE as
+    evidence. Every string therefore ends in the "not proof it enforces <id>" qualifier."""
+    try:
+        if matcher == "func":
+            fn = args[0]
+            return [
+                f"{lesson_id}: cell NAMES `{fn}()`, which is DEFINED in {f} "
+                f"(name match only -- not proof it enforces {lesson_id})"
+                for f in func_defs.get(fn, [])
+            ]
+        if matcher == "path_symbol":
+            rel, sym, sub = args[0], args[1], args[2]
+            p = _safe_repo_path(source_root, rel)
+            if p is None or not p.is_file():
+                return []
+            text = p.read_text(errors="replace")
+            if sub:
+                ok = (re.search(rf"^\s*class\s+{re.escape(sym)}\s*[(:]", text, re.M) is not None
+                      and re.search(rf"^\s*def\s+{re.escape(sub)}\s*\(", text, re.M) is not None)
+                label = f"{rel}::{sym}.{sub}"
+            else:
+                ok = (re.search(rf"^\s*def\s+{re.escape(sym)}\s*\(", text, re.M) is not None
+                      or re.search(rf"^\s*class\s+{re.escape(sym)}\s*[(:]", text, re.M) is not None)
+                label = f"{rel}::{sym}"
+            if not ok:
+                return []
+            return [
+                f"{lesson_id}: cell NAMES `{label}`, which EXISTS in the tree "
+                f"(name match only -- not proof it enforces {lesson_id})"
+            ]
+        if matcher == "script_flag":
+            rel, flag = args[0], args[1]
+            p = _safe_repo_path(source_root, rel)
+            if p is None or not p.is_file():
+                return []
+            text = p.read_text(errors="replace")
+            # Require a QUOTED flag literal: proof the script REGISTERS the option (argparse),
+            # not merely that some comment or docstring mentions it.
+            if f'"{flag}"' in text or f"'{flag}'" in text:
+                return [
+                    f"{lesson_id}: cell NAMES script `{rel}`, which REGISTERS `{flag}` "
+                    f"(registration match only -- not proof it enforces {lesson_id})"
+                ]
+            return []
+        if matcher == "agent_charter":
+            rel = args[0]
+            p = _safe_repo_path(source_root, rel)
+            if p is None or not p.is_file():
+                return []
+            text = p.read_text(errors="replace")
+            if re.search(rf"\b{re.escape(lesson_id)}\b", text):
+                return [
+                    f"{lesson_id}: cell NAMES charter `{rel}`, which CITES {lesson_id} "
+                    f"(citation match only -- not proof it enforces {lesson_id})"
+                ]
+            return []
+    except Exception:
+        return []
+    return []
+
+
+class StaleUnenforcedRecallReport(NamedTuple):
+    """Frozen coverage record for `_stale_unenforced_candidate_issues` (L152 follow-up).
+
+    The point of this record is RECALL, not precision. Before 2026-07-27 the detector
+    extracted 0 candidate tokens from all 21 open `**UNENFORCED**` rows and therefore reported
+    0 issues -- while an independent audit classified all 21 as already-built stale markers.
+    A 0-issue report meant "the extractor saw nothing", not "the queue is clean", and nothing
+    in the output distinguished the two. `n_with_extractable_candidate` vs `n_open_unenforced`
+    is that distinction, made a number."""
+    n_rows: int
+    n_unenforced: int
+    n_disposed: int
+    n_open_unenforced: int
+    n_with_extractable_candidate: int
+    n_flagged: int
+    by_matcher: Tuple[Tuple[str, int], ...]     # (matcher, number of ROWS flagged by it)
+    flagged_ids: Tuple[str, ...]
+    open_unenforced_ids: Tuple[str, ...]
+
+
+_EMPTY_STALE_RECALL = StaleUnenforcedRecallReport(
+    n_rows=0, n_unenforced=0, n_disposed=0, n_open_unenforced=0,
+    n_with_extractable_candidate=0, n_flagged=0,
+    by_matcher=tuple((m, 0) for m in STALE_MATCHERS), flagged_ids=(), open_unenforced_ids=(),
+)
+
+
+def _stale_unenforced_scan(
+    lessons_path: Path = ROOT / "kb" / "lessons" / "00-lessons.md",
+    source_root: Path = ROOT,
+) -> Tuple[List[str], StaleUnenforcedRecallReport]:
+    """(issues, recall report) in one pass. Best-effort/offline: any failure returns
+    ([], empty report) and can never poison the gate."""
+    try:
+        rows = _parse_lesson_rows(lessons_path)
+        if not rows:
+            return [], _EMPTY_STALE_RECALL
+        disposed = _lesson_disposed_ids(rows)
+        unenforced = [
+            (lid, enf) for lid, _lt, enf in rows if _UNENFORCED_MARKER_RE.match(enf)
+        ]
+        open_rows = [(lid, enf) for lid, enf in unenforced if lid not in disposed]
+
+        per_row: List[Tuple[str, List[Tuple[str, Tuple[str, ...]]]]] = [
+            (lid, _extract_stale_candidates(enf)) for lid, enf in open_rows
+        ]
+        # One tree scan for every `func` candidate (the original M0 matcher).
+        func_names = sorted({args[0] for _lid, cands in per_row for m, args in cands if m == "func"})
+        func_defs: Dict[str, List[str]] = {}
+        if func_names:
+            def_res = {fn: re.compile(rf"^\s*def\s+{re.escape(fn)}\s*\(") for fn in func_names}
+            for path in _iter_source_files(source_root):
+                try:
+                    text = path.read_text(errors="replace")
+                except Exception:
+                    continue
+                lines = text.splitlines()
+                for fn, pat in def_res.items():
+                    if fn in func_defs:
+                        continue
+                    if any(pat.match(ln) for ln in lines):
+                        func_defs.setdefault(fn, []).append(_rel(path))
+
+        issues: List[str] = []
+        flagged_ids: List[str] = []
+        matcher_rows: Dict[str, Set[str]] = {m: set() for m in STALE_MATCHERS}
+        n_extractable = 0
+        for lesson_id, cands in per_row:
+            if cands:
+                n_extractable += 1
+            row_hit = False
+            for matcher, args in cands:
+                ev = _resolve_stale_candidate(lesson_id, matcher, args, source_root, func_defs)
+                if ev:
+                    matcher_rows.setdefault(matcher, set()).add(lesson_id)
+                    row_hit = True
+                    issues.extend(ev)
+            if row_hit:
+                flagged_ids.append(lesson_id)
+
+        report = StaleUnenforcedRecallReport(
+            n_rows=len(rows),
+            n_unenforced=len(unenforced),
+            n_disposed=len(unenforced) - len(open_rows),
+            n_open_unenforced=len(open_rows),
+            n_with_extractable_candidate=n_extractable,
+            n_flagged=len(flagged_ids),
+            by_matcher=tuple((m, len(matcher_rows.get(m, set()))) for m in STALE_MATCHERS),
+            flagged_ids=tuple(flagged_ids),
+            open_unenforced_ids=tuple(lid for lid, _enf in open_rows),
+        )
+        return issues, report
+    except Exception:
+        return [], _EMPTY_STALE_RECALL
 
 
 def _stale_unenforced_candidate_issues(
@@ -1589,79 +1913,131 @@ def _stale_unenforced_candidate_issues(
     marker in kb/lessons/00-lessons.md -- a row whose enforcement was actually built by a
     later run but whose status was never flipped (the L74/L109/L123 incident).
 
-    Scope, deliberately narrow: only rows whose ENFORCEMENT column still starts with the
-    bold `**UNENFORCED**` marker (the ledger's own definition of its standing work queue,
-    00-lessons.md line 9) are candidates. Within that column only (never the lesson-text
-    column -- a row's own narrative often names an EXISTING function as background context,
-    not as its candidate; L105 names `_segment_bounds()` from `scripts/anomaly_sweep.py` as
-    the reason a proposal dies, and that would be a pure false positive if lesson text were
-    in scope), extract backtick-quoted `function_name()` tokens. A bare script/module PATH
-    (e.g. `scripts/invariants.py`) is deliberately NOT matched -- nearly every candidate names
-    an already-existing file as the site where a new check should be ADDED, so path-existence
-    alone would flag almost every open row and carry no signal. A function name is matched
-    only when it contains an underscore (the codebase's private-helper naming convention),
-    to skip generic single-word names (`run()`, `main()`) that would false-positive on
-    unrelated same-named functions elsewhere in the tree.
+    Scope, deliberately narrow: only rows whose ENFORCEMENT column OPENS with a bold span whose
+    first word is `UNENFORCED` (the ledger's own definition of its standing work queue,
+    00-lessons.md line 9) are candidates -- BOTH the `**UNENFORCED**  ...` and the
+    `**UNENFORCED  ...**` shapes, see `_UNENFORCED_MARKER_RE` -- minus any ID formally disposed
+    of by a `DISPOSES:` marker (grammar in `_lesson_disposed_ids`). The enforcement column is
+    taken from `_parse_lesson_rows`, which splits cells escape- and code-span-aware; a naive
+    pipe split mis-aligned 14 rows and hid one genuinely-open row (L145) outright.
+    Extraction reads the ENFORCEMENT column ONLY,
+    never the lesson-text column -- a row's own narrative often names an EXISTING function as
+    background context, not as its candidate; L105 names `_segment_bounds()` from
+    `scripts/anomaly_sweep.py` as the reason a proposal dies, and that would be a pure false
+    positive if lesson text were in scope. Four matchers, all requiring the artifact to exist:
 
-    For each such candidate function name, search every tracked `.py`/`.sql` file for a
-    `def <name>(` definition. A hit means the row's own proposed enforcement already exists
-    somewhere in the tree -- the marker is a HIGH-PRECISION candidate for stale, though not
-    proof (a same-named function could coincidentally exist for an unrelated reason; a human/
-    kb-distiller pass still confirms before flipping the row, same as the L74/L109/L123
-    corrections). Best-effort/offline: any failure returns [] and can never poison the gate.
-    Returns one formatted string per (lesson id, function name, defining file) hit."""
-    try:
-        rows = _parse_lesson_rows(lessons_path)
-        if not rows:
-            return []
-        candidates: List[Tuple[str, str]] = []  # (lesson_id, func_name)
-        for lesson_id, _lesson_text, enforcement in rows:
-            if not enforcement.startswith("**UNENFORCED**"):
-                continue
-            names = set()
-            for span in _BACKTICK_SPAN_RE.findall(enforcement):
-                for fn in _FUNC_CALL_RE.findall(span):
-                    if "_" in fn:
-                        names.add(fn)
-            for fn in sorted(names):
-                candidates.append((lesson_id, fn))
-        if not candidates:
-            return []
-        def_res = {fn: re.compile(rf"^\s*def\s+{re.escape(fn)}\s*\(") for _lid, fn in candidates}
-        hits: Dict[str, List[str]] = {}
-        for path in _iter_source_files(source_root):
-            try:
-                text = path.read_text(errors="replace")
-            except Exception:
-                continue
-            for fn, pat in def_res.items():
-                if fn in hits:
-                    continue
-                if any(pat.match(ln) for ln in text.splitlines()):
-                    hits.setdefault(fn, []).append(_rel(path))
-        issues = []
-        for lesson_id, fn in candidates:
-            if fn in hits:
-                for defining_file in hits[fn]:
-                    issues.append(f"{lesson_id}: candidate `{fn}()` already defined in {defining_file}")
-        return issues
-    except Exception:
-        return []
+      M0 `func`          -- a backticked `function_name()` containing an underscore (the
+                            codebase's private-helper convention; a generic `run()`/`main()`
+                            would false-positive on unrelated same-named functions), matched
+                            against a `def <name>(` anywhere in the tracked .py/.sql tree.
+      M1 `path_symbol`   -- a backticked `dir/file.py::symbol` (or `::Class.method`); fires
+                            only if the file exists AND defines that symbol (`def`/`class`;
+                            for a dotted symbol, BOTH the class and the method). Very high
+                            precision -- the token is a direct pointer at a committed artifact.
+      M2 `script_flag`   -- a backticked repo-relative `*.py` path AND a backticked `--flag`
+                            token in the SAME cell; fires only if the file exists AND contains
+                            the flag as a QUOTED literal (`"--flag"`), i.e. actually registers
+                            the option rather than merely mentioning it in prose.
+      M3 `agent_charter` -- a backticked `.claude/agents/*.md` path in the cell AND that
+                            charter literally citing this row's OWN id (word-boundary `L<NN>`).
+                            Both halves are required; this is the "encode it in the edge-prober
+                            house style" enforcement family (L105 etc.).
+
+    A bare script/module PATH on its own (e.g. `scripts/invariants.py`) is still deliberately
+    NOT matched -- nearly every candidate names an already-existing file as the site where a
+    new check should be ADDED, so path-existence alone would flag almost every open row and
+    carry no signal. M2 only escapes that because the flag half is the new capability.
+
+    KNOWN PRECISION HAZARDS, accepted and documented rather than papered over:
+      * M2 would false-fire on a cell that names an existing script together with a flag that
+        script ALREADY had for unrelated reasons (e.g. `scripts/invariants.py` + `--full`).
+        No such row exists on the 2026-07-27 ledger; the advisory is non-gating and says
+        "confirm before flipping" for exactly this reason.
+      * M1 can fire on a NAME COINCIDENCE. WORKED EXAMPLE, L76 (2026-07-27 verifier): its cell
+        backticks `tests/test_probe_ladder_coherence.py::
+        test_runs_single_deep_snapshot_fails_duration_gate`, which really does exist -- but
+        that test asserts on snapshot COUNT (`MIN_SNAPS=2`), the exact mechanism L76's own
+        lesson text says is NOT a wall-clock duration gate. The test's NAME says "duration
+        gate"; its body does not implement one. L76 is in fact stale, but for an unrelated
+        reason (L93 later built `core.bootstrap.collapse_duration_gated_runs`, the helper the
+        cell actually asked for) -- so a hit is a pointer to READ the artifact, never evidence
+        that the candidate is built. The emitted strings say exactly that and no more
+        (`_resolve_stale_candidate`'s wording contract); over-claiming here would be the L165
+        failure class reappearing inside the L152 fix.
+      * M3 MISSES a charter that encodes a row's rule without naming its ID: requiring the
+        `L<NN>` citation is what makes it precise, and it is a real recall cost (measured
+        2026-07-27: of the 164 non-UNENFORCED rows, 22 name a charter that does not cite their
+        own ID -- the rule is in the house style, the number is not).
+
+    A hit means the row's own named enforcement already exists somewhere in the tree -- a
+    HIGH-PRECISION candidate for stale, though never proof (a same-named artifact could
+    coincidentally exist; a human/kb-distiller pass still confirms before flipping the row,
+    same as the L74/L109/L123 corrections). Recall is PARTIAL and always will be: a row whose
+    enforcement is prose-only ("a per-probe methodology gate", "encoded in probe precedents")
+    names no machine-checkable artifact at all. `stale_unenforced_recall_report` reports how
+    far extraction reached so a 0-issue result can never again be misread as a clean queue.
+    Best-effort/offline: any failure returns [] and can never poison the gate."""
+    return _stale_unenforced_scan(lessons_path, source_root)[0]
 
 
-def stale_unenforced_candidate_warning(issues: List[str]) -> Optional[str]:
-    """Non-gating advisory when an UNENFORCED lesson row's own candidate function name
-    already exists in the tree -- a likely-stale marker per L152. Pure."""
-    if not issues:
-        return None
-    n = len(issues)
-    examples = "; ".join(issues[:5]) + (", ..." if n > 5 else "")
+def stale_unenforced_recall_report(
+    lessons_path: Path = ROOT / "kb" / "lessons" / "00-lessons.md",
+    source_root: Path = ROOT,
+) -> StaleUnenforcedRecallReport:
+    """Coverage record for the stale-UNENFORCED detector: how many rows it parsed, how many
+    are `**UNENFORCED**`, how many of those are formally disposed, how many of the REMAINING
+    open rows yielded any extractable candidate at all, and how many were flagged (with a
+    per-matcher row count). Best-effort/offline: any failure returns the empty report."""
+    return _stale_unenforced_scan(lessons_path, source_root)[1]
+
+
+def _stale_recall_sentence(recall: StaleUnenforcedRecallReport) -> str:
+    """One-line honest coverage statement for the advisory text. Pure."""
+    by = ", ".join(f"{m}={n}" for m, n in recall.by_matcher)
     return (
-        f"warning (non-gating): {n} UNENFORCED lesson row(s) in kb/lessons/00-lessons.md "
-        f"name a candidate function that already exists in the tree (e.g. {examples}) -- "
-        f"likely a stale marker (L74/L109/L123 precedent: the enforcement was built by a "
-        f"later run but the row's status was never flipped). Confirm before flipping -- a "
-        f"same-named function can exist for an unrelated reason. Advisory only -- does NOT "
+        f"Extraction reached {recall.n_with_extractable_candidate} of "
+        f"{recall.n_open_unenforced} open UNENFORCED row(s) "
+        f"({recall.n_disposed} formally disposed via `DISPOSES:`); flagged "
+        f"{recall.n_flagged} row(s) [{by}]. The rest name no machine-checkable artifact, so a "
+        f"0-issue report is a COVERAGE limit of this detector, NOT evidence of a clean queue."
+    )
+
+
+def stale_unenforced_candidate_warning(
+    issues: List[str],
+    recall: Optional[StaleUnenforcedRecallReport] = None,
+) -> Optional[str]:
+    """Non-gating advisory when an UNENFORCED lesson row's own named candidate already exists
+    in the tree -- a likely-stale marker per L152. Pure.
+
+    When `recall` is supplied the message always carries the one-line coverage statement, and
+    a zero-issue scan that did NOT reach every open row still emits a coverage-only advisory:
+    the 2026-07-27 defect was precisely a silent 0-issue report over a queue that was 100%
+    stale. With `recall=None` (legacy call shape) an empty `issues` stays silent."""
+    if not issues:
+        if recall is None or recall.n_open_unenforced == 0:
+            return None
+        if recall.n_with_extractable_candidate >= recall.n_open_unenforced:
+            return None
+        return (
+            f"note (non-gating): 0 UNENFORCED lesson row(s) in kb/lessons/00-lessons.md were "
+            f"flagged as stale, but this is NOT a clean-queue signal. "
+            f"{_stale_recall_sentence(recall)} Advisory only -- does NOT affect the exit code. "
+            f"See kb/lessons/00-lessons.md L152."
+        )
+    n = len(issues)
+    n_rows = recall.n_flagged if recall is not None else len({i.split(":", 1)[0] for i in issues})
+    examples = "; ".join(issues[:5]) + (", ..." if n > 5 else "")
+    tail = f" {_stale_recall_sentence(recall)}" if recall is not None else ""
+    return (
+        f"warning (non-gating): {n} stale-candidate hit(s) across {n_rows} UNENFORCED lesson "
+        f"row(s) in kb/lessons/00-lessons.md NAME an artifact that EXISTS in the tree "
+        f"(e.g. {examples}) -- "
+        f"a candidate for a stale marker (L74/L109/L123 precedent: the enforcement was built by "
+        f"a later run but the row's status was never flipped). A hit is a NAME match, never "
+        f"proof the enforcement is built: READ the named artifact before flipping (L76's cell "
+        f"names a test that exists but pins snapshot COUNT, not the wall-clock duration gate "
+        f"the row asks for -- a name coincidence).{tail} Advisory only -- does NOT "
         f"affect the exit code. See kb/lessons/00-lessons.md L152."
     )
 
@@ -2342,12 +2718,22 @@ def main() -> int:
         dup_lesson_warning = duplicate_lesson_id_warning(_duplicate_lesson_id_issues())
         if dup_lesson_warning:
             sys.stderr.write(dup_lesson_warning + "\n")
-        # L152 advisory: an UNENFORCED lesson row whose own candidate function name already
-        # exists in the tree (a high-precision proxy for a stale marker — the L74/L109/L123
-        # incident). Non-gating — stderr only.
-        stale_warning = stale_unenforced_candidate_warning(_stale_unenforced_candidate_issues())
-        if stale_warning:
-            sys.stderr.write(stale_warning + "\n")
+        # L152 advisory: an UNENFORCED lesson row whose own named candidate (function,
+        # path::symbol, script+CLI flag, or agent-charter house-style bullet) already exists in
+        # the tree — a high-precision proxy for a stale marker (the L74/L109/L123 incident).
+        # Carries its own RECALL statement: the 2026-07-27 defect was a silent 0-issue report
+        # over a queue that was 100% stale, because the extractor reached none of it. Non-gating
+        # — stderr only, and wrapped like the collector-health/dwell stanzas so neither the
+        # detector, the formatter raising, nor a non-str return can reach the exit code (the
+        # L156 DEFECT-1 lesson).
+        try:
+            stale_issues, stale_recall = _stale_unenforced_scan()
+            stale_warning = stale_unenforced_candidate_warning(stale_issues, stale_recall)
+            if stale_warning:
+                sys.stderr.write(stale_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: stale-UNENFORCED-candidate advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
         # L157 advisory: a recovery-class finding (headline claims a collector recovered) with
         # no stated >=24h post-restart dwell and/or no named anchor. Non-gating by construction
         # — no regex can adjudicate an English recovery claim — and wrapped like the collector
