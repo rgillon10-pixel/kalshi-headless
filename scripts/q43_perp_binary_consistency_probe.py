@@ -100,6 +100,12 @@ DEPTH_FLOOR = 10.0                # the 10-contract at-touch depth floor (contra
 DURATION_FLOOR_SECONDS = 60.0     # a dislocation must persist >= 60s wall-clock to be fillable
 PRICE_TICK = 0.01
 
+# L209 (2026-07-27, PERP-F2): the venue's int64-max no-quote sentinel (9223372036854775807/1e4
+# = 922337203685477.6...) survives float coercion and the zero/negative guard below as a huge
+# plain float. No real BTC/ETH perp bid/ask is ever within orders of magnitude of this — a
+# sentinel_floor far above any real quote and far below the sentinel itself catches it cleanly.
+NO_QUOTE_SENTINEL_FLOOR = 1e6
+
 
 # --------------------------------------------------------------------------- #
 # self-activation gate
@@ -207,6 +213,8 @@ def load_perp_bbo(perp_glob: str = PERP_GLOB) -> List[Dict[str, Any]]:
                     continue
                 if bid <= 0.0 or ask <= 0.0:  # inactive / one-sided placeholder
                     continue
+                if bid >= NO_QUOTE_SENTINEL_FLOOR or ask >= NO_QUOTE_SENTINEL_FLOOR:
+                    continue  # int64-max no-quote sentinel, not a real quote — L209
                 mid = (bid + ask) / 2.0
                 mark = None
                 smp = c.get("settlement_mark_price")

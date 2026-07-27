@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.q43_perp_binary_consistency_probe import (
     MIN_CAPTURES_PER_DAY_ADVISORY,
+    NO_QUOTE_SENTINEL_FLOOR,
     PERP_DAYS_REQUIRED,
     _perp_capture_density,
     _thin_days,
@@ -408,3 +409,46 @@ def test_load_perp_bbo_ignores_non_markets_records(tmp_path):
     assert bbo[0]["symbol"] == "BTC"
     # the markets quote, NOT the orderbook record's bogus 6.00/6.99
     assert bbo[0]["bid"] == 6.4536 and bbo[0]["ask"] == 6.4561
+
+
+# --------------------------------------------------------------------------- #
+# (G) L209 (2026-07-27 perp_tape audit, PERP-F2): int64-max no-quote sentinel
+# --------------------------------------------------------------------------- #
+def test_load_perp_bbo_drops_int64_max_no_quote_sentinel(tmp_path):
+    """`tape/perp_tape/dt=2026-07-23.jsonl` carries a real, committed `ask` of
+    922337203685477.6 (int64-max / 1e4) on 5 non-BTC/ETH contracts in one pass -- the venue's
+    no-quote sentinel, which survives `_f()`'s coercion and the `bid <= 0.0 or ask <= 0.0` guard
+    as a plain (enormous) float. Reproduces the exact sentinel value on a joinable BTC contract
+    (never observed live so far, per the finding) and asserts it is dropped, never emitted as a
+    BBO that would wreck a downstream mid/implied-underlying computation."""
+    perp_dir = tmp_path / "perp"
+    perp_dir.mkdir()
+    ts_sentinel = "2026-07-23T00:29:58+00:00"
+    ts_clean = "2026-07-23T01:29:58+00:00"
+    sentinel_rec = {
+        "record_type": "markets", "capture_id": ts_sentinel, "captured_at": ts_sentinel,
+        "contracts": [{"ticker": "KXBTCPERP", "bid": 6.4536, "ask": 922337203685477.6,
+                       "contract_size": 0.0001,
+                       "settlement_mark_price": {"price": "6.4519"}}],
+    }
+    clean_rec = {
+        "record_type": "markets", "capture_id": ts_clean, "captured_at": ts_clean,
+        "contracts": [{"ticker": "KXBTCPERP", "bid": 6.4536, "ask": 6.4561,
+                       "contract_size": 0.0001,
+                       "settlement_mark_price": {"price": "6.4519"}}],
+    }
+    _write_jsonl(perp_dir / "dt=2026-07-23.jsonl", [sentinel_rec, clean_rec])
+
+    bbo = load_perp_bbo(str(perp_dir / "dt=*.jsonl"))
+    assert len(bbo) == 1                          # the sentinel pass is dropped, not the clean one
+    assert bbo[0]["captured_at"].isoformat() == ts_clean
+    assert bbo[0]["ask"] == 6.4561 and bbo[0]["ask"] < NO_QUOTE_SENTINEL_FLOOR
+
+
+def test_no_quote_sentinel_floor_below_the_real_venue_sentinel():
+    """Pins the guard's headroom: the floor sits far above any real BTC/ETH perp quote and far
+    below the actual venue sentinel (int64-max / 1e4), so neither side can drift into the gap
+    without this test catching it."""
+    real_venue_sentinel = 9223372036854775807 / 1e4
+    assert NO_QUOTE_SENTINEL_FLOOR < real_venue_sentinel
+    assert NO_QUOTE_SENTINEL_FLOOR > 1e5   # far above any plausible BTC/ETH perp bid/ask
