@@ -71,3 +71,52 @@ expected). No new advisory class introduced by this diff.
 No strategy claim, no registry change, no bootstrap CI/P&L — pure data recovery plus a
 tooling-blind-spot finding, same posture as the 07-23/07-25/07-26/07-27 stranded-tape
 recoveries. Two-agent verdict rule N/A (not a verdict-class change).
+
+## Addendum (2026-07-28, research loop, idle-run policy (a): L216 → enforced)
+
+Built the fix L216 proposed as its own candidate (option (a), "a cheaper per-family check ...
+avoiding the need to load the whole file"): `scripts/tape_branch_sweep.py` gains
+`BULK_CAPTURE_ID_FAMILIES` + `capture_ids_in_blob()`. Every line within one of these families'
+captures is minted atomically by a single collector pass and shares one `capture_id` (this
+run's own table above is the direct evidence — one row per capture, not per line), so
+comparing the small set of DISTINCT `capture_id` values between a branch and `HEAD` is a
+structurally-sound, cheap proxy for containment, without materializing a 20MB file into a
+frozenset of full line strings. `per_file_containment()` now takes this path for an oversized
+file under a bulk family IF the branch side yields >=1 real `capture_id` — an oversized bulk
+file with none (malformed content, or a family whose schema genuinely lacks the field) still
+falls back to the honest "skipped, no signal" behavior rather than reading zero-matched as
+zero-missing. The result is surfaced as its own `BranchTriage.capture_id_checked_files`
+field/`capture_id_only` property and its own report bucket — never silently folded into
+"every line checked", since it is a genuinely coarser (though real) guarantee.
+
+**Verified directly against the real recovery branch this addendum's own parent commit
+already merged:** re-running `triage_branch()` on `tape/hourly-20260727T1303Z` (sha `0e9870b`)
+against the current `HEAD` now reports `contained=True`, `fully_verified=True`,
+`capture_id_only=True`, with `orderbook_depth/dt=2026-07-27.jsonl` and
+`weather_books/dt=2026-07-27.jsonl` both showing 0 missing capture_ids — a genuine,
+independent confirmation that this run's own recovery above was complete, rather than a
+second unverified "no problem found" skip.
+
+**Scope note — `weather_books` added as a fourth bulk family, not just the three L216 named.**
+L216's own text (and the docstring it was quoting) named `orderbook_depth`/`universe_sweep`/
+`sports_pairs` as of the 2026-07-25 measurement. Verifying this fix against the real
+`tape/hourly-20260727T1303Z` branch found its `weather_books/dt=2026-07-27.jsonl` is
+2,303,754 bytes — itself over the 2MB guard — and `HEAD`'s own `dt=2026-07-24/26/27`
+`weather_books` day-files measured today at 2.75MB/2.23MB/4.48MB respectively (all carrying a
+`capture_id` field). This is in fact the SAME family whose 302-line capture was recovered
+above, in this very finding's own table — the size-guard blind spot always covered it too;
+L216's prose just didn't name it. Added rather than left as a fresh, undocumented instance of
+the exact gap this fix exists to close.
+
+**Tests:** `tests/test_tape_branch_sweep.py` gains `TestCaptureIdsInBlob` (extraction, missing
+path, malformed/fieldless lines skipped not crashed) and `TestBulkCaptureIdCheck`
+(contained-via-capture_id, missing-capture_id, `triage_branch`-level `capture_id_only`
+semantics, cache reuse) — 12 new tests, all against a real temporary git repo (this module's
+existing testing discipline), plus a `format_report` case pinning the new report bucket and
+wording. All pre-existing tests in the file are unchanged in behavior: the two extant
+size-guard tests use `sports_pairs` content with no `capture_id` field, so they exercise the
+"no signal, fall back to skip" branch exactly as before.
+
+No strategy claim, no registry change, no bootstrap CI/P&L — a tooling fix with test coverage,
+same posture as the L156/L168/L172/L211/L215 precedents. Two-agent verdict rule N/A (not a
+verdict-class change; disposition per L188's grammar, see `kb/lessons/00-lessons.md` L217).
