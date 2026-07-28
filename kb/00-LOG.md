@@ -6,6 +6,54 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 ~06:5xZ UTC — research loop: 21,303 stranded tape lines recovered + `tape_branch_sweep.py` bulk-family blind spot found
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `541239a` (PR #220);
+local sandbox started matching `origin/main` exactly, no reconciliation needed; last 5 merged
+PRs (#216-#220) present in `main`'s own linear commit chain; `kb/00-LOG.md` newest entry
+(2026-07-28) and newest committed tape (`dt=2026-07-27`) both current — no rewind. **Step 0:**
+open PRs #208 (retro, leave-open-for-Ryan) and #191/#166/#165 (Ryan's own drafts) unchanged,
+none claim eligible work. **Step 0b:** `git ls-remote` showed no `tape/hourly-*`/`tape/burst-*`
+branch newer than `tape/hourly-20260727T1303Z`. Three consecutive prior runs (07-27T21:1x,
+07-28T00:1x, 07-28T03:2x) had all reported that branch "already recovered by PR #217" /
+"nothing new to sweep." Rather than re-trusting that claim a fourth time, this run re-verified
+it directly against `HEAD` by hand (capture_id-level comparison, not the automated sweep
+tool) — and found the claim was wrong.
+
+**The gap:** `scripts/tape_branch_sweep.py` skips per-file line-set containment checks on any
+file over its 2MB size guard, which by construction excludes `orderbook_depth`/
+`universe_sweep`/`sports_pairs` on almost every branch. The tool's own report correctly labels
+this "no problem found but NOT FULLY VERIFIED," but three runs' prose summaries collapsed
+that into a clean "nothing to sweep." `tape/hourly-20260727T1303Z` (commit `0e9870b`,
+2026-07-27T13:11:49Z) genuinely carried three captures absent from `HEAD`'s entire tape tree:
+a full 20,000-line `universe_sweep` capture (`20260727T130302Z` — `HEAD` had exactly ONE
+capture for the whole day, 07:03Z, before this recovery), a 1,001-line `orderbook_depth`
+capture (`20260727T125540Z`), and a 302-line `weather_books` capture (`20260727T130038Z`).
+The branch's other five touched families were independently confirmed already fully
+contained (0 missing, raw line-set diff) — correctly left untouched.
+
+Union-appended all 21,303 lines to their respective `dt=2026-07-27.jsonl` files (pure
+append — pre-recovery content is an exact prefix of post-recovery content; post-append dedup
+check confirms 0 duplicate lines in any of the three files, and every appended line parses as
+valid JSON). New lesson **L216** (`UNENFORCED`) records the blind spot with a candidate fix
+(a cheaper per-family check for the size-guard-exempt bulk families, or a standing rule that
+bulk-family branches always get a manual capture_id check). See
+`findings/2026-07-28-stranded-tape-recovery-hourly20260727T1303Z-bulk-family-blindspot.md`.
+
+No strategy claim, no registry change, no bootstrap CI/P&L — pure data recovery plus a
+tooling finding, same posture as the 07-23/07-25/07-26/07-27 stranded-tape recoveries.
+Two-agent verdict rule N/A (not a verdict-class change). `python3 -m pytest -q`: **2,162
+collected, 0 failed** (fresh `--collect-only -q` count, taken after this diff's last edit —
+pure tape append, no source touched). `python3 scripts/invariants.py --full`: exit 0,
+`invariants: all green`, same pre-existing non-gating advisory classes as PR #220 (dir-shaped
+days, GC-dispatch, daily-cadence gaps, hollow crypto ladders, capped-pagination coverage
+ceiling, raw-`fromisoformat` backlog, recovery-dwell, unguarded-settlement; VPS-collector-dead
+duration increased as expected, Ryan/VPS-side only). Step 9: `SHADOW_REGISTRY` =
+{s14_ladder_underwriting} (`dead ✗` per Q34, paper-infra-only, NOT edge evidence);
+`paper_pass.py` idempotent this run (0 newly processed — this diff touches no `paper/`
+inputs), ledger unchanged **+$21.33** (`broker_truth`, 1189 settled, 0 open). Still **0
+proven edges**.
+
 ## 2026-07-28 ~03:2xZ UTC — idle-run: L212 disposed — `polymarket_macro_pairs` collector now persists its own completeness summary
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `9ef343d` (PR #219);
