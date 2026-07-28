@@ -19,13 +19,23 @@ def find_repo(start):
             return cand
     raise SystemExit("could not locate repo root (kb/lessons/00-lessons.md)")
 
-REPO = find_repo("/Users/ryan.gillon/Active/01-projects/kalshi.headless")
+# L200 (2026-07-27): was hardcoded to Ryan's local Mac path, so this script raised SystemExit
+# on any other checkout (incl. every cloud sandbox) -- which is why the cells()/_split_lesson_row
+# divergence below went unnoticed for a full run. Anchor on this file's own location instead.
+REPO = find_repo(__file__)
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / "reports" / "problems-dashboard.html"
 
-SPLIT = re.compile(r"(?<!\\)\|")  # split table cells on unescaped pipes
+# L200 (2026-07-27): this used to be a second, independently-buggy pipe-splitter (honoured an
+# escaped `\|` but not a `|` inside a backtick code span, e.g. L161's `sed 's|refs/heads/||'`) --
+# a different bug from the one L194 fixed in scripts/invariants.py's own splitter, so the two
+# tools silently disagreed on 3 of 190 rows (L89, L161, L173). One parsing job, one parser: reuse
+# invariants._split_lesson_row (escape- AND code-span-aware) instead of re-deriving the rule here.
+sys.path.insert(0, str(ROOT / "scripts"))
+from invariants import _split_lesson_row  # noqa: E402
+
 
 def cells(line):
-    parts = SPLIT.split(line.strip())
+    parts = _split_lesson_row(line.strip())
     # drop leading/trailing empties from surrounding pipes
     if parts and parts[0].strip() == "": parts = parts[1:]
     if parts and parts[-1].strip() == "": parts = parts[:-1]
@@ -46,7 +56,11 @@ def parse_lessons():
         if re.match(r"^\|\s*L\d+\s*\|", line):
             c = cells(line)
             if len(c) < 5: continue
-            lid, date, lesson, source, enf = c[0], c[1], c[2], c[3], c[4]
+            # L200: a genuine unescaped, non-code-span pipe inside the enforcement cell (e.g.
+            # L147) yields extra trailing fields -- re-join them rather than truncating to c[4],
+            # the same tail-rejoin invariants._parse_lesson_rows applies.
+            lid, date, lesson, source = c[0], c[1], c[2], c[3]
+            enf = "|".join(c[4:])
             # leading bold token or first word of enforcement cell = status
             m = re.search(r"\*\*([^*]+)\*\*", enf)
             token = (m.group(1) if m else enf.split("—")[0]).strip().lower()
