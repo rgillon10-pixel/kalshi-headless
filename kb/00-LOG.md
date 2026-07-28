@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 00:2x UTC — idle-run: `polymarket_macro_pairs` tape audit finds the live FOMC burst trigger still carries the known-broken design
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `9b63b11` (PR #218);
+local sandbox `main` ref was stale (shallow-clone artifact, `git checkout main && git reset
+--hard origin/main` reconciled it), then independently re-verified: the last 5 merged PRs
+(#214-#218) all correspond exactly to `main`'s own commit chain, and `kb/00-LOG.md`'s newest
+entry + newest committed tape were both already 2026-07-27 before this run started — no
+rewind. **Step 0:** open PRs #208 (retro, leave-open-for-Ryan) and #191/#166/#165 (Ryan's own
+drafts) unchanged, none claim eligible work. **Step 0b:** no `tape/hourly-*`/`tape/burst-*`
+branch newer than `tape/hourly-20260727T1303Z`, already recovered by PR #217 — nothing new to
+sweep (independently re-run via `scripts/tape_branch_sweep.py`, all hits pre-triaged false
+positives from prior runs).
+
+**Queue re-scan → IDLE RUN.** Full Q0-Q48 re-scan: still saturated (Q48/S55 burst-gated to
+07-29, 1-2 days out; everything else DONE/DEAD/BLOCKED/calendar- or density-gated). Idle
+policy (a) unavailable: the `UNENFORCED` backlog is unchanged from PR #218's fresh census (7
+rows — L145 a Ryan policy call; L192/L200/L205/L207 explicitly frozen by their own authors
+pending a concurrent verifier round; L208/L210 need more design work than one milestone).
+Policy (b) unavailable: Q48/S55 was already fully hardened by the 2026-07-27 edge-hunter run;
+Q37 stays gated to ~08-05 with its probe already prepped.
+
+**Idle policy (c) — `polymarket_macro_pairs` data-quality audit.** Dispatched a
+`tape-auditor` subagent at `tape/polymarket_macro_pairs/`, the Fed-decision cross-venue tape
+Q19/Q48/S55 depend on — the one actively-collected family with no dedicated audit on record
+(every sibling — perp_tape, settlement_ledger, hyperliquid_funding, orderbook_depth,
+weather_books, universe_sweep — already has one), chosen deliberately because the FOMC
+burst-capture trigger fires within the audit's own lookahead window (2026-07-29T17:40Z).
+
+**Clean:** 9,090 lines / 21 day-files, 0 malformed, `real_ask` on both legs 9,090/9,090 (0
+`synthetic`/untagged), every join key the probe reads 100% populated except 3 rows (0.033%)
+honestly self-flagged `book_fetch_ok:false`, `price_gap_yes_ask` internally consistent on all
+9,087 non-null rows, append-only holds, nothing stranded across all 200 remote `tape/*`
+branches. Re-derived front-meeting gap (+0.745¢ mean\|gap\|, n=3,030) reproduces the
+2026-07-26 finding exactly on 2 more days of tape.
+
+**Four defects, one time-critical.** **D1**: `collection/polymarket_pairs.py::run_fed_decision`
+computes a full `completeness_ok` honesty summary and never persists it — a zero-line pass is
+permanently indistinguishable from a non-run, the only family this audit has found where that
+gap exists. **D2**: Kalshi's `*_50plus` bucket (>=25bps) and Polymarket's (>=50bps) are
+different settlement terms on a 26-49bp move, invisible in tape (no title/question persisted,
+only IDs). **D3 (the time-critical one)**: capture cadence in the FOMC-relevant 17:40-18:30Z
+window has been **zero for 10 straight days** (07-18→07-27); cross-checked the live trigger
+API directly — `trig_01L9RysFtWUUjj3BgQmNKw7g` (`kalshi-burst-fomc-0729`, fires
+2026-07-29T17:40Z) still runs the single-commit-at-end recipe, NOT the seam-safe chunked
+recipe (`ops/burst_capture_chunked.md`) built and verified 2026-07-26 but never applied to
+this live trigger — the same design that lost 2 of this project's 4 prior one-shot bursts
+(WC-semi1, WC-final) entirely. **D4**: `dt=2026-07-09` genuinely lost (confirmed absent from
+`main` and all 200 tape branches). See `findings/2026-07-28-polymarket-macro-pairs-tape-audit.md`.
+New lessons **L212-L214** (all `UNENFORCED`; L213 flagged for Ryan as time-critical — trigger
+prompt edits are Ryan's own account state, out of scope for an autonomous rewrite triggered by
+tool output rather than a user request).
+
+No registry change, no strategy claim, no bootstrap CI, no P&L — two-agent verdict rule N/A
+(data-quality audit, same posture as the perp_tape/settlement_ledger/hyperliquid_funding
+precedents).
+
+**Gates** (taken after this diff's last edit, per L162). `python3.11 -m pytest -q`: baseline
+re-confirmed green before this docs-only diff (see PR body for the exact count — this diff
+touches no code, only `findings/`, `kb/lessons/00-lessons.md`, `kb/00-LOG.md`, `LOOP-QUEUE.md`).
+`python3.11 scripts/invariants.py --full`: exit 0, same pre-existing non-gating advisory
+classes as PR #218.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34 —
+paper-infra validation only, NOT edge evidence). This diff touches no tape — a genuine no-op.
+
+Still **0 proven edges**.
+
+---
+
 ## 2026-07-27 ~21:1xZ UTC — research loop: L209→L211 disposition, perp_tape int64-max sentinel guard
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `bbe4b4e` (PR #217);
