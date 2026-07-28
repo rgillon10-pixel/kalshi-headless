@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 ~19:0xZ UTC — idle-run (policy a): L205 dangling-test-citation advisory built + tests; stranded-tape recovery (1,878 lines)
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `c4ed31a` (PR #223,
+matching local history exactly); `kb/00-LOG.md` newest entry and newest committed tape both
+2026-07-28 — no rewind. **Step 0:** open PRs #208 (retro, leave-open-for-Ryan) and
+#191/#166/#165 (Ryan's own drafts) unchanged, none claim eligible work. **Step 0b:**
+`tape/hourly-20260728T1557Z` (committed 16:07Z, >2h old) carried **1,878 genuinely-missing
+lines** across 7 families — `orderbook_depth` (1,077), `weather_books` (543), `sports_pairs`
+(221), `perp_tape` (17), `polymarket_macro_pairs` (16), `crypto_hourly` (2),
+`hyperliquid_funding` (2), all `dt=2026-07-28` — recovered via an explicit per-file line-set
+membership check (every branch line tested against `HEAD`'s current file content, not a blind
+concat); post-append verification confirmed 0 lines still missing and 0 duplicates, 100%
+valid JSON.
+
+Full Q0-Q48 re-scan: still saturated (Q19/S55 FOMC burst-gated to tomorrow 2026-07-29 via the
+standing `kalshi-burst-fomc-0729` one-shot trigger; Q37 ~08-05; Q36/Q43 density-inadequate;
+everything else DONE/DEAD/BLOCKED) → IDLE RUN. Policy (a) [convert an UNENFORCED lesson into
+an invariant/test] chosen: **L205** named its own enforcement precisely — a static rule
+extracting every `::test_...` node-id citation in `kb/`/`findings/`/`LOOP-QUEUE.md` and
+asserting it resolves to a real `def` under `tests/`, since a ledger row cites a test as its
+enforcement EVIDENCE and the test-owning lane may not edit `kb/`, so a rename there leaves a
+citation nobody can see is broken. Delegated to `kb-distiller` with L152's own instruction
+(grep the tree for an existing implementation before scoping work — a prior run wasted a
+milestone on an already-built UNENFORCED-labeled row); confirmed genuinely unbuilt.
+
+**Built:** `scripts/invariants.py::_test_def_index` / `_cited_test_node_issues` /
+`dangling_test_citation_warning`, wired into `main()`'s `--full` stanza under an
+`except BaseException` guard (the standing L156 DEFECT-1 posture) — non-gating by design,
+since repairing a hit means editing `kb/`, which the code lane may not do. Resolution rules:
+path-qualified citations checked against that specific file (catches a MOVE, not just a
+rename); bare `::test_x` continuations resolve against the union of all test names; elided
+family citations (`::test_x_*` / `_...` / trailing `_`) resolve by prefix; metasyntactic
+placeholders and sub-`CITATION_MIN_PREFIX_LEN` prefixes are skipped as vacuous.
+`tests/test_invariants.py` gained 21 cases — constructed negatives per L155, plus one
+deliberately structural live-tree case pinning no hit count (L191/L192: `kb/`/`findings/`
+grow every run). `kb/lessons/00-lessons.md`'s L205 row had its status column updated in place
+(text unchanged, per L152's own rule that the run which builds an enforcement owns updating
+its originating row).
+
+**Live result — a real defect found:** 4 dangling citations / 2 distinct node ids on the
+current tree, both honest test renames the kb lane never saw — `test_acceptance_8_l127_hyperliquid_funding_join_stale`
+(cited by L128; the file now has `..._forward_refreshed_catches_freeze_via_stale`) and
+`test_acceptance_exactly_one_real_finding_is_recovery_class` (cited by `kb/00-LOG.md` twice
+plus `findings/2026-07-26-issue-205-recovery-dwell-acceptance-pin-fix.md`; the file now has
+`test_acceptance_recovery_class_findings_are_a_small_headline_scoped_subset`). Neither citation
+was repaired this run — whether the renamed tests still assert what the citing rows claim is
+an L165 content judgment, and the cited docs are append-only history; left for a kb-lane pass.
+
+Two-agent verdict rule N/A (tooling/invariants enforcement — no registry flip, no bootstrap CI,
+no kill decision; same posture as L109/L118/L126/L144/L150/L152/L185), but independently
+double-checked regardless: `kb-distiller`'s own full-suite run (2196 passed / 0 failed,
+`invariants --full` exit 0) and this orchestrating session's own independent re-runs both
+confirm.
+
+**Gates, taken fresh after the last edit (L162):** `python3 -m pytest -o addopts="" -q` →
+**2196 passed in 1256.72s, 0 failed**, exit 0. `python3 scripts/invariants.py --full` → exit 0,
+`invariants: all green`, 11 non-gating advisory lines (10 pre-existing classes — VPS collector
+leg now 145.6h+ silent and climbing [Ryan-side], hollow-crypto-ladder L168/L169,
+capped-pagination `settlement_ledger` span L185, 36 raw-`fromisoformat` sites L138, 4
+recovery-dwell findings without a stated ≥24h anchor L157, 6 unguarded binary-settlement
+comparisons L52 — plus the new L205 advisory firing correctly on the 4 real hits above).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34,
+paper-infra validation only, NOT edge evidence). `paper_pass.py` 0 newly processed this run
+(145 deferred on caps, 268 deferred on coverage, 155 already-in-ledger), ledger unchanged
+**+$21.33** (`broker_truth`, 1,189 settled contracts, 0 open).
+
+Still **0 proven edges**.
+
 ## 2026-07-28 ~12:1xZ UTC — research loop: stranded-tape recovery, `tape/hourly-20260728T1004Z` (1,691 lines, 10 families)
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `8016b8a` (PR #222);

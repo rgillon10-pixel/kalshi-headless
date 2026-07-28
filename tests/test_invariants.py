@@ -1495,3 +1495,250 @@ def test_acceptance_l185_settlement_ledger_real_tape_advisory_fires():
     msg = inv.capped_pagination_span_warning(issues)
     assert "20260722T103141Z" in msg
     assert "20260717T122238Z" not in msg
+
+
+# ── L205: dangling pytest node-id citations in kb/ / findings/ / LOOP-QUEUE.md ──
+#
+# A ledger row cites a test by node id AS ITS ENFORCEMENT EVIDENCE. The lane that owns tests
+# may not edit kb/, so a rename there leaves a citation the renaming agent cannot repair and
+# the kb lane cannot see. These fixtures are constructed negatives (L155): they are the
+# advisory's ONLY coverage claim — a quiet real tree is never evidence of recall.
+
+
+def _citation_tree(tmp_path, docs, tests):
+    """Build a fake repo root: `docs` = {relpath: text}, `tests` = {filename: text}."""
+    for rel, text in docs.items():
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    tdir = tmp_path / "tests"
+    tdir.mkdir(parents=True, exist_ok=True)
+    for name, text in tests.items():
+        (tdir / name).write_text(text)
+    return tmp_path
+
+
+def test_cited_test_node_resolves_when_the_test_exists_L205(tmp_path):
+    _citation_tree(
+        tmp_path,
+        {"kb/lessons/00-lessons.md": "pinned by `tests/test_alpha.py::test_one_thing`."},
+        {"test_alpha.py": "def test_one_thing():\n    assert True\n"},
+    )
+    assert inv._cited_test_node_issues(tmp_path) == []
+
+
+def test_cited_test_node_flags_a_renamed_test_L205(tmp_path):
+    _citation_tree(
+        tmp_path,
+        {"kb/lessons/00-lessons.md": "pinned by `tests/test_alpha.py::test_old_name`."},
+        {"test_alpha.py": "def test_new_name():\n    assert True\n"},
+    )
+    issues = inv._cited_test_node_issues(tmp_path)
+    assert len(issues) == 1, issues
+    assert issues[0].startswith("kb/lessons/00-lessons.md:1:")
+    assert "test_old_name" in issues[0]
+    assert "tests/test_alpha.py" in issues[0]
+
+
+def test_cited_test_node_flags_a_test_that_moved_to_another_file_L205(tmp_path):
+    """Path-qualified citations are checked AGAINST THAT FILE — a move is a dangling citation."""
+    _citation_tree(
+        tmp_path,
+        {"findings/f.md": "see `tests/test_alpha.py::test_moved`"},
+        {"test_alpha.py": "def test_stayed():\n    pass\n",
+         "test_beta.py": "def test_moved():\n    pass\n"},
+    )
+    issues = inv._cited_test_node_issues(tmp_path)
+    assert len(issues) == 1, issues
+    assert "test_moved" in issues[0]
+
+
+def test_cited_test_node_bare_continuation_resolves_across_files_L205(tmp_path):
+    """`::test_x` with no path is the ledger's second-node-id-in-one-cell shape: it resolves
+    against the union of every test name (weaker, and documented as such)."""
+    _citation_tree(
+        tmp_path,
+        {"kb/00-LOG.md": "`tests/test_alpha.py::test_one`, `::test_two`, `::test_absent`"},
+        {"test_alpha.py": "def test_one():\n    pass\n",
+         "test_beta.py": "def test_two():\n    pass\n"},
+    )
+    issues = inv._cited_test_node_issues(tmp_path)
+    assert len(issues) == 1, issues
+    assert "test_absent" in issues[0]
+
+
+def test_cited_test_node_missing_file_is_reported_as_a_file_L205(tmp_path):
+    _citation_tree(
+        tmp_path,
+        {"kb/00-LOG.md": "`tests/test_gone.py::test_one`"},
+        {"test_alpha.py": "def test_one():\n    pass\n"},
+    )
+    issues = inv._cited_test_node_issues(tmp_path)
+    assert len(issues) == 1, issues
+    assert "no such test file" in issues[0]
+
+
+def test_cited_test_node_basename_only_path_resolves_L205(tmp_path):
+    """Both `tests/test_alpha.py::x` and the bare-filename shape appear in the ledger."""
+    _citation_tree(
+        tmp_path,
+        {"LOOP-QUEUE.md": "`test_alpha.py::test_one`"},
+        {"test_alpha.py": "def test_one():\n    pass\n"},
+    )
+    assert inv._cited_test_node_issues(tmp_path) == []
+
+
+@pytest.mark.parametrize("cited", [
+    "`tests/test_alpha.py::test_parse_iso_utc_*`",
+    "`tests/test_alpha.py::test_parse_iso_utc_...`",
+    "`tests/test_alpha.py::test_parse_iso_utc_`",
+])
+def test_cited_test_node_elided_family_citation_resolves_by_prefix_L205(tmp_path, cited):
+    _citation_tree(
+        tmp_path,
+        {"kb/lessons/00-lessons.md": f"7 cases: {cited}"},
+        {"test_alpha.py": "def test_parse_iso_utc_short_fraction():\n    pass\n"},
+    )
+    assert inv._cited_test_node_issues(tmp_path) == []
+
+
+def test_cited_test_node_elided_citation_with_no_family_is_flagged_L205(tmp_path):
+    _citation_tree(
+        tmp_path,
+        {"kb/lessons/00-lessons.md": "`tests/test_alpha.py::test_parse_iso_utc_*`"},
+        {"test_alpha.py": "def test_something_else():\n    pass\n"},
+    )
+    issues = inv._cited_test_node_issues(tmp_path)
+    assert len(issues) == 1, issues
+    assert "test_parse_iso_utc_" in issues[0]
+
+
+def test_cited_test_node_too_short_elision_is_skipped_not_vacuously_passed_L205(tmp_path):
+    """`::test_*` would prefix-match nearly every test; it is skipped as uninformative."""
+    _citation_tree(
+        tmp_path,
+        {"kb/00-LOG.md": "`::test_*` is the grammar"},
+        {"test_alpha.py": "def test_one():\n    pass\n"},
+    )
+    assert len(inv.CITATION_PLACEHOLDER_NAMES) > 0
+    assert inv.CITATION_MIN_PREFIX_LEN > len("test_")
+    assert inv._cited_test_node_issues(tmp_path) == []
+
+
+@pytest.mark.parametrize("placeholder", sorted(inv.CITATION_PLACEHOLDER_NAMES))
+def test_cited_test_node_metasyntactic_placeholders_are_skipped_L205(tmp_path, placeholder):
+    _citation_tree(
+        tmp_path,
+        {"kb/00-LOG.md": f"the grammar is `path/to/file.py::{placeholder}`"},
+        {"test_alpha.py": "def test_one():\n    pass\n"},
+    )
+    assert inv._cited_test_node_issues(tmp_path) == []
+
+
+def test_cited_test_node_counts_async_defs_L205(tmp_path):
+    _citation_tree(
+        tmp_path,
+        {"kb/00-LOG.md": "`tests/test_alpha.py::test_async_one`"},
+        {"test_alpha.py": "async def test_async_one():\n    pass\n"},
+    )
+    assert inv._cited_test_node_issues(tmp_path) == []
+
+
+def test_cited_test_node_only_scans_the_declared_doc_roots_L205(tmp_path):
+    """A dangling citation in a doc OUTSIDE kb/ / findings/ / LOOP-QUEUE.md is out of scope
+    (README/agent charters are not the ledger's enforcement-evidence surface)."""
+    _citation_tree(
+        tmp_path,
+        {"docs/notes.md": "`tests/test_alpha.py::test_absent`",
+         "kb/00-LOG.md": "`tests/test_alpha.py::test_one`"},
+        {"test_alpha.py": "def test_one():\n    pass\n"},
+    )
+    assert inv._cited_test_node_issues(tmp_path) == []
+    assert inv.TEST_CITATION_DOC_GLOBS == ("kb/**/*.md", "findings/**/*.md", "LOOP-QUEUE.md")
+
+
+def test_cited_test_node_issues_are_deduplicated_and_sorted_L205(tmp_path):
+    _citation_tree(
+        tmp_path,
+        {"kb/00-LOG.md": "`tests/test_alpha.py::test_absent` and `tests/test_alpha.py::test_absent`",
+         "findings/f.md": "`tests/test_alpha.py::test_absent`"},
+        {"test_alpha.py": "def test_one():\n    pass\n"},
+    )
+    issues = inv._cited_test_node_issues(tmp_path)
+    assert len(issues) == 2, issues          # one per (doc, line), not per occurrence
+    assert issues == sorted(issues)
+
+
+def test_cited_test_node_missing_tree_is_empty_L205(tmp_path):
+    assert inv._cited_test_node_issues(tmp_path / "nope") == []
+
+
+def test_dangling_test_citation_warning_none_when_empty_L205():
+    assert inv.dangling_test_citation_warning([]) is None
+
+
+def test_dangling_test_citation_warning_message_content_L205(tmp_path):
+    _citation_tree(
+        tmp_path,
+        {"kb/lessons/00-lessons.md": "`tests/test_alpha.py::test_old_name`"},
+        {"test_alpha.py": "def test_new_name():\n    pass\n"},
+    )
+    msg = inv.dangling_test_citation_warning(inv._cited_test_node_issues(tmp_path))
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "test_old_name" in msg
+    assert "L205" in msg
+
+
+def test_dangling_test_citation_advisory_is_wired_to_stderr_L205(monkeypatch, capsys):
+    monkeypatch.setattr(
+        inv, "_cited_test_node_issues",
+        lambda *a, **kw: ["kb/fake.md:1: `tests/test_fake.py::test_gone` -- no `def test_gone(`"],
+    )
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "pytest node-id citation" in captured.err
+    assert "test_gone" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_dangling_test_citation_advisory_raise_cannot_flip_exit_code_L205(monkeypatch, capsys):
+    """The L156 DEFECT-1 posture: neither a raising detector nor a non-str formatter return
+    (which makes the stanza's `+ "\\n"` a TypeError) may reach the exit code."""
+    def _boom(*a, **kw):
+        raise RuntimeError("detector exploded")
+
+    monkeypatch.setattr(inv, "_cited_test_node_issues", _boom)
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "dangling-test-citation advisory could not be computed" in captured.err
+    assert "invariants: all green" in captured.out
+
+    monkeypatch.setattr(inv, "_cited_test_node_issues", lambda *a, **kw: ["x"])
+    monkeypatch.setattr(inv, "dangling_test_citation_warning", lambda issues: 12345)
+    assert inv.main() == 0
+
+
+def test_dangling_citation_real_tree_resolution_is_structural_L205():
+    """LIVE-TREE half, deliberately kept STRUCTURAL (L191/L192): kb/ and findings/ grow every
+    run, so pinning a hit COUNT here would make an unrelated future document turn this red.
+    Asserted instead: the detector never raises, every issue names one of the declared doc
+    roots, and a synthetic doc citing THIS test by node id resolves against the real tests/
+    tree -- a self-referential positive control that breaks if this very test is renamed,
+    which is exactly the L205 failure mode being demonstrated."""
+    issues = inv._cited_test_node_issues()
+    assert isinstance(issues, list)
+    assert all(isinstance(i, str) for i in issues)
+    assert all(
+        i.startswith(("kb/", "findings/", "LOOP-QUEUE.md")) for i in issues
+    ), issues
+    per_file, every = inv._test_def_index(ROOT / "tests")
+    assert "test_dangling_citation_real_tree_resolution_is_structural_L205" in every
+    assert (
+        "test_dangling_citation_real_tree_resolution_is_structural_L205"
+        in per_file["test_invariants.py"]
+    )
