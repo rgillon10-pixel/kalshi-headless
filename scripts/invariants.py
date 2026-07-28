@@ -2042,6 +2042,155 @@ def stale_unenforced_candidate_warning(
     )
 
 
+# ─── Dangling test-citation advisory (L205: non-gating, offline-safe) ───────
+#
+# L205: ledger rows cite tests by pytest node id (`tests/f.py::test_name`) as their ENFORCEMENT
+# EVIDENCE, and the lane that owns test files may not edit `kb/`. A rename made in the test lane
+# therefore leaves a dangling citation that the renaming agent cannot repair and the kb lane
+# cannot see — silently downgrading a `test`-tier row to an unverifiable prose claim, which is
+# the exact failure this ledger exists to prevent.
+#
+# The check: every `::test_...` token cited by `kb/`, `findings/` and `LOOP-QUEUE.md` must
+# resolve to a `def <name>(` under `tests/`. NON-GATING on purpose, for two independent reasons:
+# (1) it is a LEXICAL proxy over prose (per L155 its constructed-negative corpus in
+# `tests/test_invariants.py` is its only coverage claim), and (2) repairing a hit means editing
+# `kb/`, which the code lane may not do — a gate the on-call lane cannot clear would halt the
+# loop. Two real dangling citations exist on the 2026-07-28 tree; both are honest test renames
+# (`test_acceptance_8_l127_hyperliquid_funding_join_stale` and
+# `test_acceptance_exactly_one_real_finding_is_recovery_class`), i.e. the advisory fires on the
+# defect it was written for, not on noise.
+
+# Docs whose `::test_` tokens are treated as citations (relative to ROOT).
+TEST_CITATION_DOC_GLOBS = ("kb/**/*.md", "findings/**/*.md", "LOOP-QUEUE.md")
+
+# `tests/f.py::test_x`, `f.py::test_x`, or a bare continuation `::test_x` (the ledger's own
+# house style for a second node id in the same cell). A trailing `...`/`*` marks an ELIDED
+# citation — the ledger routinely writes `::test_parse_iso_utc_*` for a family of tests.
+_TEST_CITATION_RE = re.compile(
+    r"(?:(?P<path>[A-Za-z0-9_][A-Za-z0-9_./-]*\.py))?"
+    r"::(?P<name>test_[A-Za-z0-9_]*)(?P<tail>\.\.\.|\*)?"
+)
+_TEST_DEF_RE = re.compile(r"^[ \t]*(?:async[ \t]+)?def[ \t]+(test_[A-Za-z0-9_]*)[ \t]*\(", re.M)
+
+# Metasyntactic tokens: prose ABOUT the citation grammar, not citations of a real test. Kept as
+# an explicit, short, documented list rather than a heuristic — a heuristic here would quietly
+# suppress real node ids (L197: a matcher must never over-claim what it suppresses).
+CITATION_PLACEHOLDER_NAMES = frozenset({"test_", "test_name", "test_foo", "test_x"})
+# An elided citation must carry at least this many characters of prefix to be RESOLVABLE by
+# prefix match; a shorter one (`::test_*`) matches nearly every test and would be a vacuous
+# pass, so it is SKIPPED (reported as a coverage limit) rather than silently accepted.
+CITATION_MIN_PREFIX_LEN = 10
+
+
+def _test_def_index(tests_dir: Path) -> Tuple[Dict[str, Set[str]], Set[str]]:
+    """(per-file test-def names keyed by BASENAME, union of all names) for `tests/`.
+    Keyed by basename so `test_invariants.py::x` and `tests/test_invariants.py::x` resolve
+    identically — both shapes appear in the ledger. Best-effort: unreadable files are skipped."""
+    per_file: Dict[str, Set[str]] = {}
+    every: Set[str] = set()
+    try:
+        files = sorted(tests_dir.rglob("*.py"))
+    except Exception:
+        return {}, set()
+    for path in files:
+        try:
+            names = {m.group(1) for m in _TEST_DEF_RE.finditer(path.read_text())}
+        except Exception:
+            continue
+        per_file.setdefault(path.name, set()).update(names)
+        every |= names
+    return per_file, every
+
+
+def _cited_test_node_issues(
+    root: Path = ROOT,
+    tests_dir: Optional[Path] = None,
+) -> List[str]:
+    """Pytest node-id citations in `kb/`, `findings/` and `LOOP-QUEUE.md` that no longer resolve
+    to a test definition under `tests/` — L205's dangling-citation failure mode.
+
+    Resolution rules, deliberately conservative (a false positive here sends a human to re-read
+    a document for nothing, and worse, trains the reader to ignore the advisory):
+      * PATH-QUALIFIED (`tests/f.py::test_x`) — the cited FILE must exist under `tests/` (matched
+        by basename, see `_test_def_index`) and must define that test. A path naming a file with
+        no test defs at all is reported as an unresolved FILE, not as a missing test.
+      * BARE (`::test_x`) — the ledger's continuation shape for a second node id in one cell;
+        resolves against the union of every test name in the tree. Weaker (it cannot detect a
+        test MOVED between files) but that is the strongest honest reading of the token.
+      * ELIDED (`::test_parse_iso_utc_*`, `::test_acceptance_6_...`, or a name ending in `_`) —
+        resolved by PREFIX match, since the citation deliberately names a family. A prefix
+        shorter than `CITATION_MIN_PREFIX_LEN` is skipped entirely (vacuous).
+      * `CITATION_PLACEHOLDER_NAMES` are skipped: prose about the citation grammar itself.
+
+    COVERAGE, stated honestly: a hit is a NAME resolution only. This can never verify that the
+    resolved test still asserts what the citing row CLAIMS it asserts (L165: no static scanner
+    can check a citation's accuracy, only its resolvability) — a test can be gutted in place and
+    keep its name. Best-effort/offline: any failure returns [] and can never poison the gate.
+    Returns sorted `doc:line: <token> -- <reason>` strings, deduplicated."""
+    try:
+        tdir = tests_dir if tests_dir is not None else root / "tests"
+        per_file, every = _test_def_index(tdir)
+        docs: List[Path] = []
+        for pattern in TEST_CITATION_DOC_GLOBS:
+            docs.extend(p for p in root.glob(pattern) if p.is_file())
+        issues: Set[str] = set()
+        for doc in sorted(set(docs)):
+            try:
+                lines = doc.read_text().splitlines()
+            except Exception:
+                continue
+            rel = doc.relative_to(root).as_posix() if doc.is_absolute() else doc.as_posix()
+            for lineno, line in enumerate(lines, 1):
+                for m in _TEST_CITATION_RE.finditer(line):
+                    name = m.group("name")
+                    if name in CITATION_PLACEHOLDER_NAMES:
+                        continue
+                    elided = bool(m.group("tail")) or name.endswith("_")
+                    if elided and len(name) < CITATION_MIN_PREFIX_LEN:
+                        continue
+                    cited_path = m.group("path")
+                    if cited_path is not None:
+                        base = cited_path.rsplit("/", 1)[-1]
+                        pool = per_file.get(base)
+                        if pool is None:
+                            issues.add(
+                                f"{rel}:{lineno}: `{m.group(0)}` -- no such test file under "
+                                f"{tdir.name}/"
+                            )
+                            continue
+                    else:
+                        pool = every
+                    ok = (
+                        any(n.startswith(name) for n in pool) if elided else name in pool
+                    )
+                    if not ok:
+                        where = cited_path if cited_path is not None else f"{tdir.name}/"
+                        issues.add(
+                            f"{rel}:{lineno}: `{m.group(0)}` -- no `def {name}(` in {where}"
+                        )
+        return sorted(issues)
+    except Exception:
+        return []
+
+
+def dangling_test_citation_warning(issues: List[str]) -> Optional[str]:
+    """Non-gating advisory when a `kb/`/`findings/`/`LOOP-QUEUE.md` pytest node-id citation no
+    longer resolves to a test under `tests/` (L205), else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = "; ".join(issues[:5]) + (", ..." if n > 5 else "")
+    return (
+        f"warning (non-gating): {n} pytest node-id citation(s) in kb/ / findings/ / "
+        f"LOOP-QUEUE.md do not resolve to a test under tests/ (e.g. {examples}). A ledger row "
+        f"cites a test as its ENFORCEMENT EVIDENCE, so a dangling citation silently downgrades "
+        f"a `test`-tier row to an unverifiable prose claim — grep the citation before renaming "
+        f"or deleting a test, and repair the citing document in the same pass. Resolution is by "
+        f"NAME only: it cannot check the test still asserts what the row claims (L165). "
+        f"Advisory only -- does NOT affect the exit code. See kb/lessons/00-lessons.md L205."
+    )
+
+
 # ─── Recovery-finding dwell advisory (L157: non-gating, offline-safe) ────────
 #
 # L157: "no collector-recovery finding may be filed without >=24 consecutive hours of the
@@ -2733,6 +2882,19 @@ def main() -> int:
                 sys.stderr.write(stale_warning + "\n")
         except BaseException:
             sys.stderr.write("note: stale-UNENFORCED-candidate advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L205 advisory: a pytest node-id citation in kb/ / findings/ / LOOP-QUEUE.md that no
+        # longer resolves to a test under tests/ (a rename in the test lane the kb lane cannot
+        # see). Non-gating: repairing a hit means editing kb/, which the code lane may not do,
+        # so a gate here would be one the on-call lane cannot clear. Wrapped in
+        # `except BaseException` like the stanzas above so neither the detector, the formatter
+        # raising, nor a non-str return can reach the exit code (the L156 DEFECT-1 lesson).
+        try:
+            citation_warning = dangling_test_citation_warning(_cited_test_node_issues())
+            if citation_warning:
+                sys.stderr.write(citation_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: dangling-test-citation advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # L157 advisory: a recovery-class finding (headline claims a collector recovered) with
         # no stated >=24h post-restart dwell and/or no named anchor. Non-gating by construction
