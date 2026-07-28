@@ -6,6 +6,67 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 17:57 ET — idle-run (policy a): L200 dashboard-parser divergence fixed + tests
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `9d7a25c` (PR #224),
+local sandbox reset to it exactly — no rewind. **Step 0:** open PRs #208/#191/#166/#165
+unchanged (Ryan-review-only, none claim eligible work). **Step 0b:** newest stranded branch
+`tape/hourly-20260728T1557Z` (pushed 16:07Z, >30min old) diffed **fully redundant** against
+`origin/main` (`git diff --stat` over `tape/` empty — main's `9d7a25c` had already absorbed
+its lines) — nothing to recover; attempted to delete the now-pointless branch but confirmed
+(again) that a cloud session cannot push/delete against `origin` (403, same permission
+boundary as L4) — left in place, harmless.
+
+Full Q0-Q48 re-scan: unchanged from the prior run's own rescan (queue saturated: FOMC/Q19
+burst-gated to tomorrow 07-29, Q37 ~08-05, Q36/Q43 density-inadequate, everything else
+DONE/DEAD/BLOCKED) → **IDLE RUN**. Policy (a) chosen again: scanned `kb/lessons/00-lessons.md`
+for genuinely-open `**UNENFORCED**` rows (30 found by grep) and — per L152's own rule, grep the
+tree BEFORE claiming a milestone — checked the most concrete candidates against the actual
+code first. **L22** (add `real_bid` to `VALID_SOURCE_TAGS`) and **L209** (perp-tape sentinel
+magnitude guard) turned out to be **already closed** (both have committed code + a citing test,
+their row text just never got updated) — avoided wasted duplicate work. **L200** item (1) was
+genuinely unbuilt: `scripts/gen_problems_dashboard.py::cells` re-implemented the lessons-table
+pipe-split job with a SECOND, independently-buggy parser (honoured an escaped `\|` but not a
+`|` inside a backtick code span — different bug from the one L194 fixed in `invariants.py`'s
+own splitter), silently mis-bucketing 3 of 215 rows (L89, L161, L173) in the generated HTML
+dashboard; the script was also hardcoded to Ryan's local Mac path (`SystemExit` on any other
+checkout, including every cloud sandbox — the actual reason nobody caught the divergence).
+
+**Built:** `cells()` now delegates to `invariants._split_lesson_row` (one shared parser, not
+two) with the enforcement cell tail-rejoined the same way `invariants._parse_lesson_rows` does
+(so a genuine unescaped pipe inside that cell no longer truncates it, not just the code-span
+case); `REPO = find_repo(__file__)` replaces the hardcoded path. Regenerated
+`reports/problems-dashboard.html` with the fix applied. `tests/test_gen_problems_dashboard.py`
+(6 new tests): a frozen-fixture regression test over the **exact, verbatim** L89/L161/L173 row
+text (extracted programmatically from the live file to guarantee byte-fidelity, then frozen as
+literal strings — immune to the ledger's ongoing growth); a live-tree structural
+cross-parser-agreement check (dashboard vs `invariants._parse_lesson_rows`, **0 mismatches
+across all 215 current rows** — not pinned to any count/content, only to the relationship that
+two parsers of one table must agree, so it stays valid as the ledger grows, avoiding the
+L191/L192 live-document-growth hazard); a portability check. `kb/lessons/00-lessons.md` L200's
+status column updated in place to close item (1); items (2) (L138-family green-test coupling,
+owed to research-lead) and (3) (`.claude/agents/kb-distiller.md` doc gap, Ryan-owned) remain
+open per that row's own text — not touched here.
+
+Two-agent verdict rule **N/A** (tooling fix — no registry flip, no bootstrap CI, no kill
+decision; same posture as L109/L118/L126/L144/L150/L152/L185/L205).
+
+**Gates:** `python3 scripts/invariants.py --full` → exit 0, `invariants: all green`, only
+pre-existing non-gating advisory classes (VPS collector leg 147.8h+ silent [Ryan-side],
+hollow-crypto-ladder L168/L169, capped-pagination `settlement_ledger` L185, 36 raw-
+`fromisoformat` sites L138, 4 recovery-dwell findings without a stated ≥24h anchor L157, 6
+unguarded binary-settlement comparisons L52, 4 dangling test-citations L205, 1 local
+now-redundant `tape/hourly-*` ref). `python3 -m pytest -o addopts="" -q` → **2202 passed in
+2381.20s, 0 failed**, exit 0 — taken fresh after the last edit (L162), independently re-run in
+a clean venv (`pip install -e ".[dev,analysis]"`) rather than trusted from a stale snapshot;
+2202 = 2196 prior + 6 new, consistent with this run's only diff. **Step 9 (paper sub-pass):**
+`SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34, paper-infra validation only,
+NOT edge evidence). `paper_pass.py` 0 newly processed (145 deferred on caps, 268 deferred on
+coverage, 155 already-in-ledger), ledger unchanged **+$21.33** (`broker_truth`, 1,189 settled
+contracts, 0 open). Still **0 proven edges**. PR #225.
+
+---
+
 ## 2026-07-28 ~19:0xZ UTC — idle-run (policy a): L205 dangling-test-citation advisory built + tests; stranded-tape recovery (1,878 lines)
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `c4ed31a` (PR #223,
