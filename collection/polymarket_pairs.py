@@ -646,13 +646,27 @@ def run_fed_decision(client: Optional[Kalshi] = None, tape_dir: Optional[Path] =
         "raw_kalshi_sha256": sha256_hex("".join(kalshi_raw).encode("utf-8")),
     }
 
-    if lines:
-        tape_dir.mkdir(parents=True, exist_ok=True)
-        out_path = tape_dir / f"dt={day}.jsonl"
-        with open(out_path, "a", encoding="utf-8") as f:
-            for ln in lines:
-                f.write(ln + "\n")
-        summary["path"] = str(out_path)
+    # L212 (2026-07-28 tape audit, D1): the honesty summary above used to live only in
+    # this in-process return value — `hourly_pass.py` folds it into a total and drops it,
+    # so a pass where `lines` came back empty (e.g. `pm_error` set) wrote nothing at all,
+    # permanently indistinguishable from "the collector never fired." Always append a
+    # summary line to the same per-day file, on its OWN schema_version (never
+    # "polymarket_macro_pairs.v1", the pair-record schema) so completeness is recomputable
+    # from committed tape alone, even on a zero-match pass, while every existing reader that
+    # gates on schema_version/family (`q31_cross_venue_arb_probe._iter_records`,
+    # `q48_s55_fomc_lag_probe.load_family_records`) skips it exactly like a foreign record.
+    summary_record = {
+        "schema_version": "polymarket_macro_pairs_summary.v1",
+        "family": "capture_summary",
+        **summary,
+    }
+    tape_dir.mkdir(parents=True, exist_ok=True)
+    out_path = tape_dir / f"dt={day}.jsonl"
+    with open(out_path, "a", encoding="utf-8") as f:
+        for ln in lines:
+            f.write(ln + "\n")
+        f.write(canonical_json(summary_record) + "\n")
+    summary["path"] = str(out_path)
 
     print(f"[polymarket_macro_pairs] {capture_id}: {n_kalshi} kalshi fed-decision markets, "
           f"{n_matched} matched to polymarket, "
