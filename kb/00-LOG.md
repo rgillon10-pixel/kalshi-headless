@@ -6,6 +6,47 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 ~12:1xZ UTC — research loop: stranded-tape recovery, `tape/hourly-20260728T1004Z` (1,691 lines, 10 families)
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `8016b8a` (PR #222);
+local sandbox reset to `origin/main` exactly, 0 divergence; last 5 merged PRs (#218-#222)
+independently re-verified as ancestors of `origin/main` via `git merge-base --is-ancestor`
+(not just trusted); `kb/00-LOG.md` newest entry and newest committed tape both 2026-07-28 —
+no rewind. **Step 0:** open PRs #208 (retro, leave-open-for-Ryan) and #191/#166/#165 (Ryan's
+own drafts) unchanged, none claim eligible work. **Step 0b:** `git ls-remote` showed
+`tape/hourly-20260728T1004Z` (commit `07ed643`, 2026-07-28T10:05:11Z — over 2h old, past the
+30-minute skip threshold), newer than the last-recovered `tape/hourly-20260727T1303Z`.
+
+`scripts/tape_branch_sweep.py` triaged it directly: **1,691 genuinely-missing lines across 10
+families** — `anomalies` (1), `crypto_hourly` (2), `econ_prints` (5), `hyperliquid_funding`
+(2), `orderbook_depth` (1,093), `perp_tape` (17), `polymarket_cpi_pairs` (24),
+`polymarket_macro_pairs` (16), `sports_pairs` (228), `weather_books` (303) — all `dt=2026-07-28`.
+Union-appended (pure append, line-set membership check per file); post-append verification
+against the branch's own content directly (not just re-trusting the sweep tool, whose
+git-blob-based check can't see uncommitted working-tree state) confirmed **0 lines still
+missing and 0 duplicate lines** in any of the 10 files. This recovery is the run's milestone,
+elevated beyond "sweep only" per the 2026-07-12 idle-run policy — same posture as PRs
+#203/#212/#214/#217/#221's prior genuine recoveries.
+
+Full Q0-Q48 re-scan: unchanged, still saturated (Q48/S55 burst-gated to 2026-07-29, tomorrow,
+already fully hardened; Q37 gated ~2026-08-05, already prepped; everything else
+DONE/DEAD/BLOCKED/calendar- or density-gated). No registry change, no strategy claim, no
+bootstrap CI/P&L — two-agent verdict rule N/A (pure tape recovery, same posture as every prior
+recovery-only run).
+
+**Gates:** `python3 scripts/invariants.py --full`: exit 0, `invariants: all green` (same
+pre-existing non-gating advisory classes as PR #222 — VPS collector leg dead 138.7h and
+climbing, Ryan-side; L168/L169 hollow-crypto-ladder; L185 capped-pagination; L138 raw-
+`fromisoformat`; L157 recovery-dwell; L52 unguarded-settlement). `python3 -m pytest -q`:
+exit 0; `--collect-only -q` immediately after, same tree (per L162's fresh-gate-line rule):
+**2,172 collected**, 0 failed — unchanged from PR #222 (this diff touches no test files).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34,
+paper-infra validation only, NOT edge evidence). `paper_pass.py` idempotent this run (0 newly
+processed), ledger unchanged **+$21.33** (`broker_truth`, 1189 settled, 0 open).
+
+Still **0 proven edges**.
+
 ## 2026-07-28 ~09:2xZ UTC — idle-run: L216 disposed — `tape_branch_sweep.py` now checks size-guard-exempt bulk families at capture_id granularity instead of skipping them blind
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `d3a2bf0` (PR #221);
