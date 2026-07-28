@@ -6,6 +6,78 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 ~09:2xZ UTC — idle-run: L216 disposed — `tape_branch_sweep.py` now checks size-guard-exempt bulk families at capture_id granularity instead of skipping them blind
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `d3a2bf0` (PR #221);
+local sandbox reset to `origin/main` exactly, no divergence; last 5 merged PRs (#217-#221)
+present in `main`'s own linear commit chain; `kb/00-LOG.md` newest entry and newest committed
+tape both 2026-07-28 — no rewind. **Step 0:** open PRs #208 (retro, leave-open-for-Ryan) and
+#191/#166/#165 (Ryan's own drafts) unchanged, none claim eligible work. **Step 0b:**
+`git ls-remote` shows no `tape/hourly-*`/`tape/burst-*` branch newer than
+`tape/hourly-20260727T1303Z`, already recovered by PR #221 — nothing new to sweep.
+
+**Queue re-scan → IDLE RUN.** Full Q0-Q48 re-scan (chased each item's own latest Status line):
+still saturated — Q48/S55 burst-gated to 2026-07-29 (fires tomorrow, already fully hardened),
+Q37 gated ~08-05 (already prepped), everything else DONE/DEAD/BLOCKED/calendar- or
+density-gated. Re-derived the `UNENFORCED` lessons backlog fresh via
+`scripts/invariants.py::_parse_lesson_rows`/`_lesson_disposed_ids`: **10 open rows** —
+`L145` (Ryan policy call, untouched), `L192`/`L200`/`L205`/`L207` (author-frozen pending a
+concurrent verifier round or outside their pass's write lane), `L208`/`L210` (need more design
+than one milestone), `L213` (Ryan-only — trigger-prompt edits are Ryan's own account state).
+**`L216`** — this run's own predecessor's finding (`tape_branch_sweep.py`'s 2MB size guard
+makes `orderbook_depth`/`universe_sweep`/`sports_pairs` structurally invisible to the stranded-
+tape sweep) — was the one concretely-specified, in-scope candidate: it already named its own
+fix (a cheaper per-family check).
+
+**L216 → L217.** `scripts/tape_branch_sweep.py` gains `BULK_CAPTURE_ID_FAMILIES` +
+`capture_ids_in_blob()`: an oversized file under one of these families is now checked at
+capture_id-SET granularity (every distinct `capture_id` the branch carries must already be
+present in HEAD's version of the same file) instead of skipped outright — sound because one
+collector pass mints all of its lines atomically under one `capture_id` (a 20,000-line
+`universe_sweep` capture is ONE fact, not 20,000). An oversized bulk file yielding ZERO
+capture_ids (malformed content, or a schema genuinely lacking the field) still falls back to
+the honest size-guard skip — confirmed by the two PRE-EXISTING `sports_pairs`-fixture
+size-guard tests continuing to pass unmodified, since their seeded content carries no
+`capture_id` field. Surfaced as a new `BranchTriage.capture_id_checked_files`/
+`capture_id_only` field/property and its own `format_report` bucket, kept structurally
+distinct from the line-level "fully verified" claim (a capture_id match is coarser — it does
+not prove every byte within a matched capture is identical).
+
+**Scope note — `weather_books` added as a FOURTH bulk family, not just the three L216 named.**
+Verifying the fix against the real `tape/hourly-20260727T1303Z` recovery branch found its
+`weather_books/dt=2026-07-27.jsonl` (2,303,754 bytes) also exceeds the 2MB guard and carries
+`capture_id`; `HEAD`'s own `dt=2026-07-24/26/27` `weather_books` day-files measured today at
+2.75MB/2.23MB/4.48MB. This is the SAME family whose 302-line capture PR #221's own recovery
+table already listed as stranded — the blind spot always covered it, L216's prose (quoting the
+module's older docstring) just didn't name it. Added rather than left as a freshly-discovered
+instance of the exact gap this fix exists to close.
+
+**Live re-verification, not just a unit-test claim:** re-ran `triage_branch()` on
+`tape/hourly-20260727T1303Z` (sha `0e9870b`) against the current `HEAD` — now returns
+`contained=True`, `fully_verified=True`, `capture_id_only=True`, 0 missing capture_ids on both
+`orderbook_depth/dt=2026-07-27.jsonl` and `weather_books/dt=2026-07-27.jsonl` — an independent
+confirmation that PR #221's recovery was complete, not a second unverified skip.
+
+12 new tests in `tests/test_tape_branch_sweep.py` (`TestCaptureIdsInBlob`,
+`TestBulkCaptureIdCheck`, plus a `format_report` case), all against a real temporary git repo
+per this module's existing testing discipline. Addendum appended to
+`findings/2026-07-28-stranded-tape-recovery-hourly20260727T1303Z-bulk-family-blindspot.md`. New
+lesson **L217** formally disposes L216 (`UNENFORCED` → `test`) via the `DISPOSES:` marker —
+`UNENFORCED` backlog 10 → 9.
+
+No registry change, no strategy claim, no bootstrap CI/P&L — a tooling fix with test coverage,
+same posture as the L156/L168/L172/L211/L215 precedents; two-agent verdict rule N/A (not a
+verdict-class change). `python3 -m pytest -q`: full suite exit 0 (background run, completed
+before this diff's last edit was re-verified); `python3 -m pytest -q --collect-only` immediately
+after, same tree: **2,172 collected**, 0 failures reported by the completed run. `python3
+scripts/invariants.py --full`: exit 0, `invariants: all green`, same pre-existing non-gating
+advisory classes as PR #221 (dir-shaped days, GC-dispatch, daily-cadence gaps, hollow crypto
+ladders, capped-pagination coverage ceiling, raw-`fromisoformat` backlog, recovery-dwell,
+unguarded-settlement, VPS-collector-dead advisory; UNENFORCED-queue coverage note now reads 10
+open rows pre-commit). Step 9: `SHADOW_REGISTRY` = {s14_ladder_underwriting} (`dead ✗` per Q34,
+paper-infra-only); this diff touches no tape/paper inputs, `paper_pass.py` idempotent (0 newly
+processed), ledger unchanged. Still **0 proven edges**.
+
 ## 2026-07-28 ~06:5xZ UTC — research loop: 21,303 stranded tape lines recovered + `tape_branch_sweep.py` bulk-family blind spot found
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `541239a` (PR #220);

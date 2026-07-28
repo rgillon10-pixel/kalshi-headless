@@ -10,8 +10,10 @@ from pathlib import Path
 import pytest
 
 from scripts.tape_branch_sweep import (
+    BULK_CAPTURE_ID_FAMILIES,
     CANONICAL_NAME_RE,
     BranchTriage,
+    capture_ids_in_blob,
     commit_known_locally,
     default_git_runner,
     fetch_branches,
@@ -292,18 +294,20 @@ class TestPerFileContainmentPrimitives:
         branches = list_remote_tape_branches(remote="origin", cwd=str(clone))
         fetch_branches(branches, remote="origin", cwd=str(clone))
         d_sha = next(sha for sha, name in branches if name == "tape/hourly-20260724T1200Z")
-        missing, skipped = per_file_containment(d_sha, "HEAD", "tape", cwd=str(clone))
+        missing, skipped, capture_id_checked = per_file_containment(d_sha, "HEAD", "tape", cwd=str(clone))
         assert missing == {}
         assert skipped == {}
+        assert capture_id_checked == {}
 
     def test_per_file_containment_reports_genuinely_missing_line(self, main_repo):
         clone, _remote = main_repo
         branches = list_remote_tape_branches(remote="origin", cwd=str(clone))
         fetch_branches(branches, remote="origin", cwd=str(clone))
         b_sha = next(sha for sha, name in branches if name == "tape/hourly-20260725T0500Z")
-        missing, skipped = per_file_containment(b_sha, "HEAD", "tape", cwd=str(clone))
+        missing, skipped, capture_id_checked = per_file_containment(b_sha, "HEAD", "tape", cwd=str(clone))
         assert missing == {"tape/sports_pairs/dt=2026-07-25.jsonl": 1}
         assert skipped == {}
+        assert capture_id_checked == {}
 
     def test_size_guard_skips_oversized_files(self, main_repo):
         clone, _remote = main_repo
@@ -311,22 +315,27 @@ class TestPerFileContainmentPrimitives:
         fetch_branches(branches, remote="origin", cwd=str(clone))
         b_sha = next(sha for sha, name in branches if name == "tape/hourly-20260725T0500Z")
         # The seeded file is a few bytes — any positive-but-tiny max_file_bytes skips it.
-        missing, skipped = per_file_containment(b_sha, "HEAD", "tape", cwd=str(clone),
+        # It has no `capture_id` field, so even though its family (sports_pairs) is one of
+        # the L216 bulk families, the cheaper check finds no signal and falls back to a
+        # plain skip (see TestBulkCaptureIdCheck for the case where capture_id IS present).
+        missing, skipped, capture_id_checked = per_file_containment(b_sha, "HEAD", "tape", cwd=str(clone),
                                                   max_file_bytes=1)
         assert missing == {}  # never checked, so never reported as missing either
         # 18 bytes = len('{"a": 1}\n{"b": 2}\n') — the file this branch wrote, trailing newline
         # included (git blob size counts the exact bytes stored).
         assert skipped == {"tape/sports_pairs/dt=2026-07-25.jsonl": 18}
+        assert capture_id_checked == {}
 
     def test_size_guard_disabled_with_none(self, main_repo):
         clone, _remote = main_repo
         branches = list_remote_tape_branches(remote="origin", cwd=str(clone))
         fetch_branches(branches, remote="origin", cwd=str(clone))
         b_sha = next(sha for sha, name in branches if name == "tape/hourly-20260725T0500Z")
-        missing, skipped = per_file_containment(b_sha, "HEAD", "tape", cwd=str(clone),
+        missing, skipped, capture_id_checked = per_file_containment(b_sha, "HEAD", "tape", cwd=str(clone),
                                                   max_file_bytes=None)
         assert missing == {"tape/sports_pairs/dt=2026-07-25.jsonl": 1}
         assert skipped == {}
+        assert capture_id_checked == {}
 
     def test_triage_branch_marks_contained_unverified_when_skipped(self, main_repo):
         clone, _remote = main_repo
@@ -357,6 +366,127 @@ class TestPerFileContainmentPrimitives:
                               head_line_cache=cache)
 
 
+class TestCaptureIdsInBlob:
+    """`capture_ids_in_blob` (L216) — the cheaper per-family check's raw extraction step."""
+
+    def test_extracts_distinct_capture_ids(self, tmp_path):
+        repo = _init_repo(tmp_path / "repo")
+        _commit(repo, "tape/orderbook_depth/dt=2026-07-27.jsonl",
+                '{"capture_id": "cap-A", "ticker": "X"}\n'
+                '{"capture_id": "cap-A", "ticker": "Y"}\n'
+                '{"capture_id": "cap-B", "ticker": "Z"}\n',
+                "seed")
+        ids = capture_ids_in_blob("HEAD", "tape/orderbook_depth/dt=2026-07-27.jsonl", cwd=str(repo))
+        assert ids == frozenset({"cap-A", "cap-B"})
+
+    def test_missing_path_returns_none(self, tmp_path):
+        repo = _init_repo(tmp_path / "repo")
+        _commit(repo, "tape/orderbook_depth/dt=2026-07-27.jsonl", '{"capture_id": "cap-A"}\n', "seed")
+        assert capture_ids_in_blob("HEAD", "tape/orderbook_depth/dt=2026-07-28.jsonl", cwd=str(repo)) is None
+
+    def test_malformed_and_fieldless_lines_are_skipped_not_crashed(self, tmp_path):
+        repo = _init_repo(tmp_path / "repo")
+        _commit(repo, "tape/orderbook_depth/dt=2026-07-27.jsonl",
+                '{"capture_id": "cap-A"}\n'
+                "not json at all\n"
+                '{"ticker": "no capture_id field"}\n'
+                '["capture_id", "not-a-dict-so-no-.get"]\n',
+                "seed")
+        ids = capture_ids_in_blob("HEAD", "tape/orderbook_depth/dt=2026-07-27.jsonl", cwd=str(repo))
+        assert ids == frozenset({"cap-A"})
+
+
+class TestBulkCaptureIdCheck:
+    """L216: an oversized file under one of `BULK_CAPTURE_ID_FAMILIES` gets a capture_id-set
+    check instead of an unverified skip, PROVIDED the branch side yields >=1 real capture_id.
+    (The no-signal case — an oversized bulk file with no capture_id at all — is already
+    covered by `TestPerFileContainment.test_size_guard_skips_oversized_files`, which
+    deliberately uses `sports_pairs` content with no `capture_id` field and asserts it still
+    falls back to a plain skip.)
+    """
+
+    @pytest.fixture()
+    def bulk_family_repo(self, tmp_path):
+        """One repo, three commits, no remote/clone/fetch needed (this exercises
+        `per_file_containment`/`triage_branch` directly against local shas):
+        - `contained-branch`: `tape/orderbook_depth/dt=2026-07-27.jsonl` carries only cap-A.
+        - `missing-branch`: same file carries cap-A + cap-C (cap-C never reaches HEAD).
+        - `main` (HEAD): advances past both to carry cap-A + cap-B — a subset check against
+          cap-C (missing) and a superset check against cap-A alone (contained) in one fixture.
+        """
+        repo = _init_repo(tmp_path / "repo")
+        _commit(repo, "tape/orderbook_depth/dt=2026-07-27.jsonl",
+                '{"capture_id": "cap-A", "ticker": "X"}\n', "seed cap-A")
+        _git(repo, "branch", "-M", "main")
+        _git(repo, "branch", "contained-branch")
+        _git(repo, "checkout", "-q", "-b", "missing-branch")
+        (repo / "tape/orderbook_depth/dt=2026-07-27.jsonl").write_text(
+            '{"capture_id": "cap-A", "ticker": "X"}\n{"capture_id": "cap-C", "ticker": "Z"}\n')
+        _git(repo, "add", "tape/orderbook_depth/dt=2026-07-27.jsonl")
+        _git(repo, "commit", "-q", "-m", "adds cap-C")
+        _git(repo, "checkout", "-q", "main")
+        (repo / "tape/orderbook_depth/dt=2026-07-27.jsonl").write_text(
+            '{"capture_id": "cap-A", "ticker": "X"}\n{"capture_id": "cap-B", "ticker": "Y"}\n')
+        _git(repo, "add", "tape/orderbook_depth/dt=2026-07-27.jsonl")
+        _git(repo, "commit", "-q", "-m", "HEAD adds cap-B")
+        return repo
+
+    def test_bulk_family_constant_is_the_expected_four(self):
+        assert BULK_CAPTURE_ID_FAMILIES == frozenset(
+            {"orderbook_depth", "universe_sweep", "sports_pairs", "weather_books"})
+
+    def test_contained_branch_verified_via_capture_id_zero_missing(self, bulk_family_repo):
+        repo = bulk_family_repo
+        sha = _git(repo, "rev-parse", "contained-branch")
+        missing, skipped, capture_id_checked = per_file_containment(
+            sha, "HEAD", "tape", cwd=str(repo), max_file_bytes=1)
+        assert missing == {}
+        assert skipped == {}
+        assert capture_id_checked == {"tape/orderbook_depth/dt=2026-07-27.jsonl": 0}
+
+    def test_missing_branch_reports_missing_capture_id_count(self, bulk_family_repo):
+        repo = bulk_family_repo
+        sha = _git(repo, "rev-parse", "missing-branch")
+        missing, skipped, capture_id_checked = per_file_containment(
+            sha, "HEAD", "tape", cwd=str(repo), max_file_bytes=1)
+        assert missing == {}
+        assert skipped == {}
+        assert capture_id_checked == {"tape/orderbook_depth/dt=2026-07-27.jsonl": 1}
+
+    def test_triage_branch_contained_true_but_capture_id_only(self, bulk_family_repo):
+        repo = bulk_family_repo
+        sha = _git(repo, "rev-parse", "contained-branch")
+        t = triage_branch(sha, "tape/hourly-20260727T1200Z", base_ref="HEAD", cwd=str(repo),
+                           max_file_bytes=1)
+        assert t.contained is True
+        assert t.fully_verified is True  # genuinely checked, not size-guard-skipped
+        assert t.capture_id_only is True  # ...but only at capture_id, not line, granularity
+        assert t.capture_id_checked_files == {"tape/orderbook_depth/dt=2026-07-27.jsonl": 0}
+
+    def test_triage_branch_not_contained_when_capture_id_missing(self, bulk_family_repo):
+        repo = bulk_family_repo
+        sha = _git(repo, "rev-parse", "missing-branch")
+        t = triage_branch(sha, "tape/hourly-20260727T1300Z", base_ref="HEAD", cwd=str(repo),
+                           max_file_bytes=1)
+        assert t.contained is False
+        assert t.capture_id_checked_files == {"tape/orderbook_depth/dt=2026-07-27.jsonl": 1}
+
+    def test_head_capture_id_cache_is_reused_across_calls(self, bulk_family_repo):
+        repo = bulk_family_repo
+        sha = _git(repo, "rev-parse", "contained-branch")
+        cache = {}
+        per_file_containment(sha, "HEAD", "tape", cwd=str(repo), max_file_bytes=1,
+                              head_capture_id_cache=cache)
+        assert "tape/orderbook_depth/dt=2026-07-27.jsonl" in cache
+
+        def strict_run_git(args, cwd=None):
+            if args and args[0] == "show" and len(args) > 1 and args[1].startswith("HEAD:"):
+                raise AssertionError("HEAD-side blob re-read despite a warm capture_id cache")
+            return default_git_runner(args, cwd=cwd)
+        per_file_containment(sha, "HEAD", "tape", run_git=strict_run_git, cwd=str(repo),
+                              max_file_bytes=1, head_capture_id_cache=cache)
+
+
 class TestFormatReport:
     def test_report_counts_and_sections(self):
         triage = [
@@ -371,7 +501,7 @@ class TestFormatReport:
         assert "4 branch(es) checked" in report
         assert "2 malformed name(s)" in report
         assert "2 fully contained" in report  # aaa111 (well-formed) + ccc333 (malformed)
-        assert "1 carry line(s) genuinely MISSING" in report
+        assert "1 carry line(s) or capture_id(s) genuinely MISSING" in report
         assert "1 not yet fetched locally" in report
         assert "tape/hourly-20260725T0500Z" in report  # missing-lines section names it
         assert "3 line(s) across 1 file(s)" in report
@@ -382,6 +512,26 @@ class TestFormatReport:
     def test_empty_input(self):
         report = format_report([], base_ref="HEAD")
         assert "0 branch(es) checked" in report
+
+    def test_capture_id_only_containment_reported_distinctly(self):
+        """L216: a branch contained ONLY via the capture_id-level check must land in its
+        own bucket, never counted as full line-level "fully contained + verified", and a
+        branch with a genuinely missing capture_id must be named in the missing section
+        with capture_id units, not line units."""
+        contained_via_capture_id = BranchTriage(
+            "tape/hourly-20260727T1200Z", "eee555", False, True, True, None, {}, {},
+            {"tape/orderbook_depth/dt=2026-07-27.jsonl": 0})
+        missing_via_capture_id = BranchTriage(
+            "tape/hourly-20260727T1300Z", "fff666", False, True, False, None, {}, {},
+            {"tape/orderbook_depth/dt=2026-07-27.jsonl": 1})
+        report = format_report([contained_via_capture_id, missing_via_capture_id], base_ref="HEAD")
+        assert "0 fully contained + verified" in report  # neither is a line-level proof
+        assert "1 contained via capture_id-level check only" in report
+        assert "1 carry line(s) or capture_id(s) genuinely MISSING" in report
+        assert "1 missing capture_id(s) across 1 bulk-family file(s)" in report
+        assert "tape/orderbook_depth/dt=2026-07-27.jsonl: 1 missing capture_id(s)" in report
+        assert "tape/hourly-20260727T1200Z" in report  # named in the capture_id-only section
+        assert "0 missing capture_id(s)" in report
 
 
 class TestMainCli:

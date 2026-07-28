@@ -60,6 +60,7 @@ conflated with "not fetched" (this repo's `no_signal`-vs-`False` discipline, see
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -192,6 +193,54 @@ def blob_size(rev: str, path: str, run_git: GitRunner = default_git_runner,
 # 684KB for one day) while excluding the bulk families by construction.
 DEFAULT_MAX_FILE_BYTES = 2_000_000
 
+# L216 (2026-07-28): a plain size-guard skip on these families is a "not checked" signal,
+# not a "checked and clean" one — and three consecutive runs (PRs #217/#219/#220) misread
+# it as the latter on `orderbook_depth`/`universe_sweep`/`sports_pairs`, missing 21,303
+# genuinely-stranded lines. Every line in one of these families' captures is minted
+# atomically by a single collector pass and shares one `capture_id` (a 20,000-line
+# `universe_sweep` capture is ONE `capture_id`, not 20,000 independent facts) — so
+# comparing the small set of DISTINCT `capture_id` values between branch and HEAD is a
+# structurally-sound, cheap proxy for "is every capture this branch carries already
+# present in HEAD", without materializing a 20MB file into a frozenset of full line
+# strings. Coarser than the line-level check (a capture_id match does not prove every byte
+# of that capture is byte-identical), so it is surfaced separately in
+# `BranchTriage.capture_id_checked` and the report — never silently folded into
+# "fully line-verified". `weather_books` added the same day this fix was built: verifying
+# this exact fix against the live `tape/hourly-20260727T1303Z` recovery branch found its
+# `weather_books` day-file ALSO exceeds `DEFAULT_MAX_FILE_BYTES` (2,303,754 bytes on that
+# branch; HEAD's `dt=2026-07-24/26/27` day-files measured 07-28 at 2.75MB/2.23MB/4.48MB) —
+# L216's own text named only the three families true as of its 2026-07-25 measurement, but
+# this family has since crossed the same line and carries the same `capture_id` field, so
+# it gets the same treatment rather than leaving a freshly-discovered instance of the exact
+# gap this fix closes.
+BULK_CAPTURE_ID_FAMILIES = frozenset(
+    {"orderbook_depth", "universe_sweep", "sports_pairs", "weather_books"})
+
+
+def capture_ids_in_blob(rev: str, path: str, run_git: GitRunner = default_git_runner,
+                         cwd: Optional[str] = None) -> Optional[frozenset]:
+    """Distinct `capture_id` values found in the JSONL blob at `path` for `rev`, or None
+    if the blob doesn't exist there. A line that isn't valid JSON, or that parses but
+    carries no `capture_id` key, is silently skipped for THIS extraction (never crashes
+    the sweep on one bad line, matching `default_git_runner`'s lenient-decode discipline)
+    — but note that skipping means an empty/partial result here is a "no signal" outcome,
+    not proof the file has no capture_id lines; the caller (`per_file_containment`) treats
+    an empty result as "no signal" and falls back to the honest size-guard skip rather than
+    reading zero missing capture_ids as zero missing content."""
+    lines = read_blob_lines(rev, path, run_git, cwd)
+    if lines is None:
+        return None
+    ids = set()
+    for line in lines:
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        cid = obj.get("capture_id") if isinstance(obj, dict) else None
+        if cid is not None:
+            ids.add(cid)
+    return frozenset(ids)
+
 
 def per_file_containment(branch_rev: str, base_ref: str, path: str,
                           run_git: GitRunner = default_git_runner,
@@ -200,7 +249,8 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
                           max_file_bytes: Optional[int] = DEFAULT_MAX_FILE_BYTES,
                           base_tree: Optional[str] = None,
                           branch_tree: Optional[str] = None,
-                          ) -> Tuple[Dict[str, int], Dict[str, int]]:
+                          head_capture_id_cache: Optional[Dict[str, frozenset]] = None,
+                          ) -> Tuple[Dict[str, int], Dict[str, int], Dict[str, int]]:
     """For every file that DIFFERS between `branch_rev` and `base_ref` under `path`
     (via `diff_changed_files` — never full tree enumeration, see that function's
     docstring for why), count lines NOT present (line-level set membership, matching
@@ -208,29 +258,45 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
     version of that same file. Files IDENTICAL between the two trees are never even
     read — the diff already proves every line in them matches.
 
-    Returns `(missing, skipped)`:
-      - `missing`: {file: missing_count} for files with >=1 genuinely-absent line.
+    Returns `(missing, skipped, capture_id_checked)`:
+      - `missing`: {file: missing_count} for files with >=1 genuinely-absent line
+        (line-level check).
       - `skipped`: {file: byte_size} for files whose branch-side blob exceeds
-        `max_file_bytes` — SKIPPED, not read at all, and never silently folded into
-        "contained": a branch with skipped files and an empty `missing` dict means "no
-        problem found in what was checked", not "proven fully contained". Pass
-        `max_file_bytes=None` to disable the guard and check every file regardless of size.
+        `max_file_bytes` AND got no other signal — SKIPPED, not read at all, and never
+        silently folded into "contained": a branch with skipped files and an empty
+        `missing` dict means "no problem found in what was checked", not "proven fully
+        contained". Pass `max_file_bytes=None` to disable the guard and check every file
+        regardless of size.
+      - `capture_id_checked`: {file: missing_capture_id_count} for oversized files under
+        one of `BULK_CAPTURE_ID_FAMILIES` where the branch side yielded >=1 real
+        `capture_id` (L216) — checked at capture_id granularity instead of skipped
+        outright. 0 means every capture_id the branch carries is already in HEAD's
+        version of that file (coarser than, but a genuine alternative to, a full
+        line-level proof); >0 means the branch carries at least one capture_id absent
+        from HEAD (a real signal of missing content). An oversized bulk-family file that
+        yields ZERO capture_ids (e.g. malformed content, or a family whose schema simply
+        has no such field) still falls back to `skipped` — no signal is never read as a
+        clean bill of health.
 
     `head_line_cache` (keyed by the full `path/file` string) lets a caller sweeping many
     branches read each `base_ref`-side file only once, since many branches share day-files.
-    `base_tree`/`branch_tree`: pass already-computed tree hashes to skip re-deriving them
-    (the caller in `triage_branch` already has both).
+    `head_capture_id_cache` is the same idea, keyed the same way, for the coarser
+    capture_id-set path. `base_tree`/`branch_tree`: pass already-computed tree hashes to
+    skip re-deriving them (the caller in `triage_branch` already has both).
     """
     if head_line_cache is None:
         head_line_cache = {}
+    if head_capture_id_cache is None:
+        head_capture_id_cache = {}
     if base_tree is None:
         base_tree = tree_hash(base_ref, path, run_git, cwd)
     if branch_tree is None:
         branch_tree = tree_hash(branch_rev, path, run_git, cwd)
     missing: Dict[str, int] = {}
     skipped: Dict[str, int] = {}
+    capture_id_checked: Dict[str, int] = {}
     if branch_tree is None:
-        return missing, skipped  # nothing to compare — caller handles the "no tree" case
+        return missing, skipped, capture_id_checked  # nothing to compare — caller handles "no tree"
     if base_tree is None:
         # No base tree to diff against at all (rare: base_ref itself lacks `path`) — fall
         # back to full enumeration, the only case where that cost is unavoidable.
@@ -242,6 +308,16 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
         if max_file_bytes is not None:
             size = blob_size(branch_rev, full_path, run_git, cwd)
             if size is not None and size > max_file_bytes:
+                family = rel_file.split("/", 1)[0]
+                if family in BULK_CAPTURE_ID_FAMILIES:
+                    branch_ids = capture_ids_in_blob(branch_rev, full_path, run_git, cwd)
+                    if branch_ids:  # non-empty: a real signal, not just "no capture_id found"
+                        if full_path not in head_capture_id_cache:
+                            head_ids = capture_ids_in_blob(base_ref, full_path, run_git, cwd)
+                            head_capture_id_cache[full_path] = head_ids or frozenset()
+                        head_ids = head_capture_id_cache[full_path]
+                        capture_id_checked[full_path] = len(branch_ids - head_ids)
+                        continue
                 skipped[full_path] = size
                 continue
         if full_path not in head_line_cache:
@@ -252,7 +328,7 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
         missing_count = sum(1 for line in branch_lines if line not in base_set)
         if missing_count:
             missing[full_path] = missing_count
-    return missing, skipped
+    return missing, skipped, capture_id_checked
 
 
 @dataclass
@@ -265,21 +341,33 @@ class BranchTriage:
     commit_date: Optional[str]  # populated only for malformed branches (ordering fallback)
     missing_files: Dict[str, int] = field(default_factory=dict)  # file -> missing-line count
     skipped_files: Dict[str, int] = field(default_factory=dict)  # file -> byte size, size-guard
+    capture_id_checked_files: Dict[str, int] = field(default_factory=dict)  # file -> missing capture_id count (L216)
 
     @property
     def fully_verified(self) -> bool:
-        """False when the size guard skipped >=1 file — a `contained=True` result is then
-        "no problem found in what WAS checked", not a proof of full containment. Always True
-        when `contained` is False (a genuine problem was already found) or None (no tape/
-        tree — nothing to skip)."""
+        """False when the size guard skipped >=1 file with NO check of any kind — a
+        `contained=True` result is then "no problem found in what WAS checked", not a
+        proof of full containment. Always True when `contained` is False (a genuine
+        problem was already found) or None (no tape/ tree — nothing to skip). A file
+        resolved via the coarser `capture_id_checked_files` path (L216) does NOT count
+        against this — it was genuinely checked, just at capture-id rather than
+        line-level granularity; see `capture_id_only` to distinguish the two."""
         return not self.skipped_files
+
+    @property
+    def capture_id_only(self) -> bool:
+        """True when at least one file's containment rests solely on the coarser
+        capture_id-set check (L216) rather than a full line-level proof — surfaced so a
+        reader never mistakes "no missing capture_id" for "every line verified"."""
+        return bool(self.capture_id_checked_files)
 
 
 def triage_branch(sha: str, name: str, base_ref: str = "HEAD", path: str = "tape",
                    run_git: GitRunner = default_git_runner,
                    cwd: Optional[str] = None,
                    head_line_cache: Optional[Dict[str, frozenset]] = None,
-                   max_file_bytes: Optional[int] = DEFAULT_MAX_FILE_BYTES) -> BranchTriage:
+                   max_file_bytes: Optional[int] = DEFAULT_MAX_FILE_BYTES,
+                   head_capture_id_cache: Optional[Dict[str, frozenset]] = None) -> BranchTriage:
     malformed = is_malformed_branch_name(name)
     if not commit_known_locally(sha, run_git, cwd):
         return BranchTriage(name=name, sha=sha, malformed=malformed, fetched=False,
@@ -299,12 +387,15 @@ def triage_branch(sha: str, name: str, base_ref: str = "HEAD", path: str = "tape
     # Mismatch does NOT mean "not contained" on an append-only tree — fall back to the
     # per-file line-set check (diff-scoped, not a full tree walk) to find out what, if
     # anything, is genuinely missing. Reuse the tree hashes already computed above.
-    missing, skipped = per_file_containment(sha, base_ref, path, run_git, cwd,
-                                             head_line_cache, max_file_bytes,
-                                             base_tree=base_tree, branch_tree=branch_tree)
+    missing, skipped, capture_id_checked = per_file_containment(
+        sha, base_ref, path, run_git, cwd, head_line_cache, max_file_bytes,
+        base_tree=base_tree, branch_tree=branch_tree,
+        head_capture_id_cache=head_capture_id_cache)
+    contained = len(missing) == 0 and all(v == 0 for v in capture_id_checked.values())
     return BranchTriage(name=name, sha=sha, malformed=malformed, fetched=True,
-                         contained=(len(missing) == 0), commit_date=cdate,
-                         missing_files=missing, skipped_files=skipped)
+                         contained=contained, commit_date=cdate,
+                         missing_files=missing, skipped_files=skipped,
+                         capture_id_checked_files=capture_id_checked)
 
 
 def sweep(branches: List[Tuple[str, str]], base_ref: str = "HEAD", path: str = "tape",
@@ -314,11 +405,12 @@ def sweep(branches: List[Tuple[str, str]], base_ref: str = "HEAD", path: str = "
     """`branches`: (sha, name) pairs, e.g. from `parse_ls_remote`. Malformed-name branches
     come back with `commit_date` populated so the CALLER never has to fall back to name order
     (L161) — this function itself does no branch-to-branch ordering. A single
-    `head_line_cache` is shared across all branches so `base_ref`-side files are read once
-    even when many branches touch the same day-file."""
+    `head_line_cache` (and `head_capture_id_cache`, L216) is shared across all branches so
+    `base_ref`-side files are read once even when many branches touch the same day-file."""
     head_line_cache: Dict[str, frozenset] = {}
+    head_capture_id_cache: Dict[str, frozenset] = {}
     return [triage_branch(sha, name, base_ref, path, run_git, cwd, head_line_cache,
-                           max_file_bytes)
+                           max_file_bytes, head_capture_id_cache)
             for sha, name in branches]
 
 
@@ -360,7 +452,10 @@ def format_report(triage: List[BranchTriage], base_ref: str = "HEAD") -> str:
     total = len(triage)
     not_fetched = [t for t in triage if not t.fetched]
     malformed = [t for t in triage if t.malformed]
-    contained_verified = [t for t in triage if t.contained is True and t.fully_verified]
+    contained_verified = [t for t in triage
+                           if t.contained is True and t.fully_verified and not t.capture_id_only]
+    contained_capture_id_only = [t for t in triage
+                                  if t.contained is True and t.fully_verified and t.capture_id_only]
     contained_unverified = [t for t in triage if t.contained is True and not t.fully_verified]
     has_missing = [t for t in triage if t.fetched and t.contained is False]
     no_tape = [t for t in triage if t.fetched and t.contained is None]
@@ -370,22 +465,43 @@ def format_report(triage: List[BranchTriage], base_ref: str = "HEAD") -> str:
         f"  {len(malformed)} malformed name(s) (fail {CANONICAL_NAME_RE.pattern})",
         f"  {len(contained_verified)} fully contained + verified (every line checked and "
         f"present in {base_ref}; safe to delete once its PR, if any, merged)",
+        f"  {len(contained_capture_id_only)} contained via capture_id-level check only "
+        f"(L216 — one or more bulk-family files were too large for a full line-set diff; "
+        "every distinct capture_id the branch carries is present in "
+        f"{base_ref}, but individual bytes were not compared — coarser than the line-level "
+        "proof above, still a real check, not a size-guard skip)",
         f"  {len(contained_unverified)} no problem found but NOT FULLY VERIFIED (>=1 file "
-        "skipped by the size guard — see skipped-file list; do not delete on this alone)",
-        f"  {len(has_missing)} carry line(s) genuinely MISSING from {base_ref} (per-file "
-        "line-set check, not a raw tree-hash mismatch — see module docstring)",
+        "skipped by the size guard with no signal at all — see skipped-file list; do not "
+        "delete on this alone)",
+        f"  {len(has_missing)} carry line(s) or capture_id(s) genuinely MISSING from "
+        f"{base_ref} (per-file line-set check, or capture_id-set check for oversized bulk "
+        "families — not a raw tree-hash mismatch; see module docstring)",
         f"  {len(no_tape)} fetched but carry no tape/ tree at all (anomaly for a tape/* branch)",
         f"  {len(not_fetched)} not yet fetched locally (run with fetch enabled, or "
         "`git fetch` them first)",
     ]
     if has_missing:
-        lines.append("  branches with genuinely missing lines:")
+        lines.append("  branches with genuinely missing lines/capture_ids:")
         for t in has_missing:
             total_missing = sum(t.missing_files.values())
-            lines.append(f"    - {t.name} ({t.sha[:12]}): {total_missing} line(s) across "
-                          f"{len(t.missing_files)} file(s)")
-            for f, count in sorted(t.missing_files.items()):
-                lines.append(f"        {f}: {count} missing line(s)")
+            if total_missing:
+                lines.append(f"    - {t.name} ({t.sha[:12]}): {total_missing} line(s) across "
+                              f"{len(t.missing_files)} file(s)")
+                for f, count in sorted(t.missing_files.items()):
+                    lines.append(f"        {f}: {count} missing line(s)")
+            missing_capture_files = {f: n for f, n in t.capture_id_checked_files.items() if n}
+            if missing_capture_files:
+                total_missing_captures = sum(missing_capture_files.values())
+                lines.append(f"    - {t.name} ({t.sha[:12]}): {total_missing_captures} "
+                              f"missing capture_id(s) across {len(missing_capture_files)} "
+                              "bulk-family file(s) (capture_id-level check, L216)")
+                for f, count in sorted(missing_capture_files.items()):
+                    lines.append(f"        {f}: {count} missing capture_id(s)")
+    if contained_capture_id_only:
+        lines.append("  branches contained via capture_id-level check only (bulk families):")
+        for t in contained_capture_id_only:
+            for f in sorted(t.capture_id_checked_files):
+                lines.append(f"    - {t.name} ({t.sha[:12]}): {f} (0 missing capture_id(s))")
     if contained_unverified:
         lines.append("  branches with skipped (oversized) files — no proof of containment:")
         for t in contained_unverified:
