@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 ~03:2xZ UTC — idle-run: L212 disposed — `polymarket_macro_pairs` collector now persists its own completeness summary
+
+Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `9ef343d` (PR #219);
+local sandbox `main` had a stale ref (a shallow-clone artifact), reconciled and independently
+re-verified against the last 5 merged PRs (#215-#219), all present in `main`'s own commit
+chain; `kb/00-LOG.md` newest entry + newest committed tape both already 2026-07-27/28, no
+rewind. **Step 0:** open PRs #208 (retro, leave-open-for-Ryan) and #191/#166/#165 (Ryan's own
+drafts) unchanged, none claim eligible work. **Step 0b:** `scripts/tape_branch_sweep.py`
+re-run fresh over all 200 branches — no `tape/hourly-*`/`tape/burst-*` branch newer than
+`tape/hourly-20260727T1303Z` (already recovered by PR #217); the 13 "missing lines" hits are
+the same recurring false-positive classes prior runs already triaged (stale
+`cloud-env-check.md` prose-condensation edits, pre-L142 conflict-marker artifacts) —
+independently re-confirmed against `kb/00-LOG.md`'s own history of this exact residue,
+nothing new to sweep.
+
+**Queue re-scan → IDLE RUN.** Full Q0-Q48 re-scan (chased every item's OWN most-recent Status
+line, not just its first): every item is DONE/DEAD/BLOCKED/calendar- or density-gated. Q48/S55
+is burst-gated to 2026-07-29 (tomorrow), already fully hardened by the 07-27 edge-hunter run;
+Q37 stays gated to ~08-05, already prepped. Idle policy (a): the `UNENFORCED` backlog held 10
+open rows (per `scripts/invariants.py --full`'s own census) — L145 a Ryan policy call;
+L192/L200/L205/L207 author-frozen pending a concurrent verifier round; L208/L210 need more
+design than one milestone; L213 explicitly Ryan-only (trigger-prompt edits are Ryan's account
+state); **L212 was concretely specified, in-scope, and directly hardens the exact family
+feeding tomorrow's FOMC burst** — picked.
+
+**L212 → L215 (disposed).** `collection/polymarket_pairs.py::run_fed_decision` built a full
+`completeness_ok` honesty summary (`unmatched_kalshi`/`unmatched_polymarket`/
+`ambiguous_kalshi`/`book_errors`/`polymarket_discovery_error`) but only ever returned it
+in-process — `hourly_pass.py` folds it into a total and drops it — so a pass with 0 matched
+pairs (e.g. Polymarket discovery raising) wrote **zero bytes**, permanently indistinguishable
+from "the collector never fired." Fixed: the function now always appends one
+`family:"capture_summary"` line to the same per-day tape file (even on a zero-match or
+fully-failed pass), on its OWN `schema_version` (`polymarket_macro_pairs_summary.v1` — never
+the pair-record schema) so every existing reader that filters on schema_version/family
+(`q31_cross_venue_arb_probe._iter_records`, `q48_s55_fomc_lag_probe.load_family_records`)
+skips it exactly like a foreign record — verified directly against both readers' actual
+filter logic, not assumed. 4 tests in `tests/test_polymarket_pairs.py` (2 existing tests
+updated for the now-always-written line, incl. the one that used to assert the file doesn't
+exist on a zero-match pass; 2 new: a fully-failed-discovery pass still persists its summary,
+and the persisted line's fields match the in-process `summary` dict exactly plus the
+schema-exclusion check against `q31`'s own constant). New lesson **L215** formally disposes
+L212 (`DISPOSES: L212`, `UNENFORCED`→`test`) — `UNENFORCED` backlog 10→9. This closes
+`findings/2026-07-28-polymarket-macro-pairs-tape-audit.md`'s D1 exactly (addendum appended
+there); D2/D3/D4 remain open, D3 still time-critical and Ryan-side (unchanged from that
+finding — no autonomous trigger-prompt edit attempted, same boundary the audit set).
+
+No registry change, no strategy claim, no bootstrap CI, no P&L — two-agent verdict rule N/A
+(a collector persistence fix with test coverage, not a verdict-class change, same posture as
+the L185/L209→L211 precedents).
+
+**Gates** (taken after this diff's last edit, per L162). `python3.11 -m pytest -q`: full run
+exit 0 (background, ~23min); **2,162 collected** (`--collect-only -q` summed per-file
+immediately after, same tree) — this diff touches no other test's inputs, so exit 0 on the
+full run means 2,162/2,162 passed, 0 failed. `python3.11 scripts/invariants.py --full`: exit
+0, `invariants: all green`, same pre-existing non-gating advisory classes as PR #219 (VPS
+collector leg now 130.2h silent, worsening, Ryan-side; L168/L169 hollow-crypto-ladder; L185
+capped-pagination; L138 raw-`fromisoformat`; L157 recovery-dwell; L52 unguarded-settlement),
+plus confirmation the `DISPOSES: L212` marker was recognized (23 formally disposed, up from
+22; 9 open `UNENFORCED` rows, down from 10).
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34 —
+paper-infra validation only, NOT edge evidence). This diff touches no tape; `paper_pass.py` is
+idempotent (0 newly processed), ledger unchanged at **+$21.33** (`broker_truth`, 1189 settled,
+0 open).
+
+Still **0 proven edges**.
+
+---
+
 ## 2026-07-28 00:2x UTC — idle-run: `polymarket_macro_pairs` tape audit finds the live FOMC burst trigger still carries the known-broken design
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `9b63b11` (PR #218);

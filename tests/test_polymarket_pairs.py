@@ -452,7 +452,7 @@ def test_run_fed_decision_matches_and_computes_gap(tmp_path):
     assert summary["completeness_ok"] is True
 
     lines = (tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()
-    assert len(lines) == 1
+    assert len(lines) == 2  # 1 pair record + 1 capture_summary (L212)
     rec = json.loads(lines[0])
     assert rec["family"] == "fed_decision"
     assert rec["meeting"] == "2026-07" and rec["bucket"] == "hike_25"
@@ -461,6 +461,7 @@ def test_run_fed_decision_matches_and_computes_gap(tmp_path):
     assert rec["price_gap_yes_ask"] == pytest.approx(0.01)
     assert rec["kalshi"]["price_source_tag"] == "real_ask"
     assert rec["polymarket"]["price_source_tag"] == "real_ask"
+    assert json.loads(lines[1])["family"] == "capture_summary"
 
 
 def test_run_fed_decision_kalshi_forward_calendar_unmatched_does_not_fail_completeness(tmp_path):
@@ -478,7 +479,13 @@ def test_run_fed_decision_kalshi_forward_calendar_unmatched_does_not_fail_comple
     assert summary["n_matched"] == 0
     assert summary["unmatched_kalshi"] == ["KXFEDDECISION-28JAN-H25"]
     assert summary["completeness_ok"] is True
-    assert not (tmp_path / f"dt={summary['day']}.jsonl").exists()
+    # L212: a zero-match pass still persists its capture_summary line — the file is no
+    # longer absent, only empty of pair records.
+    lines = (tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()
+    assert len(lines) == 1
+    rec = json.loads(lines[0])
+    assert rec["family"] == "capture_summary"
+    assert rec["completeness_ok"] is True
 
 
 def test_run_fed_decision_unmatched_polymarket_market_fails_completeness(tmp_path):
@@ -512,6 +519,54 @@ def test_run_fed_decision_polymarket_discovery_error_isolated_not_fatal(tmp_path
                                    fetch_book=lambda t: {"best_bid": 0.1, "best_ask": 0.2})
     assert summary["polymarket_discovery_error"] == "simulated network failure"
     assert summary["completeness_ok"] is False
+
+    # L212: even a fully-failed discovery pass (0 lines, real error) still leaves a
+    # capture_summary record behind — the exact "zero-line pass is indistinguishable from
+    # a non-run" gap the lesson closes.
+    lines = (tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()
+    assert len(lines) == 1
+    rec = json.loads(lines[0])
+    assert rec["family"] == "capture_summary"
+    assert rec["polymarket_discovery_error"] == "simulated network failure"
+    assert rec["completeness_ok"] is False
+
+
+def test_run_fed_decision_capture_summary_line_matches_returned_summary_and_own_schema(tmp_path):
+    """L212 (2026-07-28 tape audit, D1): the persisted `capture_summary` line must carry the
+    same honesty fields the in-process `summary` dict returns (so it is truly recomputable
+    from tape alone, not a lossy shadow of it), and must use its OWN `schema_version` — never
+    `polymarket_macro_pairs.v1`, the pair-record schema — so every existing reader that
+    filters on schema_version or family (`q31_cross_venue_arb_probe`,
+    `q48_s55_fomc_lag_probe.load_family_records`) skips it like a foreign record rather than
+    mis-parsing it as a pair."""
+    client = FakeKalshiFedClient([
+        _kalshi_market("KXFEDDECISION-26JUL-H25",
+                       "Will the Federal Reserve Hike rates by 25bps at their July 2026 meeting?", yes_ask=0.10),
+    ])
+    pm_markets = [{"meeting_key": "2026-07", "bucket": "hike_25", "event_id": "E1", "market_id": "M1",
+                   "yes_token_id": "TOKY"}]
+    summary = pp.run_fed_decision(client=client, tape_dir=tmp_path,
+                                   pm_discover=lambda: (pm_markets, ["raw"]),
+                                   fetch_book=lambda t: {"best_bid": 0.08, "best_ask": 0.09})
+
+    lines = (tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()
+    assert len(lines) == 2  # 1 matched pair record + 1 capture_summary
+    pair_rec = json.loads(lines[0])
+    summary_rec = json.loads(lines[1])
+
+    assert pair_rec["family"] == "fed_decision"
+    assert summary_rec["family"] == "capture_summary"
+    assert summary_rec["schema_version"] == "polymarket_macro_pairs_summary.v1"
+    assert summary_rec["schema_version"] != pair_rec["schema_version"]
+
+    for key in ("capture_id", "day", "n_kalshi_markets", "n_polymarket_markets", "n_matched",
+                "unmatched_kalshi", "unmatched_polymarket", "ambiguous_kalshi",
+                "n_book_errors", "polymarket_discovery_error", "completeness_ok"):
+        assert summary_rec[key] == summary[key]
+
+    # Downstream readers that key off schema_version/family must not mis-ingest it.
+    from scripts.q31_cross_venue_arb_probe import RESOLUTION_EQUIVALENT_SCHEMAS
+    assert summary_rec["schema_version"] not in RESOLUTION_EQUIVALENT_SCHEMAS
 
 
 # --------------------------------------------------------------------------- #

@@ -156,3 +156,18 @@ Not this family's problem but surfaced in passing: `tape/` overall is 1.3GB (dom
 `universe_sweep` 445M / `orderbook_depth` 323M / `sports_pairs` 228M / `weather_books` 111M),
 ~26x past the ~50MB threshold `tape/README.md` names as the storage-migration decision
 point (see open PR #166) — a standing Ryan-side item, unrelated to this audit's scope.
+
+## Addendum (2026-07-28, research loop, idle-run policy (a): L212 → enforced)
+
+D1 (recommended follow-up item 3 above) built the same day: `collection/polymarket_pairs.py::
+run_fed_decision` now always appends one `family: "capture_summary"` line to the per-day
+tape file — even on a zero-match or fully-failed-discovery pass, which used to write nothing
+at all. It carries the exact fields the audit could not recompute from tape
+(`completeness_ok`, `unmatched_kalshi`/`unmatched_polymarket`/`ambiguous_kalshi`,
+`n_book_errors`, `polymarket_discovery_error`), on its own `schema_version`
+(`polymarket_macro_pairs_summary.v1`, never the pair-record schema) so every existing reader
+that filters on schema_version/family (`q31_cross_venue_arb_probe`, `q48_s55_fomc_lag_probe.
+load_family_records`) skips it exactly like a foreign record — verified directly, not
+assumed. D1 closed; D2 (bucket-definition provenance) and D3/D4 (burst-trigger recipe,
+lost 07-09 day) remain open, D3 still time-critical and Ryan-side per the recommendation
+above. See `kb/lessons/00-lessons.md` L215 (formal disposition of L212).
