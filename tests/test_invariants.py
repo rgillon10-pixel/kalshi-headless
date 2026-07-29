@@ -1834,3 +1834,136 @@ def test_duplicate_capture_id_issues_never_raises_on_garbage_L210(tmp_path):
     fam.mkdir(parents=True)
     (fam / "dt=2026-07-17.jsonl").write_bytes(b"\xff\xfe not json at all\n")
     assert inv._duplicate_capture_id_issues(tmp_path) == []
+
+
+# ─── econ-prints settlement-status regression advisory (L223: non-gating) ────────
+
+def _econ_row(series_key, captured_at, status, event_ticker=None):
+    return {"series_key": series_key, "captured_at": captured_at,
+            "recent_settlement": {"status": status, "event_ticker": event_ticker}}
+
+
+def test_econ_prints_settlement_regression_warning_none_when_empty():
+    assert inv.econ_prints_settlement_regression_warning([]) is None
+
+
+def test_econ_prints_settlement_regression_warning_message_content():
+    msg = inv.econ_prints_settlement_regression_warning([{
+        "series_key": "gdp", "last_settled_event_ticker": "KXGDP-26APR30",
+        "streak": 340, "regression_since": "2026-07-06T09:24:18+00:00"}])
+    assert msg is not None
+    assert "gdp" in msg
+    assert "KXGDP-26APR30" in msg
+    assert "340" in msg
+    assert "non-gating" in msg
+    assert "L223" in msg
+
+
+def test_econ_prints_settlement_regression_issues_finds_real_pattern(tmp_path):
+    """Reproduces the real gdp-leg shape: one settlement, then a sustained regression."""
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-05", [
+        _econ_row("gdp", "2026-07-05T05:17:04+00:00", "settled", "KXGDP-26APR30"),
+        _econ_row("cpi_mom", "2026-07-05T05:17:04+00:00", "settled", "KXCPI-26MAY"),
+    ])
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-06", [
+        _econ_row("gdp", "2026-07-06T09:24:18+00:00", "no_settled_events"),
+        _econ_row("cpi_mom", "2026-07-06T09:24:18+00:00", "settled", "KXCPI-26MAY"),
+    ])
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-07", [
+        _econ_row("gdp", "2026-07-07T09:24:18+00:00", "no_settled_events"),
+        _econ_row("cpi_mom", "2026-07-07T09:24:18+00:00", "settled", "KXCPI-26MAY"),
+    ])
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-08", [
+        _econ_row("gdp", "2026-07-08T09:24:18+00:00", "no_settled_events"),
+    ])
+    issues = inv._econ_prints_settlement_regression_issues(tmp_path)
+    assert issues == [{
+        "series_key": "gdp", "last_settled_event_ticker": "KXGDP-26APR30",
+        "streak": 3, "regression_since": "2026-07-06T09:24:18+00:00"}]
+
+
+def test_econ_prints_settlement_regression_issues_below_threshold_is_empty(tmp_path):
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-05", [
+        _econ_row("gdp", "2026-07-05T05:17:04+00:00", "settled", "KXGDP-26APR30"),
+    ])
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-06", [
+        _econ_row("gdp", "2026-07-06T09:24:18+00:00", "no_settled_events"),
+        _econ_row("gdp", "2026-07-06T10:00:00+00:00", "no_settled_events"),
+    ])
+    assert inv._econ_prints_settlement_regression_issues(tmp_path) == []
+
+
+def test_econ_prints_settlement_regression_issues_never_settled_is_not_a_regression(tmp_path):
+    """A series with NO settlement history yet is the documented normal case, not a flag."""
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-05", [
+        _econ_row("cpi_core_mom", "2026-07-05T05:17:04+00:00", "no_settled_events"),
+        _econ_row("cpi_core_mom", "2026-07-06T05:17:04+00:00", "no_settled_events"),
+        _econ_row("cpi_core_mom", "2026-07-07T05:17:04+00:00", "no_settled_events"),
+    ])
+    assert inv._econ_prints_settlement_regression_issues(tmp_path) == []
+
+
+def test_econ_prints_settlement_regression_issues_settled_only_is_empty(tmp_path):
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-05", [
+        _econ_row("payrolls", "2026-07-05T05:17:04+00:00", "settled", "KXPAYROLLS-26JUN"),
+        _econ_row("payrolls", "2026-07-06T05:17:04+00:00", "settled", "KXPAYROLLS-26JUN"),
+    ])
+    assert inv._econ_prints_settlement_regression_issues(tmp_path) == []
+
+
+def test_econ_prints_settlement_regression_issues_resets_after_resettlement(tmp_path):
+    """A fresh real settlement resets the streak — only the TRAILING run counts, so a
+    short post-resettlement gap below the threshold must not still read as the old
+    regression."""
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-05", [
+        _econ_row("cpi_yoy", "2026-07-05T00:00:00+00:00", "settled", "KXCPIYOY-26MAY"),
+        _econ_row("cpi_yoy", "2026-07-06T00:00:00+00:00", "no_settled_events"),
+        _econ_row("cpi_yoy", "2026-07-07T00:00:00+00:00", "no_settled_events"),
+        _econ_row("cpi_yoy", "2026-07-08T00:00:00+00:00", "no_settled_events"),
+        _econ_row("cpi_yoy", "2026-07-09T00:00:00+00:00", "settled", "KXCPIYOY-26JUN"),
+        _econ_row("cpi_yoy", "2026-07-10T00:00:00+00:00", "no_settled_events"),
+    ])
+    assert inv._econ_prints_settlement_regression_issues(tmp_path) == []
+
+
+def test_econ_prints_settlement_regression_issues_missing_family_dir_is_empty(tmp_path):
+    tape_root = tmp_path / "tape"
+    tape_root.mkdir()
+    assert inv._econ_prints_settlement_regression_issues(tape_root) == []
+
+
+def test_econ_prints_settlement_regression_issues_missing_tape_root_is_empty(tmp_path):
+    assert inv._econ_prints_settlement_regression_issues(tmp_path / "does-not-exist") == []
+
+
+def test_econ_prints_settlement_regression_issues_never_raises_on_garbage(tmp_path):
+    fam = tmp_path / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-05.jsonl").write_bytes(b"\xff\xfe not json at all\n")
+    assert inv._econ_prints_settlement_regression_issues(tmp_path) == []
+
+
+def test_econ_prints_settlement_regression_issues_min_streak_is_configurable(tmp_path):
+    _write_cap_tape(tmp_path, "econ_prints", "2026-07-05", [
+        _econ_row("gdp", "2026-07-05T00:00:00+00:00", "settled", "KXGDP-26APR30"),
+        _econ_row("gdp", "2026-07-06T00:00:00+00:00", "no_settled_events"),
+    ])
+    issues = inv._econ_prints_settlement_regression_issues(tmp_path, min_streak=1)
+    assert issues == [{
+        "series_key": "gdp", "last_settled_event_ticker": "KXGDP-26APR30",
+        "streak": 1, "regression_since": "2026-07-06T00:00:00+00:00"}]
+
+
+def test_econ_prints_settlement_regression_warning_never_gates_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(
+        inv, "_econ_prints_settlement_regression_issues",
+        lambda: [{"series_key": "fake", "last_settled_event_ticker": "FAKE-1",
+                  "streak": 5, "regression_since": "2026-01-01T00:00:00+00:00"}])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "fake" in captured.err
+    assert "L223" in captured.err
+    assert "invariants: all green" in captured.out
