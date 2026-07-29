@@ -77,6 +77,31 @@ SERIES = {
 _SETTLEMENT_SCAN_LIMIT = 200
 
 
+def _normalize_expiration_value(raw: Any) -> Optional[float]:
+    """Best-effort numeric coercion of Kalshi's `expiration_value` (L224, 2026-07-29
+    econ_prints tape audit): the raw string's FORMAT varies by series/event even though
+    the field is `broker_truth` throughout — confirmed live in committed tape as
+    `"0.2"`, `"0%"`, `"-0.4"`, and `"57,000"` (thousands separator on KXPAYROLLS). A bare
+    `float(expiration_value)` raises on the percent- and comma-formatted cases. This
+    strips a trailing `%` and internal `,` before coercion; it does NOT rescale a percent
+    string by /100 — the number is kept at the magnitude Kalshi displays it at, matching
+    the series' own strike thresholds. Returns `None` (never raises, never guesses) on an
+    unparseable or absent string; the raw string is always persisted alongside this field,
+    never overwritten — the same provenance-preserving shape Hard Rule #4 requires for
+    price tags, applied here to a broker-reported print."""
+    if raw is None:
+        return None
+    s = str(raw).strip().replace(",", "")
+    if s.endswith("%"):
+        s = s[:-1]
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
 # --------------------------------------------------------------------------- #
 # pagination (mirrors crypto_hourly._fetch_markets_raw / sports_pairs' own copy —
 # each collector owns its copy rather than sharing an abstraction over one call site)
@@ -187,13 +212,15 @@ def fetch_recent_settlement(client: Kalshi, series_ticker: str) -> Dict[str, Any
                 "n_markets": len(ms), "n_settled": len(settled)}
 
     values = sorted({m.get("expiration_value") for m in ms if m.get("expiration_value")})
+    value = values[0] if len(values) == 1 else None
     return {
         "status": "settled",
         "event_ticker": et,
         "raw_sha256": raw_sha256,
         "close_time": ms[0].get("close_time"),
         "n_markets": len(ms),
-        "expiration_value": values[0] if len(values) == 1 else None,
+        "expiration_value": value,
+        "expiration_value_numeric": _normalize_expiration_value(value),
         "expiration_values_disagree": values if len(values) > 1 else None,
         "results": {m["ticker"]: m.get("result") for m in ms},
         "price_source_tag": "broker_truth",

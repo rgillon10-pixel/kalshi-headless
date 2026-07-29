@@ -124,6 +124,65 @@ def test_fetch_recent_settlement_disagreeing_expiration_values_surfaced_not_hidd
     rec = ep.fetch_recent_settlement(client, "KXCPI")
     assert rec["expiration_value"] is None
     assert rec["expiration_values_disagree"] == ["0.2", "0.3"]
+    # L224: a disagreeing (unresolved) print has no single numeric value either — the raw
+    # `None` propagates through the same normalization path, not a separately-derived None.
+    assert rec["expiration_value_numeric"] is None
+
+
+# --------------------------------------------------------------------------- #
+# L224 (2026-07-29 econ_prints tape audit): `expiration_value` is a string whose FORMAT
+# varies by series/event — plain, percent-suffixed, comma-thousands, negative — even
+# though every value is `broker_truth`. `expiration_value_numeric` is a best-effort
+# coercion computed alongside the untouched raw string, never replacing it.
+# --------------------------------------------------------------------------- #
+def test_normalize_expiration_value_handles_every_format_observed_in_committed_tape():
+    # Exact raw strings confirmed present in tape/econ_prints/*.jsonl (2026-07-29 audit):
+    # "-0.4", "0%", "0.2", "0.5", "2.0", "3.5%", "4.2", "57,000".
+    cases = {
+        "-0.4": -0.4,
+        "0%": 0.0,
+        "0.2": 0.2,
+        "0.5": 0.5,
+        "2.0": 2.0,
+        "3.5%": 3.5,
+        "4.2": 4.2,
+        "57,000": 57000.0,
+    }
+    for raw, expected in cases.items():
+        assert ep._normalize_expiration_value(raw) == expected, raw
+
+
+def test_normalize_expiration_value_never_raises_on_garbage():
+    for raw in ("", "n/a", "TBD", "%", ",", None):
+        assert ep._normalize_expiration_value(raw) is None
+
+
+def test_fetch_recent_settlement_numeric_field_for_plain_value():
+    markets = [_mk_market("KXCPI-26JUN-T0.3", "KXCPI-26JUN", "2026-07-10T12:25:00Z", 0.3,
+                           result="no", expiration_value="0.2")]
+    client = FakeClient(markets_by_series_status={("KXCPI", "settled"): markets})
+    rec = ep.fetch_recent_settlement(client, "KXCPI")
+    assert rec["expiration_value"] == "0.2"
+    assert rec["expiration_value_numeric"] == 0.2
+
+
+def test_fetch_recent_settlement_numeric_field_for_percent_value():
+    markets = [_mk_market("KXCPICORE-26MAY-T0.3", "KXCPICORE-26MAY", "2026-06-10T12:25:00Z",
+                           0.3, result="no", expiration_value="0%")]
+    client = FakeClient(markets_by_series_status={("KXCPI", "settled"): markets})
+    rec = ep.fetch_recent_settlement(client, "KXCPI")
+    assert rec["expiration_value"] == "0%"
+    assert rec["expiration_value_numeric"] == 0.0
+
+
+def test_fetch_recent_settlement_numeric_field_for_thousands_separated_value():
+    markets = [_mk_market("KXPAYROLLS-26JUN-T50000", "KXPAYROLLS-26JUN",
+                           "2026-07-10T12:25:00Z", 50000, result="yes",
+                           expiration_value="57,000")]
+    client = FakeClient(markets_by_series_status={("KXCPI", "settled"): markets})
+    rec = ep.fetch_recent_settlement(client, "KXCPI")
+    assert rec["expiration_value"] == "57,000"
+    assert rec["expiration_value_numeric"] == 57000.0
 
 
 # --------------------------------------------------------------------------- #
