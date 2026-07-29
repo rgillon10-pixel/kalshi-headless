@@ -6,6 +6,90 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 05:1x ET — research loop: idle-run policy (c) — second `econ_prints` tape audit finds a rate-gate/idempotence-gate confusion, an unattributed 65% of passes, and a settlement-value string typing gap
+
+Cloud research-loop run, protocol v3. Steps 0a/0/0b clean: `git fetch origin main` +
+`git reset --hard origin/main` landed on `origin/main` HEAD `e960669` (PR #229) exactly (the
+local sandbox's `main` ref was stale — a container artifact, not a rewind); last 5 merged PRs
+(#225-#229) all present in `main`'s own linear commit chain; `kb/00-LOG.md` newest entry and
+newest committed tape both 2026-07-29, no rewind. Claim-check: open PRs #208/#191/#166/#165/#125
+unchanged — all known leave-open/draft/Ryan-review items, none claim eligible work. Step 0b:
+`git ls-remote` shows no `tape/hourly-*`/`tape/burst-*` branch newer than
+`tape/hourly-20260728T2156Z`, already fully swept by PR #226 — nothing new to sweep.
+
+Full Q0-Q48 status-line scan: every item DONE/DEAD/BLOCKED or calendar/density-gated; Q19/Q48's
+FOMC burst window (17:40-19:45Z today) had not opened at run time (~09:09Z) → IDLE RUN.
+
+**Candidate selection.** Idle-run policy (a) is exhausted, not just unlucky this run:
+`invariants._stale_unenforced_scan()`-equivalent census confirms the same 4 open `UNENFORCED`
+rows (L145, L208, L213, L214) that the last 5+ consecutive idle runs have each individually
+found and skipped as Ryan-policy/account-state/collector-lane out-of-scope or "needs more
+design work than one milestone" — re-treading that census again would add nothing this run.
+Policy (b) is also already satisfied: Q48/S55's FOMC probe is hardened+ready, Q37's weather
+probe is prepped. → **policy (c):** dispatched a `tape-auditor` subagent at `tape/econ_prints/`
+(feeds Q10/S12's CPI/payrolls/GDP nowcast leg), a family with no dedicated audit since
+2026-07-15 (which only checked the 07-09/07-10 gap and flagged, but did not build a check for,
+the single-hour gate's structural exposure).
+
+**Correction caught before write-up:** the subagent initially framed this as the family's
+*first* audit — wrong; `findings/2026-07-15-econ-daily-cadence-gap-dataquality.md` predates it.
+The finding write-up was corrected to cite that prior pass and scope this run's contribution as
+the deeper mechanism-level follow-up it actually is.
+
+**What was independently re-derived (not trusted from the subagent alone), per this project's
+trust=FALSE default:** (1) the flagship claim that on `dt=2026-07-23`, `econ_prints` recorded
+18 passes (90 lines) in hour 09 while `sports_pairs`/`crypto_hourly`/`orderbook_depth` — legs
+of the SAME `hourly_pass.run()` invocation econ_prints is leg #10 of — recorded ZERO captures
+in hours 09 or 10 that day, reproduced exactly via a direct per-line `captured_at` hour census
+over the real committed files; (2) the claim that consecutive `econ_prints` pass-start gaps
+include 0.153s on 07-14 (impossible for one sequential process given the venue client's
+~1.8s-per-pass rate-limit floor, proving concurrent invocations), reproduced exactly via direct
+`capture_id`/`captured_at` parsing.
+
+**Findings (full detail in `findings/2026-07-29-econ-prints-tape-audit.md`):** validity is
+clean (0/1,720 malformed lines, 0 schema drift, 0 untagged/unsanctioned source tags, append-only
+holds). Coverage: 5 missing calendar days (07-09/10/24/25/27, none recoverable from any
+stranded tape branch — genuinely lost); passes/day ranges 1-137 and has collapsed from a
+07-13→07-23 mean of 29.9/day to 0.4/day over 07-24→07-28. **D1 (flagship):** ~65% of the
+family's 344 passes come from an invocation path absent from this repo — neither
+`hourly_pass`'s gated leg nor `burst_capture` explains the observed firing pattern, and the
+records carry no invocation-provenance field to answer the question (unlike `perp_tape`'s
+`mode`, L210/L218's key). **D2:** the root mechanism is `if ts.hour == 9:` acting as a rate
+gate, not an idempotence gate — unbounded passes inside the hour (54.4% of the family is
+byte-redundant re-capture once `capture_id`/`captured_at` are excluded; this is also the
+birthday-problem cause of the L210/L218 07-16 duplicate) and zero outside it. **D3:** the same
+gate's flip side — a truncated `hourly_pass` run loses the near-last econ leg first (07-24/25/27
+all lost this way). **D4:** `expiration_value` (the family's only `broker_truth` field) is
+unnormalized text whose format changed within a series (`'0.2'`→`'0%'`, `'57,000'` with a
+thousands separator) — `float()` raises on 3/8 committed settled prints, though value agreement
+across repeat captures is 100% (0 drift). **D5:** the `gdp` leg went from one real settlement
+(07-05) to `no_settled_events` on all 340 subsequent lines while `pass_complete: true` held
+throughout — a 23-day silent regression indistinguishable from "never had data." D6/D7 (GDPNow
+nowcast staleness, zero analytical consumers today) recorded as benign/expected, not defects.
+
+Four new `UNENFORCED` lessons appended: **L221** (hour-equality gate = rate gate not
+idempotence gate, D2/D3), **L222** (invocation provenance needed to root-cause a family's firing
+pattern, D1), **L223** (a `no_settled_events`-shaped status counting toward `pass_complete`
+hides a regression as silence, D5), **L224** (a venue's `broker_truth` scalar is untyped text
+whose format can drift within a series, D4). No code changes proposed or made this run — pure
+audit + ledger + findings write-up, consistent with the "report the coverage/mechanism fact
+honestly" idle-run-(c) posture. Two-agent verdict rule N/A: data-quality audit, not a registry
+flip/bootstrap CI/kill decision (same posture as the perp_tape/hyperliquid_funding/
+polymarket_macro_pairs audit precedents). No network, no orders, no credentials touched. Still
+0 proven edges.
+
+**Gates:** `python3 -m pytest -o addopts="" -q` → **2219 passed in 2245.51s (0:37:25), 0 failed**,
+exit 0 — matches the baseline exactly (docs/findings/ledger-only diff, no test files touched).
+`python3 scripts/invariants.py --full` → exit 0, all green, pre-existing non-gating advisory
+classes only (including the already-known econ_prints capture_id collision this audit
+independently confirmed as isolated to 07-16; open `UNENFORCED` count correctly bumped 4→8 with
+L221-L224).
+
+**Step 9 — paper sub-pass.** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗ per Q34,
+paper-infra validation only — NOT edge evidence). `paper_pass.py`: 0 newly processed event-hours
+(this diff touches no tape/paper inputs), ledger unchanged **+$22.47** (`broker_truth`, 1,248
+settled contracts, 0 open).
+
 ## 2026-07-29 03:1x ET — research loop: idle-run policy (a) — L192 formally disposed (the fix was already live, L219 deferred confirming it to a second party)
 
 Cloud research-loop run, protocol v3. Steps 0a/0/0b clean: `origin/main` HEAD `87c03d2` (PR
