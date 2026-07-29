@@ -362,7 +362,8 @@ def test_dislocation_scan_flags_positive_edge_after_fees():
     # buy Kalshi yes_ask 0.40, sell Polymarket best_bid 0.50; kalshi taker fee ~0.02.
     q = {"kalshi_yes_ask": 0.40, "kalshi_yes_bid": 0.38,
          "poly_best_ask": 0.44, "poly_best_bid": 0.50}
-    best = probe._best_dislocation(q, kalshi_fee_rate=TAKER_FEE_RATE, poly_fee=0.0)
+    best = probe._best_dislocation(q, kalshi_fee_rate=TAKER_FEE_RATE,
+                                   poly_fee_model=probe.PolyFeeModel("free"))
     expected = 0.50 - 0.40 - fee_per_contract(0.40, TAKER_FEE_RATE)
     assert best["direction"] == "buy_kalshi_sell_poly"
     assert abs(best["net_edge"] - expected) < 1e-12
@@ -379,15 +380,18 @@ def test_dislocation_scan_no_edge_on_aligned_books():
 def test_dislocation_scan_poly_fee_can_kill_edge():
     q = {"kalshi_yes_ask": 0.40, "kalshi_yes_bid": 0.38,
          "poly_best_ask": 0.44, "poly_best_bid": 0.50}
-    # a large assumed poly fee wipes the 0.08 edge
-    best = probe._best_dislocation(q, kalshi_fee_rate=TAKER_FEE_RATE, poly_fee=0.20)
+    # a large assumed flat poly fee wipes the 0.08 edge
+    best = probe._best_dislocation(
+        q, kalshi_fee_rate=TAKER_FEE_RATE,
+        poly_fee_model=probe.PolyFeeModel("flat", flat_fee=0.20))
     assert best["net_edge"] < 0
 
 
 def test_dislocation_missing_legs_returns_none():
     assert probe._best_dislocation({"kalshi_yes_ask": None, "kalshi_yes_bid": None,
                                     "poly_best_ask": None, "poly_best_bid": None},
-                                   kalshi_fee_rate=TAKER_FEE_RATE, poly_fee=0.0) is None
+                                   kalshi_fee_rate=TAKER_FEE_RATE,
+                                   poly_fee_model=probe.PolyFeeModel("free")) is None
 
 
 # --------------------------------------------------------------------------- #
@@ -418,9 +422,649 @@ def test_build_burst_report_shape_and_fee_tag():
                   best_ask=0.44, yes_bid=0.38) for m in range(3)]
     start = probe.parse_window_bound("2026-07-14T12:00:00Z")
     end = probe.parse_window_bound("2026-07-14T13:00:00Z")
-    report = probe.build_burst_report(recs, start=start, end=end, poly_fee=0.0)
+    report = probe.build_burst_report(recs, start=start, end=end,
+                                      poly_fee_model=probe.PolyFeeModel("free"))
     assert report["mode"] == "burst"
     assert report["n_records_in_window"] == 3
     assert report["fee_model"]["poly_fee_source"] == "assumed_zero_polymarket_clob"
     assert report["fee_model"]["kalshi_rate"] == TAKER_FEE_RATE
     assert report["n_dislocations"] == 3
+
+
+# =========================================================================== #
+# Q19 FOMC leg (2026-07-29) — A1 honest Polymarket fee model, A2 L57 leave-one-out
+# in burst mode, A3 release-instant coverage (L164), A4 per-capture membership +
+# L32 frozen-quote fractions. All offline: synthetic in-memory records only.
+# =========================================================================== #
+from core.pricing import POLYMARKET_US_TAKER_RATE, polymarket_fee_per_contract
+
+
+# --------------------------------------------------------------------------- #
+# A1 — PolyFeeModel
+# --------------------------------------------------------------------------- #
+def test_poly_fee_model_schedule_charges_the_real_schedule_not_a_flat_rate():
+    """REGRESSION PIN for the fee bug this leg fixed. Polymarket's Fee Structure V2 is
+    rate*p*(1-p) with NO cent round-up, so at p=0.50 the US taker rate charges $0.0125 per
+    contract — NOT the flat $0.05 a naive reading of the rate would charge (a ~4x
+    over-charge, the L5 maker/taker mistake in mirror image)."""
+    model = probe.PolyFeeModel("schedule")
+    assert model.rate == POLYMARKET_US_TAKER_RATE
+    assert model.fee(0.50) == pytest.approx(0.0125)
+    assert model.fee(0.50) != pytest.approx(POLYMARKET_US_TAKER_RATE)
+    # and it is the core helper, not a re-derivation
+    assert model.fee(0.37) == pytest.approx(
+        polymarket_fee_per_contract(0.37, POLYMARKET_US_TAKER_RATE))
+
+
+def test_poly_fee_model_schedule_shrinks_toward_the_wings():
+    """The p*(1-p) shape means a deep wing leg is charged almost nothing — the reason a flat
+    constant is wrong at BOTH ends of the ladder, not just in the middle."""
+    model = probe.PolyFeeModel("schedule")
+    assert model.fee(0.009) < model.fee(0.25) < model.fee(0.50)
+
+
+def test_poly_fee_model_flat_preserves_legacy_constant_behaviour():
+    model = probe.PolyFeeModel("flat", flat_fee=0.05)
+    assert model.fee(0.50) == pytest.approx(0.05)
+    assert model.fee(0.01) == pytest.approx(0.05)   # flat: price-independent, i.e. wrong
+    assert model.source == "explicit_cli_flat"
+    assert model.as_dict()["poly_fee_per_contract_flat"] == pytest.approx(0.05)
+    assert model.as_dict()["poly_fee_rate"] is None
+
+
+def test_poly_fee_model_free_is_identically_zero_and_tagged_as_an_assumption():
+    model = probe.PolyFeeModel("free")
+    assert model.fee(0.50) == 0.0
+    assert model.fee(0.01) == 0.0
+    assert model.source == "assumed_zero_polymarket_clob"
+    assert model.as_dict()["poly_fee_rate"] is None
+    assert model.as_dict()["poly_fee_per_contract_flat"] is None
+
+
+def test_poly_fee_model_flat_zero_is_tagged_as_the_zero_assumption():
+    """A flat 0.0 is economically the `free` model however it was spelled, so it carries the
+    honest `assumed_zero_polymarket_clob` tag rather than implying a real quoted fee."""
+    assert probe.PolyFeeModel("flat", flat_fee=0.0).source == "assumed_zero_polymarket_clob"
+
+
+def test_poly_fee_model_schedule_names_the_core_helper_as_its_source():
+    assert probe.PolyFeeModel("schedule").source == "core.pricing.polymarket_fee_per_contract"
+
+
+def test_poly_fee_model_rejects_an_unknown_model():
+    with pytest.raises(ValueError):
+        probe.PolyFeeModel("handrolled")
+
+
+def test_default_poly_fee_model_is_the_schedule():
+    assert probe.DEFAULT_POLY_FEE_MODEL == "schedule"
+    assert probe.dislocation_scan({}) == []  # default construction path must not raise
+
+
+def test_dislocation_row_records_the_fees_actually_charged():
+    q = {"kalshi_yes_ask": 0.40, "kalshi_yes_bid": 0.38,
+         "poly_best_ask": 0.44, "poly_best_bid": 0.50}
+    best = probe._best_dislocation(q, kalshi_fee_rate=TAKER_FEE_RATE,
+                                  poly_fee_model=probe.PolyFeeModel("schedule"))
+    assert best["poly_fee_model"] == "schedule"
+    assert best["kalshi_leg_price"] == pytest.approx(0.40)
+    assert best["poly_leg_price"] == pytest.approx(0.50)
+    assert best["kalshi_fee_charged"] == pytest.approx(fee_per_contract(0.40, TAKER_FEE_RATE))
+    assert best["poly_fee_charged"] == pytest.approx(0.0125)
+    assert best["net_edge"] == pytest.approx(
+        0.50 - 0.40 - best["kalshi_fee_charged"] - best["poly_fee_charged"])
+
+
+def test_three_fee_models_bracket_the_same_marginal_dislocation():
+    """The FOMC-window shape that made this bug EV-relevant in both directions: a 3c
+    Kalshi-bid-over-Polymarket-ask gap. `free` calls it a 1c edge, `schedule` shaves it below
+    zero, a flat 0.05 buries it. One tape, three answers — only `schedule` is honest."""
+    q = {"kalshi_yes_ask": 0.60, "kalshi_yes_bid": 0.58,
+         "poly_best_ask": 0.55, "poly_best_bid": 0.54}
+    kw = dict(kalshi_fee_rate=TAKER_FEE_RATE)
+    free = probe._best_dislocation(q, poly_fee_model=probe.PolyFeeModel("free"), **kw)
+    sched = probe._best_dislocation(q, poly_fee_model=probe.PolyFeeModel("schedule"), **kw)
+    flat = probe._best_dislocation(
+        q, poly_fee_model=probe.PolyFeeModel("flat", flat_fee=0.05), **kw)
+    assert free["direction"] == sched["direction"] == "buy_poly_sell_kalshi"
+    assert free["net_edge"] == pytest.approx(0.01)
+    assert sched["net_edge"] == pytest.approx(
+        0.01 - polymarket_fee_per_contract(0.55, POLYMARKET_US_TAKER_RATE))
+    assert sched["net_edge"] < 0.0                 # the real schedule KILLS this one
+    assert flat["net_edge"] < sched["net_edge"]    # the flat constant buries it far deeper
+
+
+def test_dislocation_scan_hit_count_depends_on_the_fee_model():
+    recs = [_brec(f"2026-07-29T17:{m:02d}:00Z", "A", yes_ask=0.60, yes_bid=0.58,
+                  best_ask=0.55, best_bid=0.54) for m in (41, 43, 45)]
+    series = probe.build_burst_series(recs)
+    assert len(probe.dislocation_scan(
+        series, poly_fee_model=probe.PolyFeeModel("free"))) == 3
+    assert probe.dislocation_scan(
+        series, poly_fee_model=probe.PolyFeeModel("schedule")) == []
+    assert probe.dislocation_scan(
+        series, poly_fee_model=probe.PolyFeeModel("flat", flat_fee=0.05)) == []
+
+
+# --------------------------------------------------------------------------- #
+# A1 — CLI wiring
+# --------------------------------------------------------------------------- #
+def _write_burst_tape(tmp_path, records):
+    tape_dir = tmp_path / "polymarket_macro_pairs"
+    tape_dir.mkdir()
+    (tape_dir / "dt=2026-07-29.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in records))
+    return tape_dir
+
+
+_FOMC_WINDOW = ["--burst-window", "2026-07-29T17:40:00Z", "2026-07-29T19:35:00Z"]
+
+
+def test_cli_defaults_to_the_schedule_fee_model(tmp_path):
+    recs = [_brec(f"2026-07-29T17:{m:02d}:00Z", "A", yes_ask=0.60, yes_bid=0.58,
+                  best_ask=0.55, best_bid=0.54) for m in (41, 43, 45)]
+    tape_dir = _write_burst_tape(tmp_path, recs)
+    out = tmp_path / "r.json"
+    rc = probe.main(["--tape-dir", str(tape_dir), *_FOMC_WINDOW, "--json-out", str(out)])
+    assert rc == 0
+    report = json.loads(out.read_text())
+    assert report["fee_model"]["poly_fee_model"] == "schedule"
+    assert report["fee_model"]["poly_fee_source"] == "core.pricing.polymarket_fee_per_contract"
+    assert report["fee_model"]["poly_fee_rate"] == pytest.approx(POLYMARKET_US_TAKER_RATE)
+    assert report["n_dislocations"] == 0
+
+
+def test_cli_flat_model_preserves_the_legacy_poly_fee_flag(tmp_path):
+    recs = [_brec(f"2026-07-29T17:{m:02d}:00Z", "A", yes_ask=0.60, yes_bid=0.58,
+                  best_ask=0.55, best_bid=0.54) for m in (41, 43, 45)]
+    tape_dir = _write_burst_tape(tmp_path, recs)
+    out = tmp_path / "r.json"
+    assert probe.main(["--tape-dir", str(tape_dir), *_FOMC_WINDOW,
+                       "--poly-fee-model", "flat", "--poly-fee", "0.05",
+                       "--json-out", str(out)]) == 0
+    report = json.loads(out.read_text())
+    assert report["fee_model"]["poly_fee_model"] == "flat"
+    assert report["fee_model"]["poly_fee_per_contract_flat"] == pytest.approx(0.05)
+    assert report["fee_model"]["poly_fee_source"] == "explicit_cli_flat"
+
+
+def test_cli_refuses_a_flat_poly_fee_under_a_non_flat_model(tmp_path):
+    """A silently-ignored fee flag is exactly how the flat-fee bug hid. Refuse instead."""
+    tape_dir = _write_burst_tape(tmp_path, [])
+    with pytest.raises(SystemExit):
+        probe.main(["--tape-dir", str(tape_dir), *_FOMC_WINDOW, "--poly-fee", "0.05"])
+
+
+def test_cli_free_model_is_reachable_as_the_generous_sensitivity(tmp_path):
+    recs = [_brec(f"2026-07-29T17:{m:02d}:00Z", "A", yes_ask=0.60, yes_bid=0.58,
+                  best_ask=0.55, best_bid=0.54) for m in (41, 43, 45)]
+    tape_dir = _write_burst_tape(tmp_path, recs)
+    out = tmp_path / "r.json"
+    assert probe.main(["--tape-dir", str(tape_dir), *_FOMC_WINDOW,
+                       "--poly-fee-model", "free", "--json-out", str(out)]) == 0
+    report = json.loads(out.read_text())
+    assert report["fee_model"]["poly_fee_source"] == "assumed_zero_polymarket_clob"
+    assert report["n_dislocations"] == 3
+
+
+# --------------------------------------------------------------------------- #
+# A2 — L57 leave-one-out stability gate in burst mode
+# --------------------------------------------------------------------------- #
+def test_leadlag_stability_flags_a_collapsing_loo_as_unstable():
+    per_ticker = [{"pair": "A", "signed_leader": "polymarket"}]
+    loo = [{"pair": "A", "rho_polymarket_leads_full": 0.902,
+            "rho_polymarket_leads_drop_top_pair": 0.196}]   # the literal CPI-leg collapse
+    out = probe.leadlag_stability(per_ticker, loo)[0]
+    assert out["stability"] == "UNSTABLE_collapsed"
+    assert out["retention"] == pytest.approx(0.196 / 0.902)
+
+
+def test_leadlag_stability_flags_a_sign_flip_as_unstable():
+    per_ticker = [{"pair": "A", "signed_leader": "kalshi"}]
+    loo = [{"pair": "A", "rho_kalshi_leads_full": 0.40,
+            "rho_kalshi_leads_drop_top_pair": -0.35}]
+    assert probe.leadlag_stability(per_ticker, loo)[0]["stability"] == "UNSTABLE_sign_flip"
+
+
+def test_leadlag_stability_accepts_a_lead_that_survives_its_own_loo():
+    per_ticker = [{"pair": "A", "signed_leader": "kalshi"}]
+    loo = [{"pair": "A", "rho_kalshi_leads_full": 0.80,
+            "rho_kalshi_leads_drop_top_pair": 0.74}]
+    out = probe.leadlag_stability(per_ticker, loo)[0]
+    assert out["stability"] == "stable"
+    assert out["retention"] > probe.LEADLAG_LOO_RETENTION_FLOOR
+
+
+def test_leadlag_stability_no_claim_when_there_is_no_signed_leader():
+    for leader in (None, "none"):
+        out = probe.leadlag_stability([{"pair": "A", "signed_leader": leader}], [])[0]
+        assert out["stability"] == "no_directional_claim"
+        assert out["rho_full"] is None
+
+
+def test_leadlag_stability_unrecomputable_when_the_loo_row_is_missing():
+    out = probe.leadlag_stability([{"pair": "A", "signed_leader": "kalshi"}], [])[0]
+    assert out["stability"] == "UNSTABLE_unrecomputable"
+
+
+def test_leadlag_stability_zero_rho_lead_is_not_a_claim():
+    """An exactly-zero rho_full has no magnitude to retain and the retention ratio is not even
+    defined, so it is caught by the magnitude floor (0.0 < floor) rather than by the retention
+    gate. Both labels carry the UNSTABLE prefix, so no consumer sees a behaviour change."""
+    per_ticker = [{"pair": "A", "signed_leader": "polymarket"}]
+    loo = [{"pair": "A", "rho_polymarket_leads_full": 0.0,
+            "rho_polymarket_leads_drop_top_pair": 0.0}]
+    out = probe.leadlag_stability(per_ticker, loo)[0]
+    assert out["stability"] == "UNSTABLE_below_magnitude_floor"
+    assert out["stability"].startswith("UNSTABLE")
+    assert out["retention"] is None
+
+
+# --------------------------------------------------------------------------- #
+# A2b — |rho| MAGNITUDE FLOOR (L27's magnitude gate applied to a correlation).
+#
+# Defect found in round-2 review of the executed 2026-07-29 FOMC run: `leadlag_stability` called
+# a noise-level rho `stable` because the leave-one-out recompute moved it AWAY from zero, so the
+# retention RATIO was large against a near-zero denominator. The printed summary then read
+# "1 of 6 leads survives leave-one-out", which reads as a real surviving lead.
+# --------------------------------------------------------------------------- #
+def test_leadlag_rho_magnitude_floor_is_named_and_tied_to_the_signed_leader_margin():
+    assert probe.LEADLAG_RHO_MAGNITUDE_FLOOR == pytest.approx(0.05)
+    # The floor is DERIVED from the module's own directional margin, not tuned to any dataset:
+    # demanding a 0.05 DIFFERENCE to name a leader while accepting a smaller ABSOLUTE magnitude
+    # as a stable lead would be incoherent.
+    assert probe.LEADLAG_RHO_MAGNITUDE_FLOOR == probe.LEADLAG_SIGNED_LEADER_MARGIN
+
+
+def test_leadlag_stability_noise_level_rho_is_not_stable_regression_26sep_h0():
+    """REGRESSION PIN with the REAL executed values from the 2026-07-29 FOMC run
+    (`KXFEDDECISION-26SEP-H0`, leader=polymarket over n=21 steps): rho_full = -0.0044715...,
+    i.e. |rho| = 0.0045 — pure noise — and the LOO recompute at -0.0409 moved FURTHER from zero,
+    giving retention = 9.14. The pre-fix code labelled this `stable` and the summary line credited
+    it as the 1 of 6 leads that survived leave-one-out. It must be UNSTABLE."""
+    per_ticker = [{"pair": "KXFEDDECISION-26SEP-H0", "signed_leader": "polymarket"}]
+    loo = [{"pair": "KXFEDDECISION-26SEP-H0",
+            "rho_polymarket_leads_full": -0.004471504399603508,
+            "rho_polymarket_leads_drop_top_pair": -0.040873388781476276}]
+    out = probe.leadlag_stability(per_ticker, loo)[0]
+    assert out["stability"] == "UNSTABLE_below_magnitude_floor"
+    assert out["stability"].startswith("UNSTABLE")     # printer/consumers treat it as no-lead
+    # the inflated ratio is RECORDED, not hidden — that is the tell a reader needs
+    assert out["retention"] == pytest.approx(9.140858451375014)
+    assert out["retention"] > probe.LEADLAG_LOO_RETENTION_FLOOR   # it "passed" the old gate
+    assert abs(out["rho_full"]) < probe.LEADLAG_RHO_MAGNITUDE_FLOOR
+    assert out["magnitude_floor"] == probe.LEADLAG_RHO_MAGNITUDE_FLOOR
+
+
+def test_leadlag_stability_magnitude_floor_is_checked_before_sign_and_retention():
+    """A below-floor rho is labelled by MAGNITUDE even when it would otherwise have been a sign
+    flip — the magnitude gate decides whether sign/retention are measuring anything at all."""
+    per_ticker = [{"pair": "A", "signed_leader": "kalshi"}]
+    loo = [{"pair": "A", "rho_kalshi_leads_full": 0.004,
+            "rho_kalshi_leads_drop_top_pair": -0.9}]
+    assert probe.leadlag_stability(per_ticker, loo)[0]["stability"] == \
+        "UNSTABLE_below_magnitude_floor"
+
+
+def test_leadlag_stability_just_above_the_floor_still_reaches_the_retention_gate():
+    """The floor gates, it does not swallow: a rho above it is still judged on its LOO. Uses the
+    real 26SEP-H26 executed values (rho_full 0.0636, LOO 0.0157) — above the floor, killed by
+    retention 0.246, exactly as the executed run reported."""
+    per_ticker = [{"pair": "A", "signed_leader": "kalshi"}]
+    loo = [{"pair": "A", "rho_kalshi_leads_full": 0.06362847629757783,
+            "rho_kalshi_leads_drop_top_pair": 0.01568060856995576}]
+    out = probe.leadlag_stability(per_ticker, loo)[0]
+    assert out["stability"] == "UNSTABLE_collapsed"
+    assert out["retention"] == pytest.approx(0.24644010798908098)
+
+
+def test_leadlag_stability_magnitude_floor_is_overridable_for_a_sensitivity():
+    """The floor is a keyword, so a verifier can re-run at a stricter bar without editing code.
+    At a significance-scale floor (~1.96/sqrt(21)) even the 26SEP-C25 rho of 0.396 goes below."""
+    per_ticker = [{"pair": "A", "signed_leader": "polymarket"}]
+    loo = [{"pair": "A", "rho_polymarket_leads_full": 0.39640461849306996,
+            "rho_polymarket_leads_drop_top_pair": 0.06390598265111037}]
+    assert probe.leadlag_stability(per_ticker, loo, magnitude_floor=0.43)[0]["stability"] == \
+        "UNSTABLE_below_magnitude_floor"
+
+
+def _stability_only_report(stability_rows, per_ticker_rows):
+    """Minimal report dict carrying only the keys `_print_burst_report` reads, so the printed
+    lead-lag summary can be asserted without manufacturing tape that yields a given rho."""
+    return {
+        "mode": "burst",
+        "window_start": "2026-07-29T17:40:00+00:00",
+        "window_end": "2026-07-29T19:35:00+00:00",
+        "n_records_in_window": len(per_ticker_rows),
+        "n_pairs": len(per_ticker_rows),
+        "cadence": probe.cadence_stats([]),
+        "release_coverage": None,
+        "per_capture_pair_counts": [],
+        "frozen_quotes": {"per_pair": [], "n_consecutive_pairs": 0, "n_frozen_pairs": 0,
+                          "frozen_fraction": None},
+        "per_ticker_leadlag": per_ticker_rows,
+        "per_ticker_leadlag_drop_top_pair": [],
+        "leadlag_stability": stability_rows,
+        "n_dislocations": 0,
+        "dislocation_episodes": [],
+        "fee_model": {"poly_fee_source": "core.pricing.polymarket_fee_per_contract"},
+    }
+
+
+def test_print_burst_report_counts_a_below_floor_rho_as_not_surviving(capsys):
+    """The reader-facing half of the fix: the summary line must NOT credit the noise-level rho,
+    and must say why. This is the line a future run would otherwise quote as '1 of 6 survives'."""
+    pair = "KXFEDDECISION-26SEP-H0"
+    per_ticker_rows = [{"pair": pair, "n_steps": 21, "rho_contemporaneous": None,
+                        "rho_kalshi_leads": -0.25358737015281874,
+                        "rho_polymarket_leads": -0.004471504399603508,
+                        "signed_leader": "polymarket"}]
+    stability_rows = probe.leadlag_stability(
+        [{"pair": pair, "signed_leader": "polymarket"}],
+        [{"pair": pair, "rho_polymarket_leads_full": -0.004471504399603508,
+          "rho_polymarket_leads_drop_top_pair": -0.040873388781476276}])
+    probe._print_burst_report(_stability_only_report(stability_rows, per_ticker_rows))
+    printed = capsys.readouterr().out
+    assert "1 show a directional leader, 0 survive leave-one-out" in printed
+    assert "UNSTABLE_below_magnitude_floor" in printed
+    assert "magnitude floor" in printed
+    assert "NO signed-leader claim survives" in printed
+
+
+def test_burst_report_single_shock_lead_does_not_survive_leave_one_out():
+    """End-to-end L57: one big synchronised shock step manufactures a near-perfect
+    'polymarket leads' rho over otherwise-uncorrelated tick noise; the leave-one-out on that
+    direction's own driver pair must destroy it."""
+    poly = [0.50, 0.51, 0.51, 0.52, 0.51, 0.51, 0.61, 0.61, 0.62]
+    kalshi = [0.50, 0.50, 0.51, 0.51, 0.51, 0.52, 0.52, 0.62, 0.62]
+    recs = [_brec(f"2026-07-29T17:{41 + 2 * i:02d}:00Z", "A", yes_ask=k, best_ask=p)
+            for i, (k, p) in enumerate(zip(kalshi, poly))]
+    report = probe.build_burst_report(recs)
+    leadlag = {t["pair"]: t for t in report["per_ticker_leadlag"]}
+    assert leadlag["A"]["signed_leader"] == "polymarket"
+    assert leadlag["A"]["rho_polymarket_leads"] > 0.5
+    stab = {s["pair"]: s for s in report["leadlag_stability"]}["A"]
+    assert stab["stability"].startswith("UNSTABLE")
+    assert abs(stab["rho_drop_top_pair"]) < abs(stab["rho_full"])
+
+
+def test_burst_report_emits_the_loo_recompute_for_every_direction():
+    kalshi = [0.50, 0.55, 0.55, 0.60, 0.60, 0.58, 0.58]
+    poly = [0.50, 0.50, 0.55, 0.55, 0.60, 0.60, 0.58]
+    recs = [_brec(f"2026-07-29T17:{41 + 2 * i:02d}:00Z", "A", yes_ask=k, best_ask=p)
+            for i, (k, p) in enumerate(zip(kalshi, poly))]
+    report = probe.build_burst_report(recs)
+    loo = {r["pair"]: r for r in report["per_ticker_leadlag_drop_top_pair"]}["A"]
+    # BOTH directions get their own drop-top-cross-product-pair recompute (per-direction, L57)
+    for field in ("rho_polymarket_leads_full", "rho_polymarket_leads_drop_top_pair",
+                  "rho_kalshi_leads_full", "rho_kalshi_leads_drop_top_pair"):
+        assert field in loo
+    stab = {s["pair"]: s for s in report["leadlag_stability"]}["A"]
+    assert stab["signed_leader"] == "kalshi"
+    assert stab["stability"] == "stable"
+
+
+# --------------------------------------------------------------------------- #
+# A3 — release-instant coverage (L164 made mechanical)
+# --------------------------------------------------------------------------- #
+def test_release_instant_bracketed_when_both_sides_are_within_one_cadence_step():
+    recs = [_brec("2026-07-29T17:59:00Z", "A", yes_ask=0.5, best_ask=0.5),
+            _brec("2026-07-29T18:00:30Z", "A", yes_ask=0.5, best_ask=0.5)]
+    cov = probe.release_instant_coverage(recs, probe.parse_window_bound("2026-07-29T18:00:00Z"))
+    assert cov["release_instant_bracketed"] is True
+    assert cov["nearest_pre_offset_s"] == -60.0
+    assert cov["nearest_post_offset_s"] == 30.0
+    assert cov["containing_gap_s"] == 90.0
+
+
+def test_release_instant_not_bracketed_when_a_seam_swallows_it():
+    """The 2026-07-29 FOMC shape (sub-second fractions dropped for the fixture; the real tape's
+    offsets are -557.18s / +162.83s): last pre-release capture 17:50:42Z, first post-release
+    capture 18:02:42Z, a 720s hole straddling the 18:00:00Z statement."""
+    recs = [_brec("2026-07-29T17:50:42Z", "A", yes_ask=0.5, best_ask=0.5),
+            _brec("2026-07-29T18:02:42Z", "A", yes_ask=0.5, best_ask=0.5)]
+    cov = probe.release_instant_coverage(recs, probe.parse_window_bound("2026-07-29T18:00:00Z"))
+    assert cov["release_instant_bracketed"] is False
+    assert cov["nearest_pre_offset_s"] == -558.0
+    assert cov["nearest_post_offset_s"] == 162.0
+    assert cov["containing_gap_s"] == 720.0
+    assert cov["threshold_s"] == probe.RELEASE_BRACKET_THRESHOLD_S
+
+
+def test_release_instant_not_bracketed_when_only_one_side_is_close():
+    recs = [_brec("2026-07-29T17:59:30Z", "A", yes_ask=0.5, best_ask=0.5),
+            _brec("2026-07-29T18:10:00Z", "A", yes_ask=0.5, best_ask=0.5)]
+    cov = probe.release_instant_coverage(recs, probe.parse_window_bound("2026-07-29T18:00:00Z"))
+    assert cov["release_instant_bracketed"] is False
+    assert cov["nearest_pre_offset_s"] == -30.0
+
+
+def test_release_instant_no_post_capture_at_all():
+    recs = [_brec("2026-07-29T17:59:30Z", "A", yes_ask=0.5, best_ask=0.5)]
+    cov = probe.release_instant_coverage(recs, probe.parse_window_bound("2026-07-29T18:00:00Z"))
+    assert cov["release_instant_bracketed"] is False
+    assert cov["nearest_post_capture"] is None
+    assert cov["containing_gap_s"] is None
+
+
+def test_release_instant_threshold_is_named_and_documented():
+    cov = probe.release_instant_coverage([], probe.parse_window_bound("2026-07-29T18:00:00Z"))
+    assert cov["threshold_s"] == probe.RELEASE_BRACKET_THRESHOLD_S == 120.0
+    assert "burst cadence" in cov["threshold_source"]
+    assert cov["release_instant_bracketed"] is False
+
+
+def test_burst_report_carries_release_coverage_only_when_asked():
+    recs = [_brec("2026-07-29T17:50:42Z", "A", yes_ask=0.5, best_ask=0.5),
+            _brec("2026-07-29T18:02:42Z", "A", yes_ask=0.5, best_ask=0.5)]
+    assert probe.build_burst_report(recs)["release_coverage"] is None
+    report = probe.build_burst_report(
+        recs, release_instant=probe.parse_window_bound("2026-07-29T18:00:00Z"))
+    assert report["release_coverage"]["release_instant_bracketed"] is False
+
+
+def test_cli_release_instant_flag_is_wired_through(tmp_path):
+    recs = [_brec("2026-07-29T17:50:42Z", "A", yes_ask=0.5, yes_bid=0.49,
+                  best_ask=0.51, best_bid=0.5),
+            _brec("2026-07-29T18:02:42Z", "A", yes_ask=0.5, yes_bid=0.49,
+                  best_ask=0.51, best_bid=0.5)]
+    tape_dir = _write_burst_tape(tmp_path, recs)
+    out = tmp_path / "r.json"
+    assert probe.main(["--tape-dir", str(tape_dir), *_FOMC_WINDOW,
+                       "--release-instant", "2026-07-29T18:00:00Z",
+                       "--json-out", str(out)]) == 0
+    cov = json.loads(out.read_text())["release_coverage"]
+    assert cov["release_instant_bracketed"] is False
+    assert cov["containing_gap_s"] == 720.0
+
+
+def test_cadence_stats_enumerates_seams_the_median_hides():
+    """A 90s median with a 720s hole in it: the seam list is what makes the hole visible."""
+    stamps = ["17:41:42", "17:43:12", "17:44:42", "17:46:12", "17:50:42", "18:02:42"]
+    recs = [_brec(f"2026-07-29T{s}Z", "A", yes_ask=0.5, best_ask=0.5) for s in stamps]
+    cad = probe.cadence_stats(recs)
+    assert cad["median_gap_s"] == 90.0
+    assert cad["n_gaps_over_threshold"] == 2
+    assert cad["gaps_over_threshold_s"] == [720.0, 270.0]
+
+
+# --------------------------------------------------------------------------- #
+# A4 — per-capture membership + L32 frozen-quote fractions
+# --------------------------------------------------------------------------- #
+def test_per_capture_pair_counts_names_a_market_that_disappears():
+    """The FOMC fact this makes visible: Kalshi delists the DECIDED meeting's buckets at the
+    decision, so the pair count drops and the removed ticker is named — meaning that market
+    has ZERO post-release observations."""
+    recs = [
+        _brec("2026-07-29T17:50:42Z", "KXFEDDECISION-26JUL-H0", yes_ask=0.80, best_ask=0.794),
+        _brec("2026-07-29T17:50:42Z", "KXFEDDECISION-26SEP-H25", yes_ask=0.59, best_ask=0.55),
+        _brec("2026-07-29T18:02:42Z", "KXFEDDECISION-26SEP-H25", yes_ask=0.65, best_ask=0.64),
+    ]
+    counts = probe.per_capture_pair_counts(probe.build_burst_series(recs))
+    assert [c["n_pairs"] for c in counts] == [2, 1]
+    assert counts[0]["pairs_removed"] == [] and counts[0]["pairs_added"] == []
+    assert counts[1]["pairs_removed"] == ["KXFEDDECISION-26JUL-H0"]
+
+
+def test_frozen_quote_fractions_separates_a_dead_book_from_a_moving_one():
+    frozen = [_brec(f"2026-07-29T17:{m:02d}:00Z", "DEAD", yes_ask=0.58, yes_bid=0.57,
+                    best_ask=0.63, best_bid=0.62) for m in (41, 43, 45)]
+    moving = [_brec(f"2026-07-29T17:{m:02d}:00Z", "LIVE", yes_ask=0.58 + 0.01 * i,
+                    yes_bid=0.57 + 0.01 * i, best_ask=0.63, best_bid=0.62)
+              for i, m in enumerate((41, 43, 45))]
+    fz = probe.frozen_quote_fractions(probe.build_burst_series(frozen + moving))
+    per_pair = {p["pair"]: p for p in fz["per_pair"]}
+    assert per_pair["DEAD"]["frozen_fraction"] == 1.0
+    assert per_pair["LIVE"]["frozen_fraction"] == 0.0
+    assert fz["n_consecutive_pairs"] == 4 and fz["n_frozen_pairs"] == 2
+    assert fz["frozen_fraction"] == pytest.approx(0.5)
+
+
+def test_frozen_quote_fractions_single_capture_pair_has_no_consecutive_pairs():
+    fz = probe.frozen_quote_fractions(probe.build_burst_series(
+        [_brec("2026-07-29T17:41:00Z", "A", yes_ask=0.5, best_ask=0.5)]))
+    assert fz["per_pair"][0]["frozen_fraction"] is None
+    assert fz["frozen_fraction"] is None
+
+
+def test_quotes_frozen_requires_all_four_quotes_unchanged():
+    base = {"kalshi_yes_ask": 0.58, "kalshi_yes_bid": 0.57,
+            "poly_best_ask": 0.63, "poly_best_bid": 0.62}
+    assert probe._quotes_frozen(base, dict(base)) is True
+    for key in probe.QUOTE_KEYS:
+        moved = dict(base)
+        moved[key] = base[key] + 0.01
+        assert probe._quotes_frozen(base, moved) is False
+
+
+def test_durable_dislocation_on_a_frozen_book_is_attributed_as_such():
+    """L31/L32 attribution: the 26OCT-H0 shape — a byte-frozen far-dated book whose nominal
+    cross-venue gap persists for the whole window. Durable AND small AND 100% frozen is the
+    stale-nominal-quote artifact signature, not an edge."""
+    recs = [_brec(f"2026-07-29T{h}:{m:02d}:42Z", "KXFEDDECISION-26OCT-H0",
+                  yes_ask=0.58, yes_bid=0.57, best_ask=0.63, best_bid=0.62)
+            for h, m in (("17", 41), ("17", 43), ("17", 45), ("18", 2))]
+    eps = probe.dislocation_episodes(probe.build_burst_series(recs),
+                                    poly_fee_model=probe.PolyFeeModel("schedule"))
+    assert len(eps) == 1
+    ep = eps[0]
+    assert ep["direction"] == "buy_kalshi_sell_poly"
+    assert ep["n_captures"] == 4
+    assert ep["frozen_pairs_fraction"] == 1.0
+    assert ep["n_frozen_pairs"] == ep["n_consecutive_pairs"] == 3
+    # sub-tick: fails an economic-significance gate even though the sign is positive (L27)
+    assert 0.0 < ep["max_net_edge"] < 0.01
+
+
+def test_episode_frozen_fraction_is_zero_when_the_book_moves_every_capture():
+    recs = [_brec(f"2026-07-29T17:{m:02d}:00Z", "A", yes_ask=0.40 + 0.01 * i,
+                  yes_bid=0.38 + 0.01 * i, best_ask=0.44, best_bid=0.50 + 0.01 * i)
+            for i, m in enumerate((41, 43, 45))]
+    eps = probe.dislocation_episodes(probe.build_burst_series(recs),
+                                    poly_fee_model=probe.PolyFeeModel("schedule"))
+    assert len(eps) == 1
+    assert eps[0]["frozen_pairs_fraction"] == 0.0
+
+
+def test_burst_report_wires_membership_counts_and_frozen_fractions():
+    recs = [_brec("2026-07-29T17:50:42Z", "GONE", yes_ask=0.80, yes_bid=0.79,
+                  best_ask=0.794, best_bid=0.792),
+            _brec("2026-07-29T17:50:42Z", "STAY", yes_ask=0.58, yes_bid=0.57,
+                  best_ask=0.63, best_bid=0.62),
+            _brec("2026-07-29T18:02:42Z", "STAY", yes_ask=0.58, yes_bid=0.57,
+                  best_ask=0.63, best_bid=0.62)]
+    report = probe.build_burst_report(recs)
+    assert [c["n_pairs"] for c in report["per_capture_pair_counts"]] == [2, 1]
+    assert report["frozen_quotes"]["n_frozen_pairs"] == 1
+    assert report["frozen_quotes"]["frozen_fraction"] == 1.0
+
+
+def test_print_burst_report_names_the_unbracketed_release_and_the_seams(capsys):
+    recs = [_brec("2026-07-29T17:50:42Z", "A", yes_ask=0.58, yes_bid=0.57,
+                  best_ask=0.63, best_bid=0.62),
+            _brec("2026-07-29T18:02:42Z", "A", yes_ask=0.58, yes_bid=0.57,
+                  best_ask=0.63, best_bid=0.62)]
+    report = probe.build_burst_report(
+        recs, release_instant=probe.parse_window_bound("2026-07-29T18:00:00Z"))
+    probe._print_burst_report(report)
+    printed = capsys.readouterr().out
+    assert "release_instant_bracketed=FALSE" in printed
+    assert "DATA-ADEQUACY FAILURE" in printed
+    assert "SEAMS" in printed
+    assert "frozen" in printed
+
+
+# --------------------------------------------------------------------------- #
+# CLI INVOCABILITY — both documented forms, pinned in real subprocesses.
+#
+# Round-2 regression: adding `from scripts.s9_leadlag_probe import ...` broke
+# `python3 scripts/s17_leadlag_probe.py ...` with `ModuleNotFoundError: No module named
+# 'scripts'`, while `PYTHONPATH=. python3 -m scripts.s17_leadlag_probe ...` kept working.
+# `pyproject.toml` installs core/collection/validation/analysis as packages but NOT `scripts`, and
+# the repo-root `conftest.py` only repairs sys.path under pytest — so nothing in the test suite
+# could see the breakage. BOTH forms are load-bearing and both get a subprocess pin: LOOP-QUEUE.md
+# (Q19/Q12), kb/00-LOG.md and kb/strategies/00-index.md cite this probe by SCRIPT PATH
+# (`scripts/s17_leadlag_probe.py --burst-window ...`, i.e. the broken form), while the sibling CPI
+# finding findings/2026-07-14-s17-burst-cpi-q19.md cites the `-m` form.
+# Precedent for shelling out with sys.executable: tests/test_s14_paper_strategy.py.
+# --------------------------------------------------------------------------- #
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+_INVOCATION_TAPE = [
+    _brec("2026-07-29T17:50:42Z", "KXFEDDECISION-26SEP-H25", yes_ask=0.59, yes_bid=0.58,
+          best_ask=0.55, best_bid=0.54),
+    _brec("2026-07-29T18:02:42Z", "KXFEDDECISION-26SEP-H25", yes_ask=0.65, yes_bid=0.61,
+          best_ask=0.64, best_bid=0.63),
+]
+
+
+def _run_probe_subprocess(argv, *, cwd, scrub_pythonpath, extra_env=None):
+    env = dict(os.environ)
+    if scrub_pythonpath:
+        env.pop("PYTHONPATH", None)
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run([sys.executable, *argv], cwd=str(cwd), env=env,
+                          capture_output=True, text=True)
+
+
+def test_direct_script_invocation_needs_no_pythonpath(tmp_path):
+    """`python3 scripts/s17_leadlag_probe.py --burst-window ...` — the script-path form the queue
+    and registry cite, and the one A2's cross-script import broke.
+    Run with PYTHONPATH SCRUBBED and cwd OUTSIDE the repo, which is the only configuration that
+    can catch the missing sys.path bootstrap (for a script invocation Python puts the SCRIPT's
+    directory on sys.path, not the cwd)."""
+    script = Path(probe.__file__).resolve()
+    tape_dir = _write_burst_tape(tmp_path, _INVOCATION_TAPE)
+    out = tmp_path / "direct.json"
+    proc = _run_probe_subprocess(
+        [str(script), "--tape-dir", str(tape_dir), *_FOMC_WINDOW,
+         "--release-instant", "2026-07-29T18:00:00Z", "--json-out", str(out)],
+        cwd=tmp_path, scrub_pythonpath=True)
+    assert "No module named 'scripts'" not in proc.stderr, proc.stderr
+    assert proc.returncode == 0, proc.stderr
+    report = json.loads(out.read_text())
+    assert report["mode"] == "burst"
+    assert report["release_coverage"]["containing_gap_s"] == 720.0
+    # the imported-not-copied L57 helper (the import that broke this form) really ran: the key
+    # only exists because `per_ticker_leadlag_drop_largest` resolved and returned.
+    assert isinstance(report["per_ticker_leadlag_drop_top_pair"], list)
+    assert isinstance(report["leadlag_stability"], list)
+
+
+def test_module_form_invocation_still_works(tmp_path):
+    """`PYTHONPATH=. python3 -m scripts.s17_leadlag_probe ...` — the form that kept working
+    through the regression. Pinned too, so a future sys.path change cannot fix one and break the
+    other silently."""
+    repo_root = Path(probe.__file__).resolve().parents[1]
+    tape_dir = _write_burst_tape(tmp_path, _INVOCATION_TAPE)
+    out = tmp_path / "module.json"
+    proc = _run_probe_subprocess(
+        ["-m", "scripts.s17_leadlag_probe", "--tape-dir", str(tape_dir), *_FOMC_WINDOW,
+         "--release-instant", "2026-07-29T18:00:00Z", "--json-out", str(out)],
+        cwd=repo_root, scrub_pythonpath=True, extra_env={"PYTHONPATH": str(repo_root)})
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(out.read_text())["release_coverage"]["containing_gap_s"] == 720.0
