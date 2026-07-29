@@ -6,6 +6,56 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 ~15:1xZ UTC — research loop: step 0b genuine recovery (2,128 stranded lines, `tape/hourly-20260729T1010Z`)
+
+Protocol v3 run. Step 0a: local sandbox started on a stale `main` ref (50 commits behind
+`origin/main`'s actual tip, a leftover container artifact, not a rewind); `git fetch origin
+main` + `git reset --hard origin/main` reconciled it to `531ad6e` (PR #231) exactly.
+`kb/00-LOG.md`'s newest entry and the newest committed tape day-file were both already
+2026-07-29 before this run touched anything — no history rewind. Step 0: open PRs
+#208/#191/#166/#165/#125 — all previously-flagged leave-open-for-Ryan / Ryan's own drafts,
+none claim eligible work.
+
+Full Q0-Q48 re-scan (read each item's CURRENT — i.e. topmost-in-file — Status line, not
+just grepped for the word TODO, which over-counts stale original-spec text the append
+convention leaves untouched below a later resolution): 0 eligible TODO/IN-PROGRESS. Q48/S55's
+FOMC burst window (17:40-19:45 UTC today) had not opened yet at run start (~15:10Z, ~2.5h
+out); every other item is DONE/DEAD/BLOCKED or calendar/density-gated, matching every prior
+run today (PRs #227-#231) → IDLE RUN.
+
+Step 0b found real work: `git ls-remote` showed `tape/hourly-20260729T1010Z` (5h+ old, past
+the 30-min skip threshold), newer than the last-recovered branch. `scripts/tape_branch_sweep.py`
+triaged it directly (via its `sweep()`/`triage_branch()` functions, referencing the branch by
+commit SHA rather than name — the local ref wasn't checked out, so name-based `git rev-parse`
+resolution silently returned `None` the first time this was tried, a footgun worth flagging for
+whoever else reads this): **2,128 genuinely-missing lines across 11 files**, all `dt=2026-07-29`
+— `anomalies`(1), `crypto_hourly`(2), `econ_prints`(5), `hyperliquid_funding`(2),
+`orderbook_depth`(1,382), `perp_tape`(17), `polymarket_cpi_pairs`(24), `polymarket_macro_pairs`(16),
+`sports_pairs`(328), `weather_books`(303), `weather_books/meta`(48). Union-appended via a
+one-off script reading each branch line through `read_blob_lines`/`diff_changed_files` and
+writing only lines absent from `HEAD`'s current file. Verified post-append: `git diff --numstat`
+shows 0 deletions on the 3 pre-existing files touched (append-only held); all 11 files parse as
+valid JSON line-by-line with 0 exact-duplicate lines. This recovery is the run's milestone,
+elevated beyond "sweep only" per the 2026-07-12 idle-run policy — same posture as PRs
+#203/#212/#214/#217/#221/#223/#226's prior genuine recoveries.
+
+No registry change, no strategy claim, no bootstrap CI/P&L — two-agent verdict rule N/A (pure
+tape recovery, no code touched).
+
+**Gates:** `python3 scripts/invariants.py --full` → exit 0, all green (same pre-existing
+non-gating advisory classes as `main` — VPS collector leg still dead and climbing, Ryan-side;
+L168/L169 hollow-crypto-ladder; L185 capped-pagination; L138 raw-`fromisoformat`; L210 colliding
+capture_id; L52 unguarded-settlement; 7 open `UNENFORCED` rows). `python3 -m pytest -o
+addopts="" -q` → **2224 passed, 0 failed** (fresh full background run, taken after this diff's
+last change — matches base `main`'s own count exactly, confirming a pure tape-data diff with no
+test-affecting change).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (`dead ✗` per Q34,
+paper-infra validation only — NOT edge evidence). `scripts/paper_pass.py` idempotent this run (0
+newly processed — the 2 new `crypto_hourly` lines this run added didn't open a new eligible
+event-hour), ledger unchanged **+$22.47** (`broker_truth`, 1,248 settled, 0 open). Still **0
+proven edges**.
+
 ## 2026-07-29 08:4x ET — research loop: idle-run policy (a) — L224 disposed, econ_prints `expiration_value` gets a normalized numeric field
 
 Protocol v3 run. Step 0a: `git fetch origin main` then re-checked HEAD — local matched
