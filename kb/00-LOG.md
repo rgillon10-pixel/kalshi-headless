@@ -6,6 +6,68 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-28 23:5x ET — idle-run (policy a): L207 real-tree/frozen-fixture split closes the func-matcher hazard; L192 flagged stale (not disposed); paper P&L +$22.47
+
+Cloud research-loop run, protocol v3. **Steps 0a/0 completed at run start:** history-integrity
+clean (`origin/main` HEAD `da21a7c` = PR #226, `git reset --hard origin/main` matched exactly —
+local main had been left ~6 days stale by a prior session but was NOT the rewind case, since
+`origin/main` itself was never rewound; confirmed via `kb/00-LOG.md`'s newest entry (2026-07-29,
+today) vs newest committed tape (`dt=2026-07-28`), 0-1 day gap). Claim-check: the 4 open PRs
+(#208/#191/#166/#125) are all Ryan-review-only or leave-open-for-Ryan retro docs; PR #48
+(protocol v3 itself) was confirmed already merged 2026-07-12 — none claim eligible queue work.
+**Step 0b (stranded tape):** `git ls-remote` shows the newest `tape/hourly-*` branch is still
+`tape/hourly-20260728T2156Z`, the same one the prior run (#226) already swept fully — nothing
+new to recover this run.
+
+Q0-Q48 rescan: unchanged from every recent round — all DONE / cred-or-auth-BLOCKED (Q32/Q33/
+Q35-build/Q42-pt3/Q47) / calendar-gated-not-open (Q19's FOMC leg opens 17:40Z today, not yet at
+run time ~03:11Z; Q37 ~08-05) / gate-open-but-density-inadequate (Q36, Q43) → **IDLE RUN**,
+policy (a).
+
+**Candidate selection.** `invariants._parse_lesson_rows` + `_lesson_disposed_ids` found **6**
+genuinely open `**UNENFORCED**` rows (L145, L192, L207, L208, L213, L214) — L145/L213 are
+explicit Ryan-policy/Ryan-account-state calls, L214's fix touches the Ryan-gated collector lane,
+L208 has only a vague "candidate: a generic gap check" (design work, not a stated patch).
+**Picked L207**, the sole row carrying a fully-specified, self-contained repair: "the L201 move
+applied again" — narrow `tests/test_invariants.py::test_stale_unenforced_candidate_real_tree_func_matcher_is_clean`'s
+hard `by_matcher["func"] == 0` assertion off the LIVE tree (a future genuinely-open lesson
+naming a `func()` candidate that happens to already exist somewhere in the tree would have
+turned this file's own pytest gate red for a reason unrelated to the code under test — the
+L192 hazard, one matcher over) onto the existing frozen fixture
+`tests/fixtures/lessons_unenforced_21_2026-07-27.md`, keeping only a structural/well-typed
+assertion (`"func" in by_matcher`, `isinstance(..., int) and >= 0`) on the live tree. New test
+`test_stale_unenforced_candidate_frozen_fixture_func_matcher_is_clean` carries the ENUMERATION
+half over the frozen fixture, where it can never go red from a future lesson append. Appended
+**L219** as the formal `DISPOSES: L207` row (L207's own text untouched, per append-don't-rewrite);
+open `**UNENFORCED**` count drops **6 -> 5**.
+
+**Bonus finding, flagged not acted on:** while reading L207's neighbor L192 for context,
+`git log -p -1 bc50296` (2026-07-27, PR #216 — the commit that WROTE L192's row) shows the
+exact 2-line repair L192 itself specifies was ALREADY LIVE in that same commit's diff — L192's
+"deliberately not fixed by this row's author... owed to the research-lead" narrative is stale.
+Recorded in L219's own row rather than disposing L192 unilaterally: L219 closes a *different*
+artifact (the func-matcher split, not the advisory-text split L192 names), and confirming a
+prior row's own claim is fully discharged is a judgment call left for a second party, per the
+same caution L192 itself asked for.
+
+Two-agent verdict rule **N/A** — test-hygiene/ledger-bookkeeping over already-shipped code, no
+registry flip, no bootstrap CI, no P&L claim, no kill decision (same posture as L200-item-1/
+L211/L215/L217/L218). No network, no orders, no credentials touched. Still **0 proven edges**.
+
+**Step 9 (paper sub-pass).** `execution/strategy_api.SHADOW_REGISTRY` = `{s14_ladder_underwriting}`
+only (S14 is `dead ✗` per Q34 — this is paper-infra validation, NOT edge evidence).
+`python3 scripts/paper_pass.py`: **9 newly processed** event-hours (136 deferred(caps), 268
+deferred(coverage), 155 already-in-ledger), wrote `paper/ledger/dt=2026-07-29.jsonl` (317
+lines). `daily_summary()`: `paper: 0 open position(s), 1248 settled contract(s), realized P&L
+$+22.47, cash $+22.47, open notional $0.00` (`broker_truth`). Re-run confirmed idempotent (0
+newly processed, same $+22.47).
+
+**Gates (fresh, after the final edit):** `python3 scripts/invariants.py --full` -> exit 0,
+`invariants: all green`; advisory set unchanged except the open-UNENFORCED count (6->5) and
+the disposed count (25->26). `python3 -m pytest -o addopts="" -q` -> **2219 passed in 2098.28s
+(0:34:58), 0 failed**, exit 0 — taken FRESH after the final code edit, per L162. 2219 = 2218
+prior + 1 new test, consistent with this run's only diff.
+
 ## 2026-07-29 00:4x ET — idle-run (policy a): L210 colliding-`capture_id` detector built + tests; tape sweep (1,834 lines)
 
 Cloud research-loop run, protocol v3. **Steps 0a/0 completed by the calling session:**

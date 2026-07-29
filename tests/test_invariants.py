@@ -746,18 +746,28 @@ def test_duplicate_lesson_id_warning_never_gates_exit_code(monkeypatch, capsys):
 # ─── stale-UNENFORCED-candidate advisory (L152: L74/L109/L123 marker-drift class) ──
 
 def test_stale_unenforced_candidate_real_tree_func_matcher_is_clean():
-    # HARD acceptance test anchored to the real tree, NARROWED 2026-07-27: no genuinely-open
-    # (enforcement column starting "**UNENFORCED**", not formally disposed) lesson row names a
-    # backtick `function_name()` candidate that already exists anywhere in the tree. This is
-    # the M0 matcher's state only — L105's row names an EXISTING function (`_segment_bounds()`)
-    # but only in its LESSON text (background context, not a candidate), which the
-    # lesson-text-exclusion below specifically must not flag.
-    #
-    # It is NOT a clean-queue statement: the M0-only detector reached 0 of 21 open rows while
-    # all 21 were already-built stale markers. The widened matchers (M1 path::symbol,
-    # M2 script+CLI flag, M3 agent charter) and the recall record that fixed that false
-    # assurance are pinned in tests/test_stale_unenforced_advisory.py.
+    # STRUCTURE only (L207 narrowing, 2026-07-29 — the same L192/L201 move applied again).
+    # The old body hard-asserted `by_matcher["func"] == 0` against the LIVE tree: a future
+    # genuinely-open lesson row that happens to backtick a `function_name()` candidate already
+    # present somewhere in the tree would turn this file's own gate red for a reason unrelated
+    # to the code under test — exactly the L192 hazard shape, one matcher over. The ENUMERATION
+    # ("today's open rows name no colliding func()") moved to the frozen fixture below; what's
+    # asserted here about the live tree is only that the report computes and the matcher key
+    # is present with a well-typed, non-negative count.
     rep = inv.stale_unenforced_recall_report()
+    by_matcher = dict(rep.by_matcher)
+    assert "func" in by_matcher
+    assert isinstance(by_matcher["func"], int) and by_matcher["func"] >= 0
+
+
+def test_stale_unenforced_candidate_frozen_fixture_func_matcher_is_clean():
+    # The ENUMERATION half of the split above, over the frozen 21-row snapshot no other agent
+    # rewrites (tests/fixtures/lessons_unenforced_21_2026-07-27.md, already used by
+    # tests/test_stale_unenforced_advisory.py for the sibling recall checks) — this is where
+    # "no genuinely-open row names a colliding func() candidate" is actually verified, and it
+    # can never go red from a future lesson append to the live ledger.
+    fixture = ROOT / "tests" / "fixtures" / "lessons_unenforced_21_2026-07-27.md"
+    rep = inv.stale_unenforced_recall_report(fixture, source_root=ROOT)
     assert dict(rep.by_matcher)["func"] == 0
 
 
