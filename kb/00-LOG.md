@@ -6,6 +6,90 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 00:4x ET — idle-run (policy a): L210 colliding-`capture_id` detector built + tests; tape sweep (1,834 lines)
+
+Cloud research-loop run, protocol v3. **Steps 0a/0 completed by the calling session:**
+history-integrity clean (`origin/main` HEAD `ab8e3d4` = PR #225, exact match, no rewind;
+`kb/00-LOG.md` newest entry and newest tape both 2026-07-28). Claim-check: open PRs
+#208/#191/#166/#125 are all leave-open-for-Ryan / draft / Ryan-review-only and claim no
+eligible queue item. **Step 0b (stranded tape):** branch `tape/hourly-20260728T2156Z` carried
+genuine new lines — union-appended **1,834** into main's per-day files, line-level dedupe,
+strictly append-only (`crypto_hourly`+2 / `hyperliquid_funding`+2 / `orderbook_depth`+1,044 /
+`perp_tape`+17 / `polymarket_macro_pairs`+16 / `sports_pairs`+210 / `weather_books`+543, all
+`dt=2026-07-28`); 8,192 already-present lines skipped; `git diff --numstat` over `tape/` shows
+**0 deletions**, confirming nothing was reordered or rewritten. Branch left in place (cloud
+sessions cannot push/delete against `origin` — L4, confirmed again in prior runs).
+
+Q0-Q48 rescan: unchanged, **queue saturated** (Q19/Q48 FOMC burst window is today
+17:40-19:45Z but had not opened at run time ~00:10Z; Q37 ~08-05; Q36/Q43 density-inadequate;
+all else DONE/DEAD/BLOCKED) → **IDLE RUN**, policy (a).
+
+**Candidate selection.** A raw grep of `kb/lessons/00-lessons.md` for `**UNENFORCED**` returns
+39 rows, which is misleading — L188/L211/L215/L217 formally disposed of 24 of them via the
+machine-readable `DISPOSES:` marker while leaving the original row text untouched. Used the
+repo's own index instead (`invariants._parse_lesson_rows` + `_lesson_disposed_ids`), which
+reports exactly **7 genuinely open**: L145, L192, L207, L208, L210, L213, L214. L145 and L213
+are explicit Ryan-policy / Ryan-account-state calls; L214's candidate fix is a change to
+`collection/polymarket_pairs.py` (Ryan-gated collector lane). **Picked L210** — verified
+unbuilt by grep (no duplicate-`capture_id` check anywhere in `scripts/`, `core/`, `tests/`).
+
+**What the census actually found — L210 understated itself.** L210 recorded the collision as
+"cosmetic today (one day, off-by-one)" in `perp_tape` alone. A full scan of committed tape
+(**1,140,735 lines, every family**) finds **7 collided item groups across 3 families**:
+`perp_tape` `20260717T010032Z` (a `--backfill-funding` one-shot and a scheduled pass, differing
+in `mode`/`n_prints`/`start_ts`); `econ_prints` `20260716T092842Z` (**all 5** series KXCPI /
+KXCPICORE / KXCPIYOY / KXGDP / KXPAYROLLS written twice, 414ms apart); `anomalies`
+`20260714T091958Z` (two byte-identical summary rows 84ms apart — anything summing `n_anomalies`
+double-counts 324). The hazard has a live consumer already in-tree:
+`scripts/tape_gap_monitor.py::aggregate_family` counts distinct passes by `capture_id`, so its
+own UNDER-CAPTURE ratio undercounts passes by exactly the collision count.
+
+**The load-bearing design finding is what NOT to check.** The obvious rule — "one `capture_id`
+must map to one `captured_at`" — is WRONG. It fires a false positive on `hf_burst`, whose
+single committed capture_id legitimately spans **10 strikes over 1.3s** because one ladder
+round stamps each row as it is fetched. The correct discriminator is whether the **same logical
+item repeats** under one id: a pass walking a ladder visits each item once; two colliding
+passes revisit every item they share. Burst families are additionally exempted
+**structurally**, on the presence of a within-pass sequence field
+(`capture_seq`/`capture_mono_ns`/`round_index`) rather than a family name-list, so a future
+burst collector inherits the exemption with no edit to the detector.
+
+**Built:** `scripts/tape_gap_monitor.py::duplicate_capture_id_collisions` (+
+`WITHIN_PASS_SEQUENCE_FIELDS` / `ITEM_IDENTITY_FIELDS` tables and the
+`_collision_candidate_families` prefilter), wired non-gating into
+`scripts/invariants.py::duplicate_capture_id_warning` / `_duplicate_capture_id_issues` —
+imported from the monitor, never re-declared (L100). Non-gating because these are historical
+properties of already-committed append-only tape that no run can retroactively repair; gating
+would halt the loop forever over a fact. The prefilter is a regex skim that **unions every**
+`capture_id`/`captured_at` match on a line, so it can over-nominate a family (harmless — the
+authoritative `json.loads` pass re-checks it) but provably cannot under-nominate one; that
+asymmetry cuts the gate cost from ~16s to ~5s over 1.14M lines and is itself regression-tested.
+**15 new tests** (8 in `tests/test_tape_gap_monitor.py`, 7 in `tests/test_invariants.py`):
+hard assertions over frozen fixtures per the L201/L207 move, including the ladder-walk
+false-positive guard, the structural-exemption test looped over every sequence field, the
+prefilter no-under-nomination property (with a nested `captured_at`, the one shape where a
+regex could disagree with a top-level read), and malformed/keyless-line refusals. The single
+real-tree acceptance test is deliberately **structural and conditional** — it asserts the
+detector's contract (collisions carry >=2 real timestamps; a sequence-declaring family is never
+flagged) and pins **no count**, so ordinary tape growth cannot break it (the L191/L192
+live-document-growth hazard). Ledger bookkeeping: appended **L218** as the formal
+`DISPOSES: L210` row (L210's own text untouched, per append-don't-rewrite); the repo's open
+`**UNENFORCED**` count drops **7 -> 6**.
+
+Two-agent verdict rule **N/A** — tooling/detector build over committed tape: no registry flip,
+no bootstrap CI, no P&L, no kill decision (same posture as L109/L118/L126/L144/L150/L152/L185/
+L205). No network, no orders, no credentials touched. Still **0 proven edges**.
+
+**Gates (fresh, after the final edit):** `python3 scripts/invariants.py --full` -> exit 0,
+`invariants: all green`; advisory set unchanged except the intended NEW L210 stanza (7 collided
+groups / 3 families), alongside the pre-existing non-gating classes (stranded-`tape/hourly-*`
+ref, 4 directory-shaped `dt=` orphans L25/L109, 26 daily-cadence missing days L74, hollow crypto
+ladders L168/L169, capped-pagination `settlement_ledger` L185, 36 raw-`fromisoformat` sites
+L138, 4 dangling test-citations L205, 4 recovery-dwell findings L157, 6 unguarded
+binary-settlement comparisons L52). `python3 -m pytest -o addopts="" -q` -> **2218 passed in 3395.69s (0:56:35), 0 failed**, exit 0 — taken FRESH after the final code edit (the memory-bound in `duplicate_capture_id_collisions`); an earlier in-flight run was killed and restarted rather than trusted, per L162. 2218 = 2203 prior + 15 new, consistent with this run's only diff. The sole post-run edit is substituting this number into the two log documents, so the count stands as a floor.
+
+---
+
 ## 2026-07-28 17:57 ET — idle-run (policy a): L200 dashboard-parser divergence fixed + tests
 
 Cloud research-loop run, protocol v3. **Step 0a:** `origin/main` HEAD `9d7a25c` (PR #224),

@@ -1742,3 +1742,85 @@ def test_dangling_citation_real_tree_resolution_is_structural_L205():
         "test_dangling_citation_real_tree_resolution_is_structural_L205"
         in per_file["test_invariants.py"]
     )
+
+
+# ─── L210: colliding-capture_id advisory (non-gating) ──────────────────────────
+
+
+def _write_cap_tape(tape_root, family, day, records):
+    import json as _json
+    fam = tape_root / family
+    fam.mkdir(parents=True, exist_ok=True)
+    with open(fam / f"dt={day}.jsonl", "w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(_json.dumps(rec) + "\n")
+
+
+def _perp_collision_rows():
+    base = {"capture_id": "20260717T010032Z", "record_type": "funding_rates",
+            "venue": "kalshi_perps"}
+    return [
+        dict(base, captured_at="2026-07-17T01:00:32.634200+00:00", mode="backfill",
+             n_prints=1447),
+        dict(base, captured_at="2026-07-17T01:00:32.886118+00:00", mode="recent",
+             n_prints=39),
+    ]
+
+
+def test_duplicate_capture_id_issues_missing_tape_root_is_empty_L210(tmp_path):
+    assert inv._duplicate_capture_id_issues(tmp_path / "nope") == []
+
+
+def test_duplicate_capture_id_issues_clean_tape_is_empty_L210(tmp_path):
+    _write_cap_tape(tmp_path, "perp_tape", "2026-07-17", [
+        {"capture_id": "c1", "captured_at": "2026-07-17T01:00:32.6+00:00",
+         "record_type": "orderbook", "ticker": "KXBTCPERP"},
+        {"capture_id": "c1", "captured_at": "2026-07-17T01:00:32.6+00:00",
+         "record_type": "orderbook", "ticker": "KXETHPERP"},
+    ])
+    assert inv._duplicate_capture_id_issues(tmp_path) == []
+
+
+def test_duplicate_capture_id_issues_finds_two_invocations_L210(tmp_path):
+    _write_cap_tape(tmp_path, "perp_tape", "2026-07-17", _perp_collision_rows())
+    issues = inv._duplicate_capture_id_issues(tmp_path)
+    assert len(issues) == 1
+    assert issues[0]["family"] == "perp_tape"
+    assert issues[0]["n_collisions"] == 1
+
+
+def test_duplicate_capture_id_issues_ladder_walk_is_no_issue_L210(tmp_path):
+    """A single pass walking a strike ladder stamps many captured_at under one
+    capture_id — the advisory must stay silent (the false-positive that a naive
+    uniqueness rule would produce)."""
+    _write_cap_tape(tmp_path, "weather_books", "2026-07-16", [
+        {"capture_id": "b1", "captured_at": f"2026-07-16T20:28:39.{i}+00:00",
+         "ticker": f"KXTEMPNYCH-T8{i}.99"} for i in range(1, 6)
+    ])
+    assert inv._duplicate_capture_id_issues(tmp_path) == []
+
+
+def test_duplicate_capture_id_warning_none_when_empty_L210():
+    assert inv.duplicate_capture_id_warning([]) is None
+
+
+def test_duplicate_capture_id_warning_message_content_L210(tmp_path):
+    _write_cap_tape(tmp_path, "perp_tape", "2026-07-17", _perp_collision_rows())
+    msg = inv.duplicate_capture_id_warning(inv._duplicate_capture_id_issues(tmp_path))
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "perp_tape" in msg
+    assert "20260717T010032Z" in msg
+    assert "mode" in msg
+    assert "L210" in msg
+    # The advisory must state its own false-positive exemption, so a reader can tell
+    # what a clean report does and does not mean (L155).
+    assert "capture_seq" in msg
+
+
+def test_duplicate_capture_id_issues_never_raises_on_garbage_L210(tmp_path):
+    """Best-effort contract: a malformed tree yields [] rather than poisoning the gate."""
+    fam = tmp_path / "perp_tape"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-17.jsonl").write_bytes(b"\xff\xfe not json at all\n")
+    assert inv._duplicate_capture_id_issues(tmp_path) == []

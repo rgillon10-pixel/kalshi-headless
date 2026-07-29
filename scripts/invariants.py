@@ -1308,6 +1308,84 @@ def capped_pagination_span_warning(issues: List[Dict[str, object]]) -> Optional[
     return "\n".join(lines)
 
 
+# ─── Colliding-capture_id advisory (L210: non-gating, offline-safe) ────────────
+
+# `capture_id` is a second-granularity pass LABEL, not a unique capture key: two DISTINCT
+# collector invocations that start inside the same wall-clock second share one id, and any
+# consumer that groups or de-duplicates by it then merges two different payloads into one
+# "pass". `scripts/tape_gap_monitor.py::aggregate_family` is itself such a consumer, so its
+# UNDER-CAPTURE pass ratio undercounts by exactly the collision count.
+#
+# The detector deliberately does NOT flag "one capture_id with several captured_at" — that
+# is the BENIGN shape of a ladder/burst round walking many strikes (hf_burst). It flags only
+# a REPEATED LOGICAL ITEM under one capture_id, and structurally exempts any family that
+# stamps its own within-pass sequence field. See tape_gap_monitor for the full argument.
+#
+# Non-gating: these are historical properties of already-committed append-only tape that no
+# run can retroactively repair, so gating would halt the loop indefinitely over a fact.
+#
+# Single source of truth: the check and its field tables are IMPORTED from
+# scripts/tape_gap_monitor.py via `_load_tape_gap_monitor`, never re-declared here (L100).
+
+
+def _duplicate_capture_id_issues(tape_root: Path = ROOT / "tape"
+                                 ) -> List[Dict[str, object]]:
+    """One issue dict per tape family with >=1 capture_id under which the SAME logical item
+    was written twice (two invocations sharing a second-granularity id, L210). Computed from
+    committed tape only — read-only, no network. Best-effort: any exception yields [], so it
+    can never poison the gate."""
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None or not tape_root.is_dir():
+            return []
+        candidates = tgm._collision_candidate_families(tape_root)
+        issues: List[Dict[str, object]] = []
+        for family in sorted(candidates):
+            res = tgm.duplicate_capture_id_collisions(tape_root, family, candidates[family])
+            if not res or not res.get("n_collisions"):
+                continue
+            issues.append({
+                "family": family,
+                "n_candidate_capture_ids": res["n_candidate_capture_ids"],
+                "n_collisions": res["n_collisions"],
+                "collisions": res["collisions"],
+            })
+        return issues
+    except Exception:
+        return []
+
+
+def duplicate_capture_id_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """A non-gating advisory naming every tape family whose `capture_id` is not a unique
+    join key — the same logical item written twice under one id by two distinct collector
+    invocations (L210). Pure. NEVER flips the exit code. See kb/lessons/00-lessons.md L210."""
+    if not issues:
+        return None
+    total = sum(int(i["n_collisions"]) for i in issues)
+    lines = [f"warning (non-gating): {total} colliding `capture_id` group(s) across "
+             f"{len(issues)} tape family(ies) — the SAME logical item written more than once "
+             f"under ONE second-granularity capture_id, i.e. two distinct collector "
+             f"invocations merged into one apparent pass (L210). Any consumer that groups or "
+             f"de-duplicates by `capture_id` (including tape_gap_monitor's own UNDER-CAPTURE "
+             f"pass ratio) undercounts passes and double-counts payload here:"]
+    for issue in issues:
+        lines.append(f"  - {issue['family']}: {issue['n_collisions']} collided item(s) over "
+                     f"{issue['n_candidate_capture_ids']} candidate capture_id(s)")
+        for col in list(issue["collisions"])[:3]:
+            key = ", ".join(f"{k}={v}" for k, v in col["item_key"]) or "<pass-summary row>"
+            diff = sorted(col["differing_fields"]) or ["<none — byte-identical payload>"]
+            lines.append(f"      {col['capture_id']} [{key}]: "
+                         f"{col['n_distinct_captured_at']} distinct captured_at; "
+                         f"differing field(s): {', '.join(str(d) for d in diff[:6])}")
+    lines.append("  Benign ladder/burst rounds are NOT flagged: a family stamping its own "
+                 "within-pass sequence field (capture_seq/capture_mono_ns/round_index) is "
+                 "structurally exempt, so hf_burst's 10-strike round reads clean. Computed "
+                 "from committed tape only via scripts/tape_gap_monitor.py::"
+                 "duplicate_capture_id_collisions. Advisory only — does NOT affect the exit "
+                 "code. See kb/lessons/00-lessons.md L210.")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -2850,6 +2928,20 @@ def main() -> int:
                 sys.stderr.write(capped_span_warning + "\n")
         except BaseException:
             sys.stderr.write("note: capped-pagination span advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L210 advisory: a `capture_id` shared by two DISTINCT collector invocations (a
+        # one-shot backfill landing in the same wall-clock second as a scheduled pass), so
+        # the same logical item appears twice under one id and any consumer grouping by that
+        # key merges two payloads. Non-gating — a historical property of committed
+        # append-only tape that no run can retroactively repair. Wrapped in
+        # `except BaseException` for the same reason as the stanza above: a raise in the
+        # FORMATTER must not turn a non-gating advisory into a gate (L156 DEFECT-1).
+        try:
+            dup_capture_warning = duplicate_capture_id_warning(_duplicate_capture_id_issues())
+            if dup_capture_warning:
+                sys.stderr.write(dup_capture_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: colliding-capture_id advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.
