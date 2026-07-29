@@ -201,6 +201,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -775,6 +776,229 @@ def capped_pagination_span_coverage(tape_root: Path,
         "n_captures_narrow": len(narrow),
         "captures": captures,
         "narrow_captures": narrow,
+    }
+
+
+# ─── Colliding-capture_id detector (L210: non-gating, offline-safe) ─────────────
+
+# `capture_id` is a SECOND-GRANULARITY pass LABEL (`YYYYMMDDThhmmssZ`), not a unique
+# capture key. Two things can therefore share one id:
+#
+#   (a) BENIGN — one pass that walks several items and stamps each row with its own
+#       `captured_at` (a ladder/burst round). `hf_burst`'s single committed capture_id
+#       covers 10 strikes over 1.3s. Grouping those by capture_id is CORRECT: they are
+#       one round.
+#   (b) HAZARDOUS — two genuinely DISTINCT invocations that happened to start inside the
+#       same wall-clock second, e.g. a `--backfill-funding` one-shot landing on top of a
+#       scheduled `perp_tape` pass (L210's original observation). A consumer that groups
+#       or de-duplicates by capture_id then sees ONE pass where there were TWO, silently
+#       merging two different payloads.
+#
+# The discriminator between (a) and (b) is NOT "how many `captured_at` values does this
+# capture_id have" — that flags the benign ladder walk. It is: **does the SAME logical
+# item appear twice under one capture_id?** A pass walking a ladder visits each item
+# once; two passes colliding revisit every item they share. So the check is
+# `(capture_id, item_identity) -> {captured_at}` and a collision is `len(...) > 1`.
+#
+# `scripts/tape_gap_monitor.py` itself consumes the flawed key (`aggregate_family`'s
+# distinct-pass counter keys on `capture_id`), which is why this lives here: the
+# UNDER-CAPTURE ratio undercounts passes by exactly the number of collisions.
+#
+# Non-gating. These are HISTORICAL properties of already-committed append-only tape; no
+# run can retroactively repair them, so gating would halt the loop forever over a fact.
+
+# Fields whose presence means the family declares its OWN within-pass ordering, so several
+# `captured_at` under one `capture_id` are BY DESIGN (case (a)) and the family is exempt.
+# This is a STRUCTURAL exemption keyed on the schema, never a hard-coded family name-list:
+# a new burst collector that stamps `capture_seq` inherits it without an edit here.
+WITHIN_PASS_SEQUENCE_FIELDS: Tuple[str, ...] = (
+    "capture_seq",
+    "capture_mono_ns",
+    "round_index",
+)
+
+# Candidate fields for a row's logical identity WITHIN one pass, most specific first. The
+# item key is the tuple of whichever of these the row actually carries; a row carrying none
+# of them has identity "the pass summary itself" (empty key), which is correct — a family
+# like `anomalies` writes exactly one summary row per pass, so two summary rows under one
+# capture_id ARE two passes.
+ITEM_IDENTITY_FIELDS: Tuple[str, ...] = (
+    "record_type",
+    "ticker",
+    "market_ticker",
+    "event_ticker",
+    "series",
+    "series_key",
+    "coin",
+    "symbol",
+    "pair_id",
+    "venue",
+)
+
+_CAPTURE_ID_RE = re.compile(r'"capture_id"\s*:\s*"([^"]*)"')
+_CAPTURED_AT_RE = re.compile(r'"captured_at"\s*:\s*"([^"]*)"')
+
+
+def _collision_candidate_families(tape_root: Path) -> Dict[str, List[str]]:
+    """CHEAP prefilter: family -> capture_ids that carry >1 distinct ``captured_at``.
+
+    A regex skim (no JSON parse) over every committed line. Full ``json.loads`` of all
+    ~1.1M committed lines costs ~16s on every gate run; this costs ~5s and returns the
+    identical candidate set, with the authoritative parse deferred to the handful of
+    families that actually have a candidate.
+
+    Soundness of the shortcut: it UNIONS **every** ``capture_id``/``captured_at`` match on
+    the line, including any nested one. A union can only ever ADD distinct values, so this
+    can over-nominate a family (harmless — pass 2 re-checks it authoritatively with
+    ``json.loads``) but it can NEVER under-nominate one relative to a top-level-only read.
+    That asymmetry is what makes it safe to use as a gate on the expensive pass.
+    """
+    out: Dict[str, List[str]] = {}
+    if not tape_root.is_dir():
+        return out
+    for fam_dir in sorted(p for p in tape_root.iterdir() if p.is_dir()):
+        seen: Dict[str, set] = {}
+        for _d, path in _family_files(tape_root, fam_dir.name):
+            try:
+                fh = open(path, "r", encoding="utf-8")
+            except OSError:
+                continue
+            with fh:
+                for line in fh:
+                    if not line.strip():
+                        continue
+                    cids = _CAPTURE_ID_RE.findall(line)
+                    if not cids:
+                        continue
+                    cas = _CAPTURED_AT_RE.findall(line)
+                    if not cas:
+                        continue
+                    for cid in cids:
+                        seen.setdefault(cid, set()).update(cas)
+        cands = sorted(c for c, v in seen.items() if len(v) > 1)
+        if cands:
+            out[fam_dir.name] = cands
+    return out
+
+
+def duplicate_capture_id_collisions(tape_root: Path,
+                                    family: str,
+                                    candidate_ids: Optional[List[str]] = None
+                                    ) -> Optional[Dict[str, Any]]:
+    """Capture_ids under which the SAME logical item was written more than once (L210).
+
+    Returns ``None`` when the family has nothing to judge (no tape, or no candidate
+    capture_id) — an honest "no claim", never a fabricated clean bill. Returns a summary
+    dict with ``n_collisions == 0`` when candidates existed but every one resolved to a
+    benign single-pass ladder walk.
+
+    What it refuses to guess (mirrors ``extract_completeness``'s "no signal, never a
+    guess"):
+
+    * a family whose rows carry a ``WITHIN_PASS_SEQUENCE_FIELDS`` member is reported
+      ``exempt_reason="declares_within_pass_sequence"`` with ``n_collisions=0`` — its
+      multi-``captured_at`` capture is a documented round, not a collision, and calling it
+      one would be a false positive;
+    * a row with no ``capture_id`` or no ``captured_at`` is skipped, never assigned to a
+      neighbouring pass;
+    * a malformed line is skipped, never counted as either clean or colliding.
+
+    Per-collision fields: ``capture_id``, ``item_key`` (the identity fields that repeated),
+    ``n_distinct_captured_at``, ``captured_at_values``, and ``differing_fields`` — the
+    scalar fields that actually DIFFER between the collided rows (``mode`` for perp_tape's
+    backfill-vs-recent), which is the evidence that they were two invocations.
+    """
+    if candidate_ids is None:
+        cands = _collision_candidate_families(tape_root).get(family, [])
+    else:
+        cands = list(candidate_ids)
+    if not cands:
+        return None
+    cand_set = set(cands)
+
+    # (capture_id, item_key) -> {captured_at: [row-scalars]}. Bounded: only rows whose
+    # capture_id is one of the (few) candidates are ever retained.
+    groups: Dict[Tuple[str, Tuple[Tuple[str, str], ...]], Dict[str, List[Dict[str, Any]]]] = {}
+    declares_sequence = False
+    n_rows_examined = 0
+    for _d, path in _family_files(tape_root, family):
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                cid = rec.get("capture_id")
+                cap_at = rec.get("captured_at")
+                if not isinstance(cid, str) or cid not in cand_set:
+                    continue
+                if not isinstance(cap_at, str):
+                    continue
+                n_rows_examined += 1
+                if any(rec.get(f) is not None for f in WITHIN_PASS_SEQUENCE_FIELDS):
+                    declares_sequence = True
+                item_key = tuple(
+                    (f, str(rec[f])) for f in ITEM_IDENTITY_FIELDS
+                    if rec.get(f) is not None
+                )
+                scalars = {
+                    k: v for k, v in rec.items()
+                    if isinstance(v, (str, int, float, bool)) and k != "captured_at"
+                }
+                # Retain only the FIRST row's scalars per (item, captured_at): that is all
+                # `differing_fields` reads, and it keeps a pathologically large candidate
+                # capture (a 100k-row sweep pass) memory-bounded rather than O(rows) (L10).
+                slot = groups.setdefault((cid, item_key), {}).setdefault(cap_at, [])
+                if not slot:
+                    slot.append(scalars)
+
+    if declares_sequence:
+        return {
+            "family": family,
+            "n_candidate_capture_ids": len(cand_set),
+            "n_rows_examined": n_rows_examined,
+            "n_collisions": 0,
+            "collisions": [],
+            "exempt_reason": "declares_within_pass_sequence",
+        }
+
+    collisions: List[Dict[str, Any]] = []
+    for (cid, item_key), by_time in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        if len(by_time) < 2:
+            continue
+        # Which scalar fields actually differ across the collided rows? That difference is
+        # the evidence of two distinct invocations rather than one retried write.
+        differing: Dict[str, List[Any]] = {}
+        per_time_first = [rows[0] for _t, rows in sorted(by_time.items()) if rows]
+        all_keys = sorted({k for s in per_time_first for k in s})
+        for k in all_keys:
+            vals = [s.get(k) for s in per_time_first]
+            if len({repr(v) for v in vals}) > 1:
+                differing[k] = vals
+        collisions.append({
+            "capture_id": cid,
+            "item_key": list(item_key),
+            "n_distinct_captured_at": len(by_time),
+            "captured_at_values": sorted(by_time),
+            "differing_fields": differing,
+        })
+
+    return {
+        "family": family,
+        "n_candidate_capture_ids": len(cand_set),
+        "n_rows_examined": n_rows_examined,
+        "n_collisions": len(collisions),
+        "collisions": collisions,
+        "exempt_reason": None,
     }
 
 

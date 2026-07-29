@@ -1136,3 +1136,174 @@ def test_acceptance_12_l185_settlement_ledger_real_tape_span_vs_cadence():
         # L185's arithmetic: the observed event rate the 5000-row cap is spent against.
         assert rec["rows_per_hour"] > 500, rec
         assert rec["coverage_ceiling_fraction"] == rec["span_ratio"]
+
+
+# ─── L210: `capture_id` is a pass LABEL, not a unique join key ──────────────────
+#
+# Hard assertions live over FIXTURES (the L201/L207 move); the one real-tree test below
+# is deliberately STRUCTURAL/conditional so it cannot be broken by ordinary tape growth.
+
+
+def _cap_row(cid, captured_at, **extra):
+    r = {"capture_id": cid, "captured_at": captured_at}
+    r.update(extra)
+    return r
+
+
+def test_l210_no_tape_at_all_makes_no_claim(tmp_path):
+    assert tgm._collision_candidate_families(tmp_path) == {}
+    assert tgm.duplicate_capture_id_collisions(tmp_path, "perp_tape") is None
+
+
+def test_l210_clean_single_pass_is_not_a_candidate(tmp_path):
+    """One invocation, one captured_at, several distinct items — nothing to flag."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-17", [
+        _cap_row("c1", "2026-07-17T01:00:32.6+00:00", record_type="orderbook", ticker="KXBTCPERP"),
+        _cap_row("c1", "2026-07-17T01:00:32.6+00:00", record_type="orderbook", ticker="KXETHPERP"),
+    ])
+    assert tgm._collision_candidate_families(tmp_path) == {}
+    assert tgm.duplicate_capture_id_collisions(tmp_path, "perp_tape") is None
+
+
+def test_l210_two_invocations_in_one_second_are_flagged(tmp_path):
+    """L210's exact shape: a `--backfill-funding` one-shot landing in the same wall-clock
+    second as a scheduled pass. Same capture_id, same logical item (funding_rates), two
+    genuinely different payloads — distinguishable only by `mode`."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-17", [
+        _cap_row("20260717T010032Z", "2026-07-17T01:00:32.634200+00:00",
+                 record_type="funding_rates", venue="kalshi_perps", mode="backfill",
+                 n_prints=1447, start_ts=1780012800),
+        _cap_row("20260717T010032Z", "2026-07-17T01:00:32.886118+00:00",
+                 record_type="funding_rates", venue="kalshi_perps", mode="recent",
+                 n_prints=39, start_ts=1784163632),
+    ])
+    res = tgm.duplicate_capture_id_collisions(tmp_path, "perp_tape")
+    assert res["n_collisions"] == 1
+    assert res["exempt_reason"] is None
+    col = res["collisions"][0]
+    assert col["capture_id"] == "20260717T010032Z"
+    assert col["n_distinct_captured_at"] == 2
+    # `mode` is the evidence that these were two invocations, not one retried write.
+    assert "mode" in col["differing_fields"]
+    assert sorted(col["differing_fields"]["mode"]) == ["backfill", "recent"]
+
+
+def test_l210_ladder_walk_within_one_pass_is_not_flagged(tmp_path):
+    """THE false-positive guard. One pass walking a 5-strike ladder stamps 5 different
+    `captured_at` under ONE capture_id. That is a single round, not a collision, and a
+    naive "one capture_id must have one captured_at" rule would wrongly flag it. No item
+    repeats, so the item-identity rule reads it clean WITHOUT needing the exemption."""
+    _write_lines(tmp_path, "weather_books", "2026-07-16", [
+        _cap_row("20260716T202839Z", f"2026-07-16T20:28:39.{i}00000+00:00",
+                 ticker=f"KXTEMPNYCH-26JUL1617-T8{i}.99")
+        for i in range(1, 6)
+    ])
+    # It IS a prefilter candidate (5 distinct captured_at)...
+    assert "weather_books" in tgm._collision_candidate_families(tmp_path)
+    # ...and the authoritative pass correctly clears it.
+    res = tgm.duplicate_capture_id_collisions(tmp_path, "weather_books")
+    assert res["n_collisions"] == 0
+    assert res["collisions"] == []
+
+
+def test_l210_within_pass_sequence_field_structurally_exempts(tmp_path):
+    """A family that stamps its own within-pass ordering declares that several captured_at
+    per capture_id are BY DESIGN. The exemption is keyed on the SCHEMA FIELD, not on a
+    family name-list, so a new burst collector inherits it with no edit to the detector."""
+    for field in tgm.WITHIN_PASS_SEQUENCE_FIELDS:
+        root = tmp_path / field
+        _write_lines(root, "hf_burst", "2026-07-16", [
+            _cap_row("b1", "2026-07-16T20:28:39.3+00:00", ticker="KX-A", **{field: 0}),
+            # Same ticker twice — would collide but for the declared sequence.
+            _cap_row("b1", "2026-07-16T20:28:39.5+00:00", ticker="KX-A", **{field: 1}),
+        ])
+        res = tgm.duplicate_capture_id_collisions(root, "hf_burst")
+        assert res["exempt_reason"] == "declares_within_pass_sequence", field
+        assert res["n_collisions"] == 0, field
+
+
+def test_l210_pass_summary_row_with_no_item_fields_still_collides(tmp_path):
+    """The `anomalies` shape: one summary row per pass carrying no item-identity field at
+    all. Two such rows under one capture_id are two passes — the empty item key is the
+    correct identity here, not a reason to abstain."""
+    payload = dict(n_anomalies=324, n_markets_scanned=20000, completeness_ok=True)
+    _write_lines(tmp_path, "anomalies", "2026-07-14", [
+        _cap_row("20260714T091958Z", "2026-07-14T09:19:58.634583+00:00", **payload),
+        _cap_row("20260714T091958Z", "2026-07-14T09:19:58.718011+00:00", **payload),
+    ])
+    res = tgm.duplicate_capture_id_collisions(tmp_path, "anomalies")
+    assert res["n_collisions"] == 1
+    col = res["collisions"][0]
+    assert col["item_key"] == []
+    # Byte-identical payloads: nothing differs, which is itself the honest report.
+    assert col["differing_fields"] == {}
+
+
+def test_l210_malformed_and_keyless_lines_are_skipped_never_fabricated(tmp_path):
+    fam = tmp_path / "perp_tape"
+    fam.mkdir(parents=True)
+    with open(fam / "dt=2026-07-17.jsonl", "w", encoding="utf-8") as f:
+        f.write("{not json\n")
+        f.write("\n")
+        f.write(json.dumps([1, 2, 3]) + "\n")                      # not a dict
+        f.write(json.dumps({"captured_at": "2026-07-17T01:00:00+00:00"}) + "\n")  # no cid
+        f.write(json.dumps({"capture_id": "c1"}) + "\n")           # no captured_at
+    assert tgm._collision_candidate_families(tmp_path) == {}
+    assert tgm.duplicate_capture_id_collisions(tmp_path, "perp_tape") is None
+
+
+def test_l210_prefilter_never_under_nominates_relative_to_json_parse(tmp_path):
+    """Soundness of the cheap regex prefilter: it may over-nominate (harmless — the
+    authoritative pass re-checks) but must NEVER miss a family that an honest top-level
+    `json.loads` read would nominate. Includes a NESTED captured_at, the one shape where a
+    regex could in principle disagree with a top-level read."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-17", [
+        _cap_row("c1", "2026-07-17T01:00:32.6+00:00", record_type="funding_rates"),
+        _cap_row("c1", "2026-07-17T01:00:32.8+00:00", record_type="funding_rates"),
+    ])
+    _write_lines(tmp_path, "crypto_hourly", "2026-07-17", [
+        _cap_row("c2", "2026-07-17T02:00:00.1+00:00", ticker="KXBTC",
+                 current={"captured_at": "2026-07-17T02:00:00.9+00:00"}),
+    ])
+    regex_cands = tgm._collision_candidate_families(tmp_path)
+
+    json_cands = {}
+    for fam_dir in sorted(p for p in tmp_path.iterdir() if p.is_dir()):
+        seen = {}
+        for _d, path in tgm._family_files(tmp_path, fam_dir.name):
+            for line in open(path, encoding="utf-8"):
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                cid, cap = rec.get("capture_id"), rec.get("captured_at")
+                if isinstance(cid, str) and isinstance(cap, str):
+                    seen.setdefault(cid, set()).add(cap)
+        hits = sorted(c for c, v in seen.items() if len(v) > 1)
+        if hits:
+            json_cands[fam_dir.name] = hits
+
+    for fam, ids in json_cands.items():
+        assert fam in regex_cands, f"prefilter under-nominated {fam}"
+        assert set(ids) <= set(regex_cands[fam]), f"prefilter under-nominated ids in {fam}"
+
+
+def test_acceptance_13_l210_real_tape_capture_id_collisions_are_reported():
+    """Real committed tape, read-only. STRUCTURAL/conditional by design (L192/L207): it
+    asserts the detector's CONTRACT holds over the live tree, never a pinned count that
+    ordinary tape growth would break."""
+    root = _MOD_PATH.resolve().parent.parent / "tape"
+    if not root.is_dir():
+        pytest.skip("no committed tape in this checkout")
+    cands = tgm._collision_candidate_families(root)
+    for family, ids in cands.items():
+        res = tgm.duplicate_capture_id_collisions(root, family, ids)
+        assert res is not None
+        assert set(res) >= {"family", "n_collisions", "collisions", "exempt_reason"}
+        assert res["n_collisions"] == len(res["collisions"])
+        for col in res["collisions"]:
+            # A reported collision always carries its evidence: >=2 real timestamps.
+            assert col["n_distinct_captured_at"] >= 2
+            assert len(col["captured_at_values"]) == col["n_distinct_captured_at"]
+        # A family that declares its own within-pass sequence must never be flagged.
+        if res["exempt_reason"] == "declares_within_pass_sequence":
+            assert res["n_collisions"] == 0
