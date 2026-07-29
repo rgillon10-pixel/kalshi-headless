@@ -6,6 +6,78 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 ~14:1x ET — research loop: idle-run policy (a) — L223 disposed, econ_prints gets a settlement-status regression advisory
+
+Protocol v3 run. Step 0a: `git fetch --unshallow origin` + `git merge-base --is-ancestor` confirmed
+the local sandbox's stale `main` ref (a container artifact) IS an ancestor of `origin/main`'s
+real tip — no rewind. `kb/00-LOG.md`'s newest entry and the newest committed tape day-file are
+both 2026-07-29. Step 0: open PRs #208/#191/#166/#165/#125 — all previously-flagged
+leave-open-for-Ryan / Ryan's own drafts, none claim eligible work.
+
+Full Q0-Q48 re-scan (each item's current/topmost Status line): still saturated — every item is
+DONE/DEAD/BLOCKED or calendar/density-gated. **Q48/S55's FOMC burst window (17:40-19:45Z today)
+is now ACTIVELY OPEN** (run started ~18:11Z, statement at 18:00Z already passed) — `git
+ls-remote` shows `tape/burst-chunk1-20260729T1803Z` carrying two real chunk commits
+(`crypto_hourly`/`econ_prints`/`polymarket_macro_pairs`, `dt=2026-07-29`, spanning the 18:00Z
+release), plus two decoy `tape/burst-20260729T{1752,1803}Z` branches that point at a stale ref
+with no new content (a failed-push artifact, not real chunks). By the time this run's own gates
+finished (~18:50Z), `tape/burst-chunk2-20260729T1826Z` and `tape/burst-chunk3-20260729T1848Z`
+had also landed — the burst is genuinely still mid-flight (3-of-6 chunks so far, minutes old
+each, well under the step-0b 30-minute skip threshold) — so this run correctly does NOT sweep or
+probe any of it; that lands on the next scheduled firing, after the 19:45Z window closes. →
+IDLE RUN (Q48 still not actionable — burst incomplete, not merely ungated).
+
+**Candidate selection.** `invariants._stale_unenforced_scan()` reports 7 genuinely open
+`**UNENFORCED**` rows: L145/L208/L213/L214 (Ryan-policy/account-state/collector-lane, out of
+scope per 5+ prior runs) and L221/L222/L223 (new from the 2026-07-29 ~09:1xZ `econ_prints`
+audit, PR #230; L224 of that same batch was already disposed by PR #231). Of the three,
+**L223** ("a `no_settled_events`-shaped status that counts toward `pass_complete` converts a
+regression into silence") had the most self-contained candidate: a per-`series_key` check over
+already-committed tape, no collector/schema change. (L221's fix touches the LIVE
+`hourly_pass.py` econ_prints cadence gate — deferred rather than edited mid-FOMC-window; L222
+needs a new persisted field across every collector, broader design work than one milestone.)
+
+**Built:** `scripts/invariants.py::_econ_prints_settlement_regression_issues` /
+`econ_prints_settlement_regression_warning`, wired non-gating into `main()`'s `--full` advisory
+block (`except BaseException`-wrapped, matching the collector-health/hollow-ladder/
+capped-pagination/duplicate-capture-id stanzas' posture). Per `series_key` in
+`tape/econ_prints/`, once a `settled` status has been observed, any LATER run of 3+ consecutive
+`no_settled_events` captures for that key is flagged — reads committed tape only, never touches
+the collector. Re-derived the shape fresh from real tape before writing the check: only `gdp`
+regresses (one real settlement `KXGDP-26APR30` on 2026-07-05, then **341** consecutive
+`no_settled_events` passes since 2026-07-06T09:24:18Z — L223's own count of 340 was current as
+of its write-up; the family kept collecting since); `cpi_mom`/`cpi_core_mom`/`cpi_yoy`/
+`payrolls` each settle once and never regress. Live run against real tape: exactly 1 issue
+(`gdp`, streak 341); `python3 scripts/invariants.py --full` → exit 0, all green.
+
+12 new tests in `tests/test_invariants.py`: warning-empty/message-content, the real gdp-shape
+reproduction, below-threshold-is-empty, never-settled-yet-is-not-a-regression (the documented
+normal case), settled-only-is-empty, a resettlement-resets-the-streak case (a fresh `settled`
+row must reset the trailing count), missing-dir/missing-root/malformed-JSON-never-raises
+(best-effort contract matching every sibling advisory), a configurable-`min_streak` case, and
+the `main()`-level never-gates-exit-code case (mirrors `test_daily_family_gap_warning_never_
+gates_exit_code`'s exact pattern). Ledger: appended **L226** as the `DISPOSES: L223` row
+(L223's text untouched); open `**UNENFORCED**` count 7 → 6 (`L145`, `L208`, `L213`, `L214`,
+`L221`, `L222`).
+
+Two-agent rule N/A — this is a data-quality advisory build, not a registry status flip,
+bootstrap CI, or kill decision (same posture as L200-item-1/L210/L211/L215/L217/L218/L219/L220/
+L225).
+
+No network, no orders, no credentials. Still **0 proven edges**.
+
+**Gates:** `python3 scripts/invariants.py --full` → exit 0, all green (same pre-existing
+non-gating advisory classes as base `main`, plus the intended new L223 stanza: VPS collector
+leg still dead and climbing [Ryan-side]; L168/L169 hollow-crypto-ladder; L185 capped-pagination;
+L210 colliding capture_id; L138 raw-`fromisoformat`; L157/L205/L52; 6 open `UNENFORCED` rows).
+`python3 -m pytest -o addopts="" -q` → **2236 passed in 1783.67s (0:29:43), 0 failed** (2224
+prior + 12 new; fresh full background run, taken after this diff's last edit).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (`dead ✗` per Q34,
+paper-infra validation only — NOT edge evidence). `scripts/paper_pass.py`: 0 newly processed
+(this run's diff touched no tape), ledger unchanged **+$22.47** (`broker_truth`, 1,248 settled
+contracts, 0 open).
+
 ## 2026-07-29 ~15:1xZ UTC — research loop: step 0b genuine recovery (2,128 stranded lines, `tape/hourly-20260729T1010Z`)
 
 Protocol v3 run. Step 0a: local sandbox started on a stale `main` ref (50 commits behind

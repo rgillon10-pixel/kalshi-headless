@@ -1386,6 +1386,106 @@ def duplicate_capture_id_warning(issues: List[Dict[str, object]]) -> Optional[st
     return "\n".join(lines)
 
 
+# ─── Econ-print settlement-status regression advisory (L223: non-gating, offline-safe) ──
+#
+# L223: `collection/econ_prints.py::fetch_recent_settlement` treats `no_settled_events` as a
+# valid, non-error status (`pass_complete` counts it as OK) — correct for a series that has
+# never settled anything, but the SAME status also fires once a series' settled-events query
+# stops finding an event it previously found. Real-tape instance: the `gdp` leg reported one
+# real settlement (`KXGDP-26APR30`, 2026-07-05) then `no_settled_events` on all 340+ passes
+# through 2026-07-29 while `pass_complete: true` held throughout — a silent 23+ day regression
+# that reads identically to "this series never had a settlement." This advisory is a
+# TAPE-LEVEL detector (reads committed tape only, never touches the collector): for each
+# `series_key`, once a `settled` status has been observed, any LATER run of
+# `ECON_PRINTS_REGRESSION_MIN_STREAK`-or-more consecutive `no_settled_events` captures for that
+# same key is flagged. NON-GATING: the fix (a collector/upstream-API change) is nothing a
+# cloud run can make mid-loop, and the condition, once true, stays true on every future pass
+# until a human repairs it — gating would halt the loop indefinitely over an unfixable state.
+
+ECON_PRINTS_REGRESSION_MIN_STREAK = 3
+
+
+def _econ_prints_settlement_regression_issues(
+        tape_root: Path = ROOT / "tape",
+        min_streak: int = ECON_PRINTS_REGRESSION_MIN_STREAK) -> List[Dict[str, object]]:
+    """Per `series_key` in `tape/econ_prints/`, detect a `recent_settlement.status`
+    regression from `settled` back to `no_settled_events` sustained for >= `min_streak`
+    consecutive captures (lesson L223). Read-only, offline, chronological over committed
+    `dt=<date>.jsonl` files (append-only within each file, files sorted by name so days are
+    read in order). Best-effort: any exception (missing dir, malformed line, absent field) is
+    swallowed and skips just that line/family, never poisoning the gate."""
+    family_dir = tape_root / "econ_prints"
+    if not family_dir.is_dir():
+        return []
+    by_key: Dict[str, List[Tuple[str, str, Optional[str]]]] = {}
+    for path in sorted(family_dir.glob("dt=*.jsonl")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    key = rec.get("series_key")
+                    rs = rec.get("recent_settlement")
+                    if not key or not isinstance(rs, dict):
+                        continue
+                    status = rs.get("status")
+                    if status not in ("settled", "no_settled_events"):
+                        continue
+                    by_key.setdefault(key, []).append(
+                        (rec.get("captured_at", ""), status, rs.get("event_ticker")))
+        except Exception:
+            continue
+    issues: List[Dict[str, object]] = []
+    for key, seq in by_key.items():
+        seen_settled: Optional[str] = None
+        streak = 0
+        streak_start: Optional[str] = None
+        for captured_at, status, event_ticker in seq:
+            if status == "settled":
+                seen_settled = event_ticker
+                streak = 0
+                streak_start = None
+            else:  # no_settled_events
+                if seen_settled is None:
+                    continue  # never settled — the normal, non-regressed case
+                if streak == 0:
+                    streak_start = captured_at
+                streak += 1
+        if seen_settled is not None and streak >= min_streak:
+            issues.append({
+                "series_key": key,
+                "last_settled_event_ticker": seen_settled,
+                "streak": streak,
+                "regression_since": streak_start,
+            })
+    return sorted(issues, key=lambda i: i["series_key"])
+
+
+def econ_prints_settlement_regression_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """A non-gating advisory naming any `tape/econ_prints/` series_key whose most recent
+    settlement went from a real `settled` value back to `no_settled_events` for
+    `ECON_PRINTS_REGRESSION_MIN_STREAK`-or-more consecutive passes. Pure. NEVER flips the exit
+    code. See kb/lessons/00-lessons.md L223."""
+    if not issues:
+        return None
+    lines = [f"warning (non-gating): {len(issues)} tape/econ_prints/ series_key(s) regressed "
+             f"from a real settlement back to `no_settled_events` — a status the collector "
+             f"treats as OK (`pass_complete` stays true) but that is indistinguishable here "
+             f"from a silent loss of a real settled event:"]
+    for issue in issues:
+        lines.append(f"  - {issue['series_key']}: last real settlement "
+                     f"{issue['last_settled_event_ticker']}, then {issue['streak']} "
+                     f"consecutive no_settled_events pass(es) since {issue['regression_since']}")
+    lines.append("  Computed from committed tape only. Advisory only — does NOT affect the "
+                 "exit code. See kb/lessons/00-lessons.md L223.")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -2943,6 +3043,20 @@ def main() -> int:
         except BaseException:
             sys.stderr.write("note: colliding-capture_id advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
+        # L223 advisory: a tape/econ_prints/ series_key that regressed from a real `settled`
+        # status back to `no_settled_events` for 3+ consecutive passes (the gdp leg: one real
+        # settlement, then 340+ silent no_settled_events passes). Non-gating — the fix is a
+        # collector/upstream-API change no cloud run can make mid-loop. Wrapped in
+        # `except BaseException` for the same reason as the stanzas above: a raise in the
+        # FORMATTER must not turn a non-gating advisory into a gate (L156 DEFECT-1).
+        try:
+            econ_regression_warning = econ_prints_settlement_regression_warning(
+                _econ_prints_settlement_regression_issues())
+            if econ_regression_warning:
+                sys.stderr.write(econ_regression_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: econ-prints settlement-regression advisory could not be "
+                             "computed (non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.
         iso_warning = raw_datetime_fromisoformat_warning(_raw_datetime_fromisoformat_sites())
