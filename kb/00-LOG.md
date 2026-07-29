@@ -6,6 +6,60 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 00:1x ET — edge-hunter: Q21 round 16 — S57 "complete-set underpricing arb" is a hollow-book false positive (verifier-CONFIRMED); FOMC burst fires today
+
+Nightly kalshi-edge-hunter run (Opus), protocol v3. **Steps 0a/0/0b clean:** `origin/main` HEAD
+`f0f92c7` (PR #227) is a linear squash chain #220→#227 (the `git pull` "forced-update" was the
+sandbox's stale remote-tracking ref catching up, not a rewind — every recent PR is present in `main`,
+newest `kb/00-LOG.md` 07-29 and newest tape 07-28 within 2 days); newest stranded branch
+`tape/hourly-20260728T2156Z` already fully swept by PR #226, no 07-29 branch yet.
+
+**Unit 1 — adversarial review (CLEAN).** The last-24h findings are the two 07-28 data-quality/tooling
+audits (polymarket-macro-pairs; stranded-tape bulk-family blind spot) — neither carries a
+price/fee/bootstrap verdict number. The one recurring load-bearing number is the paper P&L: re-checked
+its provenance directly from the ledger — all 1,248 fills tagged `real_bid`, all 1,248 settlements
+`broker_truth`, **zero synthetic fills** (a synthetic fill is forbidden). The +$22.47 is the DEAD S14
+shadow, correctly labelled paper-infra-only (S14 still `dead ✗` in the index per Q34). Nothing failed
+re-check → no issue opened, no history rewrite.
+
+**Unit 2 — Q21 replenishment (0 registered, the 16th consecutive zero round).** 0 eligible
+TODO/IN-PROGRESS. Rather than pad three shallow re-treads on unchanged tape (the treadmill the retro
+PR #208 flagged), executed **one** genuinely-new, un-foreclosed candidate through the full producer +
+independent `verifier` two-agent gate. **S57 — complete-set underpricing arb**, the INVERSE of the
+dead S1/S5/S7 taker-into-overround wall: is any MECE ladder ever *under*-round enough that buying
+every YES leg costs < $1 net of fees (a riskless payout)? = `core.pricing.true_arb_edge > 0` (Q6's
+math as a directed buy-side strategy). **KILL / hollow-book false positive**, verifier-CONFIRMED and
+generalized to a second family. Over 1,397 real `crypto_hourly` ladders (1,467 lines − 70 empty
+~20:00Z venue-hole captures giving a spurious +$1.00), exactly **1** shows edge > 0
+(`KXETH-26JUL1410`, bracket_sum 0.22, +$0.56) — and it is hollow: only 22 of 75 legs carry an offer,
+**all 22 are deep-OTM tails guaranteed to settle NO** (ETH spot ≈$1856; the near-spot winning bracket
+has no offer), the other 53 legs are unbuyable (`yes_ask=0`). `completeness_ok=True` +
+`member_count==captured_outcomes==75` do NOT rescue it — those flags count brackets *captured*, not
+brackets *offered* (L168). `weather_books` generalizes the kill: **1,097 apparent edge>0, ZERO
+fully-offered** (all stale/incomplete post-settlement books). Provenance clean (`real_ask`, taker
+0.07 via `core.pricing`; `yes_ask=0` is a real absence, not a $0 fill; crypto has no `yes_ask_size`).
+Corollary recorded under **L168** (not a new ID, per the verifier): any `true_arb_edge` census must
+require every leg `yes_ask>0` AND a real size before trusting `bracket_sum`. Surveyed **S58**
+(FOMC-instant dislocation maker-fade — DEFER, Q19/S17 burst domain already registered + gated to
+today's tape) and **S59** (post-anomaly reversion taker — idea-stage KILL, lookahead + L131 fill-wall
++ double taker fee). Consumed S57/S58/S59 → next free **S60**. NO registry change (prose-note
+precedent). Lesson corollary deferred to `kb-distiller`.
+
+**Unit 3 — probe-prep (already green).** The Q48/S55 FOMC-lag probe
+(`scripts/q48_s55_fomc_lag_probe.py`) is built with 44 offline tests passing; the FOMC burst trigger
+`kalshi-burst-fomc-0729` is enabled and correctly dated for **today 2026-07-29 17:40–19:45 UTC** — the
+probe is ready to execute against the first-ever FOMC decision burst tape.
+
+**Housekeeping.** 196 remote `tape/hourly-*` branches + 1 old `tape/burst-20260714T120659Z` (standing
+sweep debt, cloud can't delete). 4 passed-date burst triggers (`wcfinal-0719`/`cpi-0714`/
+`wcsemi1-0714`/`wcsemi2-0715`) already DISABLED but still present → named for deletion; `fomc-0729`
+kept. Open-PR review backlog #125(10d)/#165/#166(6d)/#191(4d) NOT re-alarmed (repeatedly flagged, #208
+consolidated the ask, no new info). **Gates:** `python3 scripts/invariants.py --full` exit 0, all
+green (standing non-gating advisories only); `pytest` green (docs-only diff, tree unchanged). **Step
+9:** `SHADOW_REGISTRY`={s14_ladder_underwriting} (DEAD per Q34, paper-infra only), no new tape this
+run, ledger unchanged **+$22.47** (`broker_truth`, 1,248 settled, 0 open). Still **0 proven edges**.
+See `findings/2026-07-29-q21-idea-gen-round.md`.
+
 ## 2026-07-28 23:5x ET — idle-run (policy a): L207 real-tree/frozen-fixture split closes the func-matcher hazard; L192 flagged stale (not disposed); paper P&L +$22.47
 
 Cloud research-loop run, protocol v3. **Steps 0a/0 completed at run start:** history-integrity
