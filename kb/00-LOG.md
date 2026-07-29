@@ -6,6 +6,63 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 03:1x ET — research loop: idle-run policy (a) — L192 formally disposed (the fix was already live, L219 deferred confirming it to a second party)
+
+Cloud research-loop run, protocol v3. Steps 0a/0/0b clean: `origin/main` HEAD `87c03d2` (PR
+#228) exact match after `git fetch`+rebase, no rewind (`kb/00-LOG.md` newest entry and newest
+committed tape both within 2 days). Claim-check: open PRs #208/#191/#166/#165/#125 — all
+known leave-open/draft/Ryan-review items, none claim eligible work. Step 0b: newest stranded
+`tape/hourly-*` branch is still `tape/hourly-20260728T2156Z`, already fully swept by PR #226 —
+nothing new to recover. Full Q0-Q48 re-scan (read in full, not skimmed): every item is
+DONE/DEAD/BLOCKED or calendar/density-gated; Q19/Q48's FOMC burst window (17:40-19:45 UTC
+today) had not opened at run time (~06:11 UTC) → IDLE RUN.
+
+**Idle-run policy (a).** `invariants._stale_unenforced_scan()` reports exactly 5 genuinely
+open `**UNENFORCED**` rows before this run: L145, L192, L208, L213, L214. L145/L213/L214 are
+Ryan-policy/account-state/collector-lane items already flagged as out of scope by prior runs;
+L208 names only a vague design sketch. **L192** was the one row with a fully-specified,
+already-resolved status: its
+own text names a precise 2-line test-split fix and says it is "owed to the research-lead."
+The immediately-preceding run (L219, same day) had already found via `git log -p bc50296` that
+this exact fix landed in the SAME commit that wrote L192's row — but deliberately declined to
+dispose L192 itself, calling that confirmation "a judgment call better made by a second
+party, not asserted in the same pass that found the discrepancy."
+
+This run is that second party. Independently re-derived the claim from scratch (not trusting
+L219's account): `git show bc50296 -- tests/test_invariants.py tests/test_stale_unenforced_advisory.py`
+confirms the diff performs exactly the split L192's "Proposed minimal fix" cell specified —
+`test_stale_unenforced_candidate_warning_never_gates_exit_code` narrowed to `rc == 0` /
+`"invariants: all green" in out` only (text-presence assertions removed), with the recall
+sentence TEXT reassigned to a new `test_stale_unenforced_advisory_text_on_the_frozen_fixture`
+that reads the frozen `tests/fixtures/lessons_unenforced_21_2026-07-27.md` fixture instead of
+the live ledger; the sibling `tests/test_stale_unenforced_advisory.py` carries the identical
+split (`test_advisory_is_non_gating_on_the_real_tree` / `test_advisory_text_is_pinned_on_the_frozen_fixture`).
+Confirmed all four node ids exist in the CURRENT tree and pass:
+`pytest -o addopts="" -q tests/test_invariants.py tests/test_stale_unenforced_advisory.py -k stale_unenforced`
+→ **12 passed**. Appended **L220** as the `DISPOSES: L192` row (L192's text untouched, per
+append-don't-rewrite); open `**UNENFORCED**` count 5 → 4 (`invariants._stale_unenforced_scan()`
+confirms: `open_unenforced_ids = (L145, L208, L213, L214)`). Two-agent verdict rule N/A
+(ledger disposition/test-hygiene bookkeeping — no registry status flip, no bootstrap CI, no
+P&L claim, no kill decision; same posture as L116/L118/L121/L122/L124/L128/L163/L166/L167/
+L172/L188/L219).
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗ per Q34,
+paper-infra validation only — NOT edge evidence). `scripts/paper_pass.py`: 0 newly processed
+event-hours (136 deferred(caps), 268 deferred(coverage), 164 already-in-ledger), ledger
+unchanged **+$22.47** (`broker_truth`, 1,248 settled contracts, 0 open). Still **0 proven
+edges**.
+
+**Gates**, taken fresh after the last edit (L162): `python3 -m pytest -o addopts="" -q` →
+**2219 passed in 1418.77s (0:23:38), 0 failed**, exit 0 (same count as the pre-edit baseline —
+docs-only diff, no code touched); `python3 scripts/invariants.py --full` → exit 0, `invariants:
+all green`, only pre-existing non-gating advisory classes (VPS collector leg still silent
+[Ryan-side]; L168/L169 hollow-crypto-ladder; L185 capped-pagination `settlement_ledger` span;
+L210 colliding-capture_id; L138 raw-`fromisoformat`; L205 dangling-test-citation [4 hits, 2
+distinct node ids, both pre-existing]; L157 recovery-dwell; L52 unguarded binary-settlement
+comparisons). No network, no orders, no credentials touched.
+
+---
+
 ## 2026-07-29 00:1x ET — edge-hunter: Q21 round 16 — S57 "complete-set underpricing arb" is a hollow-book false positive (verifier-CONFIRMED); FOMC burst fires today
 
 Nightly kalshi-edge-hunter run (Opus), protocol v3. **Steps 0a/0/0b clean:** `origin/main` HEAD
