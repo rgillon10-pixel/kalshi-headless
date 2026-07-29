@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 08:4x ET — research loop: idle-run policy (a) — L224 disposed, econ_prints `expiration_value` gets a normalized numeric field
+
+Protocol v3 run. Step 0a: `git fetch origin main` then re-checked HEAD — local matched
+`origin/main` exactly (`8985467`) before any work started, no rewind. Step 0: no open PR
+(#125/#165/#166/#191/#208, all pre-existing) claims a numbered queue item that's still
+TODO/IN-PROGRESS here — #208/#191 are explicitly leave-open/Ryan-review, #165/#166 are
+draft infra unrelated to this run's milestone. Step 0b: `scripts/tape_branch_sweep.py
+--limit 5` over the oldest/most-suspect malformed-name branches found 0 genuinely missing
+lines (3 branches capture_id-verified contained, 2 size-guard-skipped with no signal —
+consistent with the ongoing L216 blind spot, not new stranded data). Queue re-scan
+confirmed the edge-hunter's own 00:1x finding: 0 eligible TODO/IN-PROGRESS (all DONE /
+cred-BLOCKED / calendar-gated — Q48's FOMC burst window opens today 17:40–19:45 UTC, still
+~5h out at run start; Q37 ~08-05). Q48's probe was already fully hardened 07-27 (L180
+CLOSED) and Q37's milestone fully prepped 07-20 — neither had fresh prep work, so idle-run
+policy (b) had nothing to do.
+
+Took idle-run policy (a): the live census (`invariants._parse_lesson_rows` /
+`_lesson_disposed_ids`) showed 8 genuinely open `**UNENFORCED**` rows — `L145` (Ryan-flagged
+policy collision, deliberately untouched), `L208`/`L213`/`L214`/`L221`/`L222`/`L223` (larger
+collector-gating or provenance-schema changes, each a bigger surface for one run), and
+`L224` (econ_prints' `expiration_value` field is a string whose FORMAT varies — plain,
+percent-suffixed, comma-thousands — across real settled prints; `float()` raises on 3 of 8).
+L224 was the cleanest single-file, single-field fix, so it's this run's milestone.
+
+Re-derived the format census directly from committed tape before trusting L224's own
+citation: 8 distinct raw `expiration_value` strings across `tape/econ_prints/*.jsonl`
+(`-0.4`, `0%`, `0.2`, `0.5`, `2.0`, `3.5%`, `4.2`, `57,000`). Built
+`collection/econ_prints.py::_normalize_expiration_value()` — strips `%`/`,` before
+`float()`, returns `None` (never raises) on anything unparseable, deliberately does NOT
+rescale a percent string by /100 (kept at the magnitude Kalshi displays, matching the
+series' own strike thresholds — stated in the docstring, not silently assumed).
+`fetch_recent_settlement` now persists `expiration_value_numeric` ALONGSIDE the untouched
+raw `expiration_value` string, never overwriting it — the same provenance-preserving shape
+Hard Rule #4 already requires for price tags. 7 new tests in `tests/test_econ_prints.py`
+(all 8 real raw formats parametrized, a never-raises garbage case, 3 integration-level
+`fetch_recent_settlement` cases, the disagreeing-values case extended). `kb/lessons/00-lessons.md`
+L225 formally disposes L224 (DISPOSES: L224, terminal tier `test`).
+
+**Gates (fresh, taken after this run's last edit):** `python3 -m pytest -o addopts="" -q`
+→ **2224 passed, 0 failed** (2224 collected via `--collect-only`, same count); `python3
+scripts/invariants.py --full` → exit 0, `invariants: all green` (same pre-existing
+non-gating advisory set as base `main` — VPS collector still dead ~163h per L129, the
+FOMC burst-fallback risk per L213, orderbook_depth hollow-ladder days per L168/L169, etc.,
+none new). Two-agent verdict rule N/A — collector-correctness fix, not a registry flip,
+bootstrap CI, or kill decision.
+
+**Step 9 paper sub-pass:** `SHADOW_REGISTRY` still carries only `s14_ladder_underwriting`
+(dead ✗, paper-infra-validation-only per the 2026-07-19 retro amendment). `scripts/paper_pass.py`
+found 0 new fillable records since the last ledger entry (164 already-in-ledger, 136/268
+deferred on caps/coverage) — realized P&L unchanged at **+$22.47** (dead-strategy shadow,
+NOT edge evidence). No new `paper/` lines to commit.
+
+Still 0 proven edges. Branch `idle-run-l224-econ-prints-expiration-value-numeric`, PR
+opened and squash-merged after gates confirmed green. See `kb/lessons/00-lessons.md` L225.
+
 ## 2026-07-29 05:1x ET — research loop: idle-run policy (c) — second `econ_prints` tape audit finds a rate-gate/idempotence-gate confusion, an unattributed 65% of passes, and a settlement-value string typing gap
 
 Cloud research-loop run, protocol v3. Steps 0a/0/0b clean: `git fetch origin main` +
