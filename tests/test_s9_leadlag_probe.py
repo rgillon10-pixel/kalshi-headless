@@ -451,3 +451,60 @@ def test_build_burst_report_end_to_end():
     assert report["fee_model"]["poly_rate"] == pytest.approx(probe.POLYMARKET_US_TAKER_RATE)
     assert "poly_fee_free_sensitivity" in report
     assert report["poly_fee_free_sensitivity"]["fee_model"]["poly_rate"] == 0.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L236 — per-OBSERVATION magnitude decomposition (shared helper lives HERE; the S17
+# twin imports it rather than re-defining it, closing the L36/L102 duplicate-helper class)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_dislocation_magnitude_is_per_observation_not_per_episode_max():
+    residue = 1.734723475976807e-17
+    hits = [{"net_edge": residue}, {"net_edge": residue}, {"net_edge": 0.003},
+            {"net_edge": 0.02}]
+    episodes = [{"max_net_edge": residue, "n_captures": 1},
+                {"max_net_edge": 0.003, "n_captures": 2},   # hides one residue capture
+                {"max_net_edge": 0.02, "n_captures": 1}]
+    mag = probe.dislocation_magnitude(hits, episodes)
+    assert mag["n"] == 4
+    assert mag["n_residue"] == 2
+    assert mag["n_sub_tick"] == 3
+    assert mag["n_clears_tick"] == 1
+    assert mag["episode_max_view"]["n_residue"] == 1
+    assert mag["episode_max_view"]["n_captures_in_residue_episodes"] == 1
+    assert mag["understates_residue_by"] == 1
+
+
+def test_dislocation_magnitude_empty_scan_is_honest():
+    mag = probe.dislocation_magnitude([], [])
+    assert mag["n"] == 0
+    assert mag["sub_tick_share"] is None
+    assert mag["understates_residue_by"] == 0
+
+
+def test_burst_report_carries_magnitude_on_BOTH_the_primary_and_the_fee_free_bracket():
+    """L236 was drawn from a fee-FREE generous bracket, so the sensitivity block needs the
+    decomposition just as much as the primary one — a headline hit count from either is
+    quotable, and either can be residue."""
+    records = [
+        _burst_rec("2026-07-15T20:10:00+00:00", "T1", k_ask=0.10, k_bid=0.08,
+                   p_ask=0.50, p_bid=0.50),
+        _burst_rec("2026-07-15T20:12:00+00:00", "T1", k_ask=0.12, k_bid=0.10,
+                   p_ask=0.52, p_bid=0.51),
+    ]
+    start = probe.parse_window_bound("2026-07-15T20:10:00Z")
+    end = probe.parse_window_bound("2026-07-15T20:14:00Z")
+    report = probe.build_burst_report(records, start=start, end=end)
+    for block in (report, report["poly_fee_free_sensitivity"]):
+        mag = block["dislocation_magnitude"]
+        assert mag["n"] == block["n_dislocations"]
+        assert set(["n_residue", "n_sub_tick", "n_clears_tick", "episode_max_view",
+                    "understates_residue_by"]).issubset(mag)
+
+
+def test_s17_imports_the_shared_helper_rather_than_redefining_it():
+    """L36/L102: a byte-identical twin in two probe files is how a fixed bug comes back in
+    one of them. Assert identity, not equality of behaviour."""
+    from scripts import s17_leadlag_probe as s17
+    assert s17.dislocation_magnitude is probe.dislocation_magnitude
+    assert s17._print_magnitude is probe._print_magnitude

@@ -13,6 +13,7 @@ from core.bootstrap import (
     decompose_edge_by_leg_volume,
     disagreement_subset_calibration,
     floor_pinned_fraction,
+    hit_magnitude_decomposition,
 )
 
 
@@ -508,3 +509,113 @@ def test_disagreement_length_mismatch_raises():
     # (f) a length mismatch is a caller bug, not silent misalignment.
     with pytest.raises(ValueError):
         disagreement_subset_calibration([True, False], [True])
+
+
+# ─── hit_magnitude_decomposition (L236 granularity rule) ────────────────────
+
+def test_hit_magnitude_empty_input_is_honest_not_crashing():
+    rep = hit_magnitude_decomposition([])
+    assert rep["n"] == 0 and rep["n_unmeasurable"] == 0
+    assert rep["n_residue"] == 0 and rep["n_sub_tick"] == 0 and rep["n_clears_tick"] == 0
+    # shares are None, never 0.0 — a 0.0 share would read as a MEASURED absence of artifacts
+    assert rep["residue_share"] is None and rep["sub_tick_share"] is None
+    assert rep["max"] is None
+
+
+def test_hit_magnitude_none_input_is_honest():
+    assert hit_magnitude_decomposition(None)["n"] == 0
+
+
+def test_hit_magnitude_all_none_entries_are_unmeasurable_not_zero():
+    # L86: an unmeasurable observation is DROPPED and reported, never booked as a zero
+    # (booking None as 0.0 would silently inflate the residue count).
+    rep = hit_magnitude_decomposition([None, None, None])
+    assert rep["n"] == 0 and rep["n_unmeasurable"] == 3
+    assert rep["n_residue"] == 0
+    assert rep["residue_share"] is None
+
+
+def test_hit_magnitude_nan_and_inf_are_unmeasurable():
+    rep = hit_magnitude_decomposition([float("nan"), float("inf"), float("-inf"), 0.02])
+    assert rep["n"] == 1 and rep["n_unmeasurable"] == 3
+    assert rep["n_clears_tick"] == 1
+    assert rep["max"] == 0.02
+
+
+def test_hit_magnitude_shares_exclude_unmeasurable_from_the_denominator():
+    rep = hit_magnitude_decomposition([1e-17, 0.005, None])
+    assert rep["n"] == 2 and rep["n_unmeasurable"] == 1
+    assert rep["residue_share"] == pytest.approx(0.5)   # 1/2, NOT 1/3
+    assert rep["sub_tick_share"] == pytest.approx(1.0)
+
+
+def test_hit_magnitude_tick_boundary_is_inclusive_at_exactly_one_tick():
+    rep = hit_magnitude_decomposition([0.01, 0.00999])
+    assert rep["n_clears_tick"] == 1
+    assert rep["n_sub_tick"] == 1
+
+
+def test_hit_magnitude_residue_boundary():
+    rep = hit_magnitude_decomposition([1e-10, 1e-9, 1e-8], residue_floor=1e-9)
+    # strict `< residue_floor`: only 1e-10 is residue
+    assert rep["n_residue"] == 1
+    assert rep["n_sub_tick"] == 3  # residue is trivially sub-tick, and is INCLUDED
+
+
+def test_hit_magnitude_residue_is_included_in_sub_tick_and_the_difference_is_the_real_tail():
+    rep = hit_magnitude_decomposition([1e-17, 1e-17, 0.003, 0.02])
+    assert rep["n_residue"] == 2
+    assert rep["n_sub_tick"] == 3
+    # the genuinely-nonzero-but-unfillable population is the difference
+    assert rep["n_sub_tick"] - rep["n_residue"] == 1
+    assert rep["n_clears_tick"] == 1
+
+
+def test_hit_magnitude_negative_residue_counts_by_absolute_value():
+    # a residue has a SIGN and no economic content in either direction (L236)
+    rep = hit_magnitude_decomposition([-1e-17, 1e-17])
+    assert rep["n_residue"] == 2
+
+
+def test_hit_magnitude_echoes_its_own_thresholds_for_provenance():
+    rep = hit_magnitude_decomposition([0.5], tick=0.02, residue_floor=1e-6)
+    assert rep["tick"] == 0.02 and rep["residue_floor"] == 1e-6
+
+
+def test_hit_magnitude_bool_entries_are_unmeasurable_not_silently_ones():
+    # a bool sneaking into a price list must not become 1.0/0.0
+    rep = hit_magnitude_decomposition([True, False, 0.02])
+    assert rep["n"] == 1 and rep["n_unmeasurable"] == 2
+
+
+def test_l236_per_observation_and_per_group_max_views_disagree():
+    """THE L236 COUNTEREXAMPLE, with the real floats from S17's 2026-07-29 FOMC `free`
+    bracket. Two groups (episodes): one is all-residue; the other has a real +$0.003 max but
+    ALSO contains a residue capture. The per-group-max view sees ONE residue group / ONE
+    residue capture; the honest per-observation view sees TWO. A group is scored by its best
+    member, so the max view always understates the artifact share."""
+    residue = 1.734723475976807e-17
+    groups = [[residue], [0.003, residue]]
+    per_observation = hit_magnitude_decomposition([v for g in groups for v in g])
+    per_group_max = hit_magnitude_decomposition([max(g) for g in groups])
+    assert per_observation["n_residue"] == 2
+    assert per_group_max["n_residue"] == 1
+    assert per_observation["n_residue"] > per_group_max["n_residue"]
+
+
+def test_l236_the_three_fomc_residue_subtractions_are_the_SAME_float():
+    """NUMERIC CORRECTION (2026-07-30) pinned so it cannot drift back.
+    `findings/2026-07-29-s17-burst-fomc-q19.md` §4d and L236's own text asserted the three
+    residue episodes carried DIFFERENT floats (~3.955e-17 and ~2.776e-17 for the 26SEP-H25
+    pair). In IEEE-754 double all three subtractions evaluate to EXACTLY the same value,
+    5·2⁻⁵⁸ — so the round-2 claim the verifier "corrected" was right about the shared float.
+    The residue-per-subtraction PRINCIPLE (L236) stands; this specific trio just happens to
+    coincide, and the only way to know is to evaluate it."""
+    shared = 1.734723475976807e-17
+    assert shared == 5 * 2.0 ** -58
+    assert (0.26 - 0.24 - 0.02) == shared      # 26JUL-H25
+    assert (0.61 - 0.59 - 0.02) == shared      # 26SEP-H25
+    assert (0.62 - 0.60 - 0.02) == shared      # 26SEP-H25
+    rep = hit_magnitude_decomposition([0.26 - 0.24 - 0.02, 0.61 - 0.59 - 0.02,
+                                       0.62 - 0.60 - 0.02])
+    assert rep["n_residue"] == 3 and rep["n_clears_tick"] == 0

@@ -83,6 +83,8 @@ from core.timeutil import parse_iso_utc  # noqa: E402
 # `poly_best_bid`). Cross-script import precedent: `scripts/q48_s55_fomc_lag_probe.py` imports
 # `parse_capture_time` from THIS module for the same reason.
 from scripts.s9_leadlag_probe import (  # noqa: E402
+    dislocation_magnitude,
+    _print_magnitude,
     per_ticker_leadlag_drop_largest,
     signed_leader_label,
 )
@@ -948,6 +950,7 @@ def build_burst_report(records: Sequence[Dict[str, Any]], *,
         "n_dislocations": len(disl),
         "dislocations": disl,
         "dislocation_episodes": episodes,
+        "dislocation_magnitude": dislocation_magnitude(disl, episodes),
         "fee_model": fee_model,
     }
 
@@ -1037,6 +1040,7 @@ def _print_burst_report(report: Dict[str, Any]) -> None:
 
     print(f"fillable dislocations (net_edge>0 after both fees): {report['n_dislocations']} "
           f"captures across {len(report['dislocation_episodes'])} episodes")
+    _print_magnitude(report.get("dislocation_magnitude"))
     for e in sorted(report["dislocation_episodes"], key=lambda x: x["max_net_edge"], reverse=True)[:10]:
         frz = e["frozen_pairs_fraction"]
         frz_txt = "n/a" if frz is None else f"{frz:.2f}"
