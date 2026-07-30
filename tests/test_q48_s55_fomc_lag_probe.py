@@ -53,6 +53,7 @@ from scripts.q48_s55_fomc_lag_probe import (
     ladder_sums,
     load_family_records,
     max_pass_density_per_hour,
+    nearest_release_bracket_gap_s,
     parse_releases,
     pass_times,
     provenance_string,
@@ -216,6 +217,48 @@ def test_covering_release_attributes_a_window_to_exactly_one_instant():
     # burst can never be counted twice in the bootstrap unit set (L6)
     assert covers_release(w, times, r1) and covers_release(w, times, r2)
     assert covering_release(w, times, [r1, r2]) == r1
+
+
+def test_nearest_release_bracket_gap_s_measures_across_the_burst_threshold():
+    """2026-07-30 finding: the 2026-07-29T18:00Z FOMC burst tape has a real ~720s capture
+    outage bracketing the release (all three burst families miss it in lockstep — see
+    kb/00-LOG.md). `detect_burst_windows`/`covering_release` correctly report "0 covering",
+    but say nothing about WHY; this is the number that does."""
+    times = {"a": RELEASE_DT - timedelta(seconds=574), "b": RELEASE_DT - timedelta(seconds=63),
+             "c": RELEASE_DT + timedelta(seconds=657), "d": RELEASE_DT + timedelta(seconds=717)}
+    gap = nearest_release_bracket_gap_s(times, RELEASE_DT)
+    assert gap == 63 + 657  # nearest-before to nearest-after, not the widest span
+    assert gap > BURST_MAX_INTERVAL_S  # confirms why no window straddles it
+
+
+def test_nearest_release_bracket_gap_s_none_when_one_sided():
+    only_before = {"a": RELEASE_DT - timedelta(seconds=60)}
+    only_after = {"a": RELEASE_DT + timedelta(seconds=60)}
+    assert nearest_release_bracket_gap_s(only_before, RELEASE_DT) is None
+    assert nearest_release_bracket_gap_s(only_after, RELEASE_DT) is None
+    assert nearest_release_bracket_gap_s({}, RELEASE_DT) is None
+
+
+def test_run_probe_reports_bracket_gap_when_a_real_outage_spans_the_release(tmp_path):
+    """A dense pre-release cadence and a dense post-release cadence, separated by a single
+    720s gap straddling the release itself — the exact shape of the real 2026-07-29 tape.
+    `run_probe` must surface the gap in the report, not just say "0 covering"."""
+    tape = tmp_path / "tape"
+    recs = []
+    base = RELEASE_DT - timedelta(seconds=574)
+    for i in range(6):  # dense pre-release cadence, last pass 574-90*5=124s... use 90s steps
+        recs.extend(_pass(base + timedelta(seconds=90 * i), FLAT_K, FLAT_P))
+    post_base = RELEASE_DT + timedelta(seconds=657)
+    for i in range(6):  # dense post-release cadence starting 657s after release
+        recs.extend(_pass(post_base + timedelta(seconds=90 * i), FLAT_K, FLAT_P))
+    _write(tape, recs)
+    rep = run_probe(tape, release_ts=RELEASE)
+    assert rep["status"] == "INSUFFICIENT DATA"
+    assert rep["n_covering_burst_windows"] == 0
+    gap = rep["release_bracket_gap_s"][RELEASE_DT.isoformat()]
+    assert gap == 657 + 124  # nearest pre-pass to nearest post-pass, not the outer span
+    assert gap > BURST_MAX_INTERVAL_S
+    assert "bracket gap" in rep["reason"] and "capture outage" in rep["reason"]
 
 
 # --------------------------------------------------------------------------- #
