@@ -1520,3 +1520,126 @@ def test_acceptance_9_l208_perp_tape_funding_grid_frozen_slice():
     # And the survivorship point itself: observed-only never sees a 0.
     assert cov["observed_only"]["min_passes"] >= 1
     assert cov["grid_filled"]["min_passes"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# Wall-clock-slot cadence (L213)
+# --------------------------------------------------------------------------- #
+def test_slot_cadence_counts_only_passes_inside_the_window(tmp_path):
+    _write_lines(tmp_path, "polymarket_macro_pairs", "2026-07-20", [
+        _pass("c1", "2026-07-20T05:00:00+00:00"),   # outside
+        _pass("c2", "2026-07-20T17:45:00+00:00"),   # inside
+        _pass("c3", "2026-07-20T18:29:59+00:00"),   # inside (upper edge)
+        _pass("c4", "2026-07-20T18:31:00+00:00"),   # outside (just past)
+    ])
+    out = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30")
+    assert out["per_day_pass_count"] == {"dt=2026-07-20": 2}
+    assert out["n_days_zero"] == 0
+    assert out["all_days_zero"] is False
+
+
+def test_slot_cadence_bounds_are_inclusive(tmp_path):
+    _write_lines(tmp_path, "polymarket_macro_pairs", "2026-07-20", [
+        _pass("c1", "2026-07-20T17:40:00+00:00"),   # exact start
+        _pass("c2", "2026-07-20T18:30:00+00:00"),   # exact end
+    ])
+    out = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30")
+    assert out["per_day_pass_count"] == {"dt=2026-07-20": 2}
+
+
+def test_slot_cadence_all_days_zero_is_the_l213_shape(tmp_path):
+    """The exact L213 finding shape: dense captures every day, none of them ever
+    inside the slot that mattered."""
+    for day in ("2026-07-18", "2026-07-19", "2026-07-20"):
+        _write_lines(tmp_path, "polymarket_macro_pairs", day, [
+            _pass(f"{day}-a", f"{day}T05:00:00+00:00"),
+            _pass(f"{day}-b", f"{day}T12:00:00+00:00"),
+        ])
+    out = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30",
+                                          days=["dt=2026-07-18", "dt=2026-07-19", "dt=2026-07-20"])
+    assert out["n_days_scanned"] == 3
+    assert out["n_days_zero"] == 3
+    assert out["all_days_zero"] is True
+    assert out["zero_days"] == ["dt=2026-07-18", "dt=2026-07-19", "dt=2026-07-20"]
+
+
+def test_slot_cadence_missing_day_file_reports_as_zero_not_skipped(tmp_path):
+    """A `days=` entry with NO committed file at all is a genuine zero-pass day —
+    a burst-fallback risk read must see it, not have it silently vanish."""
+    _write_lines(tmp_path, "polymarket_macro_pairs", "2026-07-20", [
+        _pass("c1", "2026-07-20T18:00:00+00:00"),
+    ])
+    out = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30",
+                                          days=["dt=2026-07-20", "dt=2026-07-21"])
+    assert out["n_days_scanned"] == 2
+    assert out["per_day_pass_count"]["dt=2026-07-21"] == 0
+    assert out["n_days_zero"] == 1
+    assert out["all_days_zero"] is False
+
+
+def test_slot_cadence_density_unit_is_the_distinct_pass(tmp_path):
+    """Two rows sharing one `capture_id` inside the window are ONE pass, not two —
+    same density-unit convention as `expected_window_grid_coverage` (L208/L210)."""
+    _write_lines(tmp_path, "polymarket_macro_pairs", "2026-07-20", [
+        _pass("c1", "2026-07-20T18:00:00+00:00", ticker="A"),
+        _pass("c1", "2026-07-20T18:00:00+00:00", ticker="B"),
+    ])
+    out = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30")
+    assert out["per_day_pass_count"] == {"dt=2026-07-20": 1}
+
+
+def test_slot_cadence_missing_capture_id_never_merges_distinct_rows(tmp_path):
+    out_dir_lines = [
+        {"captured_at": "2026-07-20T18:00:00.100000+00:00"},
+        {"captured_at": "2026-07-20T18:00:00.200000+00:00"},
+    ]
+    _write_lines(tmp_path, "polymarket_macro_pairs", "2026-07-20", out_dir_lines)
+    out = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30")
+    assert out["per_day_pass_count"] == {"dt=2026-07-20": 2}
+
+
+def test_slot_cadence_no_tape_at_all_makes_no_claim(tmp_path):
+    out = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30")
+    assert out["n_days_scanned"] == 0
+    assert out["all_days_zero"] is False   # empty is NOT "all zero" — no days to be zero
+
+
+def test_slot_cadence_wrapped_window_raises():
+    with pytest.raises(ValueError):
+        tgm.slot_cadence_by_time_of_day(Path("."), "polymarket_macro_pairs", "23:50", "00:10")
+
+
+def test_slot_cadence_days_slice_restricts_the_scan(tmp_path):
+    _write_lines(tmp_path, "polymarket_macro_pairs", "2026-07-20",
+                 [_pass("c1", "2026-07-20T18:00:00+00:00")])
+    _write_lines(tmp_path, "polymarket_macro_pairs", "2026-07-21",
+                 [_pass("c2", "2026-07-21T18:00:00+00:00")])
+    full = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30")
+    pinned = tgm.slot_cadence_by_time_of_day(tmp_path, "polymarket_macro_pairs", "17:40", "18:30",
+                                             days=["dt=2026-07-20"])
+    assert full["n_days_scanned"] == 2
+    assert pinned["n_days_scanned"] == 1
+    assert pinned["days_scanned"] == ["dt=2026-07-20"]
+
+
+@_real
+def test_acceptance_10_l213_polymarket_macro_pairs_fomc_slot_frozen_slice():
+    """HARD real-tape acceptance, FROZEN to dt=2026-07-18..2026-07-27 (L191).
+
+    Reproduces `findings/2026-07-28-polymarket-macro-pairs-tape-audit.md` D3's exact
+    claim: the recurring collector landed dozens of passes/day on `polymarket_macro_pairs`
+    over these 10 days yet exactly ZERO of them fall inside the 17:40-18:30Z window the
+    2026-07-29T18:00Z FOMC statement needed."""
+    days = [f"dt=2026-07-{d:02d}" for d in range(18, 28)]
+    out = tgm.slot_cadence_by_time_of_day(_REAL_TAPE, "polymarket_macro_pairs",
+                                          "17:40", "18:30", days=days)
+    assert out["n_days_scanned"] == 10
+    assert out["n_days_zero"] == 10
+    assert out["all_days_zero"] is True
+    assert out["zero_days"] == days
+    # And a sanity check that this isn't a family with no tape at all in the slice —
+    # the family DOES capture, just never inside this slot.
+    assert sum(
+        len(list(open(_REAL_TAPE / "polymarket_macro_pairs" / f"{d}.jsonl")))
+        for d in days
+    ) > 0
