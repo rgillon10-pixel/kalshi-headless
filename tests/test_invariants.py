@@ -1967,3 +1967,173 @@ def test_econ_prints_settlement_regression_warning_never_gates_exit_code(monkeyp
     assert "fake" in captured.err
     assert "L223" in captured.err
     assert "invariants: all green" in captured.out
+
+
+# ── L208: expected-window-grid coverage advisory (survivorship vs coverage) ────
+#
+# Detector-level behaviour is pinned in tests/test_tape_gap_monitor.py (including a
+# FROZEN-slice real-tape acceptance test, L191). What is pinned HERE is the invariants
+# side: issue extraction, formatting, wiring to stderr, and — the load-bearing part —
+# that it can never flip the exit code.
+
+def _write_perp_tape(tmp_path, day, records):
+    fam = tmp_path / "perp_tape"
+    fam.mkdir(parents=True, exist_ok=True)
+    import json as _json
+    with open(fam / f"dt={day}.jsonl", "a", encoding="utf-8") as f:
+        for rec in records:
+            f.write(_json.dumps(rec) + "\n")
+
+
+def _fe_line(cid, captured_at, next_funding_time):
+    return {"capture_id": cid, "captured_at": captured_at,
+            "record_type": "funding_estimate", "ticker": "KXBTCPERP",
+            "next_funding_time": next_funding_time, "venue": "kalshi_perps"}
+
+
+def test_window_grid_issues_missing_tape_root_is_empty_L208(tmp_path):
+    assert inv._window_grid_coverage_issues(tmp_path / "nope") == []
+
+
+def test_window_grid_issues_full_coverage_is_no_issue_L208(tmp_path):
+    _write_perp_tape(tmp_path, "2026-07-20", [
+        _fe_line("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe_line("c2", "2026-07-20T09:00:00+00:00", "2026-07-20T12:00:00Z"),
+        _fe_line("c3", "2026-07-20T17:00:00+00:00", "2026-07-20T20:00:00Z"),
+    ])
+    assert inv._window_grid_coverage_issues(tmp_path) == []
+
+
+def test_window_grid_issues_finds_zero_capture_window_L208(tmp_path):
+    _write_perp_tape(tmp_path, "2026-07-20", [
+        _fe_line("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe_line("c3", "2026-07-20T17:00:00+00:00", "2026-07-20T20:00:00Z"),
+    ])
+    issues = inv._window_grid_coverage_issues(tmp_path)
+    assert len(issues) == 1
+    assert issues[0]["family"] == "perp_tape"
+    assert issues[0]["n_windows_zero_capture"] == 1
+    assert issues[0]["zero_capture_windows"] == ["2026-07-20T12:00:00+00:00"]
+
+
+def test_window_grid_issues_offgrid_key_alone_is_an_issue_L208(tmp_path):
+    """A boundary off the configured grid is reported even with full coverage — a
+    cadence change would otherwise silently invalidate every window statistic."""
+    _write_perp_tape(tmp_path, "2026-07-20", [
+        _fe_line("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe_line("c_bad", "2026-07-20T07:00:00+00:00", "2026-07-20T08:00:00Z"),
+    ])
+    issues = inv._window_grid_coverage_issues(tmp_path)
+    assert len(issues) == 1
+    assert issues[0]["n_windows_zero_capture"] == 0
+    assert issues[0]["n_offgrid_window_keys"] == 1
+
+
+def test_window_grid_warning_none_when_empty_L208():
+    assert inv.window_grid_coverage_warning([]) is None
+
+
+def test_window_grid_warning_message_content_L208(tmp_path):
+    _write_perp_tape(tmp_path, "2026-07-20", [
+        _fe_line("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe_line("c3", "2026-07-20T17:00:00+00:00", "2026-07-20T20:00:00Z"),
+    ])
+    msg = inv.window_grid_coverage_warning(inv._window_grid_coverage_issues(tmp_path))
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "perp_tape" in msg
+    assert "next_funding_time" in msg
+    assert "ZERO passes" in msg
+    assert "2026-07-20T12:00:00+00:00" in msg
+    assert "survivorship gap" in msg
+    assert "L208" in msg
+
+
+def test_window_grid_warning_caps_the_zero_window_list_L208():
+    """A long outage must not flood the gate output — 5 examples, then a count."""
+    zeros = [f"2026-07-{d:02d}T04:00:00+00:00" for d in range(10, 20)]
+    msg = inv.window_grid_coverage_warning([{
+        "family": "fake_family", "window_key": "next_funding_time", "window_hours": 8.0,
+        "anchor_hour_utc": 4, "thin_max_passes": 1,
+        "grid_start": "2026-07-10T04:00:00+00:00", "grid_end": "2026-07-19T04:00:00+00:00",
+        "n_windows_expected": 10, "n_windows_observed": 0, "n_windows_zero_capture": 10,
+        "zero_capture_windows": zeros, "n_windows_thin": 10,
+        "path_inadequate_fraction": 1.0, "coverage_fraction": 0.0,
+        "observed_only": {"median_passes": None, "min_passes": None, "max_passes": None},
+        "grid_filled": {"median_passes": 0, "min_passes": 0, "max_passes": 0},
+        "n_offgrid_window_keys": 0, "offgrid_examples": [],
+        "n_rows_skipped_no_window_key": 0,
+    }])
+    assert "and 5 more zero-pass window(s)" in msg
+    assert zeros[4] in msg and zeros[5] not in msg
+
+
+def test_window_grid_advisory_is_wired_to_stderr_L208(monkeypatch, capsys):
+    monkeypatch.setattr(
+        inv, "_window_grid_coverage_issues",
+        lambda *a, **kw: [{
+            "family": "fake_family", "window_key": "next_funding_time", "window_hours": 8.0,
+            "anchor_hour_utc": 4, "thin_max_passes": 1,
+            "grid_start": "2026-07-20T04:00:00+00:00", "grid_end": "2026-07-20T20:00:00+00:00",
+            "n_windows_expected": 3, "n_windows_observed": 2, "n_windows_zero_capture": 1,
+            "zero_capture_windows": ["2026-07-20T12:00:00+00:00"], "n_windows_thin": 1,
+            "path_inadequate_fraction": 0.3333, "coverage_fraction": 0.6667,
+            "observed_only": {"median_passes": 1.0, "min_passes": 1, "max_passes": 1},
+            "grid_filled": {"median_passes": 1, "min_passes": 0, "max_passes": 1},
+            "n_offgrid_window_keys": 0, "offgrid_examples": [],
+            "n_rows_skipped_no_window_key": 0,
+        }],
+    )
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "window-gridded tape family" in captured.err
+    assert "fake_family" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_window_grid_advisory_raise_cannot_flip_exit_code_L208(monkeypatch, capsys):
+    """L156 DEFECT-1 posture: a raise in the COLLECTOR or a non-str FORMATTER return
+    must stay non-gating."""
+    def _boom(*a, **kw):
+        raise RuntimeError("detector exploded")
+
+    monkeypatch.setattr(inv, "_window_grid_coverage_issues", _boom)
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "expected-window-grid advisory could not be computed" in captured.err
+    assert "invariants: all green" in captured.out
+
+    monkeypatch.setattr(inv, "_window_grid_coverage_issues", lambda *a, **kw: [{"x": 1}])
+    monkeypatch.setattr(inv, "window_grid_coverage_warning", lambda issues: 12345)
+    assert inv.main() == 0
+
+
+def test_acceptance_l208_perp_tape_real_tape_advisory_fires():
+    """HARD acceptance against real committed tape — STRUCTURAL only, deliberately.
+
+    `tape/perp_tape/` is a live, still-growing family, so pinning its zero-window COUNT
+    here would red-line the gate on ordinary capture with zero code change (L191). The
+    exact numbers are pinned on a FROZEN day slice in
+    tests/test_tape_gap_monitor.py::test_acceptance_9_l208_perp_tape_funding_grid_frozen_slice."""
+    fam = ROOT / "tape" / "perp_tape"
+    if not fam.is_dir():
+        pytest.skip("committed tape/perp_tape/ not present")
+    issues = inv._window_grid_coverage_issues()
+    assert len(issues) <= 1
+    if not issues:
+        pytest.skip("perp_tape currently has full window coverage — nothing to assert")
+    issue = issues[0]
+    assert issue["family"] == "perp_tape"
+    assert issue["window_key"] == "next_funding_time"
+    assert issue["anchor_hour_utc"] == 4
+    # Every committed boundary is on the collector's own 04/12/20Z grid.
+    assert issue["n_offgrid_window_keys"] == 0
+    # The survivorship point: the observed-only view can never show a 0.
+    assert issue["grid_filled"]["min_passes"] == 0
+    assert (issue["observed_only"]["min_passes"] or 0) >= 1
+    msg = inv.window_grid_coverage_warning(issues)
+    assert "perp_tape" in msg and "L208" in msg

@@ -115,3 +115,33 @@ collector health (Ryan-side), not tape quality.** No registry change.
    sentinel produces a value that clears every null check and every `> 0` guard (PERP-F2).
 3. A second-granularity `capture_id` is not a unique key when a one-shot backfill can share a
    wall-clock second with a scheduled pass (PERP-F3).
+
+---
+
+## CORRECTION NOTE (appended 2026-07-30, research loop — PERP-F1's window grid, PROVISIONAL)
+
+Original text above unchanged (append-only). **PERP-F1's four named zero-capture windows are
+not funding windows.** `2026-07-23T08Z`, `07-24T08Z`, `07-25T08Z`, `07-25T16Z` are 00Z-anchored
+8-hour *calendar bins* over `captured_at`. Kalshi perps publish their funding boundary in
+`next_funding_time`, and **1,534 of 1,534** committed `funding_estimate` rows in
+`tape/perp_tape/` sit on the **04/12/20Z** grid — none on 00/08/16.
+
+Re-derived over the same tape and the same 33-window span on the collector's own boundary field,
+the zero-capture windows are **three**, at a **disjoint** set of instants: `2026-07-24T04:00Z`,
+`2026-07-25T04:00Z`, `2026-07-25T20:00Z`. `12/33 = 36%` path-inadequate re-derives as
+**10/33 = 30.3%**.
+
+PERP-F1's *thesis* is confirmed — real funding windows were permanently lost, and
+`scripts/q42_funding_estimate_path_inference.py`'s observed-windows-only density statistic
+cannot see them — it is the specific instants that were wrong. Nothing else in this audit is
+affected; Q42's H1 UNDECIDABLE verdict is unchanged.
+
+Now machine-checked: `scripts/tape_gap_monitor.py::expected_window_grid_coverage` +
+`scripts/invariants.py::window_grid_coverage_warning`, pinned by
+`tests/test_tape_gap_monitor.py::test_acceptance_9_l208_perp_tape_funding_grid_frozen_slice`
+(frozen `dt=2026-07-17..27` slice, L191), which asserts the four 00Z bins are disjoint from this
+grid's zero windows.
+
+**PROVISIONAL** — produced and adversarially re-derived within one session; no independent
+`verifier` agent was dispatchable in that run's harness. See
+`findings/2026-07-30-l208-window-grid-coverage.md`; lessons L208 (enforcement cell) and L238.

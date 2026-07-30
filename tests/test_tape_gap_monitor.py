@@ -1307,3 +1307,216 @@ def test_acceptance_13_l210_real_tape_capture_id_collisions_are_reported():
         # A family that declares its own within-pass sequence must never be flagged.
         if res["exempt_reason"] == "declares_within_pass_sequence":
             assert res["n_collisions"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# L208 — expected-window-grid coverage (survivorship vs coverage denominator)
+# --------------------------------------------------------------------------- #
+# The unit tests below build fixture tape under tmp_path. The one REAL-TAPE
+# acceptance test pins a FROZEN day slice (L191): `tape/perp_tape/` is a live,
+# still-growing family, so an open-ended `dt=*` read would red-line main's gate on
+# ordinary capture with zero code change.
+
+def _fe(cid, captured_at, next_funding_time, ticker="KXBTCPERP", **extra):
+    """One `funding_estimate` row shaped exactly like committed perp_tape."""
+    rec = {
+        "capture_id": cid,
+        "captured_at": captured_at,
+        "record_type": "funding_estimate",
+        "next_funding_time": next_funding_time,
+        "ticker": ticker,
+        "funding_rate_estimate": 0.0,
+        "price_source_tag": "broker_truth",
+        "schema_version": "perp_tape.v1",
+        "venue": "kalshi_perps",
+    }
+    rec.update(extra)
+    return rec
+
+
+def test_window_grid_unregistered_family_returns_none_L208(tmp_path):
+    """Same refusal as capped_pagination/retrospective_coverage: no claim about a
+    shape the function wasn't told the family has."""
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-15", [10])
+    assert tgm.expected_window_grid_coverage(tmp_path, "crypto_hourly") is None
+
+
+def test_window_grid_no_tape_makes_no_claim_L208(tmp_path):
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    assert cov["reason"] == "no_on_grid_window_keys"
+    assert cov["n_windows_expected"] == 0
+    assert cov["coverage_fraction"] is None
+    assert cov["grid_start"] is None and cov["grid_end"] is None
+
+
+def test_window_grid_zero_capture_window_is_found_L208(tmp_path):
+    """The L208 shape: three consecutive 8h funding windows, the MIDDLE one never
+    captured. An observed-windows-only statistic sees 2 windows and reads healthy;
+    the grid denominator sees 3 and names the hole."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", [
+        _fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe("c2", "2026-07-20T02:00:00+00:00", "2026-07-20T04:00:00Z"),
+        # nothing at all for the 12:00Z window
+        _fe("c3", "2026-07-20T17:00:00+00:00", "2026-07-20T20:00:00Z"),
+    ])
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    assert cov["n_windows_expected"] == 3
+    assert cov["n_windows_observed"] == 2
+    assert cov["n_windows_zero_capture"] == 1
+    assert cov["zero_capture_windows"] == ["2026-07-20T12:00:00+00:00"]
+    assert cov["coverage_fraction"] == round(2 / 3, 6)
+
+
+def test_window_grid_reports_both_survivorship_and_honest_denominator_L208(tmp_path):
+    """Both statistics are reported side by side — the whole point of L208 is that
+    the observed-only number is not WRONG, it answers a different question."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", [
+        _fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe("c2", "2026-07-20T02:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe("c3", "2026-07-20T03:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe("c4", "2026-07-20T17:00:00+00:00", "2026-07-20T20:00:00Z"),
+    ])
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    # observed-only never sees the empty 12:00Z window; grid-filled does.
+    assert cov["observed_only"]["min_passes"] == 1
+    assert cov["grid_filled"]["min_passes"] == 0
+    assert cov["observed_only"]["median_passes"] == 2.0     # median(3, 1)
+    assert cov["grid_filled"]["median_passes"] == 1         # median(3, 0, 1)
+    assert cov["survivorship_gap_median"] == 1.0
+
+
+def test_window_grid_thin_includes_zero_windows_L208(tmp_path):
+    """A zero-pass window is the EXTREME thin window; `n_windows_thin` must include
+    it, or the path-inadequacy fraction under-reports exactly where it matters."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", [
+        _fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe("c3", "2026-07-20T17:00:00+00:00", "2026-07-20T20:00:00Z"),
+        _fe("c4", "2026-07-20T18:00:00+00:00", "2026-07-20T20:00:00Z"),
+    ])
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    # windows: 04Z=1 pass (thin), 12Z=0 (thin, zero), 20Z=2 passes (ok)
+    assert cov["n_windows_thin"] == 2
+    assert cov["n_windows_zero_capture"] == 1
+    assert cov["path_inadequate_fraction"] == round(2 / 3, 6)
+
+
+def test_window_grid_offgrid_key_is_reported_never_snapped_L208(tmp_path):
+    """The load-bearing rule. A boundary off the configured (width, anchor) grid means
+    the venue's cadence changed — report it, never round it into a neighbouring slot."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", [
+        _fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe("c_bad", "2026-07-20T07:00:00+00:00", "2026-07-20T08:00:00Z"),   # 00Z-anchored
+        _fe("c2", "2026-07-20T17:00:00+00:00", "2026-07-20T20:00:00Z"),
+    ])
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    assert cov["n_offgrid_window_keys"] == 1
+    assert cov["offgrid_examples"] == ["2026-07-20T08:00:00+00:00"]
+    # The off-grid row did NOT get snapped into 04Z or 12Z: 12Z is still empty.
+    assert cov["zero_capture_windows"] == ["2026-07-20T12:00:00+00:00"]
+    assert cov["n_windows_expected"] == 3
+
+
+def test_window_grid_unparseable_key_is_skipped_and_counted_L208(tmp_path):
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", [
+        _fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _fe("c_none", "2026-07-20T05:00:00+00:00", None),
+        _fe("c_junk", "2026-07-20T06:00:00+00:00", "not-a-timestamp"),
+    ])
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    assert cov["n_rows_considered"] == 3
+    assert cov["n_rows_skipped_no_window_key"] == 2
+    assert cov["n_windows_expected"] == 1
+
+
+def test_window_grid_ignores_other_record_types_L208(tmp_path):
+    """`perp_tape` multiplexes record_types on one family; only the configured one
+    carries a funding boundary."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", [
+        _fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z"),
+        _pass("c1", "2026-07-20T01:00:00+00:00", record_type="orderbook",
+              next_funding_time="2026-07-20T12:00:00Z"),
+    ])
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    assert cov["n_rows_considered"] == 1
+    assert cov["n_windows_expected"] == 1
+
+
+def test_window_grid_density_unit_is_the_distinct_pass_L208(tmp_path):
+    """13 tickers in ONE pass is one pass, not 13 samples — otherwise a single
+    fat pass masquerades as a dense path."""
+    rows = [_fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z",
+                ticker=f"KX{i}PERP") for i in range(13)]
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", rows)
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    assert cov["observed_only"]["max_passes"] == 1
+
+
+def test_window_grid_missing_capture_id_never_reads_as_empty_L208(tmp_path):
+    """A row with no capture_id cannot be attributed to a pass, but it PROVES the
+    window was observed — it must never make the window read as a zero-pass hole."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-20", [
+        {"record_type": "funding_estimate", "next_funding_time": "2026-07-20T04:00:00Z",
+         "captured_at": "2026-07-20T01:00:00+00:00"},
+    ])
+    cov = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    assert cov["n_windows_zero_capture"] == 0
+    assert cov["n_windows_observed"] == 1
+
+
+def test_window_grid_days_slice_restricts_the_scan_L208(tmp_path):
+    """The L191 pin: `days=` freezes the population so a live family's ordinary
+    growth cannot move a pinned number."""
+    _write_lines(tmp_path, "perp_tape", "2026-07-20",
+                 [_fe("c1", "2026-07-20T01:00:00+00:00", "2026-07-20T04:00:00Z")])
+    _write_lines(tmp_path, "perp_tape", "2026-07-21",
+                 [_fe("c2", "2026-07-21T01:00:00+00:00", "2026-07-21T04:00:00Z")])
+    full = tgm.expected_window_grid_coverage(tmp_path, "perp_tape")
+    pinned = tgm.expected_window_grid_coverage(tmp_path, "perp_tape",
+                                              days=["dt=2026-07-20"])
+    assert full["n_windows_expected"] == 4      # 07-20T04 .. 07-21T04, 8h apart
+    assert pinned["n_windows_expected"] == 1
+    assert pinned["days_scanned"] == ["dt=2026-07-20"]
+
+
+def test_window_grid_on_grid_helper_is_exact_L208():
+    assert tgm._on_grid(_dt(2026, 7, 20, 4), 8.0, 4) is True
+    assert tgm._on_grid(_dt(2026, 7, 20, 12), 8.0, 4) is True
+    assert tgm._on_grid(_dt(2026, 7, 20, 20), 8.0, 4) is True
+    assert tgm._on_grid(_dt(2026, 7, 20, 8), 8.0, 4) is False
+    assert tgm._on_grid(_dt(2026, 7, 20, 4, 1), 8.0, 4) is False
+    assert tgm._on_grid(_dt(2026, 7, 20, 4), 0.0, 4) is False
+
+
+@_real
+def test_acceptance_9_l208_perp_tape_funding_grid_frozen_slice():
+    """HARD real-tape acceptance, FROZEN to dt=2026-07-17..2026-07-27 (L191).
+
+    This is the exact tape `findings/2026-07-27-perp-tape-audit.md` PERP-F1 audited.
+    Read on the collector's OWN funding boundary (`next_funding_time`, a 04/12/20Z
+    grid), it has THREE zero-pass windows — a different set from the FOUR the audit
+    reported off 00Z-anchored `captured_at` calendar bins. Both facts are pinned so a
+    future re-anchoring cannot silently change the answer."""
+    days = [f"dt=2026-07-{d:02d}" for d in range(17, 28)]
+    cov = tgm.expected_window_grid_coverage(_REAL_TAPE, "perp_tape", days=days)
+    assert cov is not None
+    assert cov["window_key"] == "next_funding_time"
+    assert cov["window_hours"] == 8.0 and cov["anchor_hour_utc"] == 4
+    # Every committed boundary in the slice is on the 04/12/20Z grid — none on 00/08/16.
+    assert cov["n_offgrid_window_keys"] == 0
+    assert cov["n_rows_skipped_no_window_key"] == 0
+    assert cov["n_windows_expected"] == 34
+    assert cov["n_windows_observed"] == 31
+    assert cov["n_windows_zero_capture"] == 3
+    assert cov["zero_capture_windows"] == [
+        "2026-07-24T04:00:00+00:00",
+        "2026-07-25T04:00:00+00:00",
+        "2026-07-25T20:00:00+00:00",
+    ]
+    # The audit's four 00Z-anchored bins (07-23T08Z/07-24T08Z/07-25T08Z/07-25T16Z) are
+    # not funding boundaries at all: not one of them appears on this grid.
+    audit_bins = {"2026-07-23T08:00:00+00:00", "2026-07-24T08:00:00+00:00",
+                  "2026-07-25T08:00:00+00:00", "2026-07-25T16:00:00+00:00"}
+    assert audit_bins.isdisjoint(set(cov["zero_capture_windows"]))
+    # And the survivorship point itself: observed-only never sees a 0.
+    assert cov["observed_only"]["min_passes"] >= 1
+    assert cov["grid_filled"]["min_passes"] == 0

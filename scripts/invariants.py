@@ -1308,6 +1308,96 @@ def capped_pagination_span_warning(issues: List[Dict[str, object]]) -> Optional[
     return "\n".join(lines)
 
 
+# ─── Expected-window-grid coverage advisory (L208: non-gating) ─────────────────
+#
+# L208: a per-window density statistic built only from windows that produced >=1 observation
+# is a SURVIVORSHIP statistic. A window the collector never fired in cannot enter it, so the
+# metric reads healthiest exactly where coverage is worst — `q42_funding_estimate_path_
+# inference.py`'s "median 2.0 samples/window" over `tape/perp_tape/` is the worked example.
+#
+# The honest denominator is the EXPECTED window grid, anchored on the COLLECTOR'S OWN
+# boundary field. That anchor is load-bearing: the audit that first reported this defect
+# binned `captured_at` into 00Z-anchored 8h calendar bins, while the funding boundaries in
+# `next_funding_time` are on the 04/12/20Z grid — the two disagree about which windows are
+# empty (see findings/2026-07-30-l208-window-grid-coverage.md).
+#
+# NON-GATING: a zero-capture window is a permanently unrecoverable historical fact (the
+# collector destroys the premium path at each boundary with no re-fetch), so gating would
+# halt the loop forever over the past. Same posture as the hollow-ladder / capped-pagination
+# / colliding-capture_id advisories.
+#
+# Single source of truth: `WINDOW_GRIDDED_FAMILIES` and the computation are IMPORTED from
+# scripts/tape_gap_monitor.py, never re-declared here (the L100 duplication trap).
+
+
+def _window_grid_coverage_issues(tape_root: Path = ROOT / "tape") -> List[Dict[str, object]]:
+    """One issue dict per registered window-gridded family with >=1 zero-capture window OR
+    >=1 off-grid window key, computed from committed tape only — read-only, no network.
+    Best-effort: any exception yields [], so it can never poison the gate."""
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None or not tape_root.is_dir():
+            return []
+        issues: List[Dict[str, object]] = []
+        for family in sorted(getattr(tgm, "WINDOW_GRIDDED_FAMILIES", {})):
+            cov = tgm.expected_window_grid_coverage(tape_root, family)
+            if not cov:
+                continue
+            if not cov.get("n_windows_zero_capture") and not cov.get("n_offgrid_window_keys"):
+                continue
+            issues.append(cov)
+        return issues
+    except Exception:
+        return []
+
+
+def window_grid_coverage_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """A non-gating advisory naming any window-gridded family whose EXPECTED window grid has
+    windows with zero capture passes (invisible to any observed-windows-only density
+    statistic, L208), or window keys off its configured grid. Pure. NEVER flips the exit
+    code. See kb/lessons/00-lessons.md L208."""
+    if not issues:
+        return None
+    lines = [f"warning (non-gating): {len(issues)} window-gridded tape family(ies) have "
+             f"EXPECTED windows with ZERO capture passes — structurally invisible to any "
+             f"per-window density statistic computed over OBSERVED windows only (L208):"]
+    for cov in issues:
+        zero = list(cov.get("zero_capture_windows") or [])
+        obs = cov.get("observed_only") or {}
+        filled = cov.get("grid_filled") or {}
+        lines.append(
+            f"  - {cov['family']}: grid = {cov['window_key']} every "
+            f"{float(cov['window_hours']):.0f}h anchored {int(cov['anchor_hour_utc']):02d}Z, "
+            f"{cov['grid_start']} -> {cov['grid_end']}; "
+            f"{cov['n_windows_observed']}/{cov['n_windows_expected']} windows observed "
+            f"=> {cov['n_windows_zero_capture']} with ZERO passes, "
+            f"{cov['n_windows_thin']} at or below {cov['thin_max_passes']} pass(es) "
+            f"({float(cov['path_inadequate_fraction']):.1%} path-inadequate)")
+        lines.append(
+            f"      passes/window: observed-only median={obs.get('median_passes')} "
+            f"min={obs.get('min_passes')} | grid-filled median={filled.get('median_passes')} "
+            f"min={filled.get('min_passes')} (the survivorship gap L208 names)")
+        for w in zero[:5]:
+            lines.append(f"      ZERO-pass window: {w}")
+        if len(zero) > 5:
+            lines.append(f"      ... and {len(zero) - 5} more zero-pass window(s)")
+        if cov.get("n_offgrid_window_keys"):
+            lines.append(
+                f"      {cov['n_offgrid_window_keys']} OFF-GRID {cov['window_key']} value(s) "
+                f"reported, never snapped (e.g. {', '.join(cov.get('offgrid_examples') or [])}) "
+                f"— the venue's cadence may have changed; re-read the anchor before trusting "
+                f"any window statistic on this family")
+        if cov.get("n_rows_skipped_no_window_key"):
+            lines.append(f"      {cov['n_rows_skipped_no_window_key']} row(s) skipped with no "
+                         f"parseable {cov['window_key']} (reported, never bucketed)")
+    lines.append("  Density unit is the distinct capture pass (`capture_id`); a second-"
+                 "granularity collision (L210) reads LOW here, i.e. toward flagging, never "
+                 "toward a false all-clear. Computed from committed tape only via "
+                 "scripts/tape_gap_monitor.py::expected_window_grid_coverage. Advisory only "
+                 "— does NOT affect the exit code. See kb/lessons/00-lessons.md L208.")
+    return "\n".join(lines)
+
+
 # ─── Colliding-capture_id advisory (L210: non-gating, offline-safe) ────────────
 
 # `capture_id` is a second-granularity pass LABEL, not a unique capture key: two DISTINCT
@@ -3036,6 +3126,19 @@ def main() -> int:
         # append-only tape that no run can retroactively repair. Wrapped in
         # `except BaseException` for the same reason as the stanza above: a raise in the
         # FORMATTER must not turn a non-gating advisory into a gate (L156 DEFECT-1).
+        # L208 advisory: a window-bucketed family whose EXPECTED window grid contains windows
+        # with zero capture passes — invisible to any density statistic built from observed
+        # windows only. Non-gating: a missed funding/settlement window is permanently
+        # unrecoverable (no re-fetch), so gating would halt the loop over an unfixable past.
+        # Wrapped in `except BaseException` for the L156 DEFECT-1 reason: a raise in the
+        # FORMATTER must not turn a non-gating advisory into a gate.
+        try:
+            window_grid_warning = window_grid_coverage_warning(_window_grid_coverage_issues())
+            if window_grid_warning:
+                sys.stderr.write(window_grid_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: expected-window-grid advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
         try:
             dup_capture_warning = duplicate_capture_id_warning(_duplicate_capture_id_issues())
             if dup_capture_warning:
