@@ -82,7 +82,10 @@ from core.timeutil import parse_iso_utc  # noqa: E402
 # SAME `BurstQuote` key contract (`kalshi_yes_ask` / `kalshi_yes_bid` / `poly_best_ask` /
 # `poly_best_bid`). Cross-script import precedent: `scripts/q48_s55_fomc_lag_probe.py` imports
 # `parse_capture_time` from THIS module for the same reason.
-from scripts.s9_leadlag_probe import per_ticker_leadlag_drop_largest  # noqa: E402
+from scripts.s9_leadlag_probe import (  # noqa: E402
+    per_ticker_leadlag_drop_largest,
+    signed_leader_label,
+)
 
 TAPE_DIR = REPO_ROOT / "tape" / "polymarket_macro_pairs"
 CPI_TAPE_DIR = REPO_ROOT / "tape" / "polymarket_cpi_pairs"
@@ -513,13 +516,35 @@ def build_burst_series(records: Sequence[Dict[str, Any]]) -> Dict[str, List[Tupl
 # then accept an absolute ρ magnitude smaller than that as a stable lead.
 LEADLAG_SIGNED_LEADER_MARGIN = 0.05
 
+# SIGN PRECONDITION — the second, INDEPENDENT gate on the same decision (L235).
+#
+# The margin above is a DIFFERENCE test, and a difference test over a SIGNED statistic is an
+# argmax that can crown a negative winner: with both lag-ρ negative it names the LESS NEGATIVE
+# direction the leader. `KXFEDDECISION-26SEP-H0` in this module's own 2026-07-29 FOMC run got
+# `leader = polymarket` on ρ = -0.0045 over Kalshi's -0.2536, because -0.0045 > -0.2536.
+# "Less negative" is not a lead; two negative lag-ρ mean each venue's move ANTI-predicts the
+# other's next move, which supports NO directional claim in either direction.
+#
+# `LEADLAG_RHO_MAGNITUDE_FLOOR` below does NOT subsume this. It killed that row only by luck —
+# |−0.0045| happens to be below 0.05. The verifier's counterexample separates the two gates
+# cleanly: `rho_k = -0.30` / `rho_p = -0.20` clears the 0.05 magnitude floor by 6x and, pre-fix,
+# was labelled `polymarket` and then `stable`. Magnitude asks "is this ρ large enough to be
+# signal?"; sign asks "does it point the way a lead claim requires?" — neither implies the
+# other, so both are asked, and the sign gate is the earlier one (it runs here, at leader
+# selection, before `leadlag_stability` ever sees the row).
+#
+# The rule itself lives in ONE place, `scripts/s9_leadlag_probe.py::signed_leader_label`,
+# imported above and shared with the S9 burst probe, whose `per_ticker_leadlag` had the
+# byte-identical defect (L36/L102: the divergent twin is the next variant of the bug).
+
 
 def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
                        *, min_steps: int = 3,
                        margin: float = LEADLAG_SIGNED_LEADER_MARGIN) -> List[Dict[str, Any]]:
     """SIGNED lead-lag per pair at burst resolution: does Kalshi's move predict Polymarket's
     NEXT move (kalshi leads) more than the reverse? `signed_leader` is 'kalshi'/'polymarket'
-    when one lag's correlation beats the other by `margin`, else 'none'. Uses the Kalshi
+    when one lag's correlation beats the other by `margin` AND that direction's ρ is strictly
+    positive (L235 sign precondition, `signed_leader_label`), else 'none'. Uses the Kalshi
     yes-ask and Polymarket best-ask series (both real_ask), same basis as the pooled cut."""
     out: List[Dict[str, Any]] = []
     for key, rows in burst_series.items():
@@ -531,14 +556,7 @@ def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]
             continue
         rho_k_leads = pearson(dk[:-1], dp[1:])
         rho_p_leads = pearson(dp[:-1], dk[1:])
-        leader = None
-        if rho_k_leads is not None and rho_p_leads is not None:
-            if rho_k_leads > rho_p_leads + margin:
-                leader = "kalshi"
-            elif rho_p_leads > rho_k_leads + margin:
-                leader = "polymarket"
-            else:
-                leader = "none"
+        leader = signed_leader_label(rho_k_leads, rho_p_leads, margin=margin)
         out.append({
             "pair": key,
             "n_steps": len(dk),

@@ -294,6 +294,74 @@ def test_per_ticker_leadlag_below_min_steps_is_dropped():
     assert probe.per_ticker_leadlag(series, min_steps=3) == []
 
 
+# --------------------------------------------------------------------------- #
+# burst mode — SIGN PRECONDITION on the signed-leader argmax (L235).
+#
+# `signed_leader` was a pure argmax over a SIGNED statistic subject to a `margin` DIFFERENCE,
+# so when BOTH lag-rho are negative it named the LESS NEGATIVE direction the leader — which is
+# not a lead in any economic reading. The real row was in the S17 sibling probe
+# (`KXFEDDECISION-26SEP-H0`, leader=polymarket on rho = -0.0045 over Kalshi's -0.2536), but the
+# comparison here was byte-identical, so the defect and the fix are both shared: the rule lives
+# once, in `signed_leader_label`, and S17 imports it (L36/L102 — the divergent twin is the next
+# variant of the bug). L229's 0.05 magnitude floor (S17-side) caught the real row only by luck;
+# the verifier's counterexample -0.30 / -0.20 clears that floor 6x and is killed by SIGN alone.
+# --------------------------------------------------------------------------- #
+def test_signed_leader_label_refuses_a_leader_when_both_directions_are_negative():
+    """POSITIVE CONTROL — the verifier's exact counterexample. Pre-fix this returned
+    'polymarket' (because -0.20 > -0.30 + 0.05 as a signed comparison)."""
+    assert probe.signed_leader_label(-0.30, -0.20, margin=0.05) == "none"
+    assert probe.signed_leader_label(-0.20, -0.30, margin=0.05) == "none"
+
+
+def test_signed_leader_label_pins_the_historical_26sep_h0_row():
+    """The REAL executed values from the 2026-07-29 FOMC run (rho_k = -0.2536,
+    rho_p = -0.0045), which that run labelled leader=polymarket. Both negative -> no leader."""
+    assert probe.signed_leader_label(-0.25358737015281874, -0.004471504399603508,
+                                     margin=0.05) == "none"
+
+
+def test_signed_leader_label_sign_gate_is_independent_of_any_magnitude_gate():
+    """L235's load-bearing point, checked against this module's own margin: the counterexample
+    clears 0.05 on BOTH magnitudes and on the difference, and is rejected by the sign gate
+    alone; conversely a sub-0.05-magnitude rho can pass the sign gate."""
+    assert abs(-0.30) > 0.05 and abs(-0.20) > 0.05
+    assert abs(-0.20 - -0.30) > 0.05
+    assert probe.signed_leader_label(-0.30, -0.20, margin=0.05) == "none"
+    assert probe.signed_leader_label(0.03, -0.30, margin=0.05) == "kalshi"   # sign ok, tiny
+
+
+def test_signed_leader_label_negative_controls_unchanged():
+    """MUST NOT FIRE — behaviour is unchanged wherever the winning direction's rho is positive,
+    and for the within-margin and None cases."""
+    assert probe.signed_leader_label(0.30, 0.20, margin=0.05) == "kalshi"
+    assert probe.signed_leader_label(0.20, 0.30, margin=0.05) == "polymarket"
+    assert probe.signed_leader_label(0.30, -0.20, margin=0.05) == "kalshi"     # mixed sign
+    assert probe.signed_leader_label(-0.20, 0.30, margin=0.05) == "polymarket"  # mixed sign
+    assert probe.signed_leader_label(0.30, 0.29, margin=0.05) == "none"        # within margin
+    assert probe.signed_leader_label(None, 0.30, margin=0.05) is None
+    assert probe.signed_leader_label(0.30, None, margin=0.05) is None
+    assert probe.signed_leader_label(None, None, margin=0.05) is None
+
+
+def test_per_ticker_leadlag_names_no_leader_when_both_lag_rho_are_negative():
+    """END-TO-END through `per_ticker_leadlag` on a series that genuinely produces two NEGATIVE
+    lag-rho of the counterexample's shape. The observed rho are asserted so the fixture cannot
+    drift out of the both-negative regime and stop testing the sign gate."""
+    kalshi = [0.50, 0.50, 0.51, 0.50, 0.48, 0.50, 0.52, 0.53]
+    poly = [0.50, 0.50, 0.51, 0.52, 0.53, 0.54, 0.52, 0.54]
+    series = _burst_series_from_prices(kalshi, poly)
+    out = probe.per_ticker_leadlag(series, min_steps=3, margin=0.05)[0]
+    assert out["rho_kalshi_leads"] == pytest.approx(-0.2988, abs=1e-3)
+    assert out["rho_polymarket_leads"] == pytest.approx(-0.2010, abs=1e-3)
+    assert out["rho_kalshi_leads"] < 0 and out["rho_polymarket_leads"] < 0
+    # the pre-fix argmax fired here: the less-negative direction beats the other by > margin
+    assert out["rho_polymarket_leads"] > out["rho_kalshi_leads"] + 0.05
+    assert out["signed_leader"] == "none"
+    # schema unchanged — no new keys; both rho stay on the row so 'none' is auditable
+    assert set(out) == {"pair", "n_steps", "rho_contemporaneous", "rho_kalshi_leads",
+                        "rho_polymarket_leads", "signed_leader"}
+
+
 def test_per_ticker_leadlag_drop_largest_collapses_single_tick_artifact():
     # A "lead" driven entirely by ONE lag-pair should collapse toward noise once that pair
     # is removed — the L57 single-tick-artifact check. Here kalshi jumps one capture before

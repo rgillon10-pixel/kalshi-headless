@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-30 ~03:0x ET — research loop: idle-run policy (a) — L235 sign-precondition converted UNENFORCED → test on the shared lead-lag leader-selection helper
+
+Steps 0a/0/0b at run start: **0a PASS** — last 5 merged PRs (#238/#237/#236/#235/#234) all ancestors
+of `origin/main` HEAD (`5106fa9`); newest `kb/00-LOG.md` entry (2026-07-30) and newest committed
+`tape/*/dt=*` day (2026-07-29) 1 day apart, no rewind. **0:** the 5 open PRs (#208/#191/#166/#165/#125)
+are all long-standing Ryan-review-only drafts/retro proposals, none claim eligible work.
+**0b:** 207 stranded `tape/hourly-*`+`tape/burst-*` branches, unchanged backlog since PR #234, out of
+this run's time budget (tracked, not swept).
+
+**Queue scan: every item Q0-Q48 is DONE / BLOCKED / STILL GATED / ROUND COMPLETE.** No eligible
+TODO/IN-PROGRESS work — matches PR #238's own note (17 consecutive zero-registration Q21 rounds,
+"binding constraint is the DATA SURFACE, not idea capacity"). Q21 idea-gen is edge-hunter's and was
+just run today (PR #238) — not repeated here. **IDLE RUN, policy (a).**
+
+Delegated to `research-lead`, which re-derived the genuinely-open `UNENFORCED` lesson set fresh using
+the repo's own delimiter-aware parser (`scripts/invariants.py::_parse_lesson_rows` +
+`_lesson_disposed_ids`, not a naive `split('|')`): 235 rows, 37 cells starting `**UNENFORCED`, 29
+formally disposed via `DISPOSES:`, leaving **9 open before this run**. Picked **L235** (2026-07-29,
+already fully pre-specified by its own enforcement-column candidate text) — cheapest real
+regression-risk pick.
+
+**The bug:** `per_ticker_leadlag`'s `signed_leader` is an argmax over a SIGNED statistic (lag-ρ), so
+when both directions are negative it names the LESS NEGATIVE one the leader —
+`KXFEDDECISION-26SEP-H0` got `leader=polymarket` on ρ=−0.0045 over Kalshi's −0.2536, purely because
+−0.0045 > −0.2536. The existing `LEADLAG_RHO_MAGNITUDE_FLOOR` only caught that row by luck (it happens
+to sit below the floor); the verifier's own counterexample (`rho_k=−0.30, rho_p=−0.20`, clears the
+floor 6× over) shows a sign gate and a magnitude gate are independent — neither implies the other.
+
+**The fix:** new shared pure helper `scripts/s9_leadlag_probe.py::signed_leader_label(rho_kalshi_leads,
+rho_polymarket_leads, *, margin)` — names a leader only if that direction's ρ beats the other by
+`margin` **and** is strictly `> 0`; `None` when either ρ is undefined (unchanged); `"none"` otherwise.
+`scripts/s17_leadlag_probe.py` imports it (existing cross-script precedent) so its byte-identical twin
+(the S17 burst probe) cannot drift — closes the exact L36/L102 duplicate-helper divergence class.
+11 new tests (6 S17 + 5 S9): the verifier's exact counterexample, the real 26SEP-H0 floats, an
+explicit gate-independence test, a negative-control battery, and an end-to-end `per_ticker_leadlag`
+case over constructed tape whose two lag-ρ are themselves asserted negative.
+
+**Controls (research-lead, self-verified — the CLI-dispatched edge-prober worker died mid-task
+without reporting, see process note below):** positive — reverting `scripts/` to HEAD with the new
+tests in place: 10 failed / 128 passed, failing exactly on `AssertionError: assert 'polymarket' ==
+'none'` (files restored byte-identical after, md5-verified). Negative — exhaustive differential of old
+vs new rule over all 40,804 `(ρ_k, ρ_p)` pairs on a 0.01 grid in [−1,1] plus `None`: 31,658 identical,
+9,146 divergent, 0 unexplained by "winning direction's ρ ≤ 0"; the gate only ever REMOVES a leader,
+never swaps one for the other. **Findings impact, recomputed by hand over the three recorded ρ
+tables:** exactly one row moves — FOMC `KXFEDDECISION-26SEP-H0`, leader `polymarket → none`, stability
+`UNSTABLE_below_magnitude_floor → no_directional_claim`; the FOMC headline would re-run as "0 of 5
+directional leaders survive" instead of "0 of 6" — same zero, no verdict change. No `findings/` file
+edited.
+
+**Process note (kb-distiller candidate):** the CLI-dispatched `edge-prober` worker wrote all five file
+edits then died with "Execution error" before reporting — `research-lead` had no `Task` tool available
+in that context, used `claude -p --agent edge-prober`, and had to re-derive every control itself
+read-only rather than trust an unreceived report. Lesson candidate: a CLI-dispatched worker that dies
+post-edit leaves an unreported diff; `git status`/`git diff` after a dead worker is the only reliable
+record of what it did — do not assume the edit was validated.
+
+**Also flagged, NOT fixed this run (scope discipline — one milestone):** L209's enforcement cell still
+reads `**UNENFORCED**` proposing an upper-bound sentinel guard on `q43_perp_binary_consistency_probe.py`
+that **already exists** (`NO_QUOTE_SENTINEL_FLOOR=1e6`, two pinning tests) — suppressed from the open-8
+count by its own `DISPOSES:` marker, but the row's prose is stale/misleading. Cheap flip for a future
+kb-distiller pass.
+
+No registry status flip, no bootstrap CI, no kill decision — infra/enforcement only (L104/L110/L118/
+L127/L137 precedent: two-agent rule N/A for a lesson→test conversion). `kb/lessons/00-lessons.md` L235
+enforcement cell updated in place (only that row's last cell changed — lesson/source cells
+byte-identical). Fresh gates: `python3 -m pytest -o addopts='' -q` → **2297 passed, 0 failed**
+(1460.59s); `python3 scripts/invariants.py --full` → exit 0, all green (L152's own stale-UNENFORCED
+advisory independently confirms the open set dropped 9→8). Still 0 proven edges.
+
 ## 2026-07-30 ~00:2x ET — kalshi-edge-hunter: Unit-1 review PASS (both 07-29 findings reproduce to the float) + Q21 round (3 killed, `universe_sweep` box class foreclosed); no probe-prep needed
 
 Nightly edge-hunter run (fires 04:15 UTC / ~00:15 ET). Steps 0a/0/0b at run start: **0a PASS** —
