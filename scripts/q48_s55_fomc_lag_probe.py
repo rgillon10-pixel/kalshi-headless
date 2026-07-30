@@ -513,6 +513,28 @@ def covering_release(window: Dict[str, Any], times: Dict[str, datetime],
     return None
 
 
+def nearest_release_bracket_gap_s(times: Dict[str, datetime],
+                                  release: datetime) -> Optional[float]:
+    """Seconds between the nearest pass strictly BEFORE `release` and the nearest pass strictly
+    AFTER it, regardless of the `BURST_MAX_INTERVAL_S` burst-window threshold. `None` if no pass
+    exists on one or both sides.
+
+    This is the number `covering_release` doesn't surface: `detect_burst_windows` only forms a
+    window across gaps <= `BURST_MAX_INTERVAL_S`, so a single capture outage spanning the release
+    instant splits what would have been one covering window into two non-covering ones — the
+    report used to say only "0 covering", with no way to tell "the tape is thin near this release"
+    apart from "the tape has a real capture outage exactly at this instant" (2026-07-30 finding:
+    the 2026-07-29T18:00:00Z FOMC statement fell inside exactly such an outage — see kb/00-LOG.md
+    2026-07-30 entry). A gap <= `BURST_MAX_INTERVAL_S` here would be a contradiction (it would
+    have formed a covering window), so in practice this is only informative when `covering_release`
+    already returned empty."""
+    before = [t for t in times.values() if t < release]
+    after = [t for t in times.values() if t > release]
+    if not before or not after:
+        return None
+    return (min(after) - max(before)).total_seconds()
+
+
 def max_pass_density_per_hour(times: Dict[str, datetime],
                               window_seconds: float = DENSITY_WINDOW_SECONDS) -> int:
     """Largest number of distinct passes falling inside any `window_seconds` sliding window —
@@ -1163,13 +1185,23 @@ def run_probe(tape_dir: Path = DEFAULT_TAPE_DIR, *, release_ts: str = DEFAULT_RE
         report["status"] = "INSUFFICIENT DATA"
         reasons: List[str] = []
         if not covering:
+            release_bracket_gaps = {
+                r.isoformat(): nearest_release_bracket_gap_s(times, r) for r in releases}
+            report["release_bracket_gap_s"] = release_bracket_gaps
+            gap_desc = "; ".join(
+                f"{rel}: {gap:.1f}s bracket gap"
+                if gap is not None else f"{rel}: no bracketing pass on one side"
+                for rel, gap in release_bracket_gaps.items())
             reasons.append(
                 f"Q48 needs >= 1 burst window (consecutive passes <= "
                 f"{BURST_MAX_INTERVAL_S:.0f}s apart) with at least one pass strictly BEFORE and "
                 f"one strictly AFTER a release instant "
                 f"({', '.join(r.isoformat() for r in releases)}); found {len(windows)} burst "
                 f"window(s) ({report['n_burst_windows_cadence_qualified']} cadence-qualified), "
-                f"0 covering.")
+                f"0 covering. Nearest-pass bracket gap per release, ignoring the "
+                f"{BURST_MAX_INTERVAL_S:.0f}s burst threshold: {gap_desc}. A bracket gap > "
+                f"{BURST_MAX_INTERVAL_S:.0f}s means a real capture outage spanned the release "
+                f"instant, not merely sparse tape.")
         if not observations:
             reasons.append(
                 f"ZERO priced observations survived the adequacy gate out of {len(records)} "
