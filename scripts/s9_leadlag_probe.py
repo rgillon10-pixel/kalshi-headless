@@ -335,12 +335,102 @@ def build_burst_series(records: Sequence[Dict[str, Any]]) -> Dict[str, List[Tupl
     return series
 
 
+# --------------------------------------------------------------------------- #
+# Leader selection: the MARGIN test and the SIGN precondition (L235), in ONE place.
+#
+# Shared by BOTH burst-mode `per_ticker_leadlag` definitions — this module's (WC schema,
+# keyed by ticker, margin default 0.05) and `scripts/s17_leadlag_probe.py`'s (Fed schema,
+# keyed by pair, margin default `LEADLAG_SIGNED_LEADER_MARGIN`), which imports this function
+# beside `per_ticker_leadlag_drop_largest`. Implemented ONCE, never copied: L36/L102 is the
+# lesson that a byte-identical helper living in two scripts is a bug this repo has already
+# paid for, and a two-line signed comparison is exactly the kind of predicate that gets
+# duplicated and then fixed in only one of its copies.
+#
+# SCOPE OF THAT CLAIM — it covers THIS helper only, not the lead-lag family. `pearson` is still
+# byte-duplicated between `scripts/s9_leadlag_probe.py:108-118` and
+# `scripts/s17_leadlag_probe.py:166-176` (with near-copies in
+# `scripts/q43_perp_binary_consistency_probe.py` and `scripts/s8_basis_probe.py`); that is
+# pre-existing and deliberately NOT addressed here, since de-duplicating it would change four
+# probes' import graphs and published outputs. Read nothing family-wide into the paragraph above.
+def signed_leader_from_rhos(rho_kalshi_leads: Optional[float],
+                            rho_polymarket_leads: Optional[float],
+                            *, margin: float) -> Optional[str]:
+    """Name the leading venue from the two lag-ρ, or refuse to.
+
+    Returns:
+      ``"kalshi"`` / ``"polymarket"`` — that direction's lag-ρ is BOTH strictly POSITIVE and
+          beats the other direction's ρ by more than `margin`.
+      ``"none"`` — both ρ were computable, but no venue earned the label: either the two ρ sit
+          within `margin` of each other, or the winning direction's ρ is <= 0 (the L235 sign
+          gate). A STRING, deliberately: every downstream consumer filters
+          ``signed_leader not in (None, "none")`` and `leadlag_stability` maps it to
+          ``no_directional_claim``, so a computed non-claim must not masquerade as a missing
+          number.
+      ``None`` — returned if and ONLY if one of the two arguments IS ``None`` (the
+          uncomputable case: `pearson` returns None on a <2-sample or zero-variance delta
+          series). Never returned for a computed non-claim. Note the precise scope: a NaN ρ
+          does NOT return None — every NaN comparison is False, so both margin tests fail and
+          it falls through to the fail-safe ``"none"`` (measured: ``(nan, -0.2, margin=0.05)
+          -> "none"``). That is deliberate and there is NO NaN special-case branch here,
+          because there is no way to reach one: `pearson` (`s9:108-118`, `s17:166-176`)
+          returns None rather than a NaN whenever variance is zero, and bounded tape prices in
+          [0, 1] cannot overflow its sums, so a NaN/inf ρ is unproducible from real tape and a
+          NaN branch would be dead code. (An `inf` ρ, equally unproducible, WOULD win the
+          margin test and be named — measured: ``(inf, -0.2, margin=0.05) -> "kalshi"``.)
+
+    A negative `margin` is a caller error and raises `ValueError`: the comparison
+    ``rho_a > rho_b + margin`` with margin < 0 can be satisfied by the SMALLER ρ, so the
+    function would name the wrong venue rather than merely being lenient (measured on the
+    un-guarded version: ``(0.30, 0.35, margin=-0.10) -> "kalshi"``, i.e. the smaller ρ's
+    venue). ``margin = 0.0`` is allowed and degenerates to a strict ``>`` comparison.
+
+    THE SIGN GATE (L235). The margin test compares SIGNED ρ, so when both directions are
+    negative it crowns the LESS NEGATIVE one. Real instance: `KXFEDDECISION-26SEP-H0` was
+    labelled ``leader = polymarket`` on ρ = -0.004471504399603508 over Kalshi's ρ = -0.2536,
+    purely because -0.0045 > -0.2536 as a signed comparison. "Less negative" is not a lead in
+    any economic reading — a negative lag-ρ says the follower's NEXT move tends to go the
+    OTHER way, which is not price discovery flowing in the winner's direction. So the winning
+    ρ must be ``> 0``; strictly, since ρ = 0.0 carries no direction either.
+
+    THE SIGN GATE AND THE |ρ| MAGNITUDE FLOOR ARE INDEPENDENT GATES — neither implies the
+    other, and that is L235's headline. `s17`'s `LEADLAG_RHO_MAGNITUDE_FLOOR` (0.05) rejected
+    26SEP-H0 only INCIDENTALLY, because |-0.0045| happens to fall below it — not because its
+    sign was wrong. The verifier's counterexample makes the residual gap concrete:
+    ``rho_k = -0.30 / rho_p = -0.20`` clears that magnitude floor comfortably and, without
+    this precondition, would ship a `stable` "Polymarket leads" claim built entirely on the
+    less-negative of two negative correlations. Conversely a small POSITIVE winner
+    (ρ = +0.01 vs -0.20) passes THIS gate and is killed only by the magnitude floor
+    downstream. Both gates are load-bearing; neither is redundant.
+    """
+    if margin < 0:
+        # Before ANY comparison: a negative margin inverts the predicate's meaning rather than
+        # loosening it, so it must never silently produce a leader label.
+        raise ValueError(
+            "margin must be >= 0 (a negative margin makes the comparison name the SMALLER "
+            f"rho's venue); got {margin!r}")
+    if rho_kalshi_leads is None or rho_polymarket_leads is None:
+        return None
+    if rho_kalshi_leads > rho_polymarket_leads + margin:
+        winner, rho_winning = "kalshi", rho_kalshi_leads
+    elif rho_polymarket_leads > rho_kalshi_leads + margin:
+        winner, rho_winning = "polymarket", rho_polymarket_leads
+    else:
+        return "none"
+    # L235 sign precondition, applied AFTER the margin test so the two gates stay separable
+    # (and so the magnitude floor downstream still sees the same margin semantics it is
+    # tied to by construction). A winner that only wins by being less negative is no leader.
+    return winner if rho_winning > 0 else "none"
+
+
 def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
                        *, min_steps: int = 3, margin: float = 0.05) -> List[Dict[str, Any]]:
     """SIGNED lead-lag per ticker at burst resolution: does Kalshi's move predict
     Polymarket's NEXT move (kalshi leads) more than the reverse? `signed_leader` is
-    'kalshi'/'polymarket' when one lag's correlation beats the other by `margin`, else
-    'none'. Uses the Kalshi yes-ask and Polymarket best-ask series (both real_ask)."""
+    'kalshi'/'polymarket' when one lag's correlation is BOTH strictly positive AND beats the
+    other by `margin` (see `signed_leader_from_rhos` — the L235 sign gate refuses to crown
+    the less negative of two negative ρ), 'none' when both ρ are computable but no venue
+    earns the label, and None only when a ρ is uncomputable. Uses the Kalshi yes-ask and
+    Polymarket best-ask series (both real_ask)."""
     out: List[Dict[str, Any]] = []
     for key, rows in burst_series.items():
         seq = [(q["kalshi_yes_ask"], q["poly_best_ask"]) for _, q in rows
@@ -351,14 +441,8 @@ def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]
             continue
         rho_k_leads = pearson(dk[:-1], dp[1:])
         rho_p_leads = pearson(dp[:-1], dk[1:])
-        leader: Optional[str] = None
-        if rho_k_leads is not None and rho_p_leads is not None:
-            if rho_k_leads > rho_p_leads + margin:
-                leader = "kalshi"
-            elif rho_p_leads > rho_k_leads + margin:
-                leader = "polymarket"
-            else:
-                leader = "none"
+        leader: Optional[str] = signed_leader_from_rhos(
+            rho_k_leads, rho_p_leads, margin=margin)
         out.append({
             "pair": key,
             "n_steps": len(dk),

@@ -82,7 +82,14 @@ from core.timeutil import parse_iso_utc  # noqa: E402
 # SAME `BurstQuote` key contract (`kalshi_yes_ask` / `kalshi_yes_bid` / `poly_best_ask` /
 # `poly_best_bid`). Cross-script import precedent: `scripts/q48_s55_fomc_lag_probe.py` imports
 # `parse_capture_time` from THIS module for the same reason.
-from scripts.s9_leadlag_probe import per_ticker_leadlag_drop_largest  # noqa: E402
+# `signed_leader_from_rhos` is imported for the same reason: the leader-selection comparison
+# (margin test + the L235 SIGN precondition) lives ONCE, in the S9 probe, and both burst-mode
+# `per_ticker_leadlag` definitions call it. This module keeps its OWN margin default
+# (`LEADLAG_SIGNED_LEADER_MARGIN`, below) and passes it in explicitly.
+from scripts.s9_leadlag_probe import (  # noqa: E402
+    per_ticker_leadlag_drop_largest,
+    signed_leader_from_rhos,
+)
 
 TAPE_DIR = REPO_ROOT / "tape" / "polymarket_macro_pairs"
 CPI_TAPE_DIR = REPO_ROOT / "tape" / "polymarket_cpi_pairs"
@@ -519,8 +526,17 @@ def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]
                        margin: float = LEADLAG_SIGNED_LEADER_MARGIN) -> List[Dict[str, Any]]:
     """SIGNED lead-lag per pair at burst resolution: does Kalshi's move predict Polymarket's
     NEXT move (kalshi leads) more than the reverse? `signed_leader` is 'kalshi'/'polymarket'
-    when one lag's correlation beats the other by `margin`, else 'none'. Uses the Kalshi
-    yes-ask and Polymarket best-ask series (both real_ask), same basis as the pooled cut."""
+    when one lag's correlation is BOTH strictly POSITIVE and beats the other by `margin`,
+    'none' when both ρ are computable but no venue earns the label, and None ONLY when a ρ is
+    uncomputable. Uses the Kalshi yes-ask and Polymarket best-ask series (both real_ask), same
+    basis as the pooled cut.
+
+    The positivity requirement is the L235 sign gate, implemented once in
+    `scripts.s9_leadlag_probe.signed_leader_from_rhos` (read its docstring for the
+    `KXFEDDECISION-26SEP-H0` instance it kills). Note that it and
+    `LEADLAG_RHO_MAGNITUDE_FLOOR` below are INDEPENDENT gates — neither implies the other:
+    the floor caught 26SEP-H0's ρ = -0.0045 only incidentally (|ρ| < 0.05), while
+    `rho_k = -0.30 / rho_p = -0.20` clears the floor and is rejected only by the sign gate."""
     out: List[Dict[str, Any]] = []
     for key, rows in burst_series.items():
         seq = [(q["kalshi_yes_ask"], q["poly_best_ask"]) for _, q in rows
@@ -531,14 +547,7 @@ def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]
             continue
         rho_k_leads = pearson(dk[:-1], dp[1:])
         rho_p_leads = pearson(dp[:-1], dk[1:])
-        leader = None
-        if rho_k_leads is not None and rho_p_leads is not None:
-            if rho_k_leads > rho_p_leads + margin:
-                leader = "kalshi"
-            elif rho_p_leads > rho_k_leads + margin:
-                leader = "polymarket"
-            else:
-                leader = "none"
+        leader = signed_leader_from_rhos(rho_k_leads, rho_p_leads, margin=margin)
         out.append({
             "pair": key,
             "n_steps": len(dk),
@@ -595,6 +604,14 @@ LEADLAG_LOO_RETENTION_FLOOR = 0.5
 # A below-floor verdict is labelled `UNSTABLE_below_magnitude_floor` — deliberately sharing the
 # `UNSTABLE` prefix, so every existing consumer that gates on `.startswith("UNSTABLE")` (the
 # printer's refusal line included) treats it as NOT a lead without further change.
+#
+# THIS FLOOR AND THE L235 SIGN PRECONDITION ARE INDEPENDENT GATES — neither implies the other.
+# This floor is a test on |ρ| and says nothing about ρ's SIGN; the sign gate in
+# `signed_leader_from_rhos` is a test on the winning ρ's sign and says nothing about its
+# MAGNITUDE. The floor rejected 26SEP-H0 only INCIDENTALLY (|-0.0045| < 0.05, a coincidence of
+# that window's numbers, not a consequence of its wrong sign): `rho_k = -0.30 / rho_p = -0.20`
+# clears this floor comfortably and is caught ONLY by the sign gate, while `+0.01 vs -0.20`
+# clears the sign gate and is caught ONLY by this floor. Do not delete either as redundant.
 LEADLAG_RHO_MAGNITUDE_FLOOR = LEADLAG_SIGNED_LEADER_MARGIN
 
 _LOO_DIRECTION_FIELDS = {

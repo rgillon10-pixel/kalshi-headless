@@ -356,6 +356,122 @@ def test_per_ticker_leadlag_skips_too_short():
 
 
 # --------------------------------------------------------------------------- #
+# L235 — the SIGN precondition on the signed-leader declaration.
+#
+# `per_ticker_leadlag`'s leader comparison maximises the SIGNED lag-ρ, so before the fix it
+# named the LESS NEGATIVE of two negative ρ the leader: `KXFEDDECISION-26SEP-H0` was published
+# as `leader = polymarket` on ρ = -0.004472 over Kalshi's ρ = -0.2536 (findings/
+# 2026-07-29-s17-burst-fomc-q19.md §5 OPEN DEFECT D3). The gate itself is shared with the S9
+# probe (`scripts.s9_leadlag_probe.signed_leader_from_rhos`, re-exported into this module's
+# namespace by the import at the top of the script — one implementation, L36/L102); these
+# tests pin THIS module's margin semantics and its interaction with the magnitude floor.
+# --------------------------------------------------------------------------- #
+def test_l235_signed_leader_rejects_less_negative_of_two_negative_rhos():
+    # The L235-named pin / verifier counterexample: rho_p = -0.20 beats rho_k = -0.30 by 0.10,
+    # clearing the margin test, and must still yield NO leader.
+    assert probe.signed_leader_from_rhos(
+        -0.30, -0.20, margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+    assert probe.signed_leader_from_rhos(
+        -0.20, -0.30, margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+
+
+def test_l235_sign_gate_and_magnitude_floor_are_independent_gates():
+    """L235's load-bearing claim: the |ρ| magnitude floor does NOT cover the wrong-sign case.
+
+    `(rho_k = -0.30, rho_p = -0.20)`'s WINNING |ρ| is 0.20 — four times the floor — so a
+    magnitude gate lets it straight through; only the sign precondition kills it. And the
+    converse holds: a small POSITIVE winner clears the sign gate and is killed only by the
+    floor. Neither gate implies the other; deleting either re-opens a real hole.
+    """
+    rho_kalshi_leads, rho_polymarket_leads = -0.30, -0.20
+    winning_rho = rho_polymarket_leads  # wins the signed margin test
+    assert abs(winning_rho) > probe.LEADLAG_RHO_MAGNITUDE_FLOOR  # floor is NOT what rejects it
+    assert probe.signed_leader_from_rhos(
+        rho_kalshi_leads, rho_polymarket_leads,
+        margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+    # Converse: positive but sub-floor winner passes the SIGN gate; the floor is the only gate
+    # left standing (leadlag_stability then labels it UNSTABLE_below_magnitude_floor).
+    small_positive = 0.01
+    assert small_positive < probe.LEADLAG_RHO_MAGNITUDE_FLOOR
+    assert probe.signed_leader_from_rhos(
+        small_positive, -0.20, margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "kalshi"
+
+
+def test_l235_regression_kxfeddecision_26sep_h0_leader_is_none_not_polymarket():
+    # The exact floats for the KXFEDDECISION-26SEP-H0 pair. The poly-leads value is the one the
+    # finding quotes in full; the kalshi-leads value (printed rounded as -0.25359 in the §5
+    # table) is taken at full precision from the sibling D2 pin
+    # `test_print_burst_report_counts_a_below_floor_rho_as_not_surviving` below, so both L229
+    # and L235 pins cite the SAME float for the same observation.
+    rho_kalshi_leads = -0.25358737015281874
+    rho_polymarket_leads = -0.004471504399603508
+    # the old signed-argmax path: polymarket wins the margin test outright
+    assert rho_polymarket_leads > rho_kalshi_leads + probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert probe.signed_leader_from_rhos(
+        rho_kalshi_leads, rho_polymarket_leads,
+        margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+
+
+def test_signed_leader_positive_lead_is_unchanged_in_both_directions():
+    m = probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert probe.signed_leader_from_rhos(0.40, 0.10, margin=m) == "kalshi"
+    assert probe.signed_leader_from_rhos(0.10, 0.40, margin=m) == "polymarket"
+    assert probe.signed_leader_from_rhos(0.30, -0.20, margin=m) == "kalshi"
+    assert probe.signed_leader_from_rhos(-0.20, 0.30, margin=m) == "polymarket"
+
+
+def test_signed_leader_positive_winner_inside_the_margin_is_none():
+    m = probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert probe.signed_leader_from_rhos(0.40, 0.36, margin=m) == "none"
+    assert probe.signed_leader_from_rhos(0.36, 0.40, margin=m) == "none"
+    # Exactly AT the margin is still not a lead. Binary-exact values (0.5/0.25/margin=0.25),
+    # deliberately: 0.35 + 0.05 == 0.39999999999999997 < 0.40 in IEEE754, so the "obvious"
+    # (0.40, 0.35, margin=0.05) triple would NOT be an at-the-boundary test at all.
+    assert probe.signed_leader_from_rhos(0.5, 0.25, margin=0.25) == "none"
+    assert probe.signed_leader_from_rhos(0.25, 0.5, margin=0.25) == "none"
+
+
+def test_signed_leader_exactly_zero_winning_rho_is_none():
+    m = probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert probe.signed_leader_from_rhos(0.0, -0.20, margin=m) == "none"
+    assert probe.signed_leader_from_rhos(-0.20, 0.0, margin=m) == "none"
+
+
+def test_signed_leader_none_object_reserved_for_an_uncomputable_rho():
+    m = probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert probe.signed_leader_from_rhos(None, -0.20, margin=m) is None
+    assert probe.signed_leader_from_rhos(0.40, None, margin=m) is None
+    assert probe.signed_leader_from_rhos(None, None, margin=m) is None
+    # A computed refusal is the STRING "none" — downstream filters
+    # `signed_leader not in (None, "none")` and leadlag_stability maps it to
+    # `no_directional_claim`; returning the object would conflate the two.
+    assert probe.signed_leader_from_rhos(-0.30, -0.20, margin=m) == "none"
+
+
+def test_per_ticker_leadlag_two_negative_rhos_yield_no_leader_end_to_end_l235():
+    # Synthetic ANTI-lead series: poly's delta at step i+1 is the NEGATION of kalshi's delta at
+    # step i, so rho_kalshi_leads == -1.0 and rho_polymarket_leads is a less-negative ~-0.766.
+    # Pre-fix this pair was labelled `leader = polymarket` on a ρ of -0.766, well clear of the
+    # magnitude floor — i.e. exactly the row the floor alone would have shipped as `stable`.
+    kalshi = [0.10, 0.13, 0.11, 0.16, 0.12, 0.18, 0.17, 0.19]
+    poly = [0.50, 0.50, 0.47, 0.49, 0.44, 0.48, 0.42, 0.43]
+    recs = [_brec(f"2026-07-14T12:{m:02d}:00Z", "A", yes_ask=k, best_ask=p)
+            for m, (k, p) in enumerate(zip(kalshi, poly))]
+    series = probe.build_burst_series(recs)
+    row = {t["pair"]: t for t in probe.per_ticker_leadlag(series)}["A"]
+    assert row["rho_kalshi_leads"] == pytest.approx(-1.0)
+    assert row["rho_polymarket_leads"] == pytest.approx(-0.7657, abs=1e-3)
+    assert row["rho_polymarket_leads"] > row["rho_kalshi_leads"] + \
+        probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert abs(row["rho_polymarket_leads"]) > probe.LEADLAG_RHO_MAGNITUDE_FLOOR
+    assert row["signed_leader"] == "none"
+    # ...and the sign-rejected row reaches leadlag_stability as a NON-claim, not as a lead.
+    loo = probe.per_ticker_leadlag_drop_largest(series)
+    stab = {s["pair"]: s for s in probe.leadlag_stability([row], loo)}["A"]
+    assert stab["stability"] == "no_directional_claim"
+
+
+# --------------------------------------------------------------------------- #
 # dislocation scan — fillable cross-venue edge net of both fees
 # --------------------------------------------------------------------------- #
 def test_dislocation_scan_flags_positive_edge_after_fees():
@@ -681,7 +797,22 @@ def test_leadlag_stability_noise_level_rho_is_not_stable_regression_26sep_h0():
     (`KXFEDDECISION-26SEP-H0`, leader=polymarket over n=21 steps): rho_full = -0.0044715...,
     i.e. |rho| = 0.0045 — pure noise — and the LOO recompute at -0.0409 moved FURTHER from zero,
     giving retention = 9.14. The pre-fix code labelled this `stable` and the summary line credited
-    it as the 1 of 6 leads that survived leave-one-out. It must be UNSTABLE."""
+    it as the 1 of 6 leads that survived leave-one-out. It must be UNSTABLE.
+
+    REACHABILITY NOTE (added with L235's sign gate). This exact INPUT — `signed_leader
+    = "polymarket"` on a NEGATIVE rho — can no longer be EMITTED by `per_ticker_leadlag`:
+    `signed_leader_from_rhos` now returns "none" when the margin-winning rho is <= 0, so the
+    26SEP-H0 row reaches `leadlag_stability` as a non-claim (pinned by
+    `test_l235_regression_kxfeddecision_26sep_h0_leader_is_none_not_polymarket`). This pin is
+    therefore reachable only by DIRECT CONSTRUCTION, as done here, and is kept deliberately:
+    `leadlag_stability` is a public entry point that must stay defensive about its inputs.
+    The class it still guards LIVE is a small POSITIVE rho below LEADLAG_RHO_MAGNITUDE_FLOOR —
+    e.g. rho = +0.01, which passes the sign gate and is killed only by this floor (that
+    emission is pinned in `test_l235_sign_gate_and_magnitude_floor_are_independent_gates`, and
+    the floor's handling of it in
+    `test_leadlag_stability_magnitude_floor_is_checked_before_sign_and_retention` at rho_full
+    = +0.004). No test drives that class end-to-end from tape through `build_burst_report`;
+    both halves are pinned by direct construction."""
     per_ticker = [{"pair": "KXFEDDECISION-26SEP-H0", "signed_leader": "polymarket"}]
     loo = [{"pair": "KXFEDDECISION-26SEP-H0",
             "rho_polymarket_leads_full": -0.004471504399603508,
@@ -753,7 +884,17 @@ def _stability_only_report(stability_rows, per_ticker_rows):
 
 def test_print_burst_report_counts_a_below_floor_rho_as_not_surviving(capsys):
     """The reader-facing half of the fix: the summary line must NOT credit the noise-level rho,
-    and must say why. This is the line a future run would otherwise quote as '1 of 6 survives'."""
+    and must say why. This is the line a future run would otherwise quote as '1 of 6 survives'.
+
+    REACHABILITY NOTE (added with L235's sign gate), same as the sibling pin
+    `test_leadlag_stability_noise_level_rho_is_not_stable_regression_26sep_h0`: the
+    `signed_leader = "polymarket"` / negative-rho row hand-built below is no longer EMITTABLE by
+    `per_ticker_leadlag` (the sign gate returns "none" when the margin-winning rho is <= 0), so
+    this printer pin is reachable only by direct construction. Kept as-is: the printed summary
+    must stay correct for any stability row it is handed. The live class it still covers is a
+    small POSITIVE sub-floor rho (+0.01-scale), which the sign gate passes and only
+    LEADLAG_RHO_MAGNITUDE_FLOOR rejects — see
+    `test_l235_sign_gate_and_magnitude_floor_are_independent_gates`."""
     pair = "KXFEDDECISION-26SEP-H0"
     per_ticker_rows = [{"pair": pair, "n_steps": 21, "rho_contemporaneous": None,
                         "rho_kalshi_leads": -0.25358737015281874,

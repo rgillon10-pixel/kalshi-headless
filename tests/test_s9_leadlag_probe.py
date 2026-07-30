@@ -294,6 +294,152 @@ def test_per_ticker_leadlag_below_min_steps_is_dropped():
     assert probe.per_ticker_leadlag(series, min_steps=3) == []
 
 
+# --------------------------------------------------------------------------- #
+# signed_leader_from_rhos — the SHARED leader-selection gate, L235's sign precondition.
+#
+# The helper lives in THIS module (imported by scripts/s17_leadlag_probe.py, which must not
+# hold a second copy — L36/L102), so it is pinned here, once. L235: the margin test compares
+# SIGNED ρ, so without a positivity precondition it crowns the LESS NEGATIVE of two negative
+# correlations as the "leader" — and the |ρ| magnitude floor covers that case only by luck.
+# --------------------------------------------------------------------------- #
+_SIGN_GATE_MARGIN = 0.05  # this module's own per_ticker_leadlag margin default
+
+
+def test_l235_signed_leader_rejects_less_negative_of_two_negative_rhos():
+    # THE L235-NAMED PIN (the verifier's counterexample). rho_p = -0.20 beats rho_k = -0.30 by
+    # 0.10 > margin, so the margin test alone would name polymarket. It must not: -0.20 is not
+    # a lead, it is merely less negative. Note |−0.20| is FAR above any 0.05 magnitude floor,
+    # which is precisely why the floor does not cover this case.
+    assert probe.signed_leader_from_rhos(-0.30, -0.20, margin=_SIGN_GATE_MARGIN) == "none"
+    # ...and symmetrically with the venues swapped.
+    assert probe.signed_leader_from_rhos(-0.20, -0.30, margin=_SIGN_GATE_MARGIN) == "none"
+
+
+def test_l235_signed_leader_regression_kxfeddecision_26sep_h0_is_not_polymarket():
+    # The real row from findings/2026-07-29-s17-burst-fomc-q19.md §5: KXFEDDECISION-26SEP-H0
+    # was published as `leader = polymarket` on these two exact floats, purely because
+    # -0.00447 > -0.25359 as a signed comparison. Sign-gated, it is no claim at all.
+    # (Same full-precision pair as tests/test_s17_leadlag_probe.py's L229/D2 pin.)
+    rho_kalshi_leads = -0.25358737015281874
+    rho_polymarket_leads = -0.004471504399603508
+    assert rho_polymarket_leads > rho_kalshi_leads + _SIGN_GATE_MARGIN  # the old argmax path
+    assert probe.signed_leader_from_rhos(
+        rho_kalshi_leads, rho_polymarket_leads, margin=_SIGN_GATE_MARGIN) == "none"
+
+
+def test_signed_leader_still_names_a_genuine_positive_lead_both_directions():
+    # No behaviour regression: a POSITIVE winning ρ beating the other by more than margin
+    # still names its venue, in either direction (including when the loser is negative).
+    assert probe.signed_leader_from_rhos(0.40, 0.10, margin=_SIGN_GATE_MARGIN) == "kalshi"
+    assert probe.signed_leader_from_rhos(0.10, 0.40, margin=_SIGN_GATE_MARGIN) == "polymarket"
+    assert probe.signed_leader_from_rhos(0.30, -0.20, margin=_SIGN_GATE_MARGIN) == "kalshi"
+    assert probe.signed_leader_from_rhos(-0.20, 0.30, margin=_SIGN_GATE_MARGIN) == "polymarket"
+
+
+def test_signed_leader_positive_winner_inside_the_margin_is_none():
+    # Pre-existing behaviour, pinned: winning ρ > 0 but NOT by `margin` -> no claim.
+    assert probe.signed_leader_from_rhos(0.40, 0.36, margin=_SIGN_GATE_MARGIN) == "none"
+    assert probe.signed_leader_from_rhos(0.36, 0.40, margin=_SIGN_GATE_MARGIN) == "none"
+    # Exactly AT the margin is not "by more than" the margin, either. Values chosen to be
+    # EXACTLY representable in binary (0.5 / 0.25) so this pins the `>` and not a float
+    # rounding accident: 0.35 + 0.05 == 0.39999999999999997 < 0.40 in IEEE754, so the
+    # "obvious" (0.40, 0.35, margin=0.05) triple would silently test the wrong thing.
+    assert probe.signed_leader_from_rhos(0.5, 0.25, margin=0.25) == "none"
+    assert probe.signed_leader_from_rhos(0.25, 0.5, margin=0.25) == "none"
+
+
+def test_signed_leader_exactly_zero_winning_rho_is_none():
+    # The sign gate is strictly `> 0`: ρ = 0.0 carries no direction, so it is not a lead even
+    # when it beats a negative counterpart by more than the margin.
+    assert probe.signed_leader_from_rhos(-0.20, 0.0, margin=_SIGN_GATE_MARGIN) == "none"
+    assert probe.signed_leader_from_rhos(0.0, -0.20, margin=_SIGN_GATE_MARGIN) == "none"
+
+
+def test_signed_leader_is_none_object_only_when_a_rho_is_uncomputable():
+    # `None` (the object) stays RESERVED for "no number", never for "no claim" — so a consumer
+    # can distinguish an uncomputable ρ from a computed refusal.
+    assert probe.signed_leader_from_rhos(None, -0.20, margin=_SIGN_GATE_MARGIN) is None
+    assert probe.signed_leader_from_rhos(0.40, None, margin=_SIGN_GATE_MARGIN) is None
+    assert probe.signed_leader_from_rhos(None, None, margin=_SIGN_GATE_MARGIN) is None
+    # and the refusal is the STRING "none", not the object
+    assert probe.signed_leader_from_rhos(-0.30, -0.20, margin=_SIGN_GATE_MARGIN) is not None
+
+
+def test_signed_leader_negative_margin_raises_value_error():
+    """A negative `margin` is a caller error, not a looser gate — it INVERTS the predicate.
+
+    Un-guarded, `rho_a > rho_b + margin` with margin < 0 is satisfiable by the SMALLER ρ, so
+    the function named the wrong venue: measured on the un-guarded implementation,
+    `signed_leader_from_rhos(0.30, 0.35, margin=-0.10)` returned `"kalshi"` — the venue whose
+    ρ (0.30) is the smaller of the two. Both ρ are positive there, so the L235 sign gate does
+    not catch it; only an explicit guard does. ValueError (not `assert`) so it survives `-O`.
+    """
+    with pytest.raises(ValueError, match="margin"):
+        probe.signed_leader_from_rhos(0.30, 0.35, margin=-0.10)
+    with pytest.raises(ValueError, match="margin"):
+        probe.signed_leader_from_rhos(-0.30, -0.20, margin=-0.01)
+    # ...and it is rejected BEFORE the None check, so even the uncomputable path cannot mask it
+    with pytest.raises(ValueError, match="margin"):
+        probe.signed_leader_from_rhos(None, None, margin=-0.10)
+
+
+def test_signed_leader_zero_margin_is_allowed_and_is_a_strict_comparison():
+    """`margin = 0.0` is IN contract (>= 0) and degenerates to a strict `>` on the two ρ.
+
+    Derivation, straight off the implementation: with margin = 0.0 the first branch is
+    `rho_k > rho_p + 0.0`, and adding 0.0 to a float is exact, so the test is exactly
+    `rho_k > rho_p` — strict, hence EQUAL ρ still yield no claim. The sign gate is unchanged
+    and still applies, so two negative ρ remain `"none"` even at zero margin.
+    """
+    assert probe.signed_leader_from_rhos(0.40, 0.10, margin=0.0) == "kalshi"
+    assert probe.signed_leader_from_rhos(0.25, 0.5, margin=0.0) == "polymarket"
+    # equal ρ: `>` is strict, so no venue is named (0.20 is not exactly representable, but both
+    # sides are the SAME float here, so the comparison is exact regardless)
+    assert probe.signed_leader_from_rhos(0.20, 0.20, margin=0.0) == "none"
+    # a one-tick-wide win IS enough at margin 0.0 — this is what "no margin" means
+    assert probe.signed_leader_from_rhos(0.20, 0.19, margin=0.0) == "kalshi"
+    # the L235 sign gate is independent of the margin and still bites at margin 0.0
+    assert probe.signed_leader_from_rhos(-0.10, -0.20, margin=0.0) == "none"
+    assert probe.signed_leader_from_rhos(0.0, -0.20, margin=0.0) == "none"
+
+
+def test_signed_leader_nan_rho_falls_through_to_the_string_none_not_the_object():
+    """A NaN ρ yields the FAIL-SAFE `"none"` (no leader claimed), never the `None` object.
+
+    Every comparison against NaN is False, so both margin tests fail and control reaches the
+    `else`. Pinning the DIRECTION of that fall-through: a NaN must not be able to name a
+    venue, and it must not impersonate an uncomputable ρ either (`None` stays reserved for a
+    literal `None` argument). Unreachable from real tape: `pearson` (s9:108-118, mirrored at
+    s17:166-176) returns `None` on zero variance instead of dividing to NaN, and tape prices
+    are bounded in [0, 1] so its sums cannot overflow — hence NO NaN branch in the helper,
+    which would be dead code. This test pins the incidental-but-safe behaviour, not a
+    contract the callers rely on.
+    """
+    nan = float("nan")
+    assert probe.signed_leader_from_rhos(nan, -0.20, margin=_SIGN_GATE_MARGIN) == "none"
+    assert probe.signed_leader_from_rhos(-0.20, nan, margin=_SIGN_GATE_MARGIN) == "none"
+    assert probe.signed_leader_from_rhos(nan, nan, margin=_SIGN_GATE_MARGIN) == "none"
+    assert probe.signed_leader_from_rhos(nan, 0.40, margin=_SIGN_GATE_MARGIN) is not None
+
+
+def test_per_ticker_leadlag_two_negative_rhos_yield_no_leader_end_to_end_l235():
+    # End-to-end through per_ticker_leadlag on a synthetic ANTI-lead series: poly's delta at
+    # step i+1 is the NEGATION of kalshi's delta at step i, so rho_kalshi_leads == -1.0 while
+    # rho_polymarket_leads is a less-negative ~-0.766. The margin test alone would therefore
+    # crown polymarket on a ρ of -0.766; the L235 sign gate refuses.
+    kalshi = [0.10, 0.13, 0.11, 0.16, 0.12, 0.18, 0.17, 0.19]
+    poly = [0.50, 0.50, 0.47, 0.49, 0.44, 0.48, 0.42, 0.43]
+    series = _burst_series_from_prices(kalshi, poly)
+    out = probe.per_ticker_leadlag(series, min_steps=3, margin=0.05)
+    assert len(out) == 1
+    row = out[0]
+    assert row["rho_kalshi_leads"] == pytest.approx(-1.0)
+    assert row["rho_polymarket_leads"] == pytest.approx(-0.7657, abs=1e-3)
+    # the OLD signed-argmax would have named polymarket here (it wins the margin test)
+    assert row["rho_polymarket_leads"] > row["rho_kalshi_leads"] + 0.05
+    assert row["signed_leader"] == "none"
+
+
 def test_per_ticker_leadlag_drop_largest_collapses_single_tick_artifact():
     # A "lead" driven entirely by ONE lag-pair should collapse toward noise once that pair
     # is removed — the L57 single-tick-artifact check. Here kalshi jumps one capture before

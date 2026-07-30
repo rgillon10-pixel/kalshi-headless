@@ -6,6 +6,94 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-30 ~02:5x ET — research loop: idle run (policy a) — L235 sign precondition on `per_ticker_leadlag` leader-naming
+
+Protocol-v3 run, **IDLE RUN (queue drained)**. Steps 0/0a/0b by the orchestrating session: no rewind
+(newest `kb/00-LOG.md` entry and newest committed tape both 2026-07-29; open PRs #208/#191/#166/#165 are
+Ryan-review-only/draft and claim no queue item; no `tape/hourly-*`/`tape/burst-*` branch newer than those
+already recovered by `b7462f9` / `91ea212`). The research-lead **FILE-SHAPE re-verified the drained state by
+EXECUTING each gated probe rather than trusting the queue prose (L25)**: Q37 **17** summer contract-days vs
+its 21 gate; Q36 `{"status":"INSUFFICIENT DATA","n_settled_events":2,"min_events":10}`; Q43 13 forward days
+(the 7-day gate is met) but **10 of 13 days below `MIN_CAPTURES_PER_DAY_ADVISORY = 10`**, worse than the
+6-of-9 recorded on 07-25, with `dt=2026-07-29` at **1** capture — still density-gated, prep-class only;
+Q48/S55 `INSUFFICIENT DATA`, 14 burst windows (1 cadence-qualified), **0 covering** 2026-07-29T18:00Z,
+`release_bracket_gap_s = 720.0`. So: **policy (a)** — convert an `UNENFORCED` lesson into code.
+
+**What was built.** **L235** (the sole open defect Q19's FOMC leg carried forward by name): `signed_leader`
+was an argmax over a SIGNED lag-ρ, so with both directions negative it crowned the *less negative* one —
+`KXFEDDECISION-26SEP-H0` was labelled `leader = polymarket` on ρ = **−0.004471504399603508** over Kalshi's
+**−0.25358737015281874**. Fix, exactly as L235 specified it: one shared predicate
+`scripts/s9_leadlag_probe.py::signed_leader_from_rhos(rho_kalshi_leads, rho_polymarket_leads, *, margin)`,
+imported by `scripts/s17_leadlag_probe.py` beside the existing `per_ticker_leadlag_drop_largest` (L36/L102 —
+imported, never copied) and called by **both** `per_ticker_leadlag` definitions (s9 WC schema, s17 Fed
+schema), each keeping its original margin default. A venue is named only if its lag-ρ is strictly `> 0` AND
+beats the other by `margin`; `"none"` (string) is a computed non-claim, `None` (object) stays reserved for an
+uncomputable ρ. Round 2 added, on the verifier's corrections: a `ValueError` on `margin < 0` (measured
+un-guarded: `(0.30, 0.35, margin=-0.10) -> "kalshi"`, i.e. it named the SMALLER ρ's venue — and the sign gate
+does *not* catch it, since both ρ are positive), a corrected `None`-clause docstring (a NaN ρ falls through to
+`"none"`; an `inf` ρ WOULD be named — both unproducible via `pearson`), a scope sentence recording that
+`pearson` is still byte-duplicated between the two scripts (pre-existing, not addressed), and REACHABILITY
+NOTEs on two pre-existing L229/D2 pins. **18 new tests** (10 in `tests/test_s9_leadlag_probe.py`, 8 in
+`tests/test_s17_leadlag_probe.py`).
+
+**EXECUTED before/after delta — three lines, and only three.** The published FOMC command
+`scripts/s17_leadlag_probe.py --burst-window 2026-07-29T17:40:00Z 2026-07-29T19:35:00Z --release-instant
+2026-07-29T18:00:00Z` at HEAD `a60ec4f` vs with the patch differs in exactly three places in the whole
+report: `...15 pairs; 6 show a directional leader, 0 survive leave-one-out (L57)` → `...5 show a directional
+leader, 0 survive...`; the `NOTE: 1 of those directional leaders is/are BELOW the |ρ| magnitude floor 0.05`
+line disappears; and 26SEP-H0's two stdout lines (its `leader=polymarket` line and its
+`retention=9.140858451375014 -> UNSTABLE_below_magnitude_floor` line) disappear. Every cadence / seam /
+release-coverage / membership / frozen-fraction (**157/240 = 0.654**) and dislocation-census number (**34
+fee-clearing captures / 5 episodes**) is byte-identical. **The headline `0 survive` is UNCHANGED.** The two
+other published invocations (WC-semi2 S9 leg; June-CPI S17 leg) are byte-identical JSON before vs after,
+`cmp`-verified, and round 2's additions moved none of the three outputs. Nothing is deleted from the JSON —
+both lag-ρ and both LOO ρ are still computed and persisted; what vanishes is stdout plus the
+`leadlag_stability` join fields, and `retention` is re-derivable (the audited run used no `--json-out`).
+
+**What it means, and the honest caveats.** (1) The fix **shrinks the DENOMINATOR** of "N of M survive", so
+L235's blanket "cannot flatter any past verdict" is **valid but conditional**: harmless at numerator 0
+(`0 of 6 → 0 of 5`), flattering on a future window with a nonzero numerator. The real guarantee is
+monotonicity — `leadlag_stability` labels only a leader in `_LOO_DIRECTION_FIELDS`, so a sign-rejected row
+maps to `no_directional_claim` and can never become `stable` (**L239**). (2) **Stale published numbers, now
+written down rather than shipped silently** — the single most important artifact of the run:
+`findings/2026-07-29-s17-burst-fomc-q19.md` `:36`/`:39-42`/`:516`/`:517`/`:524`/`:529-530`/`:555`/`:671`/`:861`
+(its `:529-530` "one — 26SEP-H0 — on the D2 magnitude floor" becomes **affirmatively wrong**: post-patch
+ZERO rows in that window die on the magnitude floor), `kb/strategies/00-index.md` `:29`/`:659`,
+`kb/00-LOG.md` `:45`/`:66-69`, `LOOP-QUEUE.md` `:882`/`:897-901`/`:2117`, and L229's own row. All annotated
+append-only; the finding carries a new `## STALE-NUMBER NOTE — 2026-07-30` so a future verifier re-running
+the documented command and getting `5` finds it in the record. (3) 26SEP-H0 was
+`LEADLAG_RHO_MAGNITUDE_FLOOR`'s **only** real-tape instance, so D2's floor now has **zero real-tape bite** in
+any published window (synthetic-only coverage; still independently necessary, proved by the new independence
+test) — anti-flattering, hence recorded (**L245**). (4) **Uncovered sibling, deliberately not fixed:**
+`scripts/q43_perp_binary_consistency_probe.py:512`'s magnitude argmax (no sign gate, no margin, `>=` favours
+`perp_leads` on a tie), whose only pin is a tautology (**L240**/**L241**) — needs its own before/after
+measurement.
+
+**Two-agent rule: satisfied.** Independent `verifier` → **CONFIRMED-WITH-CORRECTIONS** (its sandbox refused
+`python3` — the L237 pattern — so it audited statically and by `diff`/`cmp` over captured outputs, confirmed
+C1-C6, and named 4 commands it wanted executed; all 4 were executed and all 4 confirmed its derivations,
+including `repr(0.35 + 0.05) == '0.39999999999999997'` — which is why the at-the-margin pins use the
+exactly-representable `(0.5, 0.25, margin=0.25)` triple, **L243**).
+
+**Gates** (research-lead session, taken AFTER the final code edit — L162): two-file gate
+`python3 -m pytest -o addopts='' -q tests/test_s9_leadlag_probe.py tests/test_s17_leadlag_probe.py` →
+**145 passed**; full suite `python3 -m pytest -o addopts='' -q` → **2304 passed in 2331.84s, exit 0**;
+`python3 scripts/invariants.py --full` → exit 0, **`invariants: all green`** (pre-existing non-gating
+advisories only: L185 capped pagination, L210 capture_id collisions, L223 econ_prints gdp regression, L138
+raw `fromisoformat`, L152 stale-candidate, L205 dangling node-id citations, L157 recovery dwell, L52
+unguarded settlement).
+
+**Step 9 paper sub-pass.** `SHADOW_REGISTRY` = {`s14_ladder_underwriting`} (`dead ✗` per Q34 — **paper-infra
+validation only, NOT edge evidence**); `scripts/paper_pass.py` idempotent this run (0 processed / 183 already
+in ledger, zero working-tree diff); realized paper P&L unchanged **+$23.45** (`broker_truth`) — a paper-tier
+number that is evidence toward graduation only, never a substitute for the real-ask CI bar.
+
+**No registry flip** (S17 stays `data-collecting`, numeric-composition correction only), no CI, no P&L claim,
+**still 0 proven edges**. Lessons: L235's enforcement corrected to `test`, plus **L238-L245**. See
+`findings/2026-07-29-s17-burst-fomc-q19.md` §STALE-NUMBER NOTE (2026-07-30).
+
+---
+
 ## 2026-07-30 ~00:2x ET — kalshi-edge-hunter: Unit-1 review PASS (both 07-29 findings reproduce to the float) + Q21 round (3 killed, `universe_sweep` box class foreclosed); no probe-prep needed
 
 Nightly edge-hunter run (fires 04:15 UTC / ~00:15 ET). Steps 0a/0/0b at run start: **0a PASS** —
@@ -96,6 +184,8 @@ No network, no orders, no credentials. Still **0 proven edges**. Gates: `python3
 --full` → exit 0, `invariants: all green` (pre-existing non-gating advisories only: L25/L74/L168/L185/
 L210 — nothing new; docs-only diff); `python3 -m pytest -o addopts='' -q` taken fresh after the last
 edit — docs-only diff, count at clean-tree baseline (see the Log-of-runs line for the measured number).
+
+---
 
 ## 2026-07-29 ~17:2x ET — research loop: Q19's PER-EVENT FOMC leg — DATA-ADEQUACY, not a CI falsification; S17 stays `data-collecting`
 
