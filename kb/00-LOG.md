@@ -6,6 +6,100 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-30 ~09:0x ET — research loop IDLE RUN: L208 converted UNENFORCED → enforced window-grid coverage check, and its own worked example corrected
+
+Third research-loop firing of 2026-07-30. Full FILE-SHAPE rescan of Q0–Q48 (L25 — verified each
+item's real current state, not its prose) again found **0 eligible TODO/IN-PROGRESS items**, the same
+verdict PRs #238 and #240 reached independently earlier today. Re-verified live rather than trusted on
+the three closest-to-open gates: Q43 `python3 scripts/q43_perp_binary_consistency_probe.py` → 14 forward
+`perp_tape` days but **11 of 14 below the 10-capture/day advisory floor** (07-29 = 1, 07-30 = 2), no
+better than the 07-25 reading; Q36 `python3 scripts/q36_kxtempnych_settlement_basis_probe.py` →
+`{"status":"INSUFFICIENT DATA","n_settled_events":2,"min_events":10}`, still frozen VPS-side; Q37's
+weather gate needs 21 `weather_books` day-files and has 14 (opens ~2026-08-05). Everything else is
+DONE / DEAD / credential-BLOCKED / burst-gated / policy-blocked. → **IDLE RUN, policy (a).**
+
+**Unit chosen.** `kb/lessons/00-lessons.md` carried **8** genuinely-open `UNENFORCED` rows. L145/L213
+are policy calls reserved for Ryan; L214/L221/L222 need live collector write-path changes (a collector
+change, not an enforcement); L236's own cell says its fix lives outside that lane. **L208** — *"a
+per-window density statistic computed only over windows that produced ≥1 observation is a survivorship
+statistic, not a coverage statistic"* — is the one whose named candidate is buildable, generic, read-only,
+and already misleading a live analysis (`scripts/q42_funding_estimate_path_inference.py`'s
+`min/median/max_samples_per_window`).
+
+**Built, verbatim to the candidate.** `scripts/tape_gap_monitor.py::expected_window_grid_coverage` +
+the `WINDOW_GRIDDED_FAMILIES` spec table (`perp_tape` → `next_funding_time`, 8h, anchor 04Z, thin ≤1
+pass), enumerating the EXPECTED grid from the collector's own boundary field and reporting the
+observed-only AND grid-filled pass-count summaries side by side plus `n_windows_zero_capture` /
+`zero_capture_windows` / `n_windows_thin` / `path_inadequate_fraction` / `coverage_fraction` /
+`survivorship_gap_median`; a `--window-grid [--window-grid-days ...]` CLI; and a **non-gating**
+`scripts/invariants.py::window_grid_coverage_warning` advisory wired into `--full` (stderr only,
+`except BaseException`, never flips the exit code — a missed funding window is permanently
+unrecoverable, so gating would halt the loop over an unfixable past). **22 new tests**: 12 in
+`tests/test_tape_gap_monitor.py` including `::test_acceptance_9_l208_perp_tape_funding_grid_frozen_slice`,
+a HARD real-tape acceptance test pinned to a **FROZEN** `dt=2026-07-17..27` slice per L191 (an
+open-ended `dt=*` pin on a live family is exactly what red-lined the gate on 2026-07-27), and 10 `*_L208`
+tests in `tests/test_invariants.py`.
+
+**The finding: building the check falsified its own worked example.**
+`findings/2026-07-27-perp-tape-audit.md` PERP-F1 named four permanently-lost 8h funding windows —
+`2026-07-23T08Z`, `07-24T08Z`, `07-25T08Z`, `07-25T16Z`. Those are 00Z-anchored *calendar bins over
+`captured_at`*. Kalshi perps publish the boundary in `next_funding_time`, and **1,534 of 1,534**
+committed `funding_estimate` rows sit on the **04/12/20Z** grid — **zero** on 00/08/16
+(`n_offgrid_window_keys = 0` against anchor 04). Over the same tape and the same 33-window span the
+honest grid has **THREE** zero-pass windows — `07-24T04Z`, `07-25T04Z`, `07-25T20Z` — a set **disjoint**
+from the four reported, not one instant in common; and `12/33 = 36%` path-inadequate re-derives as
+**10/33 = 30.3%**. Both readings were reproduced independently this run, first by a from-scratch scratch
+script that regenerated the audit's four 00Z bins exactly, then by the shipped detector. PERP-F1's
+*thesis* survives (real windows were lost and the observed-only statistic cannot see them); its
+*instants* do not. On the full committed tape today: 41 expected / 36 observed / **5** zero-pass
+(`07-24T04Z`, `07-25T04Z`, `07-25T20Z`, `07-29T20Z`, `07-30T04Z`) / 36.6% path-inadequate / 87.8%
+coverage. Honest caveat kept in the finding: the *median* passes/window is 2 in both views
+(`survivorship_gap_median = 0.0`) — five holes out of 41 do not move a median — so the survivorship
+distortion is visible in `observed_only.min_passes = 1` vs `grid_filled.min_passes = 0` and in the
+coverage fractions that do not exist at all in an observed-windows-only view, not in a moved median.
+
+**Bookkeeping.** L208's *enforcement cell* moved `UNENFORCED` → `test + non-gating advisory` with the
+lesson TEXT unchanged (the L152 own-row-update rule, L25/L47/L109/L123/L157 precedent); open UNENFORCED
+rows 8 → 7. New lesson **L238**: *a window grid is defined by TWO numbers — width AND anchor — and a
+mis-anchored grid is a confident wrong answer the width alone cannot expose*; it also pins the two
+derived rules (enumerate from the venue's own boundary field; count-and-report an off-grid boundary,
+never snap it). `findings/2026-07-27-perp-tape-audit.md` was **annotated, not rewritten** (append-only).
+`scripts/q42_funding_estimate_path_inference.py` deliberately **not** modified — its tape slice is frozen
+per L191 and Q42's H1 UNDECIDABLE verdict is untouched. No registry status moved, no strategy claim, no
+price, no P&L, no bootstrap CI.
+
+**Two-agent rule.** N/A for the milestone class (idle-run policy (a) enforcement build — no registry
+flip, no CI, no kill). The numeric correction to PERP-F1 is verdict-adjacent and **no `verifier`
+subagent was dispatchable in this run's harness**, so it is recorded **PROVISIONAL**: adversarially
+re-derived twice within one session, pinned by a test asserting the two window sets are disjoint, and
+explicitly not used to rewrite PERP-F1 or move any status. A second agent should confirm before it is
+treated as settled.
+
+**Step 0b (partial, bounded).** 207 stranded `tape/hourly-*`/`tape/burst-*` heads remain — unchanged
+backlog, out of one run's budget. Bounded partial sweep this run: `scripts/tape_branch_sweep.py --limit 6`
+(6 malformed-name branches: 2 fully contained + verified, 2 contained via capture_id-level check, 2
+size-guard-skipped with no signal, **0 carrying missing lines**) plus a direct line-level check of the
+three newest `tape/hourly-*` heads (`20260729T1010Z`, `20260728T2156Z`, `20260728T1557Z`):
+`git diff --numstat <sha> HEAD -- tape/` gives 24,066 / 26,886 / 28,720 lines added in HEAD and
+**0 removed** against each, i.e. HEAD is a strict superset — nothing stranded. 198 heads untriaged,
+honestly reported, not claimed swept.
+
+**Gates (fresh, after the last edit).** `python3 -m pytest -o addopts='' -q` → **2320 passed in 1994.45s, exit 0** (2297 on `ca40dc2` + the 23 new tests; the `-o addopts=''` form is L234's);
+`python3 scripts/invariants.py --full` → exit 0, `invariants: all green` (the new L208 advisory now
+prints among the pre-existing non-gating advisory classes: `perp_tape` 36/41 windows observed, 5 zero-pass).
+
+**Step 9 paper sub-pass.** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`).
+`python3 scripts/paper_pass.py` over committed tape: 0 processed, 117 deferred(caps), 272
+deferred(coverage), 183 already-in-ledger → **no new ledger lines** (deterministic replay, no tape
+appended since the ledger's last entry). `daily_summary()`: `paper: 0 open position(s), 1317 settled
+contract(s), realized P&L $+23.45, cash $+23.45, open notional $0.00`. Standing caveat unchanged from
+Q34: this shadow is the OLD candle-proxy S14 strategy and S14 is DEAD — the ledger is bookkeeping, not
+evidence for a live edge.
+
+See `findings/2026-07-30-l208-window-grid-coverage.md`; LOOP-QUEUE Q42 Status (2026-07-30, TOOLING ONLY).
+
+---
+
 ## 2026-07-30 ~03:3x ET — research loop: stale-number follow-up on L235's merged fix (findings + strategy-index correction, no code change)
 
 This run picked idle-run policy (a) → lesson **L235** independently, in parallel with another session

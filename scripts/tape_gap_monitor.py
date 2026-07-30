@@ -202,10 +202,11 @@ import argparse
 import json
 import os
 import re
+import statistics
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 # --------------------------------------------------------------------------- #
 # Config — deliberately explicit, human-editable, NOT inferred from the data
@@ -777,6 +778,235 @@ def capped_pagination_span_coverage(tape_root: Path,
         "captures": captures,
         "narrow_captures": narrow,
     }
+
+
+# ─── Expected-window-grid coverage detector (L208: non-gating, offline-safe) ────
+#
+# L208: a per-window density statistic computed only over windows that produced >=1
+# observation is a SURVIVORSHIP statistic, not a coverage statistic. A window in which the
+# collector never fired cannot enter it at all, so the metric reads healthy exactly where
+# coverage is worst. The honest denominator is the EXPECTED window grid.
+#
+# The lesson's own enforcement candidate says the grid must be "keyed to a collector's own
+# cadence instead of a fixed interval" — and that phrase is load-bearing in a way the
+# worked example itself missed. `findings/2026-07-27-perp-tape-audit.md` (PERP-F1) built its
+# 33-window grid by binning `captured_at` into 8h CALENDAR bins anchored at 00Z. But Kalshi
+# perps' funding boundaries, read off the collector's own `next_funding_time` field, land on
+# the **04/12/20Z** grid — every committed `funding_estimate` row in `tape/perp_tape/` is on
+# that anchor, none on 00/08/16. A 00Z-anchored bin is therefore a different object from a
+# funding window, and the two disagree about WHICH windows are empty (see the finding
+# `findings/2026-07-30-l208-window-grid-coverage.md`). So:
+#
+#   * the grid is enumerated from the family's OWN boundary field (`window_key`), never from
+#     `captured_at` and never from a fixed wall-clock bin;
+#   * the anchor is CONFIGURED and then VALIDATED against the data — a window key that is not
+#     on the configured (width, anchor) grid is counted in `n_offgrid_window_keys` and
+#     reported, NEVER snapped to the nearest slot. Silently snapping is precisely how a
+#     mis-anchored grid produces a confident wrong answer;
+#   * the observed-only statistic and the grid-filled statistic are BOTH reported, side by
+#     side, so the survivorship gap L208 names is a visible number rather than an inference.
+#
+# Density unit is the distinct capture PASS (`capture_id`), because that is what "a window
+# with zero capture passes" means and it is what a per-window path-length statistic is
+# actually made of. Known blind spot, stated rather than papered over: `capture_id` is a
+# second-granularity label, so two invocations colliding in one second count as one pass
+# here (exactly the L210 defect this module already reports separately) — a collision makes
+# this detector's density read LOW, i.e. toward flagging, never toward a false all-clear.
+#
+# NON-GATING. A zero-capture window is a permanently unrecoverable historical fact: the
+# collector destroys the premium path at each boundary with no re-fetch, so no run can
+# repair it and gating would halt the loop forever over the past. Same posture as the
+# hollow-ladder / capped-pagination advisories: it PRINTS, it never flips the exit code.
+
+# family -> window-grid spec. `window_key` is the collector's OWN boundary field.
+# `anchor_hour_utc` is the hour of ONE real grid boundary (any of them; the grid is
+# `anchor + k*window_hours`). `thin_max_passes` is the density at or below which a window
+# carries no usable PATH — 1 sample is a point, not a path (L208's "12/33 path-inadequate"
+# counted 1-sample windows alongside the zero ones).
+WINDOW_GRIDDED_FAMILIES: Dict[str, Dict[str, Any]] = {
+    "perp_tape": {
+        "record_type": "funding_estimate",
+        "window_key": "next_funding_time",
+        "window_hours": 8.0,
+        "anchor_hour_utc": 4,
+        "thin_max_passes": 1,
+    },
+}
+
+_GRID_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _on_grid(dt: datetime, window_hours: float, anchor_hour_utc: int) -> bool:
+    """True when ``dt`` falls exactly on the ``anchor + k*window_hours`` UTC grid.
+
+    Exactness is deliberate: a funding/settlement boundary is published on the hour, so a
+    boundary that is even a minute off-grid means the venue changed its cadence (or the
+    field is not the boundary we think it is) — a fact to REPORT, never to round away."""
+    period = window_hours * 3600.0
+    if period <= 0:
+        return False
+    offset = (dt - _GRID_EPOCH).total_seconds() - anchor_hour_utc * 3600.0
+    return abs(offset % period) < 1e-6
+
+
+def expected_window_grid_coverage(tape_root: Path,
+                                  family: str,
+                                  days: Optional[Sequence[str]] = None
+                                  ) -> Optional[Dict[str, Any]]:
+    """Expected window GRID vs observed windows for a window-bucketed family (L208).
+
+    Returns ``None`` for a family not registered in ``WINDOW_GRIDDED_FAMILIES`` — no claim
+    is made about a shape this function wasn't told the family has (same refusal as
+    ``retrospective_coverage`` / ``capped_pagination_span_coverage``).
+
+    ``days`` optionally restricts the scan to an explicit list of ``dt=YYYY-MM-DD`` day
+    stems. This exists for L191: a real-tape acceptance test must pin a FROZEN slice, or a
+    live, still-growing family red-lines the gate on ordinary capture with zero code change.
+
+    What it refuses to guess:
+
+    * a row of the wrong ``record_type``, or with an absent/unparseable ``window_key``, is
+      skipped and counted (``n_rows_skipped_no_window_key``) — never bucketed into a
+      neighbouring window;
+    * a window key that is NOT on the configured grid is counted in
+      ``n_offgrid_window_keys`` (with up to 5 examples) and excluded — never snapped;
+    * with zero on-grid observations the grid is undefined, so it reports
+      ``n_windows_expected = 0`` and ``reason = "no_on_grid_window_keys"`` rather than
+      inventing a span.
+
+    Fields: ``grid_start``/``grid_end``/``n_windows_expected`` (the honest denominator),
+    ``n_windows_observed``, ``n_windows_zero_capture`` + ``zero_capture_windows``,
+    ``n_windows_thin`` + ``path_inadequate_fraction`` (thin INCLUDES zero — a zero window is
+    the extreme thin window), ``observed_only`` vs ``grid_filled`` pass-count summaries, and
+    ``survivorship_gap_median`` (= observed-only median - grid-filled median), the single
+    number that makes L208's distortion visible.
+    """
+    cfg = WINDOW_GRIDDED_FAMILIES.get(family)
+    if cfg is None:
+        return None
+    record_type = cfg.get("record_type")
+    window_key = cfg["window_key"]
+    window_hours = float(cfg["window_hours"])
+    anchor = int(cfg["anchor_hour_utc"])
+    thin_max = int(cfg["thin_max_passes"])
+
+    wanted_days = set(days) if days is not None else None
+    passes_by_window: Dict[datetime, Set[str]] = {}
+    n_rows_considered = 0
+    n_rows_skipped = 0
+    offgrid_examples: List[str] = []
+    n_offgrid = 0
+
+    for _d, path in _family_files(tape_root, family):
+        if wanted_days is not None and path.stem not in wanted_days:
+            continue
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                if record_type is not None and rec.get("record_type") != record_type:
+                    continue
+                n_rows_considered += 1
+                dt = _parse_event_time(rec.get(window_key))
+                if dt is None:
+                    n_rows_skipped += 1
+                    continue
+                if not _on_grid(dt, window_hours, anchor):
+                    n_offgrid += 1
+                    if len(offgrid_examples) < 5:
+                        offgrid_examples.append(dt.isoformat())
+                    continue
+                cid = rec.get("capture_id")
+                # No capture_id => the row cannot be attributed to a pass. Counted as its
+                # own singleton so the window is never wrongly read as EMPTY, but never
+                # merged with a real pass either.
+                key = cid if isinstance(cid, str) and cid else f"__nocid__{len(passes_by_window)}"
+                passes_by_window.setdefault(dt, set()).add(key)
+
+    base: Dict[str, Any] = {
+        "family": family,
+        "record_type": record_type,
+        "window_key": window_key,
+        "window_hours": window_hours,
+        "anchor_hour_utc": anchor,
+        "thin_max_passes": thin_max,
+        "days_scanned": sorted(wanted_days) if wanted_days is not None else None,
+        "n_rows_considered": n_rows_considered,
+        "n_rows_skipped_no_window_key": n_rows_skipped,
+        "n_offgrid_window_keys": n_offgrid,
+        "offgrid_examples": offgrid_examples,
+    }
+    if not passes_by_window:
+        base.update({
+            "reason": "no_on_grid_window_keys",
+            "grid_start": None,
+            "grid_end": None,
+            "n_windows_expected": 0,
+            "n_windows_observed": 0,
+            "n_windows_zero_capture": 0,
+            "zero_capture_windows": [],
+            "n_windows_thin": 0,
+            "path_inadequate_fraction": None,
+            "coverage_fraction": None,
+            "observed_only": {"median_passes": None, "min_passes": None, "max_passes": None},
+            "grid_filled": {"median_passes": None, "min_passes": None, "max_passes": None},
+            "survivorship_gap_median": None,
+        })
+        return base
+
+    lo = min(passes_by_window)
+    hi = max(passes_by_window)
+    step = timedelta(hours=window_hours)
+    grid: List[datetime] = []
+    cursor = lo
+    while cursor <= hi:
+        grid.append(cursor)
+        cursor += step
+
+    per_window = [len(passes_by_window.get(w, set())) for w in grid]
+    observed = [n for n in per_window if n > 0]
+    zero_windows = [w for w in grid if not passes_by_window.get(w)]
+    thin_windows = [w for w in grid if len(passes_by_window.get(w, set())) <= thin_max]
+
+    obs_median = statistics.median(observed) if observed else None
+    grid_median = statistics.median(per_window)
+    base.update({
+        "reason": None,
+        "grid_start": lo.isoformat(),
+        "grid_end": hi.isoformat(),
+        "n_windows_expected": len(grid),
+        "n_windows_observed": len(observed),
+        "n_windows_zero_capture": len(zero_windows),
+        "zero_capture_windows": [w.isoformat() for w in zero_windows],
+        "n_windows_thin": len(thin_windows),
+        "path_inadequate_fraction": round(len(thin_windows) / len(grid), 6),
+        "coverage_fraction": round(len(observed) / len(grid), 6),
+        "observed_only": {
+            "median_passes": obs_median,
+            "min_passes": min(observed) if observed else None,
+            "max_passes": max(observed) if observed else None,
+        },
+        "grid_filled": {
+            "median_passes": grid_median,
+            "min_passes": min(per_window),
+            "max_passes": max(per_window),
+        },
+        "survivorship_gap_median": (
+            round(float(obs_median) - float(grid_median), 6) if obs_median is not None else None
+        ),
+    })
+    return base
 
 
 # ─── Colliding-capture_id detector (L210: non-gating, offline-safe) ─────────────
@@ -1447,7 +1677,21 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="ntfy topic URL for Priority:high alerts (else NTFY_TOPIC_URL env; else no-op).")
     ap.add_argument("--json", action="store_true", help="print ONLY the machine-readable JSON blob.")
     ap.add_argument("--no-notify", action="store_true", help="never POST (print table/JSON only).")
+    ap.add_argument("--window-grid", action="store_true",
+                    help="print ONLY the L208 expected-window-grid coverage report for every "
+                         "family in WINDOW_GRIDDED_FAMILIES (read-only, no notify) and exit.")
+    ap.add_argument("--window-grid-days", default=None,
+                    help="comma-separated dt= day stems to restrict --window-grid to "
+                         "(e.g. dt=2026-07-17,dt=2026-07-18). Pins a FROZEN slice, per L191.")
     args = ap.parse_args(argv)
+
+    if args.window_grid:
+        days = ([d.strip() for d in args.window_grid_days.split(",") if d.strip()]
+                if args.window_grid_days else None)
+        out = {fam: expected_window_grid_coverage(Path(args.tape_root), fam, days=days)
+               for fam in sorted(WINDOW_GRIDDED_FAMILIES)}
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
 
     if args.now:
         now = _parse_iso(args.now)
