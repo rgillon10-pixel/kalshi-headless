@@ -570,6 +570,275 @@ def test_run_fed_decision_capture_summary_line_matches_returned_summary_and_own_
 
 
 # --------------------------------------------------------------------------- #
+# L214 — per-leg resolution-terms provenance (schema v2)
+# --------------------------------------------------------------------------- #
+def _km(title, ticker="KXFEDDECISION-26JUL-H26", bucket="hike_50plus"):
+    return {"ticker": ticker, "meeting_key": "2026-07", "bucket": bucket, "title": title}
+
+
+def _pmm(group_item_title, bucket="hike_50plus", question="q", market_id="M1"):
+    return {"meeting_key": "2026-07", "bucket": bucket, "event_id": "E1",
+            "market_id": market_id, "question": question,
+            "group_item_title": group_item_title, "yes_token_id": "TOKY"}
+
+
+def test_discover_polymarket_fed_events_carries_group_item_title(monkeypatch):
+    """L214: the bucket-label text is the EVIDENCE for the normalized bucket — it used to be
+    read and thrown away, which is what made the two venues' terms unauditable downstream."""
+    events_payload = {"events": [
+        _pm_event("Fed Decision in July?", [
+            _pm_fed_market("Will the Fed increase interest rates by 50+ bps after the "
+                           "July 2026 meeting?", "50+ bps increase"),
+        ]),
+    ]}
+    monkeypatch.setattr(pp.requests, "get", lambda url, **kw: _FakeResp(events_payload))
+    out, _ = pp.discover_polymarket_fed_events(queries=("Fed Decision",))
+    assert len(out) == 1
+    assert out[0]["group_item_title"] == "50+ bps increase"
+    assert out[0]["question"].startswith("Will the Fed increase interest rates by 50+ bps")
+
+
+def test_fed_bucket_terms_50plus_is_not_equivalent_and_says_why():
+    """The canonical L214 asymmetry: Kalshi's title says '>25bps' (a 26-49bp move settles YES),
+    Polymarket's label says '50+ bps' (the SAME move settles NO). Same `*_50plus` bucket name,
+    different contracts — the verdict must be False, with a note naming it."""
+    terms = pp.fed_bucket_terms(
+        _km("Will the Federal Reserve Hike rates by >25bps at their July 2026 meeting?"),
+        _pmm("50+ bps increase"))
+    assert terms["kalshi_basis"] == "hike_gt_25bps"
+    assert terms["polymarket_basis"] == "increase_gte_50bps"
+    assert terms["terms_equivalent"] is False
+    assert terms["note"] and "25" in terms["note"] and "50" in terms["note"]
+    # the block names its own scope: a bps-region verdict under a matched meeting key, NOT
+    # contract-level settlement equivalence (the adjudicators still differ).
+    assert terms["compares"] == "bps_region+meeting_key"
+    assert terms["meeting_key_checked"] is True
+
+
+def test_fed_bucket_terms_cut_50plus_is_not_equivalent_either():
+    terms = pp.fed_bucket_terms(
+        _km("Will the Federal Reserve Cut rates by >25bps at their July 2026 meeting?",
+            ticker="KXFEDDECISION-26JUL-C26", bucket="cut_50plus"),
+        _pmm("50+ bps decrease", bucket="cut_50plus"))
+    assert terms["kalshi_basis"] == "cut_gt_25bps"
+    assert terms["polymarket_basis"] == "decrease_gte_50bps"
+    assert terms["terms_equivalent"] is False
+    assert terms["note"] is not None
+
+
+def test_fed_bucket_terms_no_change_is_equivalent():
+    terms = pp.fed_bucket_terms(
+        _km("Will the Federal Reserve Hike rates by 0bps at their July 2026 meeting?",
+            ticker="KXFEDDECISION-26JUL-H0", bucket="no_change"),
+        _pmm("No change", bucket="no_change"))
+    assert terms["kalshi_basis"] == "no_change_0bps"
+    assert terms["polymarket_basis"] == "no_change"
+    assert terms["terms_equivalent"] is True
+    assert terms["note"] is None
+
+
+def test_fed_bucket_terms_25bps_buckets_are_equivalent_both_directions():
+    hike = pp.fed_bucket_terms(
+        _km("Will the Federal Reserve Hike rates by 25bps at their July 2026 meeting?",
+            ticker="KXFEDDECISION-26JUL-H25", bucket="hike_25"),
+        _pmm("25 bps increase", bucket="hike_25"))
+    assert hike["kalshi_basis"] == "hike_25bps" and hike["polymarket_basis"] == "increase_25bps"
+    assert hike["terms_equivalent"] is True and hike["note"] is None
+
+    cut = pp.fed_bucket_terms(
+        _km("Will the Federal Reserve Cut rates by 25bps at their July 2026 meeting?",
+            ticker="KXFEDDECISION-26JUL-C25", bucket="cut_25"),
+        _pmm("25 bps decrease", bucket="cut_25"))
+    assert cut["kalshi_basis"] == "cut_25bps" and cut["polymarket_basis"] == "decrease_25bps"
+    assert cut["terms_equivalent"] is True and cut["note"] is None
+
+
+def test_fed_bucket_terms_opposite_directions_are_not_equivalent():
+    terms = pp.fed_bucket_terms(
+        _km("Will the Federal Reserve Hike rates by 25bps at their July 2026 meeting?",
+            bucket="hike_25"),
+        _pmm("25 bps decrease", bucket="cut_25"))
+    assert terms["terms_equivalent"] is False
+
+
+def test_fed_bucket_terms_missing_text_is_none_never_a_guessed_true():
+    """Absent/garbage text on either leg means the terms are UNKNOWN, not agreed. A silent
+    True here would be the exact false-assurance L214 exists to prevent."""
+    no_kalshi_title = pp.fed_bucket_terms({"ticker": "KXFEDDECISION-26JUL-H26"},
+                                          _pmm("50+ bps increase"))
+    assert no_kalshi_title["kalshi_basis"] is None
+    assert no_kalshi_title["polymarket_basis"] == "increase_gte_50bps"
+    assert no_kalshi_title["terms_equivalent"] is None
+    assert no_kalshi_title["terms_equivalent"] is not True
+    assert no_kalshi_title["note"] is None
+
+    # A v1-shaped Polymarket dict (no `group_item_title` key at all) — same honest unknown.
+    no_pm_label = pp.fed_bucket_terms(
+        _km("Will the Federal Reserve Hike rates by >25bps at their July 2026 meeting?"),
+        {"meeting_key": "2026-07", "bucket": "hike_50plus", "question": "q"})
+    assert no_pm_label["polymarket_basis"] is None
+    assert no_pm_label["terms_equivalent"] is None
+    assert no_pm_label["terms_equivalent"] is not True
+
+    garbage_both = pp.fed_bucket_terms(_km("Some unrelated title"), _pmm("mystery label"))
+    assert garbage_both["kalshi_basis"] is None and garbage_both["polymarket_basis"] is None
+    assert garbage_both["terms_equivalent"] is None
+    assert garbage_both["terms_equivalent"] is not True
+
+
+def test_fed_bucket_terms_different_meetings_are_not_equivalent():
+    """D5: the function compares bps REGIONS, so two legs describing the SAME region at
+    DIFFERENT meetings used to come back True. `match_fed_pairs` joins on `meeting_key` first,
+    but this is a public importable — the presupposed join key is now checked explicitly."""
+    km = _km("Will the Federal Reserve Hike rates by 25bps at their September 2026 meeting?",
+             bucket="hike_25")
+    km["meeting_key"] = "2026-09"
+    pm = _pmm("25 bps increase", bucket="hike_25")
+    pm["meeting_key"] = "2099-01"
+    terms = pp.fed_bucket_terms(km, pm)
+    assert terms["meeting_key_checked"] is True
+    assert terms["terms_equivalent"] is False
+    assert terms["note"] and "2026-09" in terms["note"] and "2099-01" in terms["note"]
+    assert "meeting" in terms["note"]
+    # the bases are still reported — the mismatch is the meeting, not the text parse
+    assert terms["kalshi_basis"] == "hike_25bps"
+    assert terms["polymarket_basis"] == "increase_25bps"
+
+
+def test_fed_bucket_terms_absent_meeting_key_is_flagged_not_claimed():
+    """D5 second half: a leg without a `meeting_key` must NOT be reported as if the join key
+    had been verified. The bps verdict is unchanged; only the flag differs."""
+    km = _km("Will the Federal Reserve Hike rates by 25bps at their July 2026 meeting?",
+             bucket="hike_25")
+    km.pop("meeting_key")
+    pm = _pmm("25 bps increase", bucket="hike_25")
+    terms = pp.fed_bucket_terms(km, pm)
+    assert terms["meeting_key_checked"] is False
+    assert terms["terms_equivalent"] is True            # bps verdict unchanged
+    assert terms["note"] is None
+    assert terms["compares"] == "bps_region+meeting_key"
+
+    # ... and the same on the Polymarket side, with a False bps verdict this time
+    km2 = _km("Will the Federal Reserve Hike rates by >25bps at their July 2026 meeting?")
+    pm2 = _pmm("50+ bps increase")
+    pm2.pop("meeting_key")
+    terms2 = pp.fed_bucket_terms(km2, pm2)
+    assert terms2["meeting_key_checked"] is False
+    assert terms2["terms_equivalent"] is False
+    assert "resolution terms differ" in terms2["note"]
+
+
+def test_run_fed_decision_writes_v2_with_every_v1_field_unchanged(tmp_path):
+    """L214: v2 is v1 PLUS provenance. Every pre-existing key must keep its exact name and
+    value (the expected v1 record is written out explicitly here, not diffed against a golden
+    file produced by the new code), and the only additions are text/basis/terms — no price,
+    no size, no changed tag."""
+    client = FakeKalshiFedClient([
+        _kalshi_market("KXFEDDECISION-26JUL-H26",
+                       "Will the Federal Reserve Hike rates by >25bps at their July 2026 meeting?",
+                       yes_ask=0.03, yes_bid=0.02, no_ask=0.98, no_bid=0.97),
+    ])
+    pm_markets = [_pmm("50+ bps increase",
+                       question="Will the Fed increase interest rates by 50+ bps after the "
+                                "July 2026 meeting?")]
+    summary = pp.run_fed_decision(client=client, tape_dir=tmp_path,
+                                   pm_discover=lambda: (pm_markets, ["raw"]),
+                                   fetch_book=lambda tok: {"best_bid": 0.01, "best_ask": 0.02})
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+
+    expected_v1 = {
+        "schema_version": "polymarket_macro_pairs.v1",
+        "capture_id": summary["capture_id"],
+        "captured_at": summary["captured_at"],
+        "family": "fed_decision",
+        "meeting": "2026-07",
+        "bucket": "hike_50plus",
+        "kalshi": {
+            "ticker": "KXFEDDECISION-26JUL-H26",
+            "yes_ask": 0.03, "yes_bid": 0.02, "no_ask": 0.98, "no_bid": 0.97,
+            "price_source_tag": "real_ask",
+        },
+        "polymarket": {
+            "event_id": "E1", "market_id": "M1",
+            "best_bid": 0.01, "best_ask": 0.02,
+            "book_fetch_ok": True, "price_source_tag": "real_ask",
+        },
+        "price_gap_yes_ask": 0.03 - 0.02,
+    }
+
+    # (1) every v1 field survives, name and value
+    for key, value in expected_v1.items():
+        if key == "schema_version":
+            continue
+        if key in ("kalshi", "polymarket"):
+            for leg_key, leg_value in value.items():
+                got = rec[key][leg_key]
+                assert got == (pytest.approx(leg_value) if isinstance(leg_value, float) else leg_value)
+            continue
+        assert rec[key] == (pytest.approx(value) if isinstance(value, float) else value)
+
+    # (2) the version bump, and ONLY the sanctioned additions
+    assert rec["schema_version"] == "polymarket_macro_pairs.v2"
+    assert set(rec) == set(expected_v1) | {"bucket_terms"}
+    assert set(rec["kalshi"]) == set(expected_v1["kalshi"]) | {"title", "resolution_basis"}
+    assert set(rec["polymarket"]) == set(expected_v1["polymarket"]) | {
+        "question", "group_item_title", "resolution_basis"}
+
+    # (3) the provenance itself
+    assert rec["kalshi"]["title"] == ("Will the Federal Reserve Hike rates by >25bps at their "
+                                      "July 2026 meeting?")
+    assert rec["kalshi"]["resolution_basis"] == "kalshi_rulebook"
+    assert rec["polymarket"]["group_item_title"] == "50+ bps increase"
+    assert rec["polymarket"]["question"].startswith("Will the Fed increase interest rates")
+    assert rec["polymarket"]["resolution_basis"] == "uma_oracle"
+    assert rec["bucket_terms"] == pp.fed_bucket_terms(
+        {"title": rec["kalshi"]["title"], "meeting_key": rec["meeting"]},
+        {"group_item_title": rec["polymarket"]["group_item_title"],
+         "meeting_key": rec["meeting"]})
+    assert rec["bucket_terms"]["terms_equivalent"] is False
+    assert rec["bucket_terms"]["note"]
+    # the collector always joins on `meeting_key`, so the persisted block says so explicitly
+    assert rec["bucket_terms"]["meeting_key_checked"] is True
+    assert rec["bucket_terms"]["compares"] == "bps_region+meeting_key"
+
+
+def test_run_fed_decision_v2_terms_unknown_when_polymarket_text_absent(tmp_path):
+    """A Polymarket leg discovered without its label text (e.g. an injected/legacy dict) still
+    writes v2 — with `terms_equivalent` None, never True. Absence of evidence is recorded as
+    absence, and it does not touch prices or completeness."""
+    client = FakeKalshiFedClient([
+        _kalshi_market("KXFEDDECISION-26JUL-H26",
+                       "Will the Federal Reserve Hike rates by >25bps at their July 2026 meeting?",
+                       yes_ask=0.03),
+    ])
+    pm_markets = [{"meeting_key": "2026-07", "bucket": "hike_50plus", "event_id": "E1",
+                   "market_id": "M1", "yes_token_id": "TOKY"}]
+    summary = pp.run_fed_decision(client=client, tape_dir=tmp_path,
+                                   pm_discover=lambda: (pm_markets, ["raw"]),
+                                   fetch_book=lambda tok: {"best_bid": 0.01, "best_ask": 0.02})
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    assert rec["schema_version"] == "polymarket_macro_pairs.v2"
+    assert rec["polymarket"]["group_item_title"] is None
+    assert rec["polymarket"]["question"] is None
+    assert rec["bucket_terms"]["terms_equivalent"] is None
+    assert rec["bucket_terms"]["terms_equivalent"] is not True
+    assert rec["kalshi"]["price_source_tag"] == "real_ask"
+    assert rec["polymarket"]["price_source_tag"] == "real_ask"
+    assert summary["completeness_ok"] is True
+
+
+def test_v2_schema_is_accepted_by_the_downstream_readers():
+    """Both in-repo consumers that gate on the schema string must accept v1 AND v2 — the tape
+    is append-only, so a bump that stranded old lines would silently shrink every probe's n."""
+    from scripts.q31_cross_venue_arb_probe import RESOLUTION_EQUIVALENT_SCHEMAS
+    from scripts.q48_s55_fomc_lag_probe import ACCEPTED_SCHEMA_VERSIONS
+    for schema in ("polymarket_macro_pairs.v1", "polymarket_macro_pairs.v2"):
+        assert schema in RESOLUTION_EQUIVALENT_SCHEMAS
+        assert schema in ACCEPTED_SCHEMA_VERSIONS
+    assert "polymarket_macro_pairs_summary.v1" not in ACCEPTED_SCHEMA_VERSIONS
+
+
+# --------------------------------------------------------------------------- #
 # CPI/inflation leg (Q12 follow-up) — derived-transform pairing
 # --------------------------------------------------------------------------- #
 def _kalshi_cpi_market(event_ticker, floor_strike, yes_ask, strike_type="greater"):

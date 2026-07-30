@@ -131,6 +131,44 @@ def test_load_excludes_non_equivalent_schema(tmp_path):
     assert obs == []
 
 
+def test_macro_pairs_v1_and_v2_both_load(tmp_path):
+    """L214 bumped the Fed pair schema to `polymarket_macro_pairs.v2` (v1 + per-leg resolution
+    provenance; no price field renamed or revalued). Committed v1 tape must keep loading, and
+    v2 must load too — a version bump that stranded either would silently shrink this probe's
+    population without any error."""
+    recs = [
+        _rec("polymarket_macro_pairs.v1", "KXFEDDECISION-26JUL-H25", 0.75, 0.26,
+             "2026-07-11T00:00:00Z"),
+        _rec("polymarket_macro_pairs.v2", "KXFEDDECISION-26JUL-H26", 0.70, 0.20,
+             "2026-07-11T01:00:00Z"),
+    ]
+    # v2's added provenance fields ride along on the second record.
+    recs[1]["kalshi"]["title"] = "Will the Federal Reserve Hike rates by >25bps at their July 2026 meeting?"
+    recs[1]["kalshi"]["resolution_basis"] = "kalshi_rulebook"
+    recs[1]["polymarket"]["group_item_title"] = "50+ bps increase"
+    recs[1]["polymarket"]["resolution_basis"] = "uma_oracle"
+    recs[1]["bucket_terms"] = {"kalshi_basis": "hike_gt_25bps",
+                               "polymarket_basis": "increase_gte_50bps",
+                               "terms_equivalent": False, "note": "terms differ"}
+    g = _write_tape(tmp_path, "polymarket_macro_pairs", recs)
+    obs = load_observations(wc_glob=str(tmp_path / "none" / "dt=*.jsonl"), fed_glob=g)
+    assert len(obs) == 2
+    assert {o["ticker"] for o in obs} == {"KXFEDDECISION-26JUL-H25", "KXFEDDECISION-26JUL-H26"}
+    # D6: the pooled population is mixed, and the summary says so from the loaded records
+    summary = run(wc_glob=str(tmp_path / "none" / "dt=*.jsonl"), fed_glob=g, n_boot=50)
+    assert summary["n_by_schema_version"] == {"polymarket_macro_pairs.v1": 1,
+                                              "polymarket_macro_pairs.v2": 1}
+    assert sum(summary["n_by_schema_version"].values()) == summary["n_obs"]
+
+
+def test_resolution_equivalent_schemas_contains_both_macro_versions():
+    from scripts.q31_cross_venue_arb_probe import RESOLUTION_EQUIVALENT_SCHEMAS
+    assert "polymarket_macro_pairs.v1" in RESOLUTION_EQUIVALENT_SCHEMAS
+    assert "polymarket_macro_pairs.v2" in RESOLUTION_EQUIVALENT_SCHEMAS
+    # the L212 capture-summary line is still NOT a pair record
+    assert "polymarket_macro_pairs_summary.v1" not in RESOLUTION_EQUIVALENT_SCHEMAS
+
+
 def test_net_edges_by_pair_clusters_by_ticker(tmp_path):
     recs = [
         _rec("polymarket_pairs.v1", "KXWCROUND-26SEMI-SUI", 0.75, 0.26, "2026-07-11T00:00:00Z"),

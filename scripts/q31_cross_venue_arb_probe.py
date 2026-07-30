@@ -63,7 +63,7 @@ import argparse
 import glob
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -85,7 +85,17 @@ from core.bootstrap import (  # noqa: E402
 # Both tape families carry BOTH legs as real_ask; CPI is deliberately excluded (synthetic leg).
 WC_GLOB = str(REPO_ROOT / "tape" / "polymarket_pairs" / "dt=*.jsonl")
 FED_GLOB = str(REPO_ROOT / "tape" / "polymarket_macro_pairs" / "dt=*.jsonl")
-RESOLUTION_EQUIVALENT_SCHEMAS = {"polymarket_pairs.v1", "polymarket_macro_pairs.v1"}
+# `polymarket_macro_pairs.v2` (L214, 2026-07-28 audit D2) is v1 plus per-leg resolution
+# provenance (`kalshi.title`, `polymarket.question`/`group_item_title`, `resolution_basis`,
+# `bucket_terms`); every price/ID field this probe reads is unchanged in name and semantics, so
+# v1 and v2 records pool identically here. Both are accepted so committed v1 tape stays readable.
+# NOTE (honesty, L214): membership in this set means the two legs were matched as the same
+# question, NOT that their settlement terms were proven identical — the `*_50plus` Fed buckets
+# are a known >25bps-vs->=50bps asymmetry. From v2 the per-record `bucket_terms.terms_equivalent`
+# carries that verdict; pre-v2 records cannot answer it at all (see
+# `scripts/polymarket_pair_terms_audit.py`).
+RESOLUTION_EQUIVALENT_SCHEMAS = {"polymarket_pairs.v1", "polymarket_macro_pairs.v1",
+                                 "polymarket_macro_pairs.v2"}
 
 
 def two_legged_arb_edge(polymarket_yes_price: float, kalshi_no_price: float,
@@ -147,6 +157,10 @@ def load_observations(wc_glob: str = WC_GLOB, fed_glob: str = FED_GLOB,
             edge = two_legged_arb_edge(pm_yes, k_no, pm_rate=pm_rate)
             obs.append({
                 "family": family,
+                # D6: the pooled population is MIXED (macro pairs v1 + v2 since L214). Carried
+                # per-observation so the summary can report the mix from the records actually
+                # loaded rather than a reader assuming one schema.
+                "schema_version": rec.get("schema_version"),
                 "ticker": k.get("ticker"),
                 "pair_key": f'{family}:{k.get("ticker")}',
                 "captured_at": rec.get("captured_at"),
@@ -303,6 +317,10 @@ def run(wc_glob: str = WC_GLOB, fed_glob: str = FED_GLOB,
         "pm_rate": pm_rate,
         "kalshi_rate": TAKER_FEE_RATE,
         "n_obs": n_obs,
+        # counted from the observations actually loaded, never hardcoded (D6)
+        "n_by_schema_version": dict(sorted(
+            Counter("null" if o.get("schema_version") is None else str(o["schema_version"])
+                    for o in obs).items())),
         "n_skipped": n_skipped,
         "n_pairs": n_pairs,
         "n_pairs_positive_mean": n_pairs_pos,
