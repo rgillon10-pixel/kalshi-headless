@@ -6,6 +6,97 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-30 ~00:2x ET — kalshi-edge-hunter: Unit-1 review PASS (both 07-29 findings reproduce to the float) + Q21 round (3 killed, `universe_sweep` box class foreclosed); no probe-prep needed
+
+Nightly edge-hunter run (fires 04:15 UTC / ~00:15 ET). Steps 0a/0/0b at run start: **0a PASS** —
+`git pull --rebase origin main` clean; newest `kb/00-LOG.md` entry (2026-07-29) and newest committed
+`tape/*/dt=*` day-file (2026-07-29) are same-day (gap 0), recent merged PRs #233-#237 are on `main`,
+no rewind. **0b:** 207 remote fallback branches (**197 `tape/hourly-*` + 10 `tape/burst-*`**) — nothing
+newer/unswept to recover this run (the 07-29 burst-chunk recovery already landed as PR #234; branch
+backlog unchanged, tracked since PR #234). Open PRs #208/#191/#166/#165/#125 — all
+leave-open-for-Ryan / Ryan's own drafts, none claim eligible work; **deliberately NOT re-flagged**
+(each named repeatedly across the week with no new information — re-flagging is the channel-fatigue the
+protocol warns against).
+
+**UNIT 1 — adversarial review of the last-24h findings: PASS.** Re-checked one load-bearing number per
+finding by independent execution/re-parse (not by trusting the prose):
+- `findings/2026-07-29-s17-burst-fomc-q19.md` (S17 FOMC burst, verifier-CONFIRMED-WITH-CORRECTIONS):
+  re-ran `core.pricing` directly — `polymarket_fee_per_contract(0.50,0.05)=0.0125`,
+  `(0.62,0.05)=0.01178`, Kalshi `fee_per_contract(0.58,0.07)=0.02` (round-up); re-derived the headline
+  26OCT-H0 box net = `0.62−0.58−0.02−0.01178` = **+$0.008220000000000035**, matching the finding's
+  `+$0.00822` to the float residue. Re-parsed the release seam from raw
+  `tape/polymarket_macro_pairs/dt=2026-07-29.jsonl`: last-before 17:50:42.824891Z, first-after
+  18:02:42.825087Z ⇒ **720.000196 s**, offsets **−557.175109 / +162.825087 s**,
+  `release_instant_bracketed = FALSE`. Every load-bearing number reproduces exactly.
+- `kb/00-LOG.md` 2026-07-29 ~20:1x entry (Q48/S55 720s outage): the load-bearing
+  `release_bracket_gap_s = 720.000196` reproduces from the same raw-tape re-parse.
+- `#237` observatory pass (`findings/observatory/patterns.jsonl`) is descriptive pattern-mining
+  (`{dt, event, pattern_id}` schema) — no CI/edge/price claim, no verdict-class number to re-check.
+No history rewrite, no GitHub issue needed — the DATA-ADEQUACY verdicts (S17 stays `data-collecting`,
+Q48 stays `collect-and-revisit`) stand on re-verified numbers.
+
+**UNIT 2 — Q21 idea-gen round: 3 proposed, 0 registered (17th consecutive zero-registration round;
+07-29 was the 16th).** Re-eligibility met (0 eligible research items < 3). Producer (main context)
+targeted the least-mined surface, `tape/universe_sweep/` — the only committed family with a depth field
+(`yes_ask_size`), where a *within-event box is self-settling* and so sidesteps the L9/L43 settlement-join
+wall that reduced S52 to single-family sports. Three angles: **S60** buy-all-YES-buckets box, **S61**
+yes-side depth-imbalance→6h drift, **S62** redundant-contract box (`universe_sweep` threshold ↔
+`crypto_hourly` ladder). An independent `verifier` attacked all three against committed tape before
+registration (two-agent rule at idea stage); producer cross-checks agreed. **All KILL, each on a fresh
+tape number:**
+- **S60** — `event_ticker` is NOT a MECE partition. Producer scan (dt=07-27/28): 83 events clear
+  `Σyes_ask+fees<$1.00` at size≥10, **all** 2-member `KXMVE*` auto-generated parlay legs
+  (Σyes_ask≈0.004); verifier's 07-28 cut found 18/18 same families and confirmed each is an AND-parlay
+  over different team-slates — neither exclusive nor exhaustive, pays $0 possible. The 0.4¢ "sum" is a
+  longshot-basket fair price, not a box cost (purest L31 incomplete-bracket artifact). Real MECE ladders
+  (KXBTC/KXETH) are absent from `universe_sweep` entirely; and the schema has no
+  `strike_type`/`expected_outcomes`/`completeness_ok`, so completeness is unprovable on this tape.
+  **Honest overlap: S60 is 07-29's S57 (`true_arb_edge>0` census) re-run on a THIRD family** — 07-29 ran
+  it on `crypto_hourly` (1 hollow-book FP) + `weather_books` (1,097 apparent / 0 fully-offered), killed
+  under L168; this run confirms the same failure class on `universe_sweep` and adds the 20k-cap + MECE-
+  proof facts the 07-29 run did not have.
+- **S61** — the 88 real two-sided tickers are strikes of exactly **3 underlyings** (silver/gold/WTI);
+  honest independent-unit count 3 ≪ the L41 floor of 10 ⇒ inadmissible before any edge. 48 `KXMVE*`
+  tickers carry fake AMM sizes (20000/5000), an L31/L32 artifact. 6h cadence doesn't exist (irregular
+  40-min–24h gaps). S24 family.
+- **S62** — cross-tape join is empty: `crypto_hourly` is BTC/ETH-only, `universe_sweep` has no crypto
+  series ⇒ intersection ∅; and `crypto_hourly` has no size field (the S53 defect). Kill on the first
+  clause outright.
+
+**Round payload (the compounding value):** deferred to a kb-distiller pass as lesson candidates
+(findings file §Lesson candidates) — (A) L168 extended: a low `Σyes_ask` is a lock ONLY on a proven
+MECE partition; `KXMVE*` events are AND-parlay baskets, YES-sum is a probability sum not a box cost
+(the `true_arb_edge>0` census is now confirmed a false-positive generator on all three families that can
+host it); (B) `universe_sweep` captures are **hard-capped at 20,000 lines**, ~96% saturated by
+`KXMVESPORTSMULTIGAMEEXTENDED` (474,359) + `KXMVECROSSCATEGORY` (82,607) parlay junk, so the effective
+real-market universe is ~3 commodity underlyings + a thin sports tail (sharpens L105/L125 into a hard
+adequacy wall); (C) intersect underlying sets before any cross-tape "redundant representation" box.
+These foreclose the "within-venue box on the breadth tape" class until a genuinely new
+MECE-partition-proving surface (Q47 `ws_depth`, Ryan-gated) appears. Consumed S60/S61/S62 → next free
+**S63**. No registry table change (prose-note precedent). See `findings/2026-07-30-q21-idea-gen-round.md`.
+
+**UNIT 3 — probe-prep: none needed.** No time-gated item unblocks within ~72h with adequate density
+(verified by FILE SHAPE per L25, not path existence): Q42/Q43's calendar gate is open (13 `perp_tape`
+day-files ≥ 7) but per-day density is 17–102 lines/day (VPS-death cadence collapse) vs the ~30–48
+passes/day the probe assumes — still data-inadequate, and its probe
+(`scripts/q43_perp_binary_consistency_probe.py`) is already built + offline-tested; Q36 weather (13
+weather_books days) has the same density concern; Q37 ~08-05 and the next FOMC/CPI burst are both >72h
+out. Nothing to build.
+
+**Housekeeping.** Named for deletion (Ryan-side; not deleted by a cloud run): 5 spent `kalshi-burst-*`
+triggers whose event dates have passed — `kalshi-burst-fomc-0729` (still **enabled=True**, an annual
+cron `40 17 29 7 *` that would misfire 2027-07-29), plus disabled `kalshi-burst-wcfinal-0719` /
+`kalshi-burst-cpi-0714` / `kalshi-burst-wcsemi1-0714` / `kalshi-burst-wcsemi2-0715`.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (dead ✗ per Q34 —
+paper-infra validation only, NOT edge evidence). `paper_pass.py`: **0 newly processed** (this run
+appended no tape), ledger unchanged at **+$23.45** (`broker_truth`, 1,317 settled contracts, 0 open).
+
+No network, no orders, no credentials. Still **0 proven edges**. Gates: `python3 scripts/invariants.py
+--full` → exit 0, `invariants: all green` (pre-existing non-gating advisories only: L25/L74/L168/L185/
+L210 — nothing new; docs-only diff); `python3 -m pytest -o addopts='' -q` taken fresh after the last
+edit — docs-only diff, count at clean-tree baseline (see the Log-of-runs line for the measured number).
+
 ## 2026-07-29 ~17:2x ET — research loop: Q19's PER-EVENT FOMC leg — DATA-ADEQUACY, not a CI falsification; S17 stays `data-collecting`
 
 Protocol v3 run (steps 0/0a/0b by the orchestrating session: local ref matched `origin/main`, no
