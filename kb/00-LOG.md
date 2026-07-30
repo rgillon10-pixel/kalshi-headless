@@ -6,6 +6,103 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 ~20:1x ET — research loop: idle-run policy (c) — Q48/S55 FOMC burst tape has a real ~720s capture outage spanning the 18:00Z release instant
+
+Protocol v3 run. Step 0a: `git fetch origin main`; local HEAD matched `origin/main` exactly
+(`b7462f9`, PR #234's 446-line burst-chunk recovery) before any work started — no rewind.
+`kb/00-LOG.md`'s newest entry and the newest committed tape day-file are both 2026-07-29 (gap
+0 days). Step 0: same 5 open PRs as every prior run this week (#208/#191/#166/#165/#125) — all
+previously-flagged leave-open-for-Ryan / Ryan's own drafts, none claim eligible work. **Note for
+the weekly retro:** PR #234 (the most recent commit on `main` before this run) is a genuine
+step-0b tape recovery but landed with no `kb/00-LOG.md` entry / Log-of-runs line — a bookkeeping
+gap in the run that produced it, not something this run rewrites (append-only); flagging it here
+so the retro's "did every run do its bookkeeping" check has the pointer.
+
+Step 0b: `python3 scripts/tape_branch_sweep.py --limit 15` (oldest-by-commit-date first, per the
+malformed-name-ordering discipline L160/L161 built) triaged the 15 oldest of 213 listed
+`tape/hourly-*`/`tape/burst-*` branches: **0 carry any line or capture_id genuinely missing from
+`HEAD`** — 7 fully line-level verified contained, 3 verified via capture_id-level check only
+(oversized bulk-family files, L216), 5 not fully verified (>=1 file skipped by the size guard,
+no signal either way — NOT a "clean" result, just unproven). Nothing to recover this run; 198
+branches remain untriaged (unchanged backlog, tracked since PR #234's note).
+
+**Full Q0-Q48 re-scan:** still saturated, 0 eligible TODO/IN-PROGRESS — same as every run this
+week. Q48/S55's FOMC burst window (2026-07-29 17:40-19:45Z) closed hours before this run started,
+and its tape is now FULLY recovered on `main` (the 2,128-line `tape/hourly-20260729T1010Z`
+recovery + PR #234's 446-line 6-chunk recovery both landed). This looked like it might finally
+open Q48 — first real milestone candidate all week — so this run checked directly rather than
+defaulting straight to idle-run policy.
+
+**Finding: it doesn't open Q48, and now there's a concrete reason why.**
+`python3 scripts/q48_s55_fomc_lag_probe.py` still returns `INSUFFICIENT DATA` (14 burst windows
+detected, 1 cadence-qualified, 0 covering the 18:00:00Z release). Manual inspection of
+`captured_at` timestamps (the collector's own recorded fetch instant, not commit/push time) in
+`tape/polymarket_macro_pairs/dt=2026-07-29.jsonl` around the release shows dense ~90s cadence
+from 17:41:42Z through 17:50:42Z, then **nothing until 18:02:42Z — a 720.0s (12.0min) void that
+brackets the 18:00:00Z statement exactly.** `tape/crypto_hourly/` and `tape/econ_prints/` (the
+other two families the same `kalshi-burst-fomc-0729` trigger drives concurrently) show the
+**same** void to the second (717.1s and 717.2s respectively, all three last-before captures
+17:50:42-17:50:57Z, all three first-after captures 18:02:42-18:02:54Z). All three families
+missing the exact same window in lockstep, from a single trigger process that fault-isolates
+per-family (`collection/burst_capture.py::_safe_call`), rules out a single collector's error —
+this reads as the whole burst_capture process/container being unavailable for ~12 minutes, not a
+family-level fault. The 6 separate `tape/burst-chunk{1..6}-20260729T*` push-fallback branches
+(chunk1's first commit lands at 18:03:17Z, ~20s after the gap ends) are consistent with a
+restart right at that boundary, though this run does not have direct process/container logs to
+confirm the restart mechanism — recorded as the best-supported hypothesis, not a proven cause.
+**Net effect: the single most expensive, most carefully-scheduled burst leg of the week captured
+everything EXCEPT the ~12 minutes that mattered — S55's whole premise (which venue reprices
+first) needs a pass on both sides of the exact release second, and none exists.** Q48 stays
+`collect-and-revisit`, 0 CI, no verdict — unchanged from every run this week, now with the reason
+pinned instead of just re-observed.
+
+**Built** (so no future run has to re-derive this by hand, and so the NEXT burst event — CPI,
+the next FOMC meeting, a World Cup match — gets an automatic diagnostic instead of a bare "0
+covering"): `scripts/q48_s55_fomc_lag_probe.py::nearest_release_bracket_gap_s` — the gap in
+seconds between the nearest pass strictly before a release instant and the nearest pass strictly
+after it, ignoring the 300s burst-window threshold entirely (so it still reports a number when
+`detect_burst_windows`/`covering_release` only say "0 covering"). Wired into `run_probe`'s
+`INSUFFICIENT DATA` path: the report now carries `release_bracket_gap_s` (per release instant)
+and the human-readable `reason` string names the gap and flags anything over
+`BURST_MAX_INTERVAL_S` (300s) as "a real capture outage spanned the release instant, not merely
+sparse tape." Live run against real tape reproduces the manual numbers exactly:
+`release_bracket_gap_s: {"2026-07-29T18:00:00+00:00": 720.000196}`. 3 new tests in
+`tests/test_q48_s55_fomc_lag_probe.py` (unit test on the function directly incl. a same-shape
+release-outage case that pins nearest-not-widest bracketing; a one-sided-data-returns-None case;
+an integration test through `run_probe` on a synthetic dense-before/outage/dense-after fixture
+shaped like the real 2026-07-29 tape, asserting the report field and reason text) — 44 -> 47 in
+the file. Purely additive: no existing test's assertions changed, no other function's behavior
+changed, no registry/CI/verdict touched.
+
+Two-agent rule N/A — this is a data-quality diagnosis + reporting enhancement, not a registry
+status flip, bootstrap CI destined for kb/findings, or kill decision (same posture as
+L200-item-1/L210/L211/L215/L217-L220/L223/L226). Ledger: appended **L227** (see
+`kb/lessons/00-lessons.md`) — **UNENFORCED**, candidate: a pre-flight check the NEXT time a
+one-shot burst trigger is scheduled (verify the process stayed alive across its own window from
+its own tape, post-hoc, the morning after) so a burst-infra outage during the one event it exists
+to catch gets flagged before the loop spends a research-run cycle rediscovering "still
+INSUFFICIENT DATA" — not statically assertable ahead of time (nothing here can predict a future
+outage), so likely terminal as **protocol** unless a future burst leg adds process-level
+liveness logging.
+
+No network, no orders, no credentials. Still **0 proven edges**.
+
+**Gates:** `python3 scripts/invariants.py --full` → exit 0, all green (same pre-existing
+non-gating advisory classes as base `main` — VPS collector leg still dead [Ryan-side];
+L168/L169 hollow-crypto-ladder; L185 capped-pagination; L210 colliding capture_id; L138 raw-
+`fromisoformat`; L223 gdp settlement regression; L157 recovery-dwell; L52 unguarded-settlement;
+2 stranded local hourly refs (advisory, this run's own git-log leftovers, not new); 6 open
+`UNENFORCED` rows pre-this-entry). `python3 -m pytest -o addopts="" -q` → **2239 passed in
+1986.70s (0:33:06), 0 failed** (2236 prior + 3 new; fresh full run, taken after this diff's last
+edit per L162's fresh-gate-line rule). `python3 scripts/invariants.py --full` re-run after the
+`kb/`/`LOOP-QUEUE.md` doc edits (in case a lesson-citation or UNENFORCED-staleness advisory
+shifted) → exit 0, same advisory set, `invariants: all green`.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (`dead ✗` per Q34,
+paper-infra validation only — NOT edge evidence). `scripts/paper_pass.py`: 0 newly processed
+(this run's diff touched no tape), ledger unchanged **+$22.47** (`broker_truth`, 1,248 settled
+contracts, 0 open).
+
 ## 2026-07-29 ~14:1x ET — research loop: idle-run policy (a) — L223 disposed, econ_prints gets a settlement-status regression advisory
 
 Protocol v3 run. Step 0a: `git fetch --unshallow origin` + `git merge-base --is-ancestor` confirmed
