@@ -69,7 +69,7 @@ REAL-SUBPROCESS tests; **D2** `leadlag_stability()` labelled a noise-level ρ `s
 not fitted to data) + `UNSTABLE_below_magnitude_floor` — honest headline **0 of 6**, not 1 of 6.
 **OPEN DEFECT D3, named not fixed:** `signed_leader` maximises SIGNED ρ, so two negative lag-ρ crown
 the *less negative* one (pre-existing; biases toward MORE leaders on a headline that came back
-empty) — deferred as its own unit of work, recorded as L234.
+empty) — deferred as its own unit of work, recorded as L235.
 
 **NO registry flip — S17 stays `data-collecting`** (`kb/strategies/00-index.md` row clause appended;
 status token and confidence untouched), because the verifier explicitly **WITHHELD the CONFIRM a
@@ -83,18 +83,18 @@ different and far more defensible class than a kill on three non-independent des
 Remaining PER-EVENT legs: **WC semi1 + WC final, both trigger-fired-but-never-captured** (Ryan-side
 trigger/collection investigation).
 
-**Ledger.** Appended **L227-L236**: L227 fee-must-be-a-schedule-function + propagate-to-siblings
-(`test`), L228 L27's magnitude gate applies to a ρ and to a stability RATIO (`test`), L229 L164's
+**Ledger.** Appended **L228-L237**: L228 fee-must-be-a-schedule-function + propagate-to-siblings
+(`test`), L229 L27's magnitude gate applies to a ρ and to a stability RATIO (`test`), L230 L164's
 interruption clause — a healthy median HIDES seams (`test` for reporting, `UNENFORCED` for the
-collection half), L230 a decision window must bracket the release because the venue delists the
-decided market, and `n_<venue>_markets` + `unmatched_<venue>` is the control (`protocol`), L231 a
+collection half), L231 a decision window must bracket the release because the venue delists the
+decided market, and `n_<venue>_markets` + `unmatched_<venue>` is the control (`protocol`), L232 a
 `scripts.`-to-`scripts.` import breaks direct invocation while `conftest.py` masks it under pytest
-(`test`), L232 a hand-derived exhaustiveness bound is a SCREEN not a proof, and hand-vs-execution
-agreement is evidence about the ARITHMETIC never the CANDIDATE SET (`protocol`), L233 `pytest -q`
-doubling to `-qq` suppresses the count this repo gates on (`protocol`), L234 argmax over a SIGNED
+(`test`), L233 a hand-derived exhaustiveness bound is a SCREEN not a proof, and hand-vs-execution
+agreement is evidence about the ARITHMETIC never the CANDIDATE SET (`protocol`), L234 `pytest -q`
+doubling to `-qq` suppresses the count this repo gates on (`protocol`), L235 argmax over a SIGNED
 statistic can crown a negative one — sign and magnitude are independent gates (**UNENFORCED**, D3),
-L235 an artifact share must be computed per-OBSERVATION not off episode maxima, and a float residue
-belongs to its own subtraction (**UNENFORCED**), L236 an orchestrator's `git reset --hard` destroys
+L236 an artifact share must be computed per-OBSERVATION not off episode maxima, and a float residue
+belongs to its own subtraction (**UNENFORCED**), L237 an orchestrator's `git reset --hard` destroys
 a worker's uncommitted edits; an execution-less worker ships code + a BOUNDED hand derivation for
 the orchestrator to EXECUTE, never to accept (`protocol`). Open `**UNENFORCED**` count 6 → 9.
 
@@ -105,14 +105,14 @@ No network, no orders, no credentials. Still **0 proven edges**.
 `git` invocation, so no gate number here is self-measured): `python3 -m pytest -o addopts='' -q` →
 **2283 passed in 1487.04s, exit 0**; `python3 scripts/invariants.py --full` → **`invariants: all
 green`, exit 0**; `tests/test_s17_leadlag_probe.py` → **92 passed** (was 84). Reproducibility
-caveat now pinned as L233: `pyproject`'s `addopts` already carries `-q`, so passing `-q` again
+caveat now pinned as L234: `pyproject`'s `addopts` already carries `-q`, so passing `-q` again
 doubles to `-qq` and SUPPRESSES the summary line the gate quotes — use the `-o addopts=''` form.
 
 **Process fact, recorded not laundered:** 5 worker rounds, because (i) the orchestrating session's
 mid-run `git reset --hard` discarded round 1's identical uncommitted edits, forcing a full redo, and
 (ii) the sandbox-execution split above. Round 1's HAND-DERIVED schedule headline (34 / 5 /
 +$0.00822) later reproduced EXACTLY under execution — evidence about the arithmetic, and none about
-completeness (L232). See `findings/2026-07-29-s17-burst-fomc-q19.md`.
+completeness (L233). See `findings/2026-07-29-s17-burst-fomc-q19.md`.
 
 ## 2026-07-29 ~14:1x ET — research loop: idle-run policy (a) — L223 disposed, econ_prints gets a settlement-status regression advisory
 
