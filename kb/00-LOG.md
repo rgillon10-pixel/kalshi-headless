@@ -6,6 +6,51 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-30 ~03:3x ET — research loop: stale-number follow-up on L235's merged fix (findings + strategy-index correction, no code change)
+
+This run picked idle-run policy (a) → lesson **L235** independently, in parallel with another session
+that reached the same target first: it landed as `efcc937` (PR #240) while this session's own equivalent
+fix was mid-gate (two full pytest runs, ~65 minutes total). Once both branches' gates were confirmed
+green this session rebased onto `origin/main`, discovered `efcc937` already there, and — rather than
+merging a duplicate/conflicting `signed_leader` helper on top of an already-merged one — closed its own
+PR (#239) as a race duplicate and verified `efcc937`'s fix directly: `python3 scripts/s17_leadlag_probe.py
+--burst-window 2026-07-29T17:40:00Z 2026-07-29T19:35:00Z --release-instant 2026-07-29T18:00:00Z` on the
+current tree prints `5 show a directional leader, 0 survive leave-one-out` (was 6/0 of 6) and no longer
+emits a `NOTE: ... BELOW the |ρ| magnitude floor` line — matching `efcc937`'s own hand-recomputed impact
+exactly.
+
+**The gap this run closed:** `efcc937`'s commit message states plainly "Findings impact recomputed by
+hand ... no findings/ file edited" — so `findings/2026-07-29-s17-burst-fomc-q19.md` and
+`kb/strategies/00-index.md`'s S17 row still published the pre-fix headline ("6 show a directional leader,
+0 of 6 survive", one row dying on the magnitude floor) after the fix that falsifies those exact numbers
+had already merged. Per this project's own append-only-correction discipline (the STALE-NUMBER NOTE
+pattern this same finding already used once, 2026-07-29), that is exactly the kind of stale claim that
+must be written down rather than left implicit. Appended a second `## STALE-NUMBER NOTE — 2026-07-30`
+section to the finding (citing `efcc937`/#240, the corrected live-verified numbers, and which specific
+lines are now stale vs. byte-identical) and a `(NUMERIC CORRECTION ...)` addendum to both of
+`kb/strategies/00-index.md`'s S17 mentions, following the same in-place-append convention that row
+already carries from 2026-07-29. `kb/00-LOG.md`'s own old Q19 entry (2026-07-29 ~17:2x ET) is left
+untouched, per this log's own discipline ("Dead ends stay ... this is the journey") — corrections belong
+in new entries and in the living documents (`findings/`, `kb/strategies/00-index.md`), not by rewriting
+history here.
+
+No code change, no registry flip, no bootstrap CI, no kill decision — a documentation-honesty follow-up
+only, two-agent rule N/A. Docs-only diff: `python3 -m pytest -o addopts='' -q` → **2297 passed, exit 0**
+(matches `efcc937`'s own baseline — a docs-only diff moves no test count); `python3 scripts/invariants.py
+--full` → exit 0, all green. Step 9:
+`SHADOW_REGISTRY = {s14_ladder_underwriting}` (dead ✗ per Q34, paper-infra-only); `paper_pass.py` 0 newly
+processed, ledger unchanged **+$23.45** (`broker_truth`). No network, no orders, no credentials. Still
+**0 proven edges**. Lesson candidate for a future kb-distiller pass: a run that loses a race to a
+concurrent idle-run pick should verify the winner's diff for gaps before treating the milestone as fully
+closed — this is the second time in this project's history a hand-waved "recomputed, not edited" impact
+statement left a citable document stale (see `efcc937`'s own text); a standing rule that any fix changing
+a probe's headline output must ALSO grep `findings/`/`kb/strategies/00-index.md` for the stale string and
+append a correction in the same PR would close this class for good. See
+`findings/2026-07-29-s17-burst-fomc-q19.md` §STALE-NUMBER NOTE (2026-07-30, second one) and
+`kb/strategies/00-index.md`'s S17 row.
+
+---
+
 ## 2026-07-30 ~03:0x ET — research loop: idle-run policy (a) — L235 sign-precondition converted UNENFORCED → test on the shared lead-lag leader-selection helper
 
 Steps 0a/0/0b at run start: **0a PASS** — last 5 merged PRs (#238/#237/#236/#235/#234) all ancestors
