@@ -1161,3 +1161,134 @@ def test_module_form_invocation_still_works(tmp_path):
         cwd=repo_root, scrub_pythonpath=True, extra_env={"PYTHONPATH": str(repo_root)})
     assert proc.returncode == 0, proc.stderr
     assert json.loads(out.read_text())["release_coverage"]["containing_gap_s"] == 720.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L236 — per-OBSERVATION magnitude decomposition of the dislocation hit count
+# (`core.bootstrap.hit_magnitude_decomposition` wired into `build_burst_report`)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_dislocation_magnitude_is_per_observation_not_per_episode_max():
+    """The L236 rule in the probe's own shape: an episode whose MAX is a real +$0.003 can
+    still contain a residue capture, and the per-episode-max view loses it."""
+    residue = 1.734723475976807e-17
+    hits = [{"net_edge": residue}, {"net_edge": residue}, {"net_edge": 0.003},
+            {"net_edge": 0.02}]
+    episodes = [{"max_net_edge": residue, "n_captures": 1},
+                {"max_net_edge": 0.003, "n_captures": 2},   # hides one residue capture
+                {"max_net_edge": 0.02, "n_captures": 1}]
+    mag = probe.dislocation_magnitude(hits, episodes)
+    assert mag["n"] == 4
+    assert mag["n_residue"] == 2
+    assert mag["n_sub_tick"] == 3
+    assert mag["n_clears_tick"] == 1
+    assert mag["episode_max_view"]["n_residue"] == 1
+    assert mag["episode_max_view"]["n_captures_in_residue_episodes"] == 1
+    assert mag["understates_residue_by"] == 1
+
+
+def test_dislocation_magnitude_understatement_is_zero_when_the_views_agree():
+    hits = [{"net_edge": 0.02}, {"net_edge": 0.03}]
+    episodes = [{"max_net_edge": 0.03, "n_captures": 2}]
+    mag = probe.dislocation_magnitude(hits, episodes)
+    assert mag["n_residue"] == 0
+    assert mag["understates_residue_by"] == 0
+
+
+def test_dislocation_magnitude_empty_scan_is_honest():
+    mag = probe.dislocation_magnitude([], [])
+    assert mag["n"] == 0
+    assert mag["sub_tick_share"] is None
+    assert mag["episode_max_view"]["n"] == 0
+    assert mag["understates_residue_by"] == 0
+
+
+def test_build_burst_report_carries_the_magnitude_field():
+    recs = [_rec("c1", "KXFEDDECISION-26OCT-H25", 0.10, 0.50),
+            _rec("c2", "KXFEDDECISION-26OCT-H25", 0.10, 0.50)]
+    for i, r in enumerate(recs):
+        r["captured_at"] = "2026-07-29T17:%02d:00+00:00" % (40 + i)
+    report = probe.build_burst_report(
+        recs, start=probe.parse_iso_utc("2026-07-29T17:00:00+00:00"),
+        end=probe.parse_iso_utc("2026-07-29T18:00:00+00:00"))
+    mag = report["dislocation_magnitude"]
+    assert mag["n"] == report["n_dislocations"]
+    assert set(["n", "n_residue", "n_sub_tick", "n_clears_tick", "episode_max_view",
+                "understates_residue_by"]).issubset(mag)
+
+
+# ── real-tape acceptance (FROZEN slice per L191 — never an open-ended dt=* glob) ──
+
+_FROZEN_BURST_DAY = "2026-07-29"
+_FROZEN_BURST_WINDOW = ("2026-07-29T17:40:00+00:00", "2026-07-29T19:35:00+00:00")
+
+
+def _frozen_burst_records():
+    """Records from the ONE committed day-file that holds the 2026-07-29 FOMC burst window.
+    Named explicitly: an open-ended glob over a live family turns routine capture growth into
+    a red gate with zero code change (L191)."""
+    path = probe.TAPE_DIR / ("dt=%s.jsonl" % _FROZEN_BURST_DAY)
+    # HARD assert, not pytest.skip: this file is a COMMITTED artifact, so its absence is a
+    # tape regression, not an optional-environment condition. A skip here would turn a
+    # deleted-tape regression into a green suite (verifier finding, 2026-07-30).
+    assert path.exists(), "committed frozen burst day-file is missing: %s" % path
+    out = []
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line:
+            out.append(json.loads(line))
+    return out
+
+
+def _frozen_burst_report(fee_model):
+    return probe.build_burst_report(
+        _frozen_burst_records(),
+        start=probe.parse_iso_utc(_FROZEN_BURST_WINDOW[0]),
+        end=probe.parse_iso_utc(_FROZEN_BURST_WINDOW[1]),
+        poly_fee_model=probe.PolyFeeModel(fee_model))
+
+
+def test_acceptance_l236_free_bracket_per_observation_decomposition_real_tape():
+    """HARD acceptance on the real committed 2026-07-29 FOMC burst tape, `free` bracket —
+    the exact population L236 was drawn from. The per-observation view finds FIVE residue
+    captures; the per-episode-max view finds three episodes covering four. That one-capture
+    gap IS the lesson."""
+    report = _frozen_burst_report("free")
+    # pinned so a tape change fails loudly and diagnosably rather than shifting the counts
+    assert report["n_records_in_window"] == 278
+    assert report["n_dislocations"] == 49
+    assert len(report["dislocation_episodes"]) == 10
+    mag = report["dislocation_magnitude"]
+    assert mag["n"] == 49
+    assert mag["n_unmeasurable"] == 0
+    assert mag["n_residue"] == 5
+    assert mag["n_sub_tick"] == 19
+    assert mag["n_clears_tick"] == 30
+    assert mag["max"] == 0.020000000000000035
+    assert mag["episode_max_view"]["n_residue"] == 3
+    assert mag["episode_max_view"]["n_captures_in_residue_episodes"] == 4
+    assert mag["understates_residue_by"] == 1
+    # ON-TAPE pin (not just the literal expressions): every residue hit AND every residue
+    # episode max on this real window is the SAME float, 5*2**-58 — the numeric correction to
+    # findings/2026-07-29-s17-burst-fomc-q19.md §4d, taken from the probe's own output.
+    shared = 1.734723475976807e-17
+    residue_hits = [h["net_edge"] for h in report["dislocations"] if abs(h["net_edge"]) < 1e-9]
+    residue_eps = [e["max_net_edge"] for e in report["dislocation_episodes"]
+                   if abs(e["max_net_edge"]) < 1e-9]
+    assert len(residue_hits) == 5 and set(residue_hits) == {shared}
+    assert len(residue_eps) == 3 and set(residue_eps) == {shared}
+
+
+def test_acceptance_l236_schedule_bracket_is_entirely_sub_tick_real_tape():
+    """Same tape, the HONEST fee model (`schedule`, the default): 34 fee-clearing captures,
+    every one of them sub-tick — max +$0.008220, below Kalshi's 1¢ tick. This is the number
+    the S17 registry row quotes, now machine-decomposed instead of asserted in prose."""
+    report = _frozen_burst_report("schedule")
+    assert report["n_dislocations"] == 34
+    mag = report["dislocation_magnitude"]
+    assert mag["n"] == 34
+    assert mag["n_residue"] == 0
+    assert mag["n_sub_tick"] == 34
+    assert mag["n_clears_tick"] == 0
+    assert mag["sub_tick_share"] == 1.0
+    assert mag["max"] == pytest.approx(0.008220, abs=5e-7)

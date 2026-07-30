@@ -42,6 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from core.bootstrap import hit_magnitude_decomposition
 from core.io import REPO_ROOT
 from core.pricing import (
     POLYMARKET_US_TAKER_RATE,
@@ -574,6 +575,40 @@ def _fee_model_block(kalshi_fee_rate: float, poly_fee_rate: float) -> Dict[str, 
     }
 
 
+def dislocation_magnitude(hits: Sequence[Dict[str, Any]],
+                          episodes: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """L236: decompose the fee-clearing HIT COUNT by magnitude PER OBSERVATION, and carry the
+    per-episode-max view beside it so the understatement is visible rather than inferred.
+
+    A raw "N fee-clearing captures" headline is not a finding until it is split into what
+    clears a fillable tick, what is genuinely nonzero but sub-tick, and what is pure
+    floating-point residue with a sign and no economic content (L27's rule applied to a hit
+    count). The per-EPISODE-max view — scoring each contiguous run by its single best capture
+    — always understates the residue population, because a residue capture inside an episode
+    whose max is real vanishes from the tally. Both views are reported; `understates_residue_by`
+    is their difference and is >= 0 by construction of the max.
+
+    PRECONDITION (named because the neighbouring buckets silently depend on it, L235's sibling
+    shape): `n_residue` classifies by ABSOLUTE value while `n_sub_tick` / `n_clears_tick` are
+    SIGNED comparisons, so `understates_residue_by >= 0` holds only on a NON-NEGATIVE population.
+    Both callers here feed it a `net_edge > 0` scan, which satisfies it; a caller that passes a
+    signed population must not read the sign of that field.
+
+    Read-only, pure over already-computed scan output; books nothing, prices nothing.
+    """
+    per_obs = hit_magnitude_decomposition([h.get("net_edge") for h in hits])
+    ep_view = hit_magnitude_decomposition([e.get("max_net_edge") for e in episodes])
+    floor = per_obs["residue_floor"]
+    n_caps_in_residue_eps = sum(
+        int(e.get("n_captures") or 0) for e in episodes
+        if isinstance(e.get("max_net_edge"), (int, float)) and abs(e["max_net_edge"]) < floor)
+    ep_view["n_captures_in_residue_episodes"] = n_caps_in_residue_eps
+    out = dict(per_obs)
+    out["episode_max_view"] = ep_view
+    out["understates_residue_by"] = per_obs["n_residue"] - n_caps_in_residue_eps
+    return out
+
+
 def build_burst_report(records: Sequence[Dict[str, Any]], *,
                        start: Optional[datetime] = None, end: Optional[datetime] = None,
                        kalshi_fee_rate: float = TAKER_FEE_RATE,
@@ -597,14 +632,34 @@ def build_burst_report(records: Sequence[Dict[str, Any]], *,
         "n_dislocations": len(disl),
         "dislocations": disl,
         "dislocation_episodes": episodes,
+        "dislocation_magnitude": dislocation_magnitude(disl, episodes),
         "fee_model": _fee_model_block(kalshi_fee_rate, poly_fee_rate),
         "poly_fee_free_sensitivity": {
             "n_dislocations": len(disl_ff),
             "dislocations": disl_ff,
             "dislocation_episodes": episodes_ff,
+            "dislocation_magnitude": dislocation_magnitude(disl_ff, episodes_ff),
             "fee_model": _fee_model_block(kalshi_fee_rate, 0.0),
         },
     }
+
+
+def _print_magnitude(mag: Optional[Dict[str, Any]]) -> None:
+    """The L236 line printed under any dislocation-count headline: a raw hit count is not a
+    finding until it is split, PER OBSERVATION, into what clears a fillable tick, what is
+    genuinely nonzero but sub-tick, and what is pure float residue."""
+    if not mag or not mag.get("n"):
+        return
+    print(f"  per-OBSERVATION magnitude (L236): {mag['n_residue']} float-residue "
+          f"(<{mag['residue_floor']:g}), {mag['n_sub_tick']} sub-tick (<${mag['tick']:.2f}, "
+          f"{mag['sub_tick_share']:.1%}), {mag['n_clears_tick']} clear a tick; "
+          f"max ${mag['max']:.6f}")
+    ep = mag.get("episode_max_view") or {}
+    if mag.get("understates_residue_by"):
+        print(f"  -> NOTE (L236): the per-EPISODE-max view sees only {ep.get('n_residue')} "
+              f"residue episode(s) / {ep.get('n_captures_in_residue_episodes')} capture(s) — "
+              f"it UNDERSTATES the artifact share by {mag['understates_residue_by']} "
+              f"capture(s). Quote the per-observation split, never the episode maxima.")
 
 
 def _print_burst_report(report: Dict[str, Any]) -> None:
@@ -639,12 +694,14 @@ def _print_burst_report(report: Dict[str, Any]) -> None:
               f"dP={t['largest_raw_move_delta_poly']:.3f}")
     print(f"fillable dislocations (net_edge>0 after BOTH real fees): {report['n_dislocations']} "
           f"captures across {len(report['dislocation_episodes'])} episodes")
+    _print_magnitude(report.get("dislocation_magnitude"))
     for e in sorted(report["dislocation_episodes"], key=lambda x: x["max_net_edge"], reverse=True):
         print(f"  {e['pair']} {e['direction']}: max_edge=${e['max_net_edge']:.4f} "
               f"mean=${e['mean_net_edge']:.4f} dur={e['duration_s']:.0f}s over {e['n_captures']} captures")
     ff = report["poly_fee_free_sensitivity"]
     print(f"[fee-free-Poly sensitivity, rate=0.0] dislocations={ff['n_dislocations']} "
           f"across {len(ff['dislocation_episodes'])} episodes")
+    _print_magnitude(ff.get("dislocation_magnitude"))
     if report["n_dislocations"] == 0:
         print("  -> zero fee-clearing cross-venue dislocations in this window at the real fee model.")
 

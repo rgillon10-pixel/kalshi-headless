@@ -135,6 +135,80 @@ def clears_tick_magnitude(ci95: Sequence, *, tick: float = 0.01, min_ticks: floa
     return lo >= min_ticks * tick
 
 
+SUB_TICK_RESIDUE_FLOOR: float = 1e-9
+
+
+def hit_magnitude_decomposition(values: Sequence, *, tick: float = 0.01,
+                                 residue_floor: float = SUB_TICK_RESIDUE_FLOOR) -> Dict:
+    """The L236 granularity rule: `clears_tick_magnitude`'s L27 test (a positive sign at
+    float precision is not an edge) applied to a raw HIT COUNT instead of a bootstrap lower
+    bound — and applied **PER OBSERVATION**, never to a per-episode / per-group maximum.
+
+    Why per-observation is load-bearing, not a style preference: a group is scored by its
+    single best member, so every artifact sharing a group with one real hit disappears from
+    the artifact tally. The group-max view therefore ALWAYS understates the artifact share,
+    and it understates it in the flattering direction. The concrete case this encodes
+    (S17's 2026-07-29 FOMC burst, `free` fee bracket): the per-episode-max view reports
+    3 residue episodes covering 4 captures, while the honest per-observation view reports
+    **5** residue captures — the fifth sits inside an episode whose max is +$0.003, so the
+    max view hides it. Same tape, same scan, two different artifact counts.
+
+    Second half of L236: a float residue belongs to the one subtraction that produced it,
+    never to the group — quote the magnitude CLASS for a group and the exact float only for
+    the case it belongs to. This function therefore never returns a single "the" residue
+    value; it returns counts and shares, plus the max.
+
+    `None` entries and non-finite floats (nan / +-inf) are counted in `n_unmeasurable` and
+    EXCLUDED from `n` and from every share (L86: an unmeasurable observation is dropped and
+    reported, never silently booked as zero).
+
+    Returned keys (stable — consumers and tests key on these):
+      n                 measurable observation count
+      n_unmeasurable    None / nan / inf entries, excluded from n and from the shares
+      n_residue         measurable v with abs(v) < residue_floor (pure float residue)
+      n_sub_tick        measurable v with v < tick — residue INCLUDED (a residue is
+                        trivially sub-tick; n_sub_tick - n_residue is the genuinely
+                        nonzero-but-still-unfillable population)
+      n_clears_tick     measurable v with v >= tick
+      residue_share     n_residue / n, or None when n == 0 (never 0.0 masquerading
+                        as a measured zero)
+      sub_tick_share    n_sub_tick / n, or None when n == 0
+      max               max of the measurable values, or None when n == 0
+      tick, residue_floor   the thresholds actually used, echoed for provenance
+
+    Pure; never raises on empty / None / ragged input.
+    """
+    measurable: List[float] = []
+    n_unmeasurable = 0
+    for v in (values or []):
+        f = None
+        if v is not None and not isinstance(v, bool):
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                f = None
+        if f is None or f != f or f == float("inf") or f == float("-inf"):
+            n_unmeasurable += 1
+        else:
+            measurable.append(f)
+    n = len(measurable)
+    n_residue = sum(1 for v in measurable if abs(v) < residue_floor)
+    n_sub_tick = sum(1 for v in measurable if v < tick)
+    n_clears_tick = sum(1 for v in measurable if v >= tick)
+    return {
+        "n": n,
+        "n_unmeasurable": n_unmeasurable,
+        "n_residue": n_residue,
+        "n_sub_tick": n_sub_tick,
+        "n_clears_tick": n_clears_tick,
+        "residue_share": (n_residue / n) if n else None,
+        "sub_tick_share": (n_sub_tick / n) if n else None,
+        "max": max(measurable) if n else None,
+        "tick": tick,
+        "residue_floor": residue_floor,
+    }
+
+
 def floor_pinned_fraction(values: Sequence[float], floor: float, *, tol: float = 1e-9
                            ) -> float:
     """The L28 precheck: before building a decay/CI pipeline to test whether a price

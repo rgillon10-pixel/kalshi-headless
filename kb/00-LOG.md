@@ -6,6 +6,121 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-30 ~11:4x ET — research loop IDLE RUN: L236 converted UNENFORCED → test (per-observation artifact decomposition), and its own worked example corrected
+
+Fifth research-loop firing of 2026-07-30. Steps 0a/0/0b were completed by the orchestrating session
+before this run began: **0a PASS** — `origin/main`'s real tip is `825c8ae2` (PR #242) and the local
+checkout sits exactly there with a clean tree, no rewind (an earlier stale-`main` appearance was a
+shallow-clone artifact, resolved by `git fetch --unshallow`); **claim-check** — open PRs
+#208/#191/#166/#165/#125 are all long-standing Ryan-review-only drafts, none claims a queue item;
+**step 0b** — the ~185+ stranded `tape/hourly-*`/`tape/burst-*` heads remain the known long-tail debt
+that repeated prior runs have logged as out of scope; the two genuinely-recent branches were swept and
+landed SEPARATELY as `9c0ef733`/PR #243 while this run was mid-milestone, so this run's own diff is
+code + docs only, with no tape in it: `tape/hourly-20260730T1302Z` (verified fully redundant with
+`main` plus the other branch) and `tape/hourly-20260730T1310Z` (verified a clean prefix-matching
+superset for six `dt=2026-07-30` family files — `perp_tape`, `universe_sweep`, `weather_actuals` [new
+file], `weather_books`, `hyperliquid_funding`, `orderbook_depth`). Both are now safe to delete per the
+protocol's delete-after-merge rule. This run's own gate numbers were taken on the post-#243 tree; the
+frozen `dt=2026-07-29` slice the new acceptance tests pin was untouched by that sweep.
+
+An independent full Q0–Q48 FILE-SHAPE rescan (L25) found **0 eligible TODO/IN-PROGRESS items** — the
+fifth such zero of the day (cf. PRs #238, #240, #241, #242). Each scattered `Status: TODO` line nested
+under a DONE header was read in full context and is preserved "Original spec below, unchanged" text
+(Q9, Q11, Q12, Q16) or a superseded original gate (Q43's line-1653); Q21's round was already run today
+by the edge-hunter (17th consecutive zero-registration); Q23/Q24 are DONE; the three nearest gates are
+still shut (Q36 `INSUFFICIENT DATA, n_settled_events=2/10`; Q37 opens ~08-05; Q48 still burst-gated).
+→ **IDLE RUN, policy (a).**
+
+**Row selection.** L208 had been taken by PR #242 three hours earlier, so a different row was required.
+Re-deriving the genuinely-open set with the repo's own parser (`invariants._parse_lesson_rows` +
+`_lesson_disposed_ids`) gives **7** open `UNENFORCED` rows: L145, L213, L214, L221, L222, L227, L236.
+L145 and L213 are Ryan policy calls; L214/L221/L222 are live collector write-path changes; L227's
+remaining (prevention) half is not statically assertable. **L236** was the only one both buildable and
+in-lane — its own cell names `scripts/` as the fix location, which a research-loop run owns.
+
+**What was built.** L236's open half is the GRANULARITY rule: *an "N of M are artifacts" decomposition
+must be computed PER-OBSERVATION, not read off per-episode maxima.*
+
+- `core/bootstrap.py`: `hit_magnitude_decomposition()` + `SUB_TICK_RESIDUE_FLOOR = 1e-9` — the L27
+  rule `clears_tick_magnitude` already encodes for a bootstrap lower bound, applied to a raw HIT
+  COUNT and applied per observation. Returns `n` / `n_unmeasurable` / `n_residue` / `n_sub_tick`
+  (residue included, so `n_sub_tick − n_residue` is the genuinely-nonzero-but-unfillable tail) /
+  `n_clears_tick` / shares / `max` / the echoed thresholds. Shares are **`None`, never 0.0**, on an
+  empty population — a 0.0 share would read as a measured absence of artifacts. `None`, nan, inf and
+  bool entries go to `n_unmeasurable` and are excluded from every denominator (L86: an unmeasurable
+  observation is dropped and reported, never booked as a zero).
+- `scripts/s9_leadlag_probe.py`: `dislocation_magnitude()` + `_print_magnitude()` — defined **once**,
+  here, and IMPORTED by `scripts/s17_leadlag_probe.py` (L36/L102 byte-identical-twin discipline, the
+  same class the L235 milestone closed one run earlier). s9 carries the decomposition on its primary
+  block **and** on its `poly_fee_free_sensitivity` fee-free bracket — the `free`-bracket analogue L236
+  was actually drawn from — so both present-tense instances of the shape are covered, not only the one
+  that motivated the build. The report gains one key, `dislocation_magnitude`, carrying the
+  per-episode-max view beside the honest one plus `understates_residue_by`, and stdout gains one line
+  under the dislocation headline plus a NOTE line whenever the two views disagree.
+- **23 new tests**: 12 in `tests/test_bootstrap.py`, 4 in `tests/test_s9_leadlag_probe.py`, 7 in
+  `tests/test_s17_leadlag_probe.py` — including two HARD real-tape acceptance tests over an explicitly
+  **FROZEN** `dt=2026-07-29` slice (L191; the day-file is named, never a `dt=*` glob) and an identity
+  test that s17 imports the helper rather than re-defining it.
+
+**Additive only, and proved so.** A JSON diff of the same burst run before and after adds exactly one
+key and leaves every pre-existing field byte-identical. **Mutation control:** feeding the episode
+maxima instead of the per-observation hits fails exactly 3 of the new tests; the file was restored
+md5-identical afterwards.
+
+**The finding: building the enforcement falsified its own worked example.** L236 (and
+`findings/2026-07-29-s17-burst-fomc-q19.md` §4d) asserts the three `free`-bracket residue episodes
+carry *different* floats — 26JUL-H25's `0.26 − 0.24 − 0.02` = `1.734723475976807e-17`, and the
+26SEP-H25 pair `0.61 − 0.59 − 0.02` ≈ `3.955e-17` and `0.62 − 0.60 − 0.02` ≈ `2.776e-17`. Executed:
+**all three evaluate to exactly `1.734723475976807e-17` = 5·2⁻⁵⁸** in IEEE-754 double, on the probe's
+own on-tape output as well as as literals (all 5 residue hits and all 3 residue episode maxima on the
+real window equal that one float). So round 2's shared-float claim was **right**, and the verifier
+round's "correction" introduced two numbers that do not exist on this tape. The **principle** L236
+states — residues from different subtractions are in general different, and you only know by
+evaluating — is untouched; this trio coincides. Every **count** in §4d reproduces exactly and is now
+machine-computed: `free` = 49 fee-clearing captures / 10 episodes, **5** residue captures
+per-OBSERVATION vs **3 episodes / 4 captures** on the per-episode-max view (`understates_residue_by =
+1`, the fifth being 26JUL-H0 at 17:46:12Z), 19 sub-tick, 30 clearing a tick, max
+`+$0.020000000000000035`; `schedule` = 34 captures, **34/34 sub-tick**, max `+$0.008220`;
+`n_records_in_window` = 278. The finding was **annotated, not rewritten** (new
+`## FLOAT-RESIDUE NOTE — 2026-07-30` section), and the correction is recorded **PROVISIONAL**.
+
+**Two-agent handling.** The milestone class is a lesson→test conversion with no registry flip, no
+bootstrap CI and no kill decision, so the two-agent verdict rule does not bind
+(L104/L110/L118/L126/L127/L137 precedent). An independent `verifier` was nonetheless dispatched. Its
+harness **denied all code execution** (as did the `edge-prober`'s — see the process note below), so it
+**CONFIRMED the numeric correction by exact IEEE-754 integer derivation instead**: each subtraction
+falls under Sterbenz's lemma and is therefore exact, all three reduce to the same 53-bit significand,
+and `≈3.955e-17` / `≈2.776e-17` are unattainable doubles in that neighbourhood. It imposed five
+corrections, **all adopted**: (1) wire s9's twin rather than claim only "future" scans are uncovered;
+(2) define the helper once instead of duplicating it; (3) replace `pytest.skip` with a hard assert on
+a **committed** frozen day-file (a skip would turn a tape-deletion regression into a green suite); (4)
+name the abs-vs-signed precondition in the docstring (`understates_residue_by >= 0` holds only on a
+non-negative population — L235's sibling shape); (5) label provenance honestly (who executed what).
+Because no second agent could *run* the code, the numeric correction stays PROVISIONAL — as PR #242's
+own correction did, for the same harness reason.
+
+**Process note (kb-distiller candidate).** The CLI-dispatched `edge-prober` and `verifier`
+sub-sessions have **no write and no code-execution permission** in this harness; the `edge-prober`
+returned zero files changed and said so honestly rather than reporting spec numbers as verified. The
+working pattern is therefore: the producing session builds and executes, and the workers are used for
+adversarial **reading** — which was still load-bearing here (five real defects, none of which the
+producer had caught).
+
+**Registry / strategy impact: none.** No `kb/strategies/00-index.md` change; S17 stays
+`data-collecting`; the S17 row never carried the residue floats and its quoted `schedule` numbers (34
+captures, max +$0.008220, sub-tick) are re-confirmed by the new acceptance test. Still **0 proven
+edges**. Open `UNENFORCED` lesson rows **7 → 6**.
+
+**Step 9 (paper).** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting` — dead ✗ per Q34, retained
+as paper infrastructure only). `python3 scripts/paper_pass.py` → 0 processed, 183 already-in-ledger,
+**no new ledger lines** (the swept tape touches no s14 family), `daily_summary()` = `paper: 0 open
+position(s), 1317 settled contract(s), realized P&L $+23.45, cash $+23.45, open notional $0.00`
+(`broker_truth`). No network, no orders, no credentials.
+
+**Gates (fresh, taken after the final edit).** `python3 -m pytest -o addopts='' -q` → ****2343 passed in 1661.53s, 0 failed, exit 0** (2320 baseline from PR #242 + the 23 new tests; taken after the final CODE edit — only prose bookkeeping followed)**.
+`python3 scripts/invariants.py --full` → exit 0, `invariants: all green` (pre-existing non-gating
+advisories only).
+
 ## 2026-07-30 ~09:0x ET — research loop IDLE RUN: L208 converted UNENFORCED → enforced window-grid coverage check, and its own worked example corrected
 
 Third research-loop firing of 2026-07-30. Full FILE-SHAPE rescan of Q0–Q48 (L25 — verified each
