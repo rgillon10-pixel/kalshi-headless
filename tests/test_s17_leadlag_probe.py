@@ -356,6 +356,99 @@ def test_per_ticker_leadlag_skips_too_short():
 
 
 # --------------------------------------------------------------------------- #
+# A2c — SIGN PRECONDITION on the signed-leader argmax (L235).
+#
+# Pre-fix, leader selection was a pure argmax over a SIGNED statistic subject to a `margin`
+# DIFFERENCE, so with BOTH lag-rho negative it crowned the LESS NEGATIVE direction. The real
+# row: `KXFEDDECISION-26SEP-H0` got leader=polymarket on rho = -0.0045 over Kalshi's -0.2536.
+# L229's magnitude floor rejected that row only INCIDENTALLY (|-0.0045| < 0.05); the verifier's
+# counterexample (-0.30 / -0.20) clears the floor by 6x and would have been labelled `stable`.
+# The rule now lives in `scripts/s9_leadlag_probe.py::signed_leader_label`, shared by both
+# burst probes so the twin cannot drift.
+# --------------------------------------------------------------------------- #
+def test_signed_leader_label_refuses_a_leader_when_both_directions_are_negative():
+    """POSITIVE CONTROL — the verifier's exact counterexample. Pre-fix this returned
+    'polymarket' (because -0.20 > -0.30 + 0.05 as a signed comparison)."""
+    assert probe.signed_leader_label(-0.30, -0.20,
+                                     margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+    # symmetric: the less-negative side being Kalshi's is refused identically
+    assert probe.signed_leader_label(-0.20, -0.30,
+                                     margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+
+
+def test_signed_leader_label_pins_the_historical_26sep_h0_row():
+    """The REAL executed values from the 2026-07-29 FOMC run (n=21 steps): rho_k = -0.2536,
+    rho_p = -0.0045. The run recorded leader=polymarket; the sign gate must now say 'none',
+    and it must do so on the SIGN, not on the magnitude floor (which lives one stage later, in
+    `leadlag_stability`, and never sees this row again once no leader is named)."""
+    assert probe.signed_leader_label(-0.25358737015281874, -0.004471504399603508,
+                                     margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+
+
+def test_sign_precondition_and_magnitude_floor_are_independent_gates():
+    """THE LOAD-BEARING POINT OF L235. The counterexample passes the magnitude gate outright —
+    |-0.30| is six times `LEADLAG_RHO_MAGNITUDE_FLOOR` — and is killed by the sign gate ALONE.
+    Neither gate implies the other: magnitude asks 'is this rho big enough to be signal?',
+    sign asks 'does it point the way a lead claim requires?'."""
+    rho_k, rho_p = -0.30, -0.20
+    assert abs(rho_k) > probe.LEADLAG_RHO_MAGNITUDE_FLOOR
+    assert abs(rho_p) > probe.LEADLAG_RHO_MAGNITUDE_FLOOR
+    assert abs(rho_p - rho_k) > probe.LEADLAG_SIGNED_LEADER_MARGIN   # clears the margin too
+    assert probe.signed_leader_label(rho_k, rho_p,
+                                     margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "none"
+    # and the converse direction of independence: a rho can pass SIGN and fail MAGNITUDE.
+    assert probe.signed_leader_label(0.03, -0.30,
+                                     margin=probe.LEADLAG_SIGNED_LEADER_MARGIN) == "kalshi"
+    assert abs(0.03) < probe.LEADLAG_RHO_MAGNITUDE_FLOOR
+
+
+def test_signed_leader_label_negative_controls_unchanged():
+    """MUST NOT FIRE — pre-existing behaviour is preserved everywhere the winning direction's
+    rho is positive, and for the None / within-margin cases."""
+    m = probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert probe.signed_leader_label(0.30, 0.20, margin=m) == "kalshi"      # genuine lead
+    assert probe.signed_leader_label(0.20, 0.30, margin=m) == "polymarket"  # genuine lead
+    assert probe.signed_leader_label(0.30, -0.20, margin=m) == "kalshi"     # mixed sign
+    assert probe.signed_leader_label(-0.20, 0.30, margin=m) == "polymarket"  # mixed sign
+    assert probe.signed_leader_label(0.30, 0.29, margin=m) == "none"        # within margin
+    assert probe.signed_leader_label(None, 0.30, margin=m) is None
+    assert probe.signed_leader_label(0.30, None, margin=m) is None
+    assert probe.signed_leader_label(None, None, margin=m) is None
+
+
+def test_per_ticker_leadlag_names_no_leader_when_both_lag_rho_are_negative():
+    """END-TO-END through `per_ticker_leadlag` on constructed tape that genuinely produces two
+    NEGATIVE lag-rho of the counterexample's shape. The observed rho are asserted too, so the
+    fixture cannot silently drift into a different regime and stop testing the sign gate."""
+    kalshi = [0.50, 0.50, 0.51, 0.50, 0.48, 0.50, 0.52, 0.53]
+    poly = [0.50, 0.50, 0.51, 0.52, 0.53, 0.54, 0.52, 0.54]
+    recs = [_brec(f"2026-07-29T17:{2 * i:02d}:00Z", "A", yes_ask=k, best_ask=p)
+            for i, (k, p) in enumerate(zip(kalshi, poly))]
+    out = {t["pair"]: t for t in probe.per_ticker_leadlag(probe.build_burst_series(recs))}["A"]
+    # the fixture really is the both-negative regime, near the -0.30 / -0.20 counterexample
+    assert out["rho_kalshi_leads"] == pytest.approx(-0.2988, abs=1e-3)
+    assert out["rho_polymarket_leads"] == pytest.approx(-0.2010, abs=1e-3)
+    assert out["rho_kalshi_leads"] < 0 and out["rho_polymarket_leads"] < 0
+    # ...and the less-negative direction beats the other by MORE than the margin, i.e. the
+    # pre-fix argmax fired here and returned 'polymarket'.
+    assert out["rho_polymarket_leads"] > out["rho_kalshi_leads"] + \
+        probe.LEADLAG_SIGNED_LEADER_MARGIN
+    assert out["signed_leader"] == "none"
+    # schema unchanged: no new keys, same vocabulary, and the row still carries both rho so a
+    # reader can audit WHY it is 'none'.
+    assert set(out) == {"pair", "n_steps", "rho_contemporaneous", "rho_kalshi_leads",
+                        "rho_polymarket_leads", "signed_leader"}
+
+
+def test_leadlag_stability_maps_a_sign_gated_none_to_no_directional_claim():
+    """Downstream consumer check: with no leader named, `leadlag_stability` makes no claim (and
+    never reaches the magnitude/retention gates), which is the whole point of the earlier gate."""
+    out = probe.leadlag_stability([{"pair": "A", "signed_leader": "none"}], [])[0]
+    assert out["stability"] == "no_directional_claim"
+    assert out["rho_full"] is None and out["retention"] is None
+
+
+# --------------------------------------------------------------------------- #
 # dislocation scan — fillable cross-venue edge net of both fees
 # --------------------------------------------------------------------------- #
 def test_dislocation_scan_flags_positive_edge_after_fees():

@@ -335,11 +335,60 @@ def build_burst_series(records: Sequence[Dict[str, Any]]) -> Dict[str, List[Tupl
     return series
 
 
+# --------------------------------------------------------------------------- #
+# SIGN PRECONDITION on the signed-leader argmax (L235).
+#
+# The original rule was a pure argmax over a SIGNED statistic: whichever lag-direction's ρ is
+# LARGER names the leader, subject only to a `margin` DIFFERENCE. An argmax over a signed
+# quantity happily crowns a negative one. When BOTH directions' ρ are negative it names the
+# LESS NEGATIVE direction the leader — and "less negative" is not a lead in any economic
+# reading. A negative lag-ρ says this venue's move ANTI-predicts the other's next move; two of
+# them say the pair is anti-correlated in both directions, which is a reason to make NO
+# directional claim, not a reason to pick a winner.
+#
+# The real row that exposed it: `KXFEDDECISION-26SEP-H0` in the 2026-07-29 FOMC burst window
+# got `leader = polymarket` on ρ = -0.0045, over Kalshi's -0.2536, purely because
+# -0.0045 > -0.2536 as a signed comparison.
+#
+# WHY THE MAGNITUDE FLOOR DOES NOT ALREADY COVER THIS. L229/L27's `LEADLAG_RHO_MAGNITUDE_FLOOR`
+# (0.05, in the S17 module) rejected that particular row only INCIDENTALLY: |−0.0045| happens
+# to sit below 0.05, so the noise gate caught it by luck, not by design. The verifier's
+# counterexample makes the residual gap concrete — `rho_k = -0.30`, `rho_p = -0.20` clears a
+# 0.05 magnitude floor comfortably (|−0.30| = 0.30, six times the floor) and, pre-fix, would be
+# labelled `polymarket` / `stable`: a directional-lead claim built entirely on the less negative
+# of two negative correlations. A sign precondition and a magnitude gate are INDEPENDENT gates,
+# neither implying the other: magnitude asks "is this ρ big enough to be signal?", sign asks
+# "does this ρ point the way a lead claim needs it to?". A number can pass either and fail the
+# other, so both must be asked.
+#
+# Shared by BOTH burst probes (this one and `scripts/s17_leadlag_probe.py`, which imports it)
+# so the two cannot drift — L36/L102's duplicate-helper lesson, and CLAUDE.md prime directive #3
+# (the guard must stop the NEXT variant, which here is the twin copy).
+def signed_leader_label(rho_kalshi_leads: Optional[float],
+                        rho_polymarket_leads: Optional[float],
+                        *, margin: float) -> Optional[str]:
+    """Name the leading venue from the two lag-ρ, or refuse to.
+
+    Returns None when either ρ is undefined (too few steps / zero-variance pearson) — the
+    caller's row then carries `signed_leader=None`, unchanged from before. Otherwise returns
+    'kalshi' / 'polymarket' only if that direction's ρ beats the other by `margin` AND is
+    strictly > 0 (L235's sign precondition); 'none' in every other case, including the
+    both-negative argmax that used to crown the less negative direction."""
+    if rho_kalshi_leads is None or rho_polymarket_leads is None:
+        return None
+    if rho_kalshi_leads > rho_polymarket_leads + margin and rho_kalshi_leads > 0:
+        return "kalshi"
+    if rho_polymarket_leads > rho_kalshi_leads + margin and rho_polymarket_leads > 0:
+        return "polymarket"
+    return "none"
+
+
 def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
                        *, min_steps: int = 3, margin: float = 0.05) -> List[Dict[str, Any]]:
     """SIGNED lead-lag per ticker at burst resolution: does Kalshi's move predict
     Polymarket's NEXT move (kalshi leads) more than the reverse? `signed_leader` is
-    'kalshi'/'polymarket' when one lag's correlation beats the other by `margin`, else
+    'kalshi'/'polymarket' when one lag's correlation beats the other by `margin` AND that
+    direction's ρ is strictly positive (L235 sign precondition, `signed_leader_label`), else
     'none'. Uses the Kalshi yes-ask and Polymarket best-ask series (both real_ask)."""
     out: List[Dict[str, Any]] = []
     for key, rows in burst_series.items():
@@ -351,14 +400,7 @@ def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]
             continue
         rho_k_leads = pearson(dk[:-1], dp[1:])
         rho_p_leads = pearson(dp[:-1], dk[1:])
-        leader: Optional[str] = None
-        if rho_k_leads is not None and rho_p_leads is not None:
-            if rho_k_leads > rho_p_leads + margin:
-                leader = "kalshi"
-            elif rho_p_leads > rho_k_leads + margin:
-                leader = "polymarket"
-            else:
-                leader = "none"
+        leader: Optional[str] = signed_leader_label(rho_k_leads, rho_p_leads, margin=margin)
         out.append({
             "pair": key,
             "n_steps": len(dk),
