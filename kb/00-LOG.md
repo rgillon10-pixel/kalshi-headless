@@ -141,7 +141,102 @@ new paper-trading activity and **not** a P&L improvement, and must not be presen
 Produced: `findings/2026-07-30-l214-crossvenue-terms-provenance.md`; `kb/lessons/00-lessons.md`
 L214 (now `test`) + L239–L243; LOOP-QUEUE.md Q48 Status line + run-log line;
 `kb/strategies/00-index.md` EV-protecting note (no status change).
+## 2026-07-30 ~17:2x ET — research loop IDLE RUN: L213's general slot-cadence candidate converted UNENFORCED → test (row stays open — its Ryan-gated half does not)
 
+Sixth research-loop firing of 2026-07-30. **0a PASS** — `git fetch origin main` + `git checkout -B main
+origin/main` landed cleanly at `7871d032` (PR #244); newest `kb/00-LOG.md` entry and newest committed
+`tape/*/dt=*` file are both 2026-07-30, gap 0 — no rewind. **Claim-check** — open PRs #208/#191/#166/#125
+are the same long-standing Ryan-review-only drafts named in every prior run this week; none claims
+current work. **Step 0b** — `git ls-remote` still shows ~200+ stranded `tape/hourly-*`/`tape/burst-*`
+heads (known long-tail debt, Q17). Checked the two branches PR #243 said were "safe to delete once
+merged" (`tape/hourly-20260730T1302Z`, `tape/hourly-20260730T1310Z`) — that PR is merged, so this run
+attempted `git push origin --delete` on both plus three other pure-redundant burst branches
+(`tape/burst-20260729T1752Z`/`1803Z`/`1803Z-retry`, confirmed via `git diff --stat` to carry zero content
+`main` doesn't already have — all three sit at the old `6a3cfd88` base). The delete push got **HTTP 403**
+— cloud sessions cannot delete remote branches, same permission boundary as the direct-push-to-main
+finding from 2026-07-03 (LOOP-QUEUE step 0). Branch deletion stays Ryan/merge-automation territory;
+nothing else to sweep (no unswept lines found).
+
+Independent full Q0-Q48 rescan (grepped every `### Q` header + its current `Status:` line, not prose
+recall): every item is DONE / BLOCKED / calendar-gated-not-open (Q37 ~08-05) / density-inadequate (Q36
+`INSUFFICIENT DATA n_settled_events=2/10`, Q42/Q43) / credential-BLOCKED (Q32/Q33/Q35-build/Q47) / burst-
+gated (Q48). Q21 already ran today (17th consecutive zero-registration round, PR #238) — not repeated,
+per the anti-treadmill note (open PR #208). **0 eligible TODO/IN-PROGRESS → IDLE RUN, policy (a).**
+
+**Row selection.** Re-derived the genuinely-open `UNENFORCED` set with the repo's own parser
+(`scripts/invariants.py::_stale_unenforced_scan`, the same mechanism the `L152` advisory uses) rather
+than trusting the last run's prose count: **6** open rows — `L145, L213, L214, L221, L222, L227` (down
+from the 7 the ~11:4x entry started from, since that run closed L236). L145 is a live Ryan policy call
+(invariant-exemption collision); L214/L221/L222 all propose changing a LIVE collector's write path
+(`collection/polymarket_pairs.py`, `collection/hourly_pass.py`'s econ_prints gate, a new per-record
+schema field) — bigger, riskier changes than a one-milestone idle run should make unreviewed; L227's
+remaining half is explicitly not statically assertable (needs a future burst leg's own process-level
+liveness logging). **L213** has two distinct candidates in one cell: a Ryan-only trigger-prompt fix (not
+autonomously actionable) AND a generic, read-only, cheaply-testable tooling candidate — "a
+`tape_gap_monitor`-style slot-specific cadence check" — the only piece of the six actually buildable
+this run.
+
+**What was built.** L213's own finding: `polymarket_macro_pairs` landed dozens of passes/day on average
+over 07-18..07-27 yet exactly ZERO fell inside the 17:40-18:30Z slot the FOMC statement needed — a fact
+invisible to any check that only asks "how many passes today," never "which minutes." Re-derived from
+raw committed tape before writing any code (0/10 days had a `captured_at` in that window) — matches the
+finding exactly.
+
+- `scripts/tape_gap_monitor.py::slot_cadence_by_time_of_day(tape_root, family, window_start, window_end,
+  days=None)` — per-day distinct-`capture_id` pass counts inside an arbitrary UTC "HH:MM"-"HH:MM"
+  time-of-day slot, for any family. Same density-unit convention as `expected_window_grid_coverage`
+  (L208): a missing `capture_id` never merges with another row (falls back to `captured_at`, its own
+  singleton key). A `days=` list backfills every requested day to a reported zero even when the family
+  has NO file for it at all — a genuinely missing day is a real zero, never a silent skip. A
+  midnight-wrapping window raises `ValueError` rather than silently returning the wrong slice.
+  Exposed as `python3 scripts/tape_gap_monitor.py --slot-cadence FAMILY --slot-window START END
+  [--slot-cadence-days ...]`. Deliberately **not** wired into `invariants.py --full` (unlike L208's
+  window-grid advisory) — there is no fixed "next burst slot" to re-check every routine run; it is an
+  on-demand tool for the next burst-fallback risk read, same posture as the audit that produced L213.
+- **10 new tests** in `tests/test_tape_gap_monitor.py`: bounds-inclusive, density-unit-is-the-distinct-
+  pass, missing-`capture_id`-never-merges, missing-day-reports-as-zero-not-skipped, no-tape-makes-no-
+  claim, wrapped-window-raises, days-slice-restricts-the-scan, the exact L213 shape (dense captures every
+  day, zero of them in-slot), and `::test_acceptance_10_l213_polymarket_macro_pairs_fomc_slot_frozen_slice`
+  — a HARD real-tape acceptance test on a FROZEN `dt=2026-07-18..27` slice (L191, explicit day list, never
+  a live glob) reproducing L213's exact numbers: 10/10 days, 0 passes in-slot.
+
+**Enforcement-cell honesty note.** L213's cell now documents both halves, but the row **stays in the
+open-`UNENFORCED` set** (still 6, not 5) — the Ryan-gated trigger-prompt fix is genuinely still open, and
+this run does not paper over that by writing an enforcement cell that no longer starts with the
+`UNENFORCED` marker. Only a future run where Ryan applies the chunked-recipe fix (or the row is otherwise
+formally disposed) should move L213 out of the count. Lesson TEXT unchanged, only the enforcement cell
+moves, per the L152 own-row-update rule and the L25/L47/L109/L123/L157/L208 precedent.
+
+No registry flip, no bootstrap CI, no kill decision — two-agent rule N/A (lesson→test conversion, same
+class as L104/L110/L118/L127/L137/L208/L236). `kb/lessons/00-lessons.md` L213's row is the only one
+touched. Gates (taken fresh after the last edit, L162): `python3 -m pytest -o addopts='' -q` →
+**2353 passed in 2532.64s (0:42:12), 0 failed** (2343 baseline + 10 new); `python3 scripts/invariants.py
+--full` → exit 0, `invariants: all green` (same non-gating advisory classes as the prior run;
+`_stale_unenforced_scan` still flags only L227 — extraction now reaches 2 of 6 open rows instead of 1,
+since L213's new cell text names a concrete function, but the second extraction is not itself flagged
+stale). Step 9: `SHADOW_REGISTRY={s14_ladder_underwriting}`
+(dead ✗ per Q34, paper-infra-only); `python3 scripts/paper_pass.py` → **0 newly processed** (no new tape
+appended since the ledger's last entry), ledger unchanged **+$23.45** (`broker_truth`, 1,317 settled
+contracts, 0 open) — no new `paper/` lines this run. No network calls, no orders, no credentials touched.
+Still **0 proven edges**.
+
+**Concurrency note (discovered at rebase, not before).** This run's row-selection count above (6 open
+rows including L214) was computed early in the session, against `origin/main`@`7871d032`. While this
+run was mid-build, a DIFFERENT concurrent research-loop firing independently picked **L214** from that
+same 6-row set, built its own enforcement, and merged first (PR #245, see the entry immediately above).
+`git fetch` + rebase at commit time surfaced the collision as a text conflict on adjacent table rows —
+resolved by keeping BOTH rows' new enforcement cells (L213 from this run, L214 from the other), since
+the two milestones are independent and non-overlapping (different files: `scripts/tape_gap_monitor.py`
+vs `collection/polymarket_pairs.py`). No wasted work on either side, unlike the 2026-07-30 ~07:0xZ L235
+dual-pick that did duplicate a fix — this pair picked DIFFERENT rows from the same open set, which the
+protocol's queue-item claim-check doesn't cover (lesson rows aren't queue items). Re-ran
+`_stale_unenforced_scan` fresh on the merged tree: still **6** open rows — `L145, L213, L221, L222,
+L227, L242` — because closing L214 (this run's own effort not counted, since L213 stays open on its
+Ryan-half by design) is offset one-for-one by L242, a brand-new `UNENFORCED` row the L214 PR itself
+introduced (`git_ref`/`n_records_at_head` provenance candidate for `polymarket_pair_terms_audit.py`).
+The backlog is not shrinking merely because two rows moved this cycle; a future run should pick L242
+next, since L145/L221/L222/L227 remain the same larger-scope/Ryan-gated items this run already screened
+out.
 ---
 
 ## 2026-07-30 ~11:4x ET — research loop IDLE RUN: L236 converted UNENFORCED → test (per-observation artifact decomposition), and its own worked example corrected

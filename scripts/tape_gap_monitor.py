@@ -204,7 +204,7 @@ import os
 import re
 import statistics
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
@@ -1009,6 +1009,100 @@ def expected_window_grid_coverage(tape_root: Path,
     return base
 
 
+# ─── Wall-clock-slot cadence (L213: non-gating, offline-safe) ───────────────────
+
+def slot_cadence_by_time_of_day(tape_root: Path,
+                                family: str,
+                                window_start: str,
+                                window_end: str,
+                                days: Optional[Sequence[str]] = None,
+                                ) -> Dict[str, Any]:
+    """Per-day distinct-pass count within a fixed UTC time-of-day window (L213).
+
+    A family's PER-DAY AVERAGE cadence can look perfectly healthy while a specific
+    wall-clock slot inside every day is never covered — the question that matters
+    before relying on a recurring collector as the fallback for a one-shot burst
+    trigger. L213: over 07-18..07-27, `polymarket_macro_pairs` landed dozens of
+    passes/day on average yet exactly ZERO of them fell inside 17:40-18:30Z, the
+    slot the 2026-07-29T18:00Z FOMC statement needed — invisible to any check that
+    only asks "how many passes today", never "which minutes of today".
+
+    ``window_start``/``window_end`` are "HH:MM" 24h UTC strings with
+    ``window_start <= window_end`` — a midnight-wrapping window raises
+    ``ValueError`` rather than silently doing the wrong thing (no burst release in
+    this project's tape is scheduled across a UTC midnight).
+
+    ``days`` restricts the scan to an explicit list of ``dt=YYYY-MM-DD`` stems and,
+    when given, every requested day is reported even if the family has no file for
+    it at all (a genuinely missing day is a zero-pass day, not a silent skip). Same
+    FROZEN-slice discipline as ``expected_window_grid_coverage`` (L191): a real-tape
+    acceptance test must pin an explicit ``days`` list, never a live glob. With
+    ``days=None`` every committed day-file the family has is scanned instead.
+
+    Returns per-day distinct ``capture_id`` counts inside the slot
+    (``per_day_pass_count``) plus ``n_days_zero``/``zero_days``/``all_days_zero`` —
+    the single boolean L213's own finding collapses to. ``n_days_scanned == 0``
+    (no requested day and no committed file) is reported honestly, never read as
+    "safe" or "risky" by the caller.
+    """
+    start_h, start_m = (int(x) for x in window_start.split(":"))
+    end_h, end_m = (int(x) for x in window_end.split(":"))
+    start_t = time(start_h, start_m)
+    end_t = time(end_h, end_m)
+    if end_t < start_t:
+        raise ValueError(
+            f"window_end {window_end!r} is before window_start {window_start!r} "
+            "(midnight-wrapping windows are not supported)"
+        )
+
+    wanted_days = list(days) if days is not None else None
+    by_day: Dict[str, Set[str]] = {d: set() for d in wanted_days} if wanted_days is not None else {}
+
+    for _d, path in _family_files(tape_root, family):
+        stem = path.stem
+        if wanted_days is not None and stem not in by_day:
+            continue
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        day_passes = by_day.setdefault(stem, set())
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                ca = _parse_iso(rec.get("captured_at"))
+                if ca is None:
+                    continue
+                ca_utc_time = ca.astimezone(timezone.utc).time()
+                if not (start_t <= ca_utc_time <= end_t):
+                    continue
+                cid = rec.get("capture_id")
+                key = cid if isinstance(cid, str) and cid else ca.isoformat()
+                day_passes.add(key)
+
+    per_day_counts = {day: len(s) for day, s in sorted(by_day.items())}
+    zero_days = [day for day, n in per_day_counts.items() if n == 0]
+    return {
+        "family": family,
+        "window_start": window_start,
+        "window_end": window_end,
+        "days_scanned": sorted(wanted_days) if wanted_days is not None else None,
+        "n_days_scanned": len(per_day_counts),
+        "per_day_pass_count": per_day_counts,
+        "n_days_zero": len(zero_days),
+        "zero_days": zero_days,
+        "all_days_zero": len(per_day_counts) > 0 and len(zero_days) == len(per_day_counts),
+    }
+
+
 # ─── Colliding-capture_id detector (L210: non-gating, offline-safe) ─────────────
 
 # `capture_id` is a SECOND-GRANULARITY pass LABEL (`YYYYMMDDThhmmssZ`), not a unique
@@ -1683,6 +1777,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--window-grid-days", default=None,
                     help="comma-separated dt= day stems to restrict --window-grid to "
                          "(e.g. dt=2026-07-17,dt=2026-07-18). Pins a FROZEN slice, per L191.")
+    ap.add_argument("--slot-cadence", default=None, metavar="FAMILY",
+                    help="print ONLY the L213 wall-clock-slot cadence report for FAMILY over "
+                         "--slot-window (read-only, no notify) and exit. Answers 'how many "
+                         "passes land inside this specific UTC time-of-day slot, per day' — "
+                         "the check a burst-trigger fallback plan needs, distinct from the "
+                         "family's per-day average.")
+    ap.add_argument("--slot-window", nargs=2, metavar=("START", "END"), default=None,
+                    help="HH:MM HH:MM UTC window bounds for --slot-cadence (required with it).")
+    ap.add_argument("--slot-cadence-days", default=None,
+                    help="comma-separated dt= day stems to restrict --slot-cadence to "
+                         "(e.g. dt=2026-07-18,dt=2026-07-19). Pins a FROZEN slice, per L191. "
+                         "Default: every committed day-file the family has.")
     args = ap.parse_args(argv)
 
     if args.window_grid:
@@ -1690,6 +1796,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if args.window_grid_days else None)
         out = {fam: expected_window_grid_coverage(Path(args.tape_root), fam, days=days)
                for fam in sorted(WINDOW_GRIDDED_FAMILIES)}
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+
+    if args.slot_cadence:
+        if not args.slot_window:
+            print("[tape_gap_monitor] --slot-cadence requires --slot-window START END", file=sys.stderr)
+            return 2
+        days = ([d.strip() for d in args.slot_cadence_days.split(",") if d.strip()]
+                if args.slot_cadence_days else None)
+        out = slot_cadence_by_time_of_day(Path(args.tape_root), args.slot_cadence,
+                                          args.slot_window[0], args.slot_window[1], days=days)
         print(json.dumps(out, indent=2, sort_keys=True))
         return 0
 
