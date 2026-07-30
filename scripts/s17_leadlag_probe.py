@@ -57,9 +57,32 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from core.io import REPO_ROOT
-from core.pricing import TAKER_FEE_RATE, fee_per_contract
-from core.timeutil import parse_iso_utc
+# Repo root on sys.path BEFORE the first-party imports below, so BOTH documented invocation
+# forms work: `python3 scripts/s17_leadlag_probe.py ...` (what LOOP-QUEUE.md Q19/Q12,
+# kb/00-LOG.md and kb/strategies/00-index.md all cite) and
+# `PYTHONPATH=. python3 -m scripts.s17_leadlag_probe ...`. Without this line the direct form dies
+# with `ModuleNotFoundError: No module named 'scripts'` at the `from scripts.s9_leadlag_probe`
+# import below, while `from core...` still resolves — `pyproject.toml` installs
+# core/collection/validation/analysis as packages but NOT `scripts`, and the repo-root
+# `conftest.py` only repairs sys.path under pytest, never for the CLI. Same two lines, same
+# reason, as `scripts/q48_s55_fomc_lag_probe.py`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from core.io import REPO_ROOT  # noqa: E402
+from core.pricing import (  # noqa: E402
+    POLYMARKET_US_TAKER_RATE,
+    TAKER_FEE_RATE,
+    fee_per_contract,
+    polymarket_fee_per_contract,
+)
+from core.timeutil import parse_iso_utc  # noqa: E402
+# Reused, never re-copied (L36/L102 — two byte-identical copies of a helper across scripts is
+# a lesson this repo has already paid for): the L57 leave-one-out is implemented ONCE, in
+# `scripts/s9_leadlag_probe.py`, and works unchanged here because both burst modes build the
+# SAME `BurstQuote` key contract (`kalshi_yes_ask` / `kalshi_yes_bid` / `poly_best_ask` /
+# `poly_best_bid`). Cross-script import precedent: `scripts/q48_s55_fomc_lag_probe.py` imports
+# `parse_capture_time` from THIS module for the same reason.
+from scripts.s9_leadlag_probe import per_ticker_leadlag_drop_largest  # noqa: E402
 
 TAPE_DIR = REPO_ROOT / "tape" / "polymarket_macro_pairs"
 CPI_TAPE_DIR = REPO_ROOT / "tape" / "polymarket_cpi_pairs"
@@ -260,11 +283,13 @@ def build_report(tape_dir: Path = TAPE_DIR, *, min_captures: int = MIN_CAPTURES)
 # The first-cut above pools HOURLY captures, whose cadence is coarser than an FOMC/CPI
 # repricing (S9/S17's own data-adequacy finding). The five one-shot burst triggers
 # (LOOP-QUEUE.md "Burst-capture legs") deliver 60-120s-cadence tape bracketing a real
-# macro shock — exactly the data class this mode is built to read. It does three things the
-# hourly cut cannot: (a) per-ticker SIGNED lead-lag (which venue reprices first) at burst
-# resolution, (b) a fillable cross-venue DISLOCATION scan — moments where buying the cheap
-# venue's real ask and selling the rich venue's real bid clears BOTH venues' fees, and
-# (c) the width x duration distribution of those dislocations.
+# macro shock — exactly the data class this mode is built to read. It does things the hourly
+# cut cannot: (a) per-ticker SIGNED lead-lag (which venue reprices first) at burst resolution,
+# WITH its L57 leave-one-out stability gate, (b) a fillable cross-venue DISLOCATION scan —
+# moments where buying the cheap venue's real ask and selling the rich venue's real bid clears
+# BOTH venues' fees, (c) the width x duration x frozen-fraction distribution of those
+# dislocations, (d) a release-instant coverage check (L164), and (e) per-capture pair counts,
+# so a market disappearing mid-window is visible in the report rather than hand-derived.
 #
 # HONESTY BOUNDARIES (do not oversell):
 #   - Both legs on the Kalshi side are charged the TAKER fee (`core.pricing.fee_per_contract`,
@@ -272,18 +297,112 @@ def build_report(tape_dir: Path = TAPE_DIR, *, min_captures: int = MIN_CAPTURES)
 #     resting size, so neither is a free maker fill (the S13 lesson — an assumed maker fill
 #     must cite a fill model). This is the conservative fee; a real resting maker fill would be
 #     cheaper but cannot be assumed here.
-#   - Polymarket's CLOB taker fee is ~0 today; it is a MODEL ASSUMPTION, not a fill, so it is a
-#     parameter (`--poly-fee`, default 0.0) tagged in the report's `fee_model` block. Set it to
-#     the real number the day Polymarket charges one.
+#   - Polymarket's taker fee is charged from its REAL published schedule
+#     (`core.pricing.polymarket_fee_per_contract`, Fee Structure V2: rate·p·(1−p), no cent
+#     round-up), selected by `--poly-fee-model` (default `schedule`). See the FEE-MODEL
+#     CORRECTION note below — the earlier FLAT `--poly-fee` constant was wrong in BOTH
+#     directions and is retained only as an explicit `flat` sensitivity.
 #   - A positive net_edge is a fillable-at-observed-quotes locked pair (long Yes one venue +
 #     short Yes the other = outcome-neutral), NOT a realised P&L: it ignores size/depth at the
 #     quote, the cross-venue settlement + capital-rail risk that is the very segmentation S17
 #     rests on, and any queue position. This mode SCANS for dislocations; it does not book them
 #     and makes no CI/verdict claim. That is the per-event run's job, under the two-agent rule.
+#
+# FEE-MODEL CORRECTION (2026-07-29, Q19 FOMC leg). Until this run the burst dislocation scan
+# charged the Polymarket leg a FLAT per-contract `--poly-fee` (default 0.0). That is wrong in
+# both directions and it can flip the answer on real tape:
+#   - the 0.0 default UNDER-charges (a genuinely fee-bearing leg booked free), which can
+#     manufacture a phantom dislocation — the prime-directive failure mode; and
+#   - a naive flat 0.05 OVER-charges ~4x at mid prices (the real schedule is 0.05·p·(1−p) =
+#     $0.0125/contract at p=0.50, NOT $0.05), which can erase a real one — the L5 maker/taker
+#     mistake in mirror image.
+#   On the 2026-07-29 FOMC window the two mis-specified views disagree completely (flat-0.05
+#   clears nothing at all; 0.0 clears dozens of captures), and NEITHER is the honest number.
+#   The sibling WC-schema probe (`scripts/s9_leadlag_probe.py`) was corrected to the real
+#   rate-based schedule on 2026-07-15 (Q31); this module was not, and the fix is applied here.
+#   Three models are available and the report always names the one it used:
+#     `schedule` (DEFAULT, the honest one) — `core.pricing.polymarket_fee_per_contract(price,
+#         rate)` on the crossed Polymarket leg's OWN price, rate default POLYMARKET_US_TAKER_RATE.
+#     `flat`     — the legacy constant `--poly-fee F` per contract, kept ONLY so an old
+#         invocation reproduces bit-for-bit and so a flat OVER-charge can be shown as a
+#         deliberately-too-harsh sensitivity.
+#     `free`     — identically zero, the maximally GENEROUS sensitivity (Polymarket's
+#         international geopolitics/econ category is fee-free today).
+#   The L32 discipline is to BRACKET a verdict with the generous and the harsh cut and only
+#   believe a result that survives both; `schedule` is the headline, `free`/`flat` the brackets.
 # --------------------------------------------------------------------------- #
 
 # (capture_dt, kalshi_yes_ask, kalshi_yes_bid, poly_best_ask, poly_best_bid)
 BurstQuote = Dict[str, Optional[float]]
+
+# The four quotes a BurstQuote carries. Used by the L32 frozen-pair check: "frozen" for THIS
+# probe means all four — both venues, both sides — identical between two consecutive captures,
+# i.e. neither book moved at all, so no fill can have occurred against either.
+QUOTE_KEYS = ("kalshi_yes_ask", "kalshi_yes_bid", "poly_best_ask", "poly_best_bid")
+
+POLY_FEE_MODELS = ("schedule", "flat", "free")
+
+DEFAULT_POLY_FEE_MODEL = "schedule"
+
+
+class PolyFeeModel:
+    """How the crossed POLYMARKET leg is charged. Never hand-rolls the formula (L5/L18): the
+    `schedule` model delegates to `core.pricing.polymarket_fee_per_contract`, the single
+    sanctioned Polymarket fee site.
+
+      schedule — rate·p·(1−p) on that leg's own price (Fee Structure V2, no cent round-up).
+                 THE DEFAULT and the headline model.
+      flat     — a constant per-contract fee (the legacy `--poly-fee F`), kept as an explicit
+                 sensitivity only. At mid prices a flat 0.05 over-charges ~4x.
+      free     — identically zero: the maximally generous sensitivity.
+
+    `source` is the provenance string that lands in the report's `fee_model` block. A model
+    that charges identically zero is tagged `assumed_zero_polymarket_clob` whichever way it
+    was spelled, because that is the honest description of what was assumed."""
+
+    def __init__(self, model: str = DEFAULT_POLY_FEE_MODEL, *, flat_fee: float = 0.0,
+                 rate: float = POLYMARKET_US_TAKER_RATE) -> None:
+        if model not in POLY_FEE_MODELS:
+            raise ValueError(f"poly fee model must be one of {POLY_FEE_MODELS}, got {model!r}")
+        self.model = model
+        # A flat amount is meaningless under the other two models; keep it at 0.0 so
+        # `as_dict()` can never advertise a fee that was not charged.
+        self.flat_fee = float(flat_fee) if model == "flat" else 0.0
+        self.rate = float(rate)
+
+    def fee(self, price: float) -> float:
+        if self.model == "schedule":
+            return polymarket_fee_per_contract(price, self.rate)
+        if self.model == "flat":
+            return self.flat_fee
+        return 0.0
+
+    @property
+    def source(self) -> str:
+        if self.model == "schedule":
+            return "core.pricing.polymarket_fee_per_contract"
+        if self.model == "flat" and self.flat_fee != 0.0:
+            return "explicit_cli_flat"
+        return "assumed_zero_polymarket_clob"
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "poly_fee_model": self.model,
+            "poly_fee_source": self.source,
+            # Only meaningful under `schedule`; reported as None otherwise so a reader cannot
+            # mistake a carried-over default for the rate that was actually applied.
+            "poly_fee_rate": self.rate if self.model == "schedule" else None,
+            "poly_fee_per_contract_flat": self.flat_fee if self.model == "flat" else None,
+        }
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"PolyFeeModel({self.model!r}, flat_fee={self.flat_fee!r}, rate={self.rate!r})"
+
+
+def _quotes_frozen(a: BurstQuote, b: BurstQuote) -> bool:
+    """L32: a consecutive pair with BOTH venues' books entirely unchanged is a no-fill, not
+    free income. Missing-on-both-sides counts as unchanged (nothing was observed to move)."""
+    return all(a.get(k) == b.get(k) for k in QUOTE_KEYS)
 
 
 def _as_float(value: Any) -> Optional[float]:
@@ -332,19 +451,31 @@ def filter_burst_window(records: Sequence[Dict[str, Any]], start: datetime,
     return out
 
 
-def cadence_stats(records: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def cadence_stats(records: Sequence[Dict[str, Any]], *,
+                  seam_threshold_s: float = 120.0) -> Dict[str, Any]:
     """min/median/max inter-capture gap in seconds across DISTINCT capture instants — the
     honesty check that a window is genuinely burst-cadence (60-120s) and not sparse hourly
-    tape masquerading as one. A median gap near 3600s means this is NOT burst tape."""
+    tape masquerading as one. A median gap near 3600s means this is NOT burst tape.
+
+    ALSO enumerates every gap above `seam_threshold_s` (the SEAMS). A chunked burst capture
+    (ops/burst_capture_chunked.md) pauses to commit between chunks, so a window can be at a
+    perfect 90s median and still contain multi-minute holes — the median HIDES them, which is
+    exactly how L164's risk materialises. The seam list makes them visible; `--release-instant`
+    then answers the decision-relevant question of whether one landed on the release."""
     times = sorted({t for t in (parse_capture_time(r) for r in records) if t is not None})
     gaps = [(b - a).total_seconds() for a, b in zip(times, times[1:])]
     if not gaps:
         return {"n_distinct_captures": len(times), "min_gap_s": None,
-                "median_gap_s": None, "max_gap_s": None}
+                "median_gap_s": None, "max_gap_s": None,
+                "seam_threshold_s": seam_threshold_s,
+                "n_gaps_over_threshold": 0, "gaps_over_threshold_s": []}
     gaps_sorted = sorted(gaps)
     median = gaps_sorted[len(gaps_sorted) // 2]
+    seams = sorted((g for g in gaps if g > seam_threshold_s), reverse=True)
     return {"n_distinct_captures": len(times), "min_gap_s": min(gaps),
-            "median_gap_s": median, "max_gap_s": max(gaps)}
+            "median_gap_s": median, "max_gap_s": max(gaps),
+            "seam_threshold_s": seam_threshold_s,
+            "n_gaps_over_threshold": len(seams), "gaps_over_threshold_s": seams}
 
 
 def build_burst_series(records: Sequence[Dict[str, Any]]) -> Dict[str, List[Tuple[datetime, BurstQuote]]]:
@@ -376,8 +507,16 @@ def build_burst_series(records: Sequence[Dict[str, Any]]) -> Dict[str, List[Tupl
     return series
 
 
+# How much one lag-direction's ρ must beat the other's before a pair is called directional at
+# all. Named (was an inline 0.05 default) because `LEADLAG_RHO_MAGNITUDE_FLOOR` below is tied to
+# it by construction: it would be incoherent to demand a 0.05 DIFFERENCE to name a leader and
+# then accept an absolute ρ magnitude smaller than that as a stable lead.
+LEADLAG_SIGNED_LEADER_MARGIN = 0.05
+
+
 def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
-                       *, min_steps: int = 3, margin: float = 0.05) -> List[Dict[str, Any]]:
+                       *, min_steps: int = 3,
+                       margin: float = LEADLAG_SIGNED_LEADER_MARGIN) -> List[Dict[str, Any]]:
     """SIGNED lead-lag per pair at burst resolution: does Kalshi's move predict Polymarket's
     NEXT move (kalshi leads) more than the reverse? `signed_leader` is 'kalshi'/'polymarket'
     when one lag's correlation beats the other by `margin`, else 'none'. Uses the Kalshi
@@ -411,71 +550,320 @@ def per_ticker_leadlag(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]
     return out
 
 
-def _best_dislocation(quote: BurstQuote, *, kalshi_fee_rate: float,
-                      poly_fee: float) -> Optional[Dict[str, Any]]:
+# --------------------------------------------------------------------------- #
+# L57 leave-one-out stability gate for a burst-mode signed-leader claim.
+#
+# L57 (June-CPI leg) and the WC-semifinal-2 leg both found the SAME thing: a burst-window
+# lead-lag ρ can be almost entirely the work of ONE release/goal lag-pair. CPI collapsed
+# 0.902/0.777 → 0.196/0.037 (retaining 22%/5% of magnitude); WC collapsed 0.269/0.290 →
+# 0.054/0.053 (retaining 20%/18%). The rule L57 states — "any burst-window lead-lag figure
+# MUST be reported WITH the release-tick-removed recompute before any directional claim" —
+# was applied BY HAND on those legs. This makes it mechanical for the Fed schema.
+#
+# Threshold rationale: a claim is UNSTABLE if the leave-one-out recompute retains less than
+# half the full ρ's magnitude. 0.5 is deliberately LENIENT — both historical collapses (22%,
+# 20%) clear it by a wide margin, so a figure that fails this gate is not a marginal call.
+# A sign flip is UNSTABLE regardless of magnitude.
+LEADLAG_LOO_RETENTION_FLOOR = 0.5
+
+# MAGNITUDE FLOOR — L27's lesson applied to a correlation instead of a P&L.
+#
+# The retention test above is a RATIO, and a ratio is meaningless when its denominator is noise.
+# The 2026-07-29 FOMC window produced the exact pathology: `KXFEDDECISION-26SEP-H0` was labelled
+# `stable` on rho_full = -0.004471504399603508 — |ρ| = 0.0045, pure noise — purely because the
+# leave-one-out recompute moved it FURTHER from zero (-0.0409), giving retention = 9.14 against a
+# near-zero denominator. The printed summary then read "1 of 6 leads survives leave-one-out",
+# which a reader (or a later run quoting the row) would take for a real surviving lead. It is not
+# one, and no retention ratio can make it one. L27 is the same rule for P&L: a positive bootstrap
+# lower bound that sits orders of magnitude below a fillable tick is a rounding residue, not an
+# edge — so a stability verdict needs a magnitude gate beside it.
+#
+# WHY 0.05, honestly. Three anchors, none of them tuned to this window's numbers:
+#   1. It is this module's OWN `LEADLAG_SIGNED_LEADER_MARGIN`. `per_ticker_leadlag` already
+#      refuses to name a leader unless the two lag-ρ differ by 0.05; accepting an ABSOLUTE
+#      magnitude below that same 0.05 as a stable lead is internally incoherent. This is the
+#      load-bearing reason — the constant is derived from the code, not from the data.
+#   2. ρ² is the share of next-step variance explained: |ρ| = 0.05 -> R² = 0.0025, i.e. a quarter
+#      of one percent. Nothing below that is a price-discovery claim in any reading.
+#   3. It is deliberately LENIENT, not convenient. A real significance bar at this n would be far
+#      stricter (~1.96/sqrt(21) ≈ 0.43 for the 21-step pairs) and would kill every ρ this window
+#      produced; 0.05 kills only the one that is indistinguishable from zero. It excludes 0.0045
+#      by a factor of ~11 — nowhere near the boundary — while the WC-leg's collapsed LOO remnants
+#      (0.054/0.053) sit just ABOVE it, i.e. the floor is not set where it would flatter a past
+#      verdict (those were killed by the retention gate, on their own merits).
+#
+# A below-floor verdict is labelled `UNSTABLE_below_magnitude_floor` — deliberately sharing the
+# `UNSTABLE` prefix, so every existing consumer that gates on `.startswith("UNSTABLE")` (the
+# printer's refusal line included) treats it as NOT a lead without further change.
+LEADLAG_RHO_MAGNITUDE_FLOOR = LEADLAG_SIGNED_LEADER_MARGIN
+
+_LOO_DIRECTION_FIELDS = {
+    "kalshi": ("rho_kalshi_leads_full", "rho_kalshi_leads_drop_top_pair"),
+    "polymarket": ("rho_polymarket_leads_full", "rho_polymarket_leads_drop_top_pair"),
+}
+
+
+def leadlag_stability(per_ticker: Sequence[Dict[str, Any]],
+                      loo: Sequence[Dict[str, Any]],
+                      *, retention_floor: float = LEADLAG_LOO_RETENTION_FLOOR,
+                      magnitude_floor: float = LEADLAG_RHO_MAGNITUDE_FLOOR
+                      ) -> List[Dict[str, Any]]:
+    """Join each pair's SIGNED leader (`per_ticker_leadlag`) to its per-direction leave-one-out
+    recompute (`per_ticker_leadlag_drop_largest`, imported from the S9 probe) and label the
+    claim. Verdicts:
+      no_directional_claim           — signed_leader is None/'none'; nothing to destabilise.
+      UNSTABLE_unrecomputable        — the LOO could not be computed (too few lag-pairs).
+      UNSTABLE_below_magnitude_floor — |rho_full| < `magnitude_floor`: a noise-level ρ, so the
+                                       retention RATIO is a near-zero-denominator artifact and
+                                       cannot certify anything (L27's magnitude gate; includes
+                                       rho_full == 0.0, where the ratio is undefined outright).
+      UNSTABLE_sign_flip             — the LOO ρ points the other way.
+      UNSTABLE_collapsed             — the LOO ρ keeps < `retention_floor` of the full magnitude.
+      stable                         — clears the magnitude floor AND survives its own LOO.
+    A pair whose verdict starts with UNSTABLE must NOT be reported as a lead (L57). The magnitude
+    check runs FIRST, before sign and retention, because it decides whether those two are even
+    measuring anything."""
+    loo_by_pair = {row["pair"]: row for row in loo}
+    out: List[Dict[str, Any]] = []
+    for row in per_ticker:
+        pair = row["pair"]
+        leader = row.get("signed_leader")
+        entry: Dict[str, Any] = {
+            "pair": pair,
+            "signed_leader": leader,
+            "rho_full": None,
+            "rho_drop_top_pair": None,
+            "retention": None,
+            # Reported on every row so a reader never has to guess which gate a verdict cleared.
+            "magnitude_floor": magnitude_floor,
+            "stability": "no_directional_claim",
+        }
+        if leader in _LOO_DIRECTION_FIELDS:
+            full_field, drop_field = _LOO_DIRECTION_FIELDS[leader]
+            loo_row = loo_by_pair.get(pair)
+            rho_full = loo_row.get(full_field) if loo_row else None
+            rho_drop = loo_row.get(drop_field) if loo_row else None
+            entry["rho_full"] = rho_full
+            entry["rho_drop_top_pair"] = rho_drop
+            if rho_full is None or rho_drop is None:
+                entry["stability"] = "UNSTABLE_unrecomputable"
+            elif abs(rho_full) < magnitude_floor:
+                # L27 magnitude gate, checked BEFORE sign/retention. Nothing a ratio does to a
+                # noise-level ρ makes it a lead — and when rho_full is exactly 0.0 the ratio is
+                # not even defined. The retention is still recorded (when computable) so the
+                # near-zero-denominator inflation is visible rather than hidden.
+                entry["stability"] = "UNSTABLE_below_magnitude_floor"
+                if rho_full != 0.0:
+                    entry["retention"] = abs(rho_drop) / abs(rho_full)
+            else:
+                entry["retention"] = abs(rho_drop) / abs(rho_full)
+                if (rho_drop > 0) != (rho_full > 0):
+                    entry["stability"] = "UNSTABLE_sign_flip"
+                elif entry["retention"] < retention_floor:
+                    entry["stability"] = "UNSTABLE_collapsed"
+                else:
+                    entry["stability"] = "stable"
+        out.append(entry)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Release-instant coverage (L164 made mechanical).
+#
+# L164: chunking a one-shot burst window to bound sandbox-death data loss introduces a new
+# failure mode — a chunk seam (the commit/push/verify pause between two invocations) can land
+# on top of the single most decisive instant in the window. L57 already showed an entire
+# burst's signal can live in ONE release-instant capture. `cadence_stats` reports only
+# min/median/max gap, so a median of 90s HIDES a 720s hole sitting exactly on the release.
+# This makes the question a first-class, printed, boolean data-adequacy input.
+#
+# Threshold: the nominal burst cadence the one-shot triggers are configured for is 60–120s
+# (LOOP-QUEUE.md "Burst-capture legs"; ops/burst_capture_chunked.md). The release instant is
+# "bracketed" only if BOTH the nearest capture before it and the nearest capture after it sit
+# within ONE nominal interval — i.e. the release genuinely falls inside a normal cadence step,
+# not inside a seam. Named here, never inlined, so a future run can only change it deliberately.
+RELEASE_BRACKET_THRESHOLD_S = 120.0
+RELEASE_BRACKET_THRESHOLD_SOURCE = (
+    "nominal burst cadence upper bound, 120s (LOOP-QUEUE.md 'Burst-capture legs' 60-120s; "
+    "ops/burst_capture_chunked.md)"
+)
+
+
+def release_instant_coverage(records: Sequence[Dict[str, Any]], release_instant: datetime,
+                             *, threshold_s: float = RELEASE_BRACKET_THRESHOLD_S
+                             ) -> Dict[str, Any]:
+    """Is the decisive instant actually bracketed at burst cadence? Reports the nearest
+    capture on each side with its SIGNED offset in seconds (negative = before the release),
+    the length of the inter-capture gap that contains the instant, and a boolean
+    `release_instant_bracketed` true only if BOTH offsets are within `threshold_s`.
+
+    `release_instant_bracketed=False` is a DATA-ADEQUACY verdict input, not a nicety: it means
+    the repricing at the instant that matters happened inside an unobserved hole, so no
+    consecutive-capture step in the window spans the release and no lead-lag measured over it
+    can speak to that repricing at all."""
+    times = sorted({t for t in (parse_capture_time(r) for r in records) if t is not None})
+    pre = [t for t in times if t <= release_instant]
+    post = [t for t in times if t > release_instant]
+    nearest_pre = max(pre) if pre else None
+    nearest_post = min(post) if post else None
+    pre_offset = (nearest_pre - release_instant).total_seconds() if nearest_pre else None
+    post_offset = (nearest_post - release_instant).total_seconds() if nearest_post else None
+    containing_gap = (post_offset - pre_offset) if (
+        pre_offset is not None and post_offset is not None) else None
+    bracketed = bool(pre_offset is not None and post_offset is not None
+                     and abs(pre_offset) <= threshold_s and abs(post_offset) <= threshold_s)
+    return {
+        "release_instant": release_instant.isoformat(),
+        "n_captures_considered": len(times),
+        "nearest_pre_capture": nearest_pre.isoformat() if nearest_pre else None,
+        "nearest_pre_offset_s": pre_offset,
+        "nearest_post_capture": nearest_post.isoformat() if nearest_post else None,
+        "nearest_post_offset_s": post_offset,
+        "containing_gap_s": containing_gap,
+        "threshold_s": threshold_s,
+        "threshold_source": RELEASE_BRACKET_THRESHOLD_SOURCE,
+        "release_instant_bracketed": bracketed,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Per-capture membership + L32 frozen-quote fractions.
+# --------------------------------------------------------------------------- #
+
+def per_capture_pair_counts(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]]
+                            ) -> List[Dict[str, Any]]:
+    """Per-capture pair count with the pairs added/removed since the previous capture. This is
+    how a market DISAPPEARING mid-window becomes visible in the report instead of hand-derived:
+    Kalshi delists a decided meeting's buckets at the decision, so the count drops and the
+    removed tickers are named. A pair that vanishes at the release has ZERO post-release
+    observations — whatever the rest of the report says, it cannot speak to that market."""
+    by_time: Dict[datetime, set] = defaultdict(set)
+    for key, rows in burst_series.items():
+        for t, _ in rows:
+            by_time[t].add(key)
+    out: List[Dict[str, Any]] = []
+    prev: Optional[set] = None
+    for t in sorted(by_time):
+        cur = by_time[t]
+        out.append({
+            "capture_time": t.isoformat(),
+            "n_pairs": len(cur),
+            "pairs_added": sorted(cur - prev) if prev is not None else [],
+            "pairs_removed": sorted(prev - cur) if prev is not None else [],
+        })
+        prev = cur
+    return out
+
+
+def frozen_quote_fractions(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]]
+                           ) -> Dict[str, Any]:
+    """L32 observability precheck, per pair and pooled: what fraction of consecutive-capture
+    pairs had BOTH venues' books entirely unchanged (see `_quotes_frozen`)? A high fraction
+    means most "durable" dislocations on that pair are stale nominal quotes nobody traded
+    against, not standing income."""
+    per_pair: List[Dict[str, Any]] = []
+    for key in sorted(burst_series):
+        quotes = [q for _, q in burst_series[key]]
+        n = len(quotes) - 1
+        frozen = sum(1 for a, b in zip(quotes, quotes[1:]) if _quotes_frozen(a, b))
+        per_pair.append({
+            "pair": key,
+            "n_consecutive_pairs": max(n, 0),
+            "n_frozen_pairs": frozen,
+            "frozen_fraction": (frozen / n) if n > 0 else None,
+        })
+    total_n = sum(p["n_consecutive_pairs"] for p in per_pair)
+    total_f = sum(p["n_frozen_pairs"] for p in per_pair)
+    return {
+        "per_pair": per_pair,
+        "n_consecutive_pairs": total_n,
+        "n_frozen_pairs": total_f,
+        "frozen_fraction": (total_f / total_n) if total_n > 0 else None,
+    }
+
+
+def _best_dislocation(quote: BurstQuote, *, kalshi_fee_rate: float = TAKER_FEE_RATE,
+                      poly_fee_model: Optional[PolyFeeModel] = None) -> Optional[Dict[str, Any]]:
     """Best (max net-edge) fillable cross-venue Yes/Yes pair at one capture, or None if
     neither direction's two legs are both present. net_edge > 0 is a locked, outcome-neutral
-    dislocation net of both venues' fees (Kalshi taker on the crossing leg; Polymarket per
-    `poly_fee`). Directions:
-      A buy_kalshi_sell_poly:  proceeds poly_best_bid  - cost kalshi_yes_ask - fees
-      B buy_poly_sell_kalshi:  proceeds kalshi_yes_bid - cost poly_best_ask  - fees"""
+    dislocation net of both venues' fees (Kalshi taker on the crossing leg via
+    `core.pricing.fee_per_contract`; Polymarket on the crossed Polymarket leg's OWN price via
+    `poly_fee_model`, whose `schedule` default is `core.pricing.polymarket_fee_per_contract`).
+    Directions:
+      A buy_kalshi_sell_poly:  poly_best_bid  − kalshi_yes_ask − fee_k(kalshi_yes_ask) − fee_p(poly_best_bid)
+      B buy_poly_sell_kalshi:  kalshi_yes_bid − poly_best_ask  − fee_k(kalshi_yes_bid) − fee_p(poly_best_ask)
+    Every returned row records the fees ACTUALLY charged, so a report can be re-audited
+    without re-deriving the schedule."""
+    model = poly_fee_model or PolyFeeModel(DEFAULT_POLY_FEE_MODEL)
     ka, kb = quote["kalshi_yes_ask"], quote["kalshi_yes_bid"]
     pa, pb = quote["poly_best_ask"], quote["poly_best_bid"]
-    cands: List[Tuple[float, str]] = []
+    cands: List[Dict[str, Any]] = []
     if ka is not None and pb is not None:
-        edge_a = pb - ka - fee_per_contract(ka, kalshi_fee_rate) - poly_fee
-        cands.append((edge_a, "buy_kalshi_sell_poly"))
+        fee_k = fee_per_contract(ka, kalshi_fee_rate)
+        fee_p = model.fee(pb)
+        cands.append({"net_edge": pb - ka - fee_k - fee_p,
+                      "direction": "buy_kalshi_sell_poly",
+                      "kalshi_leg_price": ka, "poly_leg_price": pb,
+                      "kalshi_fee_charged": fee_k, "poly_fee_charged": fee_p})
     if pa is not None and kb is not None:
-        edge_b = kb - pa - fee_per_contract(kb, kalshi_fee_rate) - poly_fee
-        cands.append((edge_b, "buy_poly_sell_kalshi"))
+        fee_k = fee_per_contract(kb, kalshi_fee_rate)
+        fee_p = model.fee(pa)
+        cands.append({"net_edge": kb - pa - fee_k - fee_p,
+                      "direction": "buy_poly_sell_kalshi",
+                      "kalshi_leg_price": kb, "poly_leg_price": pa,
+                      "kalshi_fee_charged": fee_k, "poly_fee_charged": fee_p})
     if not cands:
         return None
-    edge, direction = max(cands, key=lambda x: x[0])
-    return {"net_edge": edge, "direction": direction}
+    best = max(cands, key=lambda c: c["net_edge"])
+    best["poly_fee_model"] = model.model
+    return best
 
 
 def dislocation_scan(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
                      *, kalshi_fee_rate: float = TAKER_FEE_RATE,
-                     poly_fee: float = 0.0) -> List[Dict[str, Any]]:
+                     poly_fee_model: Optional[PolyFeeModel] = None) -> List[Dict[str, Any]]:
     """Every capture whose best cross-venue pair clears both fees (net_edge > 0)."""
+    model = poly_fee_model or PolyFeeModel(DEFAULT_POLY_FEE_MODEL)
     hits: List[Dict[str, Any]] = []
     for key, rows in burst_series.items():
         for t, quote in rows:
-            best = _best_dislocation(quote, kalshi_fee_rate=kalshi_fee_rate, poly_fee=poly_fee)
+            best = _best_dislocation(quote, kalshi_fee_rate=kalshi_fee_rate,
+                                     poly_fee_model=model)
             if best is not None and best["net_edge"] > 0.0:
-                hits.append({
-                    "pair": key,
-                    "capture_time": t.isoformat(),
-                    "direction": best["direction"],
-                    "net_edge": best["net_edge"],
-                    "quote": quote,
-                })
+                hit: Dict[str, Any] = {"pair": key, "capture_time": t.isoformat(),
+                                       "quote": quote}
+                hit.update(best)
+                hits.append(hit)
     return hits
 
 
 def dislocation_episodes(burst_series: Dict[str, List[Tuple[datetime, BurstQuote]]],
                          *, kalshi_fee_rate: float = TAKER_FEE_RATE,
-                         poly_fee: float = 0.0) -> List[Dict[str, Any]]:
+                         poly_fee_model: Optional[PolyFeeModel] = None) -> List[Dict[str, Any]]:
     """Contiguous runs of positive-edge captures on the SAME pair+direction → one episode
-    each, with width (max net_edge over the run) and duration (wall-clock seconds first→last
-    capture, plus capture count). A dislocation that survives many captures is a very
-    different animal from a single-tick blip — the width x duration distribution is what the
-    per-event finding will report."""
+    each, with width (max net_edge over the run), duration (wall-clock seconds first→last
+    capture, plus capture count) and the L32 FROZEN fraction of the run's own consecutive
+    capture-pairs. A dislocation that survives many captures is a very different animal from
+    a single-tick blip — and a durable one whose book never moved is a stale-nominal-quote
+    artifact (L31/L32), not an edge. The width x duration x frozen cross is what the
+    per-event finding reports."""
+    model = poly_fee_model or PolyFeeModel(DEFAULT_POLY_FEE_MODEL)
     episodes: List[Dict[str, Any]] = []
     for key, rows in burst_series.items():
-        run: List[Tuple[datetime, float]] = []
+        run: List[Tuple[datetime, float, BurstQuote]] = []
         run_dir: Optional[str] = None
         for t, quote in rows:
-            best = _best_dislocation(quote, kalshi_fee_rate=kalshi_fee_rate, poly_fee=poly_fee)
+            best = _best_dislocation(quote, kalshi_fee_rate=kalshi_fee_rate,
+                                     poly_fee_model=model)
             live = best is not None and best["net_edge"] > 0.0
             direction = best["direction"] if best is not None else None
             if live and (run_dir is None or run_dir == direction):
-                run.append((t, best["net_edge"]))
+                run.append((t, best["net_edge"], quote))
                 run_dir = direction
             else:
                 if run:
                     episodes.append(_episode(key, run_dir, run))
-                run = [(t, best["net_edge"])] if live else []
+                run = [(t, best["net_edge"], quote)] if live else []
                 run_dir = direction if live else None
         if run:
             episodes.append(_episode(key, run_dir, run))
@@ -483,10 +871,13 @@ def dislocation_episodes(burst_series: Dict[str, List[Tuple[datetime, BurstQuote
 
 
 def _episode(pair: str, direction: Optional[str],
-             run: Sequence[Tuple[datetime, float]]) -> Dict[str, Any]:
-    times = [t for t, _ in run]
-    edges = [e for _, e in run]
+             run: Sequence[Tuple[datetime, float, BurstQuote]]) -> Dict[str, Any]:
+    times = [t for t, _, _ in run]
+    edges = [e for _, e, _ in run]
+    quotes = [q for _, _, q in run]
     duration_s = (max(times) - min(times)).total_seconds()
+    n_consec = len(quotes) - 1
+    n_frozen = sum(1 for a, b in zip(quotes, quotes[1:]) if _quotes_frozen(a, b))
     return {
         "pair": pair,
         "direction": direction,
@@ -496,34 +887,50 @@ def _episode(pair: str, direction: Optional[str],
         "duration_s": duration_s,
         "max_net_edge": max(edges),
         "mean_net_edge": sum(edges) / len(edges),
+        # L32 attribution: 1.0 means the "dislocation" persisted purely because NEITHER book
+        # moved — a no-fill, not durable income.
+        "n_consecutive_pairs": n_consec,
+        "n_frozen_pairs": n_frozen,
+        "frozen_pairs_fraction": (n_frozen / n_consec) if n_consec else None,
     }
 
 
 def build_burst_report(records: Sequence[Dict[str, Any]], *,
                        start: Optional[datetime] = None, end: Optional[datetime] = None,
                        kalshi_fee_rate: float = TAKER_FEE_RATE,
-                       poly_fee: float = 0.0) -> Dict[str, Any]:
+                       poly_fee_model: Optional[PolyFeeModel] = None,
+                       release_instant: Optional[datetime] = None) -> Dict[str, Any]:
+    model = poly_fee_model or PolyFeeModel(DEFAULT_POLY_FEE_MODEL)
     window = filter_burst_window(records, start, end) if (start and end) else list(records)
     bseries = build_burst_series(window)
-    disl = dislocation_scan(bseries, kalshi_fee_rate=kalshi_fee_rate, poly_fee=poly_fee)
-    episodes = dislocation_episodes(bseries, kalshi_fee_rate=kalshi_fee_rate, poly_fee=poly_fee)
+    disl = dislocation_scan(bseries, kalshi_fee_rate=kalshi_fee_rate, poly_fee_model=model)
+    episodes = dislocation_episodes(bseries, kalshi_fee_rate=kalshi_fee_rate,
+                                    poly_fee_model=model)
+    per_ticker = per_ticker_leadlag(bseries)
+    loo = per_ticker_leadlag_drop_largest(bseries)
+    fee_model: Dict[str, Any] = {
+        "kalshi_rate": kalshi_fee_rate,
+        "kalshi_fee_fn": "core.pricing.fee_per_contract (taker; both crossing legs)",
+    }
+    fee_model.update(model.as_dict())
     return {
         "mode": "burst",
         "window_start": start.isoformat() if start else None,
         "window_end": end.isoformat() if end else None,
         "n_records_in_window": len(window),
         "cadence": cadence_stats(window),
+        "release_coverage": (release_instant_coverage(window, release_instant)
+                             if release_instant is not None else None),
         "n_pairs": len(bseries),
-        "per_ticker_leadlag": per_ticker_leadlag(bseries),
+        "per_capture_pair_counts": per_capture_pair_counts(bseries),
+        "frozen_quotes": frozen_quote_fractions(bseries),
+        "per_ticker_leadlag": per_ticker,
+        "per_ticker_leadlag_drop_top_pair": loo,
+        "leadlag_stability": leadlag_stability(per_ticker, loo),
         "n_dislocations": len(disl),
         "dislocations": disl,
         "dislocation_episodes": episodes,
-        "fee_model": {
-            "kalshi_rate": kalshi_fee_rate,
-            "kalshi_fee_fn": "core.pricing.fee_per_contract (taker; both crossing legs)",
-            "poly_fee_per_contract": poly_fee,
-            "poly_fee_source": "assumed_zero_polymarket_clob" if poly_fee == 0.0 else "explicit_cli",
-        },
+        "fee_model": fee_model,
     }
 
 
@@ -539,22 +946,85 @@ def _print_burst_report(report: Dict[str, Any]) -> None:
     print(f"cadence: distinct_captures={cad['n_distinct_captures']} "
           f"min_gap_s={cad['min_gap_s']} median_gap_s={cad['median_gap_s']} "
           f"max_gap_s={cad['max_gap_s']}")
+    if cad.get("n_gaps_over_threshold"):
+        print(f"  SEAMS: {cad['n_gaps_over_threshold']} gap(s) > "
+              f"{cad['seam_threshold_s']}s: {[round(g, 1) for g in cad['gaps_over_threshold_s']]} "
+              "— the median above HIDES these (chunked-capture commit pauses, L164).")
     if cad["median_gap_s"] is not None and cad["median_gap_s"] > 300:
         print("  -> WARNING median gap > 5min: this is NOT burst-cadence tape; lead-lag at this "
               "resolution is the same noise-floor characterization the hourly first cut already "
               "gave, not a shock-window result.")
+
+    cov = report.get("release_coverage")
+    if cov is not None:
+        print("-" * 78)
+        print(f"RELEASE-INSTANT COVERAGE (L164) — instant {cov['release_instant']}")
+        print(f"  nearest PRE  capture: {cov['nearest_pre_capture']} "
+              f"(offset {cov['nearest_pre_offset_s']}s)")
+        print(f"  nearest POST capture: {cov['nearest_post_capture']} "
+              f"(offset {cov['nearest_post_offset_s']}s)")
+        print(f"  gap containing the instant: {cov['containing_gap_s']}s   "
+              f"threshold={cov['threshold_s']}s ({cov['threshold_source']})")
+        if cov["release_instant_bracketed"]:
+            print("  -> release_instant_bracketed=TRUE: the decisive instant sits inside a "
+                  "normal cadence step; a lead-lag step spanning the release EXISTS.")
+        else:
+            print("  -> release_instant_bracketed=FALSE: **DATA-ADEQUACY FAILURE** — the "
+                  "decisive instant falls inside an unobserved hole, so NO consecutive-capture "
+                  "step in this window spans the release. Every lead-lag figure below is "
+                  "measured over non-release steps and cannot speak to the release repricing "
+                  "(L57/L164).")
+        print("-" * 78)
+
+    counts = report.get("per_capture_pair_counts") or []
+    if counts:
+        ns = [c["n_pairs"] for c in counts]
+        print(f"per-capture pair count: first={ns[0]} last={ns[-1]} min={min(ns)} max={max(ns)}")
+        for c in counts:
+            if c["pairs_added"] or c["pairs_removed"]:
+                print(f"  {c['capture_time']}: n_pairs={c['n_pairs']} "
+                      f"removed={c['pairs_removed']} added={c['pairs_added']}")
+
+    fz = report.get("frozen_quotes") or {}
+    if fz.get("n_consecutive_pairs"):
+        print(f"L32 frozen consecutive pairs (both venues, both sides unchanged): "
+              f"{fz['n_frozen_pairs']}/{fz['n_consecutive_pairs']} = "
+              f"{fz['frozen_fraction']:.3f} pooled")
+
     leaders = [t for t in report["per_ticker_leadlag"] if t["signed_leader"] not in (None, "none")]
+    stab = {s["pair"]: s for s in report.get("leadlag_stability", [])}
+    n_stable = sum(1 for s in stab.values() if s["stability"] == "stable")
+    n_below_floor = sum(1 for s in stab.values()
+                        if s["stability"] == "UNSTABLE_below_magnitude_floor")
     print(f"per-ticker signed lead-lag computed for {len(report['per_ticker_leadlag'])} pairs; "
-          f"{len(leaders)} show a directional leader")
+          f"{len(leaders)} show a directional leader, {n_stable} survive leave-one-out (L57)")
+    if n_below_floor:
+        print(f"  NOTE: {n_below_floor} of those directional leaders is/are BELOW the |rho| "
+              f"magnitude floor {LEADLAG_RHO_MAGNITUDE_FLOOR} — a noise-level rho whose "
+              "leave-one-out 'retention' ratio is a near-zero-denominator artifact, NOT a "
+              "surviving lead. Counted as NOT surviving above (L27's magnitude gate applied to "
+              "a correlation).")
     for t in leaders[:10]:
+        s = stab.get(t["pair"], {})
         print(f"  {t['pair']}: leader={t['signed_leader']} "
               f"rho_k_leads={t['rho_kalshi_leads']} rho_p_leads={t['rho_polymarket_leads']} "
               f"(n={t['n_steps']})")
+        print(f"      LOO: rho_full={s.get('rho_full')} "
+              f"rho_drop_top_pair={s.get('rho_drop_top_pair')} "
+              f"retention={s.get('retention')} -> {s.get('stability')}")
+    if leaders and n_stable == 0:
+        print("  -> NO signed-leader claim survives its own leave-one-out: every directional "
+              "figure here is a single-lag-pair artifact (L57), NOT a persistent lead. Do not "
+              "report it as a lead.")
+
     print(f"fillable dislocations (net_edge>0 after both fees): {report['n_dislocations']} "
           f"captures across {len(report['dislocation_episodes'])} episodes")
     for e in sorted(report["dislocation_episodes"], key=lambda x: x["max_net_edge"], reverse=True)[:10]:
+        frz = e["frozen_pairs_fraction"]
+        frz_txt = "n/a" if frz is None else f"{frz:.2f}"
         print(f"  {e['pair']} {e['direction']}: max_edge=${e['max_net_edge']:.4f} "
-              f"dur={e['duration_s']:.0f}s over {e['n_captures']} captures")
+              f"dur={e['duration_s']:.0f}s over {e['n_captures']} captures "
+              f"frozen_frac={frz_txt}")
     if report["n_dislocations"] == 0:
         print("  -> zero fee-clearing cross-venue dislocations in this window (expected on "
               "thin/aligned books; a real one is what S17's live/kill decision hunts for).")
@@ -571,17 +1041,45 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="ISO8601 start end (e.g. 2026-07-14T12:05:00Z 2026-07-14T13:45:00Z): "
                          "run burst-mode (per-ticker signed lead-lag + fillable dislocation "
                          "scan) over sub-hourly event-window tape instead of the hourly first cut")
-    ap.add_argument("--poly-fee", type=float, default=0.0,
-                    help="Polymarket per-contract taker fee assumption for the dislocation "
-                         "scan (default 0.0 — CLOB is ~free today; a model assumption, tagged "
-                         "in the report, NOT a fill)")
+    ap.add_argument("--poly-fee-model", choices=POLY_FEE_MODELS, default=DEFAULT_POLY_FEE_MODEL,
+                    help="how to charge the crossed Polymarket leg in the dislocation scan. "
+                         "'schedule' (DEFAULT, honest): core.pricing.polymarket_fee_per_contract "
+                         "on that leg's own price. 'flat': the legacy constant --poly-fee F "
+                         "(over-charges ~4x at mid prices — a deliberately harsh sensitivity). "
+                         "'free': identically zero (maximally generous sensitivity).")
+    ap.add_argument("--poly-fee-rate", type=float, default=POLYMARKET_US_TAKER_RATE,
+                    help="rate for --poly-fee-model schedule (default "
+                         "core.pricing.POLYMARKET_US_TAKER_RATE; pass 0.0 to model the "
+                         "international geopolitics/econ fee-free category)")
+    ap.add_argument("--poly-fee", type=float, default=None,
+                    help="LEGACY flat per-contract Polymarket fee; valid ONLY with "
+                         "--poly-fee-model flat. A flat fee is not Polymarket's real schedule "
+                         "(which is rate*p*(1-p)); it is retained as an explicit sensitivity.")
+    ap.add_argument("--release-instant", default=None,
+                    help="ISO8601 instant of the event's decisive release (e.g. "
+                         "2026-07-29T18:00:00Z for the FOMC statement). Reports whether the "
+                         "instant is actually BRACKETED at burst cadence — a data-adequacy "
+                         "verdict input (L164), not a nicety.")
     args = ap.parse_args(argv)
 
     if args.burst_window is not None:
+        # A silently-ignored fee flag is exactly how the flat-fee bug hid: refuse rather than
+        # accept a fee amount under a model that will never charge it.
+        if args.poly_fee is not None and args.poly_fee_model != "flat":
+            ap.error("--poly-fee is the flat-model amount and is only valid with "
+                     f"--poly-fee-model flat (got --poly-fee-model {args.poly_fee_model}). "
+                     "Use --poly-fee-rate for the schedule model, or --poly-fee-model free.")
+        poly_fee_model = PolyFeeModel(args.poly_fee_model,
+                                      flat_fee=(args.poly_fee or 0.0),
+                                      rate=args.poly_fee_rate)
         start = parse_window_bound(args.burst_window[0])
         end = parse_window_bound(args.burst_window[1])
+        release_instant = (parse_window_bound(args.release_instant)
+                           if args.release_instant else None)
         records = load_records(Path(args.tape_dir))
-        report = build_burst_report(records, start=start, end=end, poly_fee=args.poly_fee)
+        report = build_burst_report(records, start=start, end=end,
+                                    poly_fee_model=poly_fee_model,
+                                    release_instant=release_instant)
         _print_burst_report(report)
         if args.json_out:
             Path(args.json_out).write_text(json.dumps(report, indent=2))

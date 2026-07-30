@@ -6,6 +6,114 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-29 ~17:2x ET — research loop: Q19's PER-EVENT FOMC leg — DATA-ADEQUACY, not a CI falsification; S17 stays `data-collecting`
+
+Protocol v3 run (steps 0/0a/0b by the orchestrating session: local ref matched `origin/main`, no
+rewind; open PRs #208/#191/#166/#165/#125 claim no eligible queue item; the stranded-burst-chunk
+sweep that committed this tape landed separately as **PR #234**, `b7462f97`). Milestone picked:
+**Q19's PER-EVENT FOMC leg** — the topmost eligible TODO leg, and the one event Q19 explicitly
+reserved S17's kill/live decision for. Its gate had just fired: the 17:40-19:45Z burst window
+closed and all chunks were on `origin/main`.
+
+**What ran.** `scripts/s17_leadlag_probe.py --burst-window 2026-07-29T17:40:00Z
+2026-07-29T19:35:00Z --release-instant 2026-07-29T18:00:00Z` over
+`tape/polymarket_macro_pairs/dt=2026-07-29.jsonl` (326 lines / 278 in-window records / 23 distinct
+in-window captures / 15 pairs; median cadence **90.000389 s** — statistically the best tape S17 has
+ever had).
+
+**Verdict class: DATA-ADEQUACY, NOT a CI falsification.** Two independent structural reasons, both
+properties of the collection (and of Kalshi), not of the strategy. **(1)
+`release_instant_bracketed = FALSE`** — a **720.000196 s** seam sits directly on the 18:00:00Z
+statement (nearest captures **−557.175109 s / +162.825087 s**), so no consecutive-capture step in
+the window spans the release; 6 of 22 gaps are multi-minute seams
+(1162.5/1091.5/1076.3/974.6/**720.0**/259.5 s) that the healthy median hides — L164's predicted
+failure realised via a chunk *interruption*, not a planned boundary. **(2) Kalshi DELISTS all five
+decided `26JUL` buckets AT the decision** — 15 pairs/capture pre-release → 10 post, **zero**
+post-release observations of the decided market. The verifier ruled out the competing (fixable)
+explanation that the *pair* broke: `n_kalshi_markets` 65→60 while `n_polymarket_markets` stays 15,
+and Polymarket ids 1654956-1654960 move to `unmatched_polymarket` on all 15 post-release captures —
+**Polymarket kept it listed; Kalshi delisted it.** No matcher improvement recovers an observation
+Kalshi does not publish.
+
+**Everything measurable is sub-tick.** Under the honest fee schedule
+(`core.pricing.polymarket_fee_per_contract`, 0.05·p·(1−p)): **34 fee-clearing captures / 5 episodes
+/ 3 pairs, max +$0.008220 — fails L27's magnitude gate**, and the two durable instances are
+100%-frozen far-dated 26OCT books (`frozen_pairs_fraction = 1.00` on both the 1260 s and 4212 s
+episodes), i.e. an L31/L32 artifact re-confirming L183's far-tenor overround. Brackets: `free` =
+49 captures/10 episodes/max +$0.0200/longest 6724 s; `flat 0.05` = 0/0. Pooled L32 frozen
+**157/240 = 0.654**. Lead-lag over 15 pairs (7 yield no ρ at all — zero-variance frozen books, 2
+non-directional, 6 directional) and **0 of 6 survive the L57 leave-one-out**.
+
+**Load-bearing code fix (EV-protecting, L5/L18 family).** The burst dislocation scan charged the
+Polymarket leg a **flat** `--poly-fee` defaulting to **0.0**; the real schedule is $0.0125 at
+p=0.50, not $0.05. The 0.0 default under-charges (manufactures phantom dislocations) and a naive
+flat 0.05 over-charges ~4×, and on this one window the three views give **0 / 34 / 49**
+fee-clearing captures (`flat 0.05` / `schedule` / `free`) — the two mis-specified views disagree
+completely, so the parameter was load-bearing on the verdict. `scripts/s9_leadlag_probe.py` got
+this fix on 2026-07-15 (Q31); the Fed-schema sibling stayed stale **16 days**. Now
+`--poly-fee-model {schedule,flat,free}` defaulting to `schedule`. Also added: the L57 leave-one-out
+finally reaches burst mode (imported from `s9_leadlag_probe`, not copied — L36/L102);
+`--release-instant` + `RELEASE_BRACKET_THRESHOLD_S = 120.0` + seam enumeration; per-capture
+membership + L32 frozen fractions.
+
+**Two-agent rule: satisfied.** Independent `verifier` → **CONFIRMED-WITH-CORRECTIONS**, and it
+reproduced every load-bearing number from raw tape with its own parser and no execution, including
+a fully exhaustive **96-quote-tuple census** stronger than the prober's own `|gap| ≥ 0.02` screen.
+Review-caught defects fixed before commit: **D1** direct script invocation broke
+(`ModuleNotFoundError: No module named 'scripts'` — `pyproject` installs core/collection/validation/
+analysis but NOT `scripts`, and the repo-root `conftest.py` repairs `sys.path` only under pytest),
+fixed with `q48_s55_fomc_lag_probe.py`'s `sys.path.insert` bootstrap and pinned by two
+REAL-SUBPROCESS tests; **D2** `leadlag_stability()` labelled a noise-level ρ `stable` (26SEP-H0,
+ρ_full −0.004471504399603508, "retention" 9.14 against a near-zero denominator), fixed with
+`LEADLAG_RHO_MAGNITUDE_FLOOR` (= the module's own `LEADLAG_SIGNED_LEADER_MARGIN`, derived from code
+not fitted to data) + `UNSTABLE_below_magnitude_floor` — honest headline **0 of 6**, not 1 of 6.
+**OPEN DEFECT D3, named not fixed:** `signed_leader` maximises SIGNED ρ, so two negative lag-ρ crown
+the *less negative* one (pre-existing; biases toward MORE leaders on a headline that came back
+empty) — deferred as its own unit of work, recorded as L235.
+
+**NO registry flip — S17 stays `data-collecting`** (`kb/strategies/00-index.md` row clause appended;
+status token and confidence untouched), because the verifier explicitly **WITHHELD the CONFIRM a
+kill would require** and the "strong cumulative prior" wording was downgraded to "suggestive
+cumulative evidence". Its **CONDITION**, adopted verbatim into Q19's Status block: **BLOCK the next
+burst leg** until (i) the window is contiguous across the release instant under a restart policy
+that **re-anchors on the protected instant** rather than merely planning seams away from it, and
+(ii) capture is confirmed running BEFORE the release so the decided market is observed at the
+decision. If those cannot be delivered, the honest verdict is **`kill-on-untestability`** — a
+different and far more defensible class than a kill on three non-independent descriptive windows.
+Remaining PER-EVENT legs: **WC semi1 + WC final, both trigger-fired-but-never-captured** (Ryan-side
+trigger/collection investigation).
+
+**Ledger.** Appended **L228-L237**: L228 fee-must-be-a-schedule-function + propagate-to-siblings
+(`test`), L229 L27's magnitude gate applies to a ρ and to a stability RATIO (`test`), L230 L164's
+interruption clause — a healthy median HIDES seams (`test` for reporting, `UNENFORCED` for the
+collection half), L231 a decision window must bracket the release because the venue delists the
+decided market, and `n_<venue>_markets` + `unmatched_<venue>` is the control (`protocol`), L232 a
+`scripts.`-to-`scripts.` import breaks direct invocation while `conftest.py` masks it under pytest
+(`test`), L233 a hand-derived exhaustiveness bound is a SCREEN not a proof, and hand-vs-execution
+agreement is evidence about the ARITHMETIC never the CANDIDATE SET (`protocol`), L234 `pytest -q`
+doubling to `-qq` suppresses the count this repo gates on (`protocol`), L235 argmax over a SIGNED
+statistic can crown a negative one — sign and magnitude are independent gates (**UNENFORCED**, D3),
+L236 an artifact share must be computed per-OBSERVATION not off episode maxima, and a float residue
+belongs to its own subtraction (**UNENFORCED**), L237 an orchestrator's `git reset --hard` destroys
+a worker's uncommitted edits; an execution-less worker ships code + a BOUNDED hand derivation for
+the orchestrator to EXECUTE, never to accept (`protocol`). Open `**UNENFORCED**` count 6 → 9.
+
+No network, no orders, no credentials. Still **0 proven edges**.
+
+**Gates.** Executed by the research-lead session against the committed edits at **`589f2141`**
+(both the prober's and the verifier's sandboxes — and this distiller's — refuse every `python3` and
+`git` invocation, so no gate number here is self-measured): `python3 -m pytest -o addopts='' -q` →
+**2283 passed in 1487.04s, exit 0**; `python3 scripts/invariants.py --full` → **`invariants: all
+green`, exit 0**; `tests/test_s17_leadlag_probe.py` → **92 passed** (was 84). Reproducibility
+caveat now pinned as L234: `pyproject`'s `addopts` already carries `-q`, so passing `-q` again
+doubles to `-qq` and SUPPRESSES the summary line the gate quotes — use the `-o addopts=''` form.
+
+**Process fact, recorded not laundered:** 5 worker rounds, because (i) the orchestrating session's
+mid-run `git reset --hard` discarded round 1's identical uncommitted edits, forcing a full redo, and
+(ii) the sandbox-execution split above. Round 1's HAND-DERIVED schedule headline (34 / 5 /
++$0.00822) later reproduced EXACTLY under execution — evidence about the arithmetic, and none about
+completeness (L233). See `findings/2026-07-29-s17-burst-fomc-q19.md`.
+
 ## 2026-07-29 ~20:1x ET — research loop: idle-run policy (c) — Q48/S55 FOMC burst tape has a real ~720s capture outage spanning the 18:00Z release instant
 
 Protocol v3 run. Step 0a: `git fetch origin main`; local HEAD matched `origin/main` exactly
