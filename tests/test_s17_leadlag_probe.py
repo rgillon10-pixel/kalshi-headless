@@ -208,6 +208,35 @@ def test_build_report_reads_jsonl_files(tmp_path):
     assert report["membership_changes"] == []
 
 
+def test_build_report_pools_v1_and_v2_records(tmp_path):
+    """L214 bumped the collector's pair schema to `polymarket_macro_pairs.v2` (v1 + per-leg
+    resolution provenance). This probe filters STRUCTURALLY on the fields it needs, never on the
+    schema string, so both versions load unchanged into one series — asserted rather than
+    assumed, since a mixed-version tape is now the permanent steady state."""
+    tape_dir = tmp_path / "polymarket_macro_pairs"
+    tape_dir.mkdir()
+    lines = []
+    for i in range(12):
+        rec = _rec(f"c{i:02d}", "T1", 0.10 + 0.01 * i, 0.20 + 0.01 * i)
+        if i >= 6:
+            rec["schema_version"] = "polymarket_macro_pairs.v2"
+            rec["kalshi"]["title"] = "Will the Federal Reserve Hike rates by 25bps at their October 2026 meeting?"
+            rec["kalshi"]["resolution_basis"] = "kalshi_rulebook"
+            rec["polymarket"]["group_item_title"] = "25 bps increase"
+            rec["polymarket"]["resolution_basis"] = "uma_oracle"
+            rec["bucket_terms"] = {"kalshi_basis": "hike_25bps",
+                                   "polymarket_basis": "increase_25bps",
+                                   "terms_equivalent": True, "note": None}
+        lines.append(rec)
+    (tape_dir / "dt=2026-07-06.jsonl").write_text(
+        "\n".join(json.dumps(l) for l in lines) + "\n")
+
+    report = probe.build_report(tape_dir, min_captures=10)
+    assert report["n_records"] == 12
+    assert report["n_distinct_markets"] == 1
+    assert report["leadlag"]["n_markets_used"] == 1
+
+
 def test_build_report_empty_tape_dir(tmp_path):
     tape_dir = tmp_path / "polymarket_macro_pairs"
     tape_dir.mkdir()

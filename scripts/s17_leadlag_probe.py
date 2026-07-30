@@ -17,7 +17,10 @@ odds), one venue should reprice first and the other should visibly lag it for at
 capture interval. That is the decision-relevant test.
 
 WHY THIS LEG AND NOT THE CPI LEG. This probe pools ONLY the Fed-decision family
-(`polymarket_macro_pairs.v1`), whose Kalshi side is `kalshi.yes_ask` tagged `real_ask` and
+(`polymarket_macro_pairs.v1` and, from 2026-07-30, `.v2` — v1 plus per-leg resolution
+provenance per L214; this probe filters structurally on the fields it needs, never on the
+schema string, so both versions load unchanged), whose Kalshi side is `kalshi.yes_ask` tagged
+`real_ask` and
 Polymarket side is `polymarket.best_ask` tagged `real_ask` — apples-to-apples, exactly like
 S9's WC-round comparison. The CPI leg (`tape/polymarket_cpi_pairs/`, schema
 `polymarket_cpi_pairs.v1`) is DELIBERATELY OUT OF SCOPE here: its Kalshi side is

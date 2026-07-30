@@ -6,6 +6,144 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-30 ~20:3xz UTC — research loop IDLE RUN: L214 converted UNENFORCED → test (cross-venue resolution-terms provenance on the Fed pair tape)
+
+Sixth research-loop firing of 2026-07-30, protocol v3. Steps 0a/0/0b were performed by the
+orchestrating session before this run began: **0a PASSED, no rewind**; **claim-check** — open PRs
+#208/#191/#166/#165/#125 are stale Ryan-review-only drafts and none of them claims queue work;
+**step 0b (light pass)** — `tape/hourly-20260730T1302Z` was verified to contribute **zero** tape
+lines missing from `main`, its diff vs `main` being **pure deletions on every tape file**, which
+is consistent with the prior run's independent finding on the same branch. An independent full
+Q0–Q48 FILE-SHAPE rescan (L25) found **0 eligible TODO/IN-PROGRESS items** — the sixth such zero
+of the day; the three nearest gates are still shut (Q36 `n_settled_events=2/10`, Q37 opens
+~08-05, Q48/S55 still burst-gated). → **IDLE RUN, policy (a)** (convert an UNENFORCED lesson into
+enforced code + tests).
+
+**Row selection.** The repo's own `invariants.stale_unenforced_recall_report()` gives **6**
+genuinely-open `**UNENFORCED**` rows: L145, L213, L214, L221, L222, L227. L145 and L213 are Ryan
+policy calls; L221/L222 are live-collector write-path questions whose fix is a collector
+redesign, not an enforcement; L227's remaining (prevention) half is not statically assertable.
+**L214** was chosen: it is the only one both in-lane and **EV-protecting for the next gate to
+open**, because `tape/polymarket_macro_pairs/` is the **SIGNAL leg** of the burst-gated S55/Q48
+probe — a terms defect there contaminates the statistic that probe computes the moment its window
+opens.
+
+**What was built** (collector lane, then two independent `verifier` rounds):
+
+- `collection/polymarket_pairs.py`: Fed pair records bump to **`polymarket_macro_pairs.v2`** — v1
+  PLUS `kalshi.title`, `kalshi.resolution_basis="kalshi_rulebook"`, `polymarket.question`,
+  `polymarket.group_item_title`, `polymarket.resolution_basis="uma_oracle"`, and a `bucket_terms`
+  block from the new pure function `fed_bucket_terms()`. `discover_polymarket_fed_events` now
+  **carries** `group_item_title` (it previously read it to normalize the bucket label and
+  discarded it — precisely the layer where the asymmetry disappears). Provenance only: no price,
+  size or tag field changed; both legs stay `price_source_tag: real_ask`.
+- `fed_bucket_terms()` derives each leg's threshold from **its own recorded text**, compares bps
+  regions AND the `meeting_key` it presupposes, emits `compares="bps_region+meeting_key"` and
+  `meeting_key_checked`, and returns `terms_equivalent` True/False/**None — never a guessed
+  True**.
+- `scripts/polymarket_pair_terms_audit.py` (+ 11 tests): read-only census of how much of the tape
+  can answer the L214 question at all. No gate, no network, no writes, no verdict.
+- Readers widened to accept v1 AND v2: `scripts/q48_s55_fomc_lag_probe.py`
+  (`ACCEPTED_SCHEMA_VERSIONS`, a new `n_by_schema_version` computed from records actually loaded,
+  corrected `depth_note`), `scripts/q31_cross_venue_arb_probe.py`
+  (`RESOLUTION_EQUIVALENT_SCHEMAS`, `n_by_schema_version`), `scripts/s17_leadlag_probe.py`
+  (docstring only — it filters structurally, not on the schema string).
+- One **live read-only collector pass** (`capture_id` `20260730T183708Z`) appended 20 v2 pair
+  lines + 1 capture-summary line to `tape/polymarket_macro_pairs/dt=2026-07-30.jsonl`.
+  Append-only, verifier-checked: `HEAD`'s copy of that file is a **byte-exact prefix** of the new
+  one.
+
+**The numbers, with their qualifiers.** Census command `python3 scripts/polymarket_pair_terms_audit.py`
+over `tape/polymarket_macro_pairs/` **in this working tree**, run **2026-07-30T20:22:13Z**: 24
+day-files, 9,612 lines, **0 malformed**; **9,575 pair records + 37 capture-summary records**;
+**9,555 `polymarket_macro_pairs.v1` + 20 `...v2`**.
+
+- **PROVENANCE QUALIFIER (verifier R2 defect 1, L165-class):** at `HEAD` (`7871d03`) the
+  **committed** tape holds **9,555 v1 pair records and ZERO v2** — the 20 v2 lines are this run's
+  own uncommitted addition. So this is never "9,575 records committed" and never "99.79% of the
+  committed population": against the population committed at `HEAD` the unauditable share is
+  **100%**, and the 99.79% figure is a **working-tree** number, labelled as such everywhere.
+- Of the 20 v2: **12 `terms_equivalent: true`, 8 `false`, 0 undecidable**; the partition identity
+  `12 + 8 + 0 + 9,555 (no terms block at all) = 9,575` holds (and per bucket: 5 × `4+0+0+1,911 =
+  1,915`).
+- The 8 `false` are exactly the `hike_50plus` and `cut_50plus` buckets, **4 each, across the 4
+  meetings 2026-09 / 2026-10 / 2026-12 / 2027-01**. The asymmetry: Kalshi's title `>25bps` covers
+  **[26, inf) bps**, Polymarket's label `50+ bps` covers **[50, inf) bps** — a 26-49bp move
+  settles YES on one venue and NO on the other.
+- **UNIT-COUNT HONESTY (verifier-mandated, pseudo-replication):** this is **not n=20**. All 20
+  come from ONE capture pass, and the verdict is a deterministic function of the **parsed
+  threshold basis pair** `(kalshi_basis, polymarket_basis)` — NOT of the literal (title, label)
+  pair, which is distinct on all 20 only because the Kalshi title embeds the meeting month.
+  Collapsing on the parsed bases gives exactly **5 bucket classes: 3 equivalent, 2 provably not**,
+  n=4 each (20 = 5 classes × 4 meetings × 1 pass). And the two non-equivalent classes are the SAME
+  `>25bps`-vs-`>=50bps` rule mirrored hike/cut, so the number of **independent asymmetry
+  mechanisms is 1, not 2** — nobody should read "2" as corroboration.
+- **PROBE-IMPACT HONESTY (verifier R1 defect 2):** the correct claim is "**held tape-constant**
+  (old code vs new code on a frozen tape, via a `git worktree` differential), q48 / q31 / s17
+  outputs are byte-identical". It is FALSE to say "no probe's numeric output changed", because
+  the same diff also appends 20 records, which moves the default invocations: q48 `n_fed_records`
+  9,555 → 9,575, `n_passes` 640 → 641, `mean_abs` 0.0206128 → 0.0206215, headline `all` +2.061¢ →
+  **+2.062¢**; q31 obs 15,905 → 15,925, pooled mean net −0.03244 → **−0.03246**, 95% CI
+  [−0.04006,−0.02540] → **[−0.04007,−0.02541]**; s17 contemporaneous ρ 0.43582 → 0.43724,
+  kalshi-leads ρ 0.019706 → 0.015051. Every price on both legs is `real_ask` (9,575/9,575
+  records, zero synthetic/midpoint). **These are descriptive/diagnostic statistics, NOT a strategy
+  CI and NOT a P&L.**
+- **No registry status flipped. No CI. No verdict. Still 0 proven edges.**
+
+**Two-agent rule.** Two independent `verifier` rounds ran against this diff. **Round 1 =
+CONFIRMED-WITH-CORRECTIONS**: confirmed the v1 fields are byte-preserved under identical inputs,
+the tape append is genuinely append-only, both legs are `real_ask`, and the census is exactly
+reproduced by its own throwaway stdlib parser, with house rules clean; **REFUTED as worded** the
+"L214 row is flipped" claim (it was not yet — this bookkeeping milestone is what flips it) and the
+"no probe output changed" claim; **7 defects** found. The collector lane fixed the 4 code defects.
+**Round 2 = CONFIRMED-WITH-CORRECTIONS**: all four fixes re-derived and hold, including a
+**1,764-combination fuzz** finding **0** cases of `terms_equivalent: True` with both meeting keys
+present and differing, and verdict-neutrality of the fix on the 20 already-written v2 lines. The
+remaining corrections — the "committed" qualifier and the mechanism-count wording — are applied in
+this milestone's documents (→ L242, L243). One cosmetic note stands: q31's `n_by_schema_version`
+is emitted to `--json-out` only, not to human stdout.
+
+**Ledger.** L214's enforcement cell moved `UNENFORCED` → **`test`** (its lesson prose unchanged;
+the original cell is preserved verbatim inside the new one, per L152). Five new rows — **L239**
+(an auditability predicate must key on the EXACT field the deriving function reads; the census's
+`group_item_title or question` manufactured a "checked" beside a `polymarket_basis: None`),
+**L240** (never pool "never asked" with "asked, undecidable"; one `n_terms_equivalent_null =
+9,555` hid records carrying no verdict FIELD at all — now split into `n_no_terms_block` vs
+`n_terms_verdict_null` with a published partition identity), **L241** (a public verdict function
+must verify its presupposed join key: called directly, `fed_bucket_terms` returned `True` for a
+Sept-2026 Kalshi title vs a Jan-2099 Polymarket question — now `meeting_key_checked` and a scoped
+`compares`), **L242** (`UNENFORCED`, with a named mechanizable candidate: emit `git_ref` +
+`n_records_at_head` from the audit script so a working-tree census cannot be quoted as a committed
+one), **L243** (`protocol`: tape-constant vs data-driven reporting, and record count ≠ sample size
+when a verdict is a parsed function of a label).
+
+**Gates.** The full-suite run taken **BEFORE** the defect-fix round was
+`python3 -m pytest -o addopts="" -q` → **2365 passed in 1871.23s, 0 failed**. The fix round added
+tests, so the FINAL full-suite and `python3 scripts/invariants.py --full` numbers are being
+**re-taken by the lead AFTER these doc edits** (L162 fresh-gate rule). The final gate line is
+therefore stated as a FLOOR: **≥2365 collected, 0 failed; `invariants --full` exit 0** — the exact
+final count is the lead's re-run, and no mid-edit snapshot is presented as final.
+
+**Step 9 (shadow paper).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (`dead ✗` per Q34 —
+paper-infra validation only, **NOT** edge evidence). `python3 scripts/paper_pass.py`, run by the
+lead **2026-07-30T20:20:47Z**: 1,527 records loaded, **0 newly processed** (117 deferred(caps), 272
+deferred(coverage), 183 already-in-ledger) → **the ledger file is unchanged and this run's commit
+adds no `paper/` line**. `daily_summary()`: `paper: 0 open position(s), 1317 settled contract(s),
+realized P&L $+23.45, cash $+23.45, open notional $0.00` (`broker_truth`). No network, no orders,
+no credentials.
+
+**Read that delta correctly (it is easy to misread).** The 2026-07-29 run's entry recorded
+**$+22.47 / 1,248 settled** from the **SAME, unchanged** ledger — nothing was appended between the
+two runs. The change is the broker recomputing settlement marks over tape that has GROWN since,
+i.e. `daily_summary()` is a function of **(ledger, tape)**, not of the ledger alone. It is **not**
+new paper-trading activity and **not** a P&L improvement, and must not be presented as either.
+
+Produced: `findings/2026-07-30-l214-crossvenue-terms-provenance.md`; `kb/lessons/00-lessons.md`
+L214 (now `test`) + L239–L243; LOOP-QUEUE.md Q48 Status line + run-log line;
+`kb/strategies/00-index.md` EV-protecting note (no status change).
+
+---
+
 ## 2026-07-30 ~11:4x ET — research loop IDLE RUN: L236 converted UNENFORCED → test (per-observation artifact decomposition), and its own worked example corrected
 
 Fifth research-loop firing of 2026-07-30. Steps 0a/0/0b were completed by the orchestrating session

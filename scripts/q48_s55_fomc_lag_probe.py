@@ -111,7 +111,9 @@ the intended, honest outcome, not a bug.
 ── HARD RULE #3: `KXFEDDECISION-*` IS A BRACKET LADDER ──────────────────────────────────────────
 Each `meeting` is a 5-bucket partition {cut_50plus, cut_25, no_change, hike_25, hike_50plus}
 (census over the committed tape, 2026-07-26: 3 meetings x 5 buckets x 600 passes = 9,000 records,
-one `family` value `fed_decision`, one `schema_version` `polymarket_macro_pairs.v1`). A raw
+one `family` value `fed_decision`, one `schema_version` `polymarket_macro_pairs.v1`; the
+collector emits `...v2` from 2026-07-30 — same fields plus per-leg resolution provenance (L214),
+and BOTH versions are accepted here, see `ACCEPTED_SCHEMA_VERSIONS`). A raw
 `yes_ask` is NOT a probability. Per (meeting, capture_id) this probe computes the Kalshi
 `bracket_sum` across the buckets present via `core.pricing.bracket_sum`, and the Polymarket ladder
 sum the same way when ALL of that meeting's buckets are present in the pass; probabilities come
@@ -200,7 +202,7 @@ what the gap statistics say.
 L32's frozen-pair rule (a consecutive snapshot pair with no movement is a NO-FILL) is a MAKER
 concern and is deliberately NOT applied: S55 is a TAKER lift of a resting offer, for which a
 frozen quote is the TARGET, not a non-fill. The binding honesty limit here is different and
-worse — `polymarket_macro_pairs.v1` carries NO size/depth fields on either leg (L57 already
+worse — `polymarket_macro_pairs.v1`/`.v2` carries NO size/depth fields on either leg (L57 already
 flagged this family as size-blind), so at-touch depth is UNMEASURABLE. `DEPTH_UNMEASURABLE = True`
 travels with every report: any positive edge this probe ever finds is depth-unmeasurable and can
 NEVER graduate on this tape alone.
@@ -240,6 +242,7 @@ import argparse
 import json
 import statistics
 import sys
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -269,7 +272,14 @@ DEFAULT_TAPE_DIR = REPO_ROOT / "tape" / "polymarket_macro_pairs"
 # ── the family the burst `fed` leg writes (collection/burst_capture.py::FAMILY_REGISTRY ->
 # polymarket_pairs.run_fed_decision). Confirmed as the ONLY family value in the committed tape.
 DEFAULT_FAMILY = "fed_decision"
-SCHEMA_VERSION = "polymarket_macro_pairs.v1"
+# Accepted pair-record schemas. v2 (L214, 2026-07-28 audit D2) is v1 PLUS per-leg resolution
+# provenance (`kalshi.title`, `polymarket.question`/`group_item_title`, `resolution_basis`,
+# `bucket_terms`) — every price field this probe reads (the Kalshi leg's ask and bid, the
+# Polymarket leg's best ask and bid, `book_fetch_ok`, `meeting`, `bucket`, `capture_id`) keeps its
+# exact name and semantics, so both versions feed the SAME arithmetic and mixed v1/v2 tape
+# pools without a correction. Kept as a frozenset (not a single string) so old tape stays
+# readable rather than being silently skipped as `n_other_schema`.
+ACCEPTED_SCHEMA_VERSIONS = frozenset({"polymarket_macro_pairs.v1", "polymarket_macro_pairs.v2"})
 
 # ── the 18:00Z FOMC statement the `kalshi-burst-fomc-0729` trigger brackets (17:40 -> 19:45Z).
 DEFAULT_RELEASE_TS = "2026-07-29T18:00:00Z"
@@ -389,11 +399,25 @@ def load_family_records(tape_dir: Path, family: str = DEFAULT_FAMILY
             if rec.get("family") != family:
                 skips["n_other_family"] += 1
                 continue
-            if rec.get("schema_version") not in (None, SCHEMA_VERSION):
+            if rec.get("schema_version") is not None and \
+                    rec.get("schema_version") not in ACCEPTED_SCHEMA_VERSIONS:
                 skips["n_other_schema"] += 1
                 continue
             records.append(rec)
     return records, skips
+
+
+def _count_by_schema_version(records: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Pooled-population census by `schema_version` (D6). Since L214 this probe pools
+    `polymarket_macro_pairs.v1` AND `.v2` records into one arithmetic population — legitimate
+    (v2 adds provenance, changes no price field), but a reader must be able to SEE the mix
+    instead of inferring one schema from a stale doc string. Records without the key are
+    counted under `"null"`."""
+    counts: Dict[str, int] = defaultdict(int)
+    for rec in records:
+        schema = rec.get("schema_version")
+        counts["null" if schema is None else str(schema)] += 1
+    return dict(sorted(counts.items()))
 
 
 # --------------------------------------------------------------------------- #
@@ -1126,10 +1150,16 @@ def run_probe(tape_dir: Path = DEFAULT_TAPE_DIR, *, release_ts: str = DEFAULT_RE
             "direction": "charged as a COST, subtracted from every edge",
         },
         "depth_unmeasurable": DEPTH_UNMEASURABLE,
-        "depth_note": ("polymarket_macro_pairs.v1 carries NO size/depth field on either leg "
-                       "(L57 — this family is size-blind), so at-touch depth is UNMEASURABLE "
-                       "and no edge found here may be called fillable on this tape alone."),
+        "depth_note": ("polymarket_macro_pairs.v1 AND .v2 carry NO size/depth field on either "
+                       "leg (L57 — this family is size-blind; v2's L214 additions are "
+                       "resolution-terms provenance only, not size), so at-touch depth is "
+                       "UNMEASURABLE and no edge found here may be called fillable on this "
+                       "tape alone."),
         "n_fed_records": len(records),
+        # The population this report pooled is MIXED (v1 + v2 tape). Counted from the records
+        # actually loaded, never hardcoded, so a reader can see the mix rather than assume one
+        # schema. A record with no `schema_version` key is counted under "null".
+        "n_by_schema_version": _count_by_schema_version(records),
         "n_passes": len(times),
         "n_burst_windows": len(windows),
         "n_burst_windows_cadence_qualified": sum(1 for w in windows if w["cadence_qualified"]),

@@ -36,6 +36,18 @@ carries). Multi-month bundle events (e.g. "Fed decisions (Jul-Oct)") and off-top
 not guessed at. Written to a separate tape family (`tape/polymarket_macro_pairs/`) since
 it's a distinct market shape from the WC-round pairs above.
 
+L214 (2026-07-28 tape audit, D2) — Fed pair records are now `polymarket_macro_pairs.v2`:
+matching the two venues' `*_50plus` buckets is a defensible collection-time judgment (Kalshi's
+title says ">25bps", Polymarket's bucket label says "50+ bps", so a 26-49bp move would settle
+differently — an outcome of near-zero probability), but v1 persisted only the winning IDs, so
+that asymmetry was invisible at read time. v2 additionally persists each leg's matched TEXT
+(`kalshi.title`, `polymarket.question`/`group_item_title`), a per-leg `resolution_basis`
+(`kalshi_rulebook`/`uma_oracle`), and a derived `bucket_terms` verdict from
+`fed_bucket_terms()`. Provenance only — no price/size field changed, both legs stay `real_ask`,
+and `terms_equivalent` is None (unknown) rather than True whenever either leg's text is missing.
+v1 tape stays readable: every in-repo consumer accepts v1 AND v2, and pre-v2 records are
+UNAUDITABLE-BY-CONSTRUCTION (see `scripts/polymarket_pair_terms_audit.py`), not "fine".
+
 LOOP-QUEUE.md Q12 CPI follow-up (2026-07-06): third discovery family, `run_cpi()`, pairs
 Kalshi's `KXCPI`/`KXCPIYOY`/`KXCPICORE` cumulative ">= threshold T" ladders (see
 `collection/econ_prints.py`) against Polymarket's exact 0.1-point bucket partition for the
@@ -520,6 +532,12 @@ def discover_polymarket_fed_events(
                     "meeting_key": f"{qm['year']}-{month:02d}",
                     "bucket": bucket,
                     "question": question,
+                    # L214: the raw bucket-label text is the EVIDENCE for the bucket
+                    # normalization above (">=50bps" wording vs Kalshi's ">25bps" title) —
+                    # it used to be read here and thrown away, which is exactly what made
+                    # the two venues' settlement terms unauditable downstream. Carried
+                    # through to tape verbatim, never re-derived from the bucket label.
+                    "group_item_title": mkt.get("groupItemTitle"),
                     "yes_token_id": yes_token,
                 })
     return markets_out, raw_pages
@@ -549,6 +567,143 @@ def match_fed_pairs(kalshi_markets: List[Dict], polymarket_markets: List[Dict]
         else:
             ambiguous.append(km["ticker"])
     return matched, unmatched, ambiguous
+
+
+# --------------------------------------------------------------------------- #
+# L214 (2026-07-28 tape audit, D2): resolution-terms provenance for a matched pair.
+#
+# The two venues' `*_50plus` buckets are NOT the same contract. Kalshi's side comes from a
+# TITLE magnitude of ">25bps" — a 26-49bp move settles YES. Polymarket's side comes from a
+# `groupItemTitle` of "50+ bps increase" — the SAME 26-49bp move settles NO. `match_fed_pairs`
+# pairs them anyway (they are each venue's own top bucket, and a non-25bp-multiple Fed move is
+# near-zero probability), which is a defensible collection-time judgment — but it was recorded
+# nowhere, so no reader and no future audit could see it without re-reading this source.
+#
+# This function derives each leg's threshold from ITS OWN RECORDED TEXT (never from the already
+# -normalized bucket label, which is precisely the layer where the asymmetry disappears) and
+# returns an explicit equivalence verdict. It NEVER guesses True: absent/unparseable text on
+# either side yields a None basis and `terms_equivalent=None`, i.e. "unknown", which a reader
+# must treat as unaudited rather than as agreement. It also compares the two legs' `meeting_key`
+# explicitly rather than presupposing the caller joined on it (`compares` /
+# `meeting_key_checked` in the returned block), and it says nothing about the adjudicators —
+# the same record's per-leg `resolution_basis` (kalshi_rulebook vs uma_oracle) is a separate,
+# unquantified risk that no text comparison can settle.
+# --------------------------------------------------------------------------- #
+_KALSHI_FED_TERMS_TITLE_RE = re.compile(
+    r"(?P<verb>Hike|Cut)\s+rates\s+by\s+(?P<mag>>?\d+)\s*bps", re.I)
+_PM_FED_TERMS_LABEL_RE = re.compile(r"(?P<bps>\d+)\s*(?P<plus>\+?)\s*bps\s*(?P<dir>increase|decrease)")
+
+
+def _terms_interval(direction: str, comparator: str, bps: int) -> Tuple[str, int, Optional[int]]:
+    """(direction, inclusive_low_bps, inclusive_high_bps|None-for-open-ended) — the settlement
+    region a leg's text actually covers, in integer bps (both venues quote whole bps)."""
+    if comparator == "eq":
+        return (direction, bps, bps)
+    if comparator == "gt":
+        return (direction, bps + 1, None)
+    return (direction, bps, None)  # "gte"
+
+
+def _kalshi_fed_terms(title: Optional[str]) -> Tuple[Optional[str], Optional[Tuple[str, int, Optional[int]]]]:
+    """Kalshi leg basis from its market TITLE. '>25bps' -> `hike_gt_25bps` (covers 26+),
+    '25bps' -> `hike_25bps`, '0bps' -> `no_change_0bps` (Kalshi lists no-change once, as a
+    0bps Hike, so the verb carries no direction there)."""
+    m = _KALSHI_FED_TERMS_TITLE_RE.search((title or "").strip())
+    if not m:
+        return None, None
+    mag = m["mag"].strip()
+    side = "hike" if m["verb"].lower() == "hike" else "cut"
+    if mag.startswith(">"):
+        digits = mag[1:]
+        if not digits.isdigit():
+            return None, None
+        bps = int(digits)
+        return f"{side}_gt_{bps}bps", _terms_interval(side, "gt", bps)
+    if not mag.isdigit():
+        return None, None
+    bps = int(mag)
+    if bps == 0:
+        return "no_change_0bps", _terms_interval("flat", "eq", 0)
+    return f"{side}_{bps}bps", _terms_interval(side, "eq", bps)
+
+
+def _polymarket_fed_terms(group_item_title: Optional[str]
+                          ) -> Tuple[Optional[str], Optional[Tuple[str, int, Optional[int]]]]:
+    """Polymarket leg basis from its `groupItemTitle`. '50+ bps increase' ->
+    `increase_gte_50bps` (covers 50+, NOT 26-49), '25 bps increase' -> `increase_25bps`,
+    'No change' -> `no_change`."""
+    t = (group_item_title or "").strip().lower()
+    if not t:
+        return None, None
+    if "no change" in t:
+        return "no_change", _terms_interval("flat", "eq", 0)
+    m = _PM_FED_TERMS_LABEL_RE.search(t)
+    if not m:
+        return None, None
+    bps = int(m["bps"])
+    direction = m["dir"]
+    side = "hike" if direction == "increase" else "cut"
+    if m["plus"]:
+        return f"{direction}_gte_{bps}bps", _terms_interval(side, "gte", bps)
+    return f"{direction}_{bps}bps", _terms_interval(side, "eq", bps)
+
+
+def _terms_span_str(interval: Tuple[str, int, Optional[int]]) -> str:
+    _, lo, hi = interval
+    return f"[{lo}, {hi}]bps" if hi is not None else f"[{lo}, inf)bps"
+
+
+TERMS_COMPARES = "bps_region+meeting_key"
+
+
+def fed_bucket_terms(km: Dict[str, Any], pm: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolution-terms block for one matched (kalshi_market, polymarket_market) pair (L214).
+
+    SCOPE — read this before quoting `terms_equivalent` anywhere. The verdict is BPS-REGION
+    equivalence UNDER A MATCHED MEETING KEY (`compares` names exactly that), NOT contract-level
+    settlement equivalence: the two legs are adjudicated by different bodies (Kalshi's rulebook
+    vs Polymarket's UMA oracle, persisted per leg as `resolution_basis`), so even a True here
+    leaves adjudicator risk unmeasured. Nothing in this function can speak to that.
+
+    Pure/offline. Reads the recorded TEXT of each leg — `km["title"]` and
+    `pm["group_item_title"]` — plus each leg's `meeting_key`, and returns:
+      kalshi_basis / polymarket_basis: short machine-stable threshold descriptors,
+      terms_equivalent: True when both legs cover the same bps region for the same meeting,
+        False when they provably differ (the `*_50plus` case: Kalshi [26, inf) vs Polymarket
+        [50, inf); or two different meetings), None when either side's text is missing or
+        unparseable — never guessed True,
+      note: a short human string naming the mismatch when False, else None,
+      meeting_key_checked: True only when BOTH legs carried a `meeting_key` and they were
+        actually compared. `match_fed_pairs` keys on `meeting_key` first, so in-collector
+        callers always get True — but this is a public importable, and a caller who hands in
+        legs without meeting keys must not be told the join was verified when it wasn't,
+      compares: the scope string above.
+    """
+    k_meeting = km.get("meeting_key")
+    p_meeting = pm.get("meeting_key")
+    meeting_checked = k_meeting is not None and p_meeting is not None
+    base = {"compares": TERMS_COMPARES, "meeting_key_checked": meeting_checked}
+
+    k_basis, k_interval = _kalshi_fed_terms(km.get("title"))
+    p_basis, p_interval = _polymarket_fed_terms(pm.get("group_item_title"))
+    bases = {"kalshi_basis": k_basis, "polymarket_basis": p_basis}
+
+    if meeting_checked and k_meeting != p_meeting:
+        note = (f"meeting mismatch: kalshi meeting_key '{k_meeting}' vs polymarket "
+                f"'{p_meeting}' — different meetings settle on different days, so the bps "
+                f"regions are not comparable")
+        return {**base, **bases, "terms_equivalent": False, "note": note}
+
+    if k_interval is None or p_interval is None:
+        return {**base, **bases, "terms_equivalent": None, "note": None}
+
+    if k_interval == p_interval:
+        return {**base, **bases, "terms_equivalent": True, "note": None}
+
+    note = (f"resolution terms differ: kalshi title '{k_basis}' settles YES over "
+            f"{_terms_span_str(k_interval)}, polymarket '{p_basis}' over "
+            f"{_terms_span_str(p_interval)}")
+    return {**base, **bases, "terms_equivalent": False, "note": note}
 
 
 def run_fed_decision(client: Optional[Kalshi] = None, tape_dir: Optional[Path] = None,
@@ -588,8 +743,18 @@ def run_fed_decision(client: Optional[Kalshi] = None, tape_dir: Optional[Path] =
             except Exception as exc:
                 book_errors.append({"market_id": str(pm.get("market_id")), "error": str(exc)})
         pm_best_ask = (book or {}).get("best_ask")
+        # L214 (2026-07-28 tape audit, D2): v1 persisted only the winning IDs
+        # (`ticker`/`event_id`/`market_id`), so the two legs' settlement TERMS — the
+        # ">25bps" Kalshi title vs the ">=50bps" Polymarket bucket label behind the shared
+        # `*_50plus` bucket name — were invisible to every downstream consumer and could
+        # only be recovered by re-reading this collector's source. v2 adds the matched text
+        # itself (`kalshi.title`, `polymarket.question`/`group_item_title`), a per-leg
+        # `resolution_basis` naming WHO adjudicates it (Kalshi's rulebook vs Polymarket's
+        # UMA oracle — different adjudicators, so identical wording still isn't identical
+        # settlement), and the derived `bucket_terms` verdict. Provenance only: not one
+        # price, size or tag changes, and `terms_equivalent` is never guessed True.
         record = {
-            "schema_version": "polymarket_macro_pairs.v1",
+            "schema_version": "polymarket_macro_pairs.v2",
             "capture_id": capture_id,
             "captured_at": captured_at,
             "family": "fed_decision",
@@ -597,16 +762,22 @@ def run_fed_decision(client: Optional[Kalshi] = None, tape_dir: Optional[Path] =
             "bucket": km["bucket"],
             "kalshi": {
                 "ticker": km["ticker"],
+                "title": km.get("title"),
+                "resolution_basis": "kalshi_rulebook",
                 "yes_ask": km["yes_ask"], "yes_bid": km["yes_bid"],
                 "no_ask": km["no_ask"], "no_bid": km["no_bid"],
                 "price_source_tag": "real_ask",
             },
             "polymarket": {
                 "event_id": pm["event_id"], "market_id": pm["market_id"],
+                "question": pm.get("question"),
+                "group_item_title": pm.get("group_item_title"),
+                "resolution_basis": "uma_oracle",
                 "best_bid": (book or {}).get("best_bid"), "best_ask": pm_best_ask,
                 "book_fetch_ok": book is not None,
                 "price_source_tag": "real_ask",
             },
+            "bucket_terms": fed_bucket_terms(km, pm),
             "price_gap_yes_ask": (
                 km["yes_ask"] - pm_best_ask
                 if km["yes_ask"] is not None and pm_best_ask is not None else None
@@ -651,7 +822,7 @@ def run_fed_decision(client: Optional[Kalshi] = None, tape_dir: Optional[Path] =
     # so a pass where `lines` came back empty (e.g. `pm_error` set) wrote nothing at all,
     # permanently indistinguishable from "the collector never fired." Always append a
     # summary line to the same per-day file, on its OWN schema_version (never
-    # "polymarket_macro_pairs.v1", the pair-record schema) so completeness is recomputable
+    # "polymarket_macro_pairs.v1"/".v2", the pair-record schema) so completeness is recomputable
     # from committed tape alone, even on a zero-match pass, while every existing reader that
     # gates on schema_version/family (`q31_cross_venue_arb_probe._iter_records`,
     # `q48_s55_fomc_lag_probe.load_family_records`) skips it exactly like a foreign record.

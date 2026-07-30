@@ -660,6 +660,53 @@ def test_malformed_and_missing_leg_records_are_counted_not_dropped(tmp_path):
     assert rep["load_skips"]["n_other_family"] == 1
 
 
+def test_v1_and_v2_pair_records_both_load_and_pool(tmp_path):
+    """L214 bumped the collector's pair schema to `polymarket_macro_pairs.v2` — v1 PLUS per-leg
+    resolution provenance (`kalshi.title`, `polymarket.question`/`group_item_title`,
+    `resolution_basis`, `bucket_terms`). Every field this probe reads is unchanged in name and
+    semantics, so committed v1 tape and new v2 tape must pool into ONE population; a
+    schema-string gate left at v1 would have silently dropped the new lines into
+    `n_other_schema` and shrunk n without any error."""
+    from scripts.q48_s55_fomc_lag_probe import ACCEPTED_SCHEMA_VERSIONS
+    assert {"polymarket_macro_pairs.v1", "polymarket_macro_pairs.v2"} <= ACCEPTED_SCHEMA_VERSIONS
+
+    tape = tmp_path / "tape"
+    when = datetime(2026, 7, 20, 6, 0, tzinfo=UTC)
+    v1_pass = _pass(when, FLAT_K, FLAT_P)
+    v2_pass = _pass(when + timedelta(hours=12), FLAT_K, FLAT_P)
+    for rec in v2_pass:
+        rec["schema_version"] = "polymarket_macro_pairs.v2"
+        rec["kalshi"]["title"] = "Will the Federal Reserve Hike rates by 25bps at their July 2026 meeting?"
+        rec["kalshi"]["resolution_basis"] = "kalshi_rulebook"
+        rec["polymarket"]["question"] = "Will the Fed increase rates after the July 2026 meeting?"
+        rec["polymarket"]["group_item_title"] = "25 bps increase"
+        rec["polymarket"]["resolution_basis"] = "uma_oracle"
+        rec["bucket_terms"] = {"kalshi_basis": "hike_25bps", "polymarket_basis": "increase_25bps",
+                               "terms_equivalent": True, "note": None}
+    # a foreign schema is still excluded, so the gate widened rather than opened
+    foreign = _record(when, "cut_25", 0.1, 0.9, 0.1, 0.09)
+    foreign["schema_version"] = "polymarket_cpi_pairs.v1"
+    _write(tape, v1_pass + v2_pass + [foreign])
+
+    records, skips = load_family_records(tape)
+    assert len(records) == 10
+    assert skips["n_other_schema"] == 1
+    assert {r["schema_version"] for r in records} == {"polymarket_macro_pairs.v1",
+                                                     "polymarket_macro_pairs.v2"}
+    rep = run_probe(tape, release_ts=RELEASE)
+    assert rep["n_fed_records"] == 10
+    assert rep["n_passes"] == 2
+    # D6: the report must SAY the population it pooled is mixed, counted from the records
+    # actually loaded — a reader cannot otherwise tell v1 from v2 rows in one n.
+    assert rep["n_by_schema_version"] == {"polymarket_macro_pairs.v1": 5,
+                                          "polymarket_macro_pairs.v2": 5}
+    assert sum(rep["n_by_schema_version"].values()) == rep["n_fed_records"]
+    # D6: and the shipped depth string must not name v1 alone — v2 is equally size-blind
+    assert rep["depth_unmeasurable"] is True
+    assert ".v2" in rep["depth_note"] or "AND .v2" in rep["depth_note"]
+    assert "size/depth" in rep["depth_note"]
+
+
 def test_record_without_parseable_timestamp_is_counted(tmp_path):
     tape = tmp_path / "tape"
     tape.mkdir()
