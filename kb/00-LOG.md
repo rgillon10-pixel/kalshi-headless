@@ -6,6 +6,92 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~15:1x UTC — research loop IDLE RUN: L227's PREVENTION half converted UNENFORCED → test (burst-window liveness)
+
+Research-loop firing (protocol v3). **0a PASS** — `git fetch origin main` landed at `a3b4289`
+(the latest hourly-pass tape commit, itself on top of PR #252); `mcp__github__list_pull_requests`
+(state=closed, sorted by updated) confirmed the last 5 merged PRs (#252/#251/#250/#249/#248) all
+show `merged_at` set and match `origin/main`'s own commit chain exactly — no rewind. `kb/00-LOG.md`'s
+newest entry and the newest committed `tape/*/dt=*` files are both dated 2026-07-31. **Claim-check**
+— open PRs #208/#191/#166/#165/#125 unchanged, all Ryan-review-only, none claims queue work.
+
+**0b sweep — concurrent duplicate, harmlessly reconciled at merge.** Newest stranded branch was
+`tape/hourly-20260731T0956Z` (09:56Z + 10:06Z passes, diverged from `6e2dd3b`, older than 30min).
+A full `scripts/tape_branch_sweep.py --limit 220` triage over all 212 stranded heads timed out at
+280s (confirms Q17's standing backlog is too large for one milestone's budget) — so this run diffed
+just the one eligible branch directly and union-appended 2,314 lines, 0 malformed, across 11 family
+day-files for `dt=2026-07-31`, verified pure-append (0 lines removed/reordered). **The concurrently-
+running PR #253 independently swept the SAME branch at essentially the same wall-clock time** — by
+the time this run rebased onto `origin/main`, git reported the tape-sweep commit's patch "already
+upstream" and dropped it cleanly with zero conflict (only this log file's insertion point collided,
+resolved by hand). No data was lost or duplicated on `main`; this is the same concurrent-idle-run
+collision precedent PR #246 already documented for `LOOP-QUEUE.md` rows.
+
+**Queue rescan → IDLE RUN.** Full Q0–Q48 `Status:` line scan (spot-checked Q9/Q11/Q12/Q44/Q45/Q46/Q47
+for the known atypical-ordering exceptions) found 0 eligible TODO/IN-PROGRESS — every item DONE/DEAD/
+BLOCKED/GATED/RESERVED, matching every recent run's independent scan. `stale_unenforced_recall_report()`
+(re-run live, not taken on faith): 5 open UNENFORCED rows (`L145, L213, L221, L222, L227`). L145 needs
+a Ryan invariant-exemption policy call (unchanged). L213's general half is already built (PR #246); its
+remainder is Ryan's own trigger-prompt fix. L221's candidate (`hourly_pass`-level once-per-day dedup
+key) substantially overlaps the open, unmerged, Ryan-review-only PR #165's `daily_leg_due()` design —
+not duplicated, per the last two runs' own precedent. L222's remaining half changes a LIVE collector's
+write path (`capture_source` on every record) — bigger surface than one idle-run milestone, same
+reasoning as L221. **L227** was the only cleanly buildable candidate: its own row named a specific,
+statically-buildable, read-only PREVENTION check that had simply never been built.
+
+**What was built.** `scripts/tape_gap_monitor.py::burst_window_liveness(tape_root, family,
+window_start, window_end, expected_interval_s, gap_multiplier=3.0)` — walks `pass_instants()` inside
+a declared window and flags any interior/lead-in/trail gap exceeding `gap_multiplier x
+expected_interval_s` (default 3x, generous vs the ~1.1-1.8x jitter on healthy real burst tape) as its
+own start/end/duration episode. `burst_trigger_liveness(tape_root, trigger_name)` dispatches it across
+every tape family a named burst trigger drives, keyed by a new `BURST_TRIGGER_WINDOWS` table
+hand-transcribed from LOOP-QUEUE.md's own "Burst-capture legs" table (the DECLARED/promised window —
+no live trigger-API network reach needed for an offline check). Exposed as
+`python3 scripts/tape_gap_monitor.py --burst-liveness TRIGGER_NAME`.
+
+**Reproduces L227's own FOMC finding and finds more.** Over the FULL declared `kalshi-burst-fomc-0729`
+window (17:40–19:45Z), not just the 17:40–18:30Z slice the original hand audit inspected:
+`crypto_hourly`/`econ_prints`/`polymarket_macro_pairs` each show the ~717–720s release-bracketing gap
+L227 named (confirmed: max reported gap 1,162–1,164s per family, all bracketing 18:00:00Z), AND
+further recurring 700–1,200s gaps through the rest of the window — the burst leg was live for roughly
+its first ten minutes only, not a single ~12-minute blip. **Two controls hold, independently
+re-verified live:** `kalshi-burst-cpi-0714` (the L213/L222-established healthy burst) reads `LIVE` on
+all 4 of its families (98–100 passes each, 0 gaps); `kalshi-burst-wcfinal-0719` (L213's own "lost ...
+entirely" case) reads the distinct `NO_PASSES_IN_WINDOW` total-loss verdict for `polymarket_pairs`
+(0 passes), not a false `LIVE`.
+
+**Tests.** 12 new in `tests/test_tape_gap_monitor.py`: 5 synthetic-fixture unit tests (total-loss,
+steady-cadence-is-live, interior-gap-with-bounds, lead-in/trail gaps, gap-multiplier threshold
+control), 1 drift guard pinning every `BURST_TRIGGER_WINDOWS` key against
+`BURST_CAPTURE_KEY_TO_TAPE_FAMILY`, 1 multi-family dispatch test, 3 HARD real-tape acceptance tests
+(FOMC outage, CPI negative control, WC-final total loss).
+
+**Two-agent rule N/A** — lesson-to-test tooling conversion, no registry flip, no bootstrap CI, no kill
+decision; same posture as the L213/L221/L222 precedents this run cites. L227's enforcement cell
+updated in place (lesson TEXT unchanged, L152 own-row-update rule) — row now **CLOSED**, both the
+DIAGNOSIS half (`nearest_release_bracket_gap_s`, closed 2026-07-27) and the PREVENTION half built this
+run are enforced. `stale_unenforced_recall_report()` re-run post-edit: open-UNENFORCED count 5 → 4
+(`L145, L213, L221, L222`).
+
+**Gates (fresh, taken after the diff's last edit — L162).** `python3 scripts/invariants.py --full` →
+exit 0, `invariants: all green` (only the pre-existing non-gating advisory classes, none new).
+`python3 -m pytest -o addopts='' -q` (full suite, background run started after the final code edit) →
+**2,439 passed, 0 failed, exit 0** (2351.74s / 0:39:11) — final count taken on the fully rebased
+tree after this branch was rebased onto `origin/main`'s concurrently-merged PR #253 (the extra 14
+tests vs. this diff's own 12 are PR #253's own `weather_revival_gate_preflight_audit`/Q37-gate
+tests, landed independently, not caused by this change).
+
+**Step 9 (paper).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` only (dead ✗ per Q34).
+`python3 scripts/paper_pass.py` → **0 newly processed** (1,535 loaded; 207 already-in-ledger, 93
+deferred(caps), 272 deferred(coverage)), ledger unchanged **$+24.84** (`broker_truth`, 1,385 settled,
+0 open) — the swept tape's new dt=2026-07-31 lines don't complete an s14-eligible event-hour yet.
+
+No registry flip, no P&L claim, no source-tag movement — still **0 proven edges**. Full detail in this
+entry; no separate `findings/` doc (tooling/lesson-conversion, same posture as the L213/L221/L222/L226
+idle-run precedents, not a data-quality finding warranting its own dossier).
+
+---
+
 ## 2026-07-31 ~12:2x UTC — research loop IDLE RUN: weather-revival gate pre-flight — Q37's summer-day counter was contaminated (19 reported vs 17 real) and its EMOS half cannot run in a cloud checkout
 
 Research-loop firing (protocol v3). Steps **0a/0/most of 0b were done by the orchestrating
