@@ -58,6 +58,19 @@ if ! git pull --rebase -q origin main; then
   exit 1
 fi
 
+# Daily pipe-health check (scripts/tape_gap_monitor.py, Q44): the monitor existed but
+# nothing scheduled it, so gaps (07-09 blackout, settlement_ledger freeze) sat unnoticed
+# until a human ran it. Stamp-file gated at ~22h — deliberately NOT an exact-hour gate
+# (L123/L124: exact-hour gates freeze silently when the cron misses that hour). It posts
+# its own Priority:high ntfy note on a hard alert via NTFY_TOPIC_URL (already exported
+# from /root/.secrets above); never fails the collection run.
+GAPSTAMP=/root/.kalshi-headless-gapmon.stamp
+if [ -z "$(find "$GAPSTAMP" -mmin -1320 2>/dev/null)" ]; then
+  echo "$(ts) daily tape_gap_monitor run"
+  .venv/bin/python scripts/tape_gap_monitor.py 2>&1 | sed -n '1,40p' || true
+  touch "$GAPSTAMP"
+fi
+
 PASS_OUT=$(.venv/bin/python -m collection.hourly_pass 2>&1)
 pass_rc=$?
 echo "$PASS_OUT"
