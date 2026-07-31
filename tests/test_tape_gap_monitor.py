@@ -1643,3 +1643,304 @@ def test_acceptance_10_l213_polymarket_macro_pairs_fomc_slot_frozen_slice():
         len(list(open(_REAL_TAPE / "polymarket_macro_pairs" / f"{d}.jsonl")))
         for d in days
     ) > 0
+
+
+# ─── L222 caller-explicability audit ───────────────────────────────────────────
+#
+# The read-only half of L222: "a tape-quality check asserts each family's realized pass
+# count is explicable by its registered callers". The discriminator is CO-OCCURRENCE with
+# the caller's OTHER (ungated) legs, so the check flags the dt=2026-07-23 econ_prints
+# incident (18 passes, no sibling within 2.3h) while correctly ABSTAINING on the
+# dt=2026-07-14 CPI burst (137 passes, all with real concurrent sibling writes).
+
+def _ep(cid, captured_at, **extra):
+    """One econ_prints-shaped pass row."""
+    return _pass(cid, captured_at, **extra)
+
+
+def test_pass_instants_groups_a_ladder_walk_into_one_pass_at_its_earliest_stamp(tmp_path):
+    # One capture_id stamped across a ladder walk is ONE pass (L210 case (a)), located at
+    # its START — not three passes, and not its last row.
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [
+        _ep("c1", "2026-07-23T09:00:05+00:00"),
+        _ep("c1", "2026-07-23T09:00:01+00:00"),
+        _ep("c1", "2026-07-23T09:00:09+00:00"),
+    ])
+    out = tgm.pass_instants(tmp_path, "econ_prints")
+    assert len(out) == 1
+    assert out[0] == _dt(2026, 7, 23, 9, 0, 1)
+
+
+def test_pass_instants_falls_back_to_captured_at_when_no_capture_id(tmp_path):
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [
+        {"captured_at": "2026-07-23T09:00:01+00:00"},
+        {"captured_at": "2026-07-23T09:30:01+00:00"},
+    ])
+    assert len(tgm.pass_instants(tmp_path, "econ_prints")) == 2
+
+
+def test_pass_instants_skips_malformed_and_undated_rows_never_guesses(tmp_path):
+    fam = tmp_path / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-23.jsonl").write_text(
+        '{"capture_id": "c1", "captured_at": "2026-07-23T09:00:01+00:00"}\n'
+        'not json at all\n'
+        '{"capture_id": "c2"}\n'                                   # no timestamp
+        '{"capture_id": "c3", "captured_at": "not-a-time"}\n'      # unparseable
+        '\n',
+        encoding="utf-8",
+    )
+    assert tgm.pass_instants(tmp_path, "econ_prints") == [_dt(2026, 7, 23, 9, 0, 1)]
+
+
+def test_pass_instants_days_slice_restricts_the_scan(tmp_path):
+    _write_lines(tmp_path, "econ_prints", "2026-07-22", [_ep("a", "2026-07-22T09:00:00+00:00")])
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("b", "2026-07-23T09:00:00+00:00")])
+    assert len(tgm.pass_instants(tmp_path, "econ_prints")) == 2
+    assert tgm.pass_instants(tmp_path, "econ_prints", days=["dt=2026-07-23"]) == [
+        _dt(2026, 7, 23, 9, 0, 0)]
+
+
+def test_nearest_gap_s_is_pure_and_none_on_empty():
+    others = [_dt(2026, 7, 23, 9, 0, 0), _dt(2026, 7, 23, 12, 0, 0)]
+    assert tgm._nearest_gap_s(_dt(2026, 7, 23, 9, 0, 30), others) == 30.0
+    assert tgm._nearest_gap_s(_dt(2026, 7, 23, 8, 59, 0), others) == 60.0   # before the first
+    assert tgm._nearest_gap_s(_dt(2026, 7, 23, 13, 0, 0), others) == 3600.0  # after the last
+    assert tgm._nearest_gap_s(_dt(2026, 7, 23, 9, 0, 0), []) is None
+
+
+def test_caller_explicability_witnessed_pass_is_explicable(tmp_path):
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:00:00+00:00")])
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T08:55:00+00:00")])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["verdict"] == "ALL_EXPLICABLE"
+    assert (out["n_passes"], out["n_explained"], out["n_unexplained"]) == (1, 1, 0)
+    assert out["explained_by_caller"]["hourly_pass"] == 1
+    assert out["unexplained_fraction"] == 0.0
+
+
+def test_caller_explicability_unwitnessed_pass_is_the_l222_shape(tmp_path):
+    # The witness exists, but ~2h away — far outside any real invocation's leg spread.
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:00:00+00:00")])
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T11:00:00+00:00")])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["verdict"] == "UNEXPLAINED_PASSES"
+    assert (out["n_explained"], out["n_unexplained"]) == (0, 1)
+    assert out["unexplained_fraction"] == 1.0
+    assert out["per_day_unexplained"] == {"dt=2026-07-23": 1}
+    assert out["unexplained_examples"] == ["2026-07-23T09:00:00+00:00"]
+    assert out["nearest_witness_gap_s"]["min"] == 7200.0
+
+
+def test_caller_explicability_tolerance_boundary_is_inclusive(tmp_path):
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:15:00+00:00")])
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T09:00:00+00:00")])
+    exact = tgm.caller_explicability(tmp_path, "econ_prints", tolerance_s=900.0)
+    tight = tgm.caller_explicability(tmp_path, "econ_prints", tolerance_s=899.0)
+    assert exact["verdict"] == "ALL_EXPLICABLE"       # 900s gap, tolerance 900 -> explained
+    assert tight["verdict"] == "UNEXPLAINED_PASSES"
+
+
+def test_caller_explicability_unregistered_family_makes_no_claim(tmp_path):
+    _write_lines(tmp_path, "sports_clv", "2026-07-23", [_pass("x1", "2026-07-23T09:00:00+00:00")])
+    out = tgm.caller_explicability(tmp_path, "sports_clv")
+    assert out["verdict"] == "FAMILY_NOT_REGISTERED"
+    assert out["registered_callers"] == []
+    # It counted the passes but refuses to call any of them unexplained.
+    assert out["n_passes"] == 1
+    assert out["n_unexplained"] == 0
+    assert out["unexplained_fraction"] is None
+
+
+def test_caller_explicability_no_passes_is_not_a_clean_bill(tmp_path):
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["verdict"] == "NO_PASSES"
+    assert out["n_passes"] == 0
+    assert out["unexplained_fraction"] is None
+
+
+def test_caller_explicability_absent_witness_tape_is_reported_not_read_as_unexplained(tmp_path):
+    # The family fired, but NOT ONE witness family has committed tape in scope. Calling
+    # these "unexplained" would be measuring the absence of witness tape, not a defect.
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [
+        _ep("e1", "2026-07-23T09:00:00+00:00"),
+        _ep("e2", "2026-07-23T09:30:00+00:00"),
+    ])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["verdict"] == "NO_WITNESS_TAPE"
+    assert out["n_witness_passes"] == 0
+    assert out["n_unexplained"] == 0
+    assert out["unexplained_fraction"] is None
+
+
+def test_caller_explicability_a_gated_leg_never_witnesses_another_gated_leg(tmp_path):
+    # `anomalies` and `econ_prints` are BOTH hour-09-gated legs of hourly_pass. They fire
+    # together, so co-occurrence between them is uninformative — a caller that skips the
+    # ungated legs skips them for both. Neither may explain the other.
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:00:00+00:00")])
+    _write_lines(tmp_path, "anomalies", "2026-07-23", [_pass("a1", "2026-07-23T09:00:10+00:00")])
+    # An UNGATED leg exists but fires 2h away, so nothing legitimately explains e1. If the
+    # 10s-away `anomalies` row were allowed to witness, this would flip to ALL_EXPLICABLE.
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T11:00:00+00:00")])
+    assert "anomalies" not in tgm.HOURLY_PASS_CO_WRITTEN_FAMILIES
+    assert "anomalies" in tgm.REGISTERED_CALLER_FAMILIES["hourly_pass"]
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["verdict"] == "UNEXPLAINED_PASSES"
+    assert out["n_unexplained"] == 1
+    assert "anomalies" not in out["witness_families"]["hourly_pass"]
+    assert out["nearest_witness_gap_s"]["min"] == 7200.0   # sports_pairs, not anomalies@10s
+
+
+def test_caller_explicability_gated_pair_with_no_ungated_tape_abstains(tmp_path):
+    # Same fixture MINUS the ungated leg: with no admissible witness at all the honest
+    # answer is NO_WITNESS_TAPE, not "1 unexplained".
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:00:00+00:00")])
+    _write_lines(tmp_path, "anomalies", "2026-07-23", [_pass("a1", "2026-07-23T09:00:10+00:00")])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["verdict"] == "NO_WITNESS_TAPE"
+    assert out["n_unexplained"] == 0
+
+
+def test_caller_explicability_never_witnesses_itself(tmp_path):
+    # crypto_hourly is in BOTH caller rosters; auditing it must not let its own rows
+    # explain its own passes.
+    _write_lines(tmp_path, "crypto_hourly", "2026-07-23", [_pass("c1", "2026-07-23T09:00:00+00:00")])
+    out = tgm.caller_explicability(tmp_path, "crypto_hourly")
+    for fams in out["witness_families"].values():
+        assert "crypto_hourly" not in fams
+    assert out["verdict"] == "NO_WITNESS_TAPE"
+
+
+def test_caller_explicability_concurrent_invocations_proven_below_the_rate_limit_floor(tmp_path):
+    # Two pass starts 0.153s apart cannot be one sequential caller (v3_market's ~1.8s floor).
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [
+        _ep("e1", "2026-07-23T09:00:00.000000+00:00"),
+        _ep("e2", "2026-07-23T09:00:00.153000+00:00"),
+    ])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["min_consecutive_pass_gap_s"] == 0.153
+    assert out["concurrent_invocations_proven"] is True
+    assert out["rate_limit_floor_s"] == tgm.PASS_RATE_LIMIT_FLOOR_S
+
+
+def test_caller_explicability_sequential_passes_do_not_prove_concurrency(tmp_path):
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [
+        _ep("e1", "2026-07-23T09:00:00+00:00"),
+        _ep("e2", "2026-07-23T09:00:11+00:00"),
+    ])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["min_consecutive_pass_gap_s"] == 11.0
+    assert out["concurrent_invocations_proven"] is False
+
+
+def test_caller_explicability_reports_passes_near_the_slice_edge(tmp_path):
+    # A pass 60s after midnight may look unexplained only because its witness sits in the
+    # PREVIOUS day-file, outside the frozen slice. Reported, never silently dropped.
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [
+        _ep("e1", "2026-07-23T00:01:00+00:00"),
+        _ep("e2", "2026-07-23T12:00:00+00:00"),
+    ])
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T12:00:30+00:00")])
+    out = tgm.caller_explicability(tmp_path, "econ_prints", days=["dt=2026-07-23"])
+    assert out["n_passes_near_slice_edge"] == 1
+    assert out["n_unexplained"] == 1
+
+
+def test_caller_explicability_slice_edge_is_none_when_every_day_is_scanned(tmp_path):
+    # days=None scans everything, so no witness can be out of scope: the caveat field is
+    # None, not a bare 0 that reads like a measured "no edge cases".
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T00:01:00+00:00")])
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T11:00:00+00:00")])
+    assert tgm.caller_explicability(tmp_path, "econ_prints")["n_passes_near_slice_edge"] is None
+    pinned = tgm.caller_explicability(tmp_path, "econ_prints", days=["dt=2026-07-23"])
+    assert pinned["n_passes_near_slice_edge"] == 1
+
+
+def test_caller_explicability_explained_by_caller_values_overlap_and_do_not_sum(tmp_path):
+    # crypto_hourly witnesses BOTH callers, so one pass is counted under each. A consumer
+    # that sums these would double-count; the docstring says so and this pins it.
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:00:00+00:00")])
+    _write_lines(tmp_path, "crypto_hourly", "2026-07-23", [_pass("c1", "2026-07-23T09:00:30+00:00")])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["n_passes"] == 1 and out["n_explained"] == 1
+    assert out["explained_by_caller"] == {"burst_capture": 1, "hourly_pass": 1}
+    assert sum(out["explained_by_caller"].values()) == 2 > out["n_explained"]
+
+
+def test_caller_explicability_coverage_note_states_the_proxy_limit(tmp_path):
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:00:00+00:00")])
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T09:00:10+00:00")])
+    out = tgm.caller_explicability(tmp_path, "econ_prints")
+    assert out["verdict"] == "ALL_EXPLICABLE"
+    note = out["coverage_note"].lower()
+    assert "proxy" in note and "never proof" in note and "capture_source" in note
+
+
+def test_caller_explicability_cli_prints_json(tmp_path, capsys):
+    _write_lines(tmp_path, "econ_prints", "2026-07-23", [_ep("e1", "2026-07-23T09:00:00+00:00")])
+    _write_lines(tmp_path, "sports_pairs", "2026-07-23", [_pass("s1", "2026-07-23T11:00:00+00:00")])
+    rc = tgm.main(["--tape-root", str(tmp_path), "--caller-explicability", "econ_prints",
+                   "--explicability-days", "dt=2026-07-23", "--no-notify"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["family"] == "econ_prints"
+    assert out["verdict"] == "UNEXPLAINED_PASSES"
+    assert out["days_scanned"] == ["dt=2026-07-23"]
+
+
+@_real
+def test_acceptance_11_l222_econ_prints_0723_is_wholly_inexplicable():
+    """HARD real-tape acceptance, FROZEN to dt=2026-07-23 (L191).
+
+    Reproduces `findings/2026-07-29-econ-prints-tape-audit.md` D1 exactly: 18 distinct
+    econ_prints passes land that day and NOT ONE has a sibling leg of any registered
+    caller anywhere near it — the nearest witness is >2 hours away, versus the ~60-540s
+    spread a real hourly_pass invocation shows. This is the incident that had to be
+    hand-derived to be seen; it is now machine-reported."""
+    out = tgm.caller_explicability(_REAL_TAPE, "econ_prints", days=["dt=2026-07-23"])
+    assert out["verdict"] == "UNEXPLAINED_PASSES"
+    assert out["n_passes"] == 18
+    assert out["n_unexplained"] == 18
+    assert out["unexplained_fraction"] == 1.0
+    assert out["explained_by_caller"] == {"burst_capture": 0, "hourly_pass": 0}
+    # Not an absence-of-witness artifact: witnesses DID capture that day, just hours away.
+    assert out["n_witness_passes"] > 0
+    assert out["nearest_witness_gap_s"]["min"] > 7200.0
+    # Not a slice-edge artifact either.
+    assert out["n_passes_near_slice_edge"] == 0
+
+
+@_real
+def test_acceptance_12_l222_econ_prints_0714_cpi_burst_is_fully_explicable():
+    """HARD real-tape acceptance, FROZEN to dt=2026-07-14 (L191) — the ABSTENTION case.
+
+    137 econ_prints passes in one day is the loudest anomaly in the whole family, and a
+    firing-window rule would flag every one of them. But `burst_capture` co-wrote
+    crypto_hourly and polymarket_macro_pairs throughout the CPI burst, so all 137 are
+    explicable and this check reports ZERO. A detector that cannot abstain here would be
+    useless. Also pins L222's OTHER measured fact: consecutive pass starts 0.153s apart,
+    far below v3_market's ~1.8s rate-limit floor, proving concurrent invocations."""
+    out = tgm.caller_explicability(_REAL_TAPE, "econ_prints", days=["dt=2026-07-14"])
+    assert out["verdict"] == "ALL_EXPLICABLE"
+    assert out["n_passes"] == 137
+    assert out["n_unexplained"] == 0
+    assert out["explained_by_caller"]["burst_capture"] == 137
+    assert out["min_consecutive_pass_gap_s"] == 0.153
+    assert out["concurrent_invocations_proven"] is True
+
+
+@_real
+def test_acceptance_13_l222_an_ungated_leg_is_clean_on_the_same_tape():
+    """HARD real-tape acceptance, FROZEN to dt=2026-07-20 (L191) — the NEGATIVE control.
+
+    The check must not simply flag everything. `sports_pairs` is an UNGATED leg of the same
+    invocations, on a day econ_prints shows 14/23 unexplained: all 8 of its passes are
+    explicable, with the nearest witness ~57s away (the real intra-invocation leg spread)."""
+    clean = tgm.caller_explicability(_REAL_TAPE, "sports_pairs", days=["dt=2026-07-20"])
+    assert clean["verdict"] == "ALL_EXPLICABLE"
+    assert clean["n_passes"] == 8
+    assert clean["n_unexplained"] == 0
+    assert clean["nearest_witness_gap_s"]["max"] < tgm.CO_OCCURRENCE_TOLERANCE_S
+    dirty = tgm.caller_explicability(_REAL_TAPE, "econ_prints", days=["dt=2026-07-20"])
+    assert dirty["n_passes"] == 23
+    assert dirty["n_unexplained"] == 14

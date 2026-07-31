@@ -204,6 +204,7 @@ import os
 import re
 import statistics
 import sys
+from bisect import bisect_left
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
@@ -1326,6 +1327,324 @@ def duplicate_capture_id_collisions(tape_root: Path,
     }
 
 
+# ─── Caller-explicability audit (L222: non-gating, offline-safe, on-demand) ─────
+#
+# L222: "A tape family whose observed firing pattern contradicts its only in-repo caller
+# cannot be root-caused without invocation provenance on the record itself." On
+# `tape/econ_prints/dt=2026-07-23.jsonl`, 18 distinct passes land in hour 09 while
+# `sports_pairs`/`crypto_hourly`/`orderbook_depth` — legs of the SAME `hourly_pass.run()`
+# invocation `econ_prints` is a leg of — recorded ZERO captures in hours 09 or 10 that day.
+# Roughly 65% of that family's passes had no identifiable caller.
+#
+# That row names TWO candidates. Only the SECOND is buildable from a research run:
+#
+#   (1) every collector record carries a `capture_source` (module path + entrypoint)
+#       alongside `capture_id` — a change to a LIVE collector's WRITE PATH, out of scope
+#       here, and the only thing that can ever PROVE provenance. Stays UNENFORCED.
+#   (2) "a tape-quality check asserts each family's realized pass count is explicable by
+#       its registered callers' known firing windows" — READ-ONLY over committed tape.
+#       That is what this section is.
+#
+# The machine-checkable discriminator is CO-OCCURRENCE, not a declared schedule. Every
+# registered caller drives SEVERAL families in one invocation, so a genuine pass leaves a
+# signature: sibling families written at nearly the same wall-clock instant. A pass with no
+# sibling capture anywhere near it was produced by something this repo does not know about.
+# Co-occurrence beats hard-coded firing windows because it needs no schedule table to stay
+# in sync with `hourly_pass`'s cron, and because it correctly ABSTAINS on the case that
+# matters: the 2026-07-14 CPI burst fired `econ_prints` 137 times in a day, which a
+# window-based rule would flag as 137 violations — but `burst_capture` co-wrote
+# `crypto_hourly` and `polymarket_macro_pairs` throughout, so every one of those passes is
+# explicable and this check reports 0 unexplained. On dt=2026-07-23 the same check reports
+# 18/18 unexplained, reproducing L222's own finding.
+#
+# HONEST COVERAGE LIMIT, stated in the report itself: co-occurrence is a PROXY for
+# provenance, never proof. `n_unexplained == 0` means "some registered caller's signature is
+# present", NOT "the registered caller wrote it" — a rogue invocation that happens to run
+# concurrently with a scheduled pass is indistinguishable here. Only candidate (1),
+# `capture_source` on the record, closes that gap. This check therefore RAISES the floor
+# (it can prove a pass is INEXPLICABLE) without ever certifying a pass as legitimate.
+#
+# Non-gating and NOT wired into `invariants.py --full`, for the same two reasons as L213's
+# slot-cadence tool plus one of its own: (a) these are HISTORICAL properties of already
+# committed append-only tape, which no run can retroactively repair, so gating would halt
+# the loop over a fact (the L210 posture); (b) there is no standing "family of the day" to
+# re-check every routine run; and (c) an all-family scan re-reads every sibling family's
+# full tape, which is the runtime budget of the whole gate. On-demand tool, same posture as
+# the audit that produced this row.
+
+# Families written by ONE `collection.hourly_pass.run()` invocation with NO hour gate — the
+# legs whose presence is the invocation's wall-clock signature. Hour-gated legs
+# (`anomalies`/`econ_prints`/`polymarket_cpi_pairs` at 09, `settlement_ledger` at 10,
+# forecast at 11, `weather_actuals` at 12, `universe_sweep` at {0,6,12,18}) are deliberately
+# EXCLUDED from the signature: they are the families one AUDITS, and a gated leg cannot
+# witness another gated leg (both would be absent for the same reason).
+HOURLY_PASS_CO_WRITTEN_FAMILIES: Tuple[str, ...] = (
+    "sports_pairs",
+    "crypto_hourly",
+    "orderbook_depth",
+    "polymarket_pairs",
+    "polymarket_macro_pairs",
+    "perp_tape",
+    "weather_books",
+    "hyperliquid_funding",
+)
+
+# Families `collection.burst_capture` drives concurrently in one round (L227: all three show
+# the same ~90s cadence and the same 717-720s outage across the 2026-07-29 FOMC release, which
+# is what established they share one process).
+BURST_CAPTURE_CO_WRITTEN_FAMILIES: Tuple[str, ...] = (
+    "polymarket_macro_pairs",
+    "crypto_hourly",
+    "econ_prints",
+)
+
+REGISTERED_CALLER_FAMILIES: Dict[str, Tuple[str, ...]] = {
+    "hourly_pass": HOURLY_PASS_CO_WRITTEN_FAMILIES + (
+        # gated legs of the same invocation: registered as WRITTEN BY hourly_pass, but never
+        # used as a witness for another family (see `_witness_families`).
+        "anomalies", "econ_prints", "polymarket_cpi_pairs", "settlement_ledger",
+        "weather_actuals", "universe_sweep",
+    ),
+    "burst_capture": BURST_CAPTURE_CO_WRITTEN_FAMILIES,
+}
+
+# Only these may serve as a co-occurrence WITNESS. A gated leg is never a witness.
+_WITNESS_FAMILIES: Dict[str, Tuple[str, ...]] = {
+    "hourly_pass": HOURLY_PASS_CO_WRITTEN_FAMILIES,
+    "burst_capture": BURST_CAPTURE_CO_WRITTEN_FAMILIES,
+}
+
+# Widest observed spread between the FIRST and LAST leg of one real `hourly_pass` invocation
+# on healthy committed tape: sports_pairs -> weather_books runs ~380-542s (dt=2026-07-20,
+# eight invocations). 900s is that worst case with ~1.7x headroom — deliberately generous,
+# because a FALSE "unexplained" is the expensive error here (it would manufacture a
+# provenance incident), while a missed one only leaves the status quo.
+CO_OCCURRENCE_TOLERANCE_S = 900.0
+
+# `validation/v3_market.py`'s per-pass rate-limit floor. Two pass starts closer together than
+# this cannot be the same sequential caller, so they PROVE concurrent invocations (L222
+# observed 0.153s on dt=2026-07-14).
+PASS_RATE_LIMIT_FLOOR_S = 1.8
+
+
+def _file_pass_instants(path: Path) -> Dict[str, datetime]:
+    """Earliest `captured_at` per distinct pass key in one day-file. Streaming regex scan
+    (the L210 fast path) — these files run to 10^6 lines and only two scalars are needed.
+    Malformed/absent timestamps are skipped, never guessed. Best-effort: an unreadable file
+    yields {}."""
+    out: Dict[str, datetime] = {}
+    try:
+        fh = open(path, "r", encoding="utf-8")
+    except OSError:
+        return out
+    with fh:
+        for line in fh:
+            m_ca = _CAPTURED_AT_RE.search(line)
+            if not m_ca:
+                continue
+            ts = _parse_iso(m_ca.group(1))
+            if ts is None:
+                continue
+            m_cid = _CAPTURE_ID_RE.search(line)
+            key = m_cid.group(1) if (m_cid and m_cid.group(1)) else m_ca.group(1)
+            prev = out.get(key)
+            if prev is None or ts < prev:
+                out[key] = ts
+    return out
+
+
+def pass_instants(tape_root: Path,
+                  family: str,
+                  days: Optional[Sequence[str]] = None,
+                  ) -> List[datetime]:
+    """Sorted start instants of every distinct pass a family committed (L222).
+
+    One "pass" is one `capture_id`; its instant is the EARLIEST `captured_at` stamped under
+    that id, so a ladder-walking pass (L210 case (a)) counts once, at its start. Rows with no
+    `capture_id` fall back to their own `captured_at` as the key.
+
+    ``days`` restricts the scan to explicit ``dt=YYYY-MM-DD`` stems (FROZEN-slice discipline,
+    L191); ``None`` scans every committed day-file. A family with no files returns ``[]``.
+    """
+    wanted = set(days) if days is not None else None
+    merged: Dict[str, datetime] = {}
+    for _d, path in _family_files(tape_root, family):
+        if wanted is not None and path.stem not in wanted:
+            continue
+        for key, ts in _file_pass_instants(path).items():
+            prev = merged.get(key)
+            if prev is None or ts < prev:
+                merged[key] = ts
+    return sorted(merged.values())
+
+
+def _nearest_gap_s(target: datetime, sorted_others: List[datetime]) -> Optional[float]:
+    """Seconds from `target` to the nearest instant in a SORTED list; None when empty. Pure."""
+    if not sorted_others:
+        return None
+    i = bisect_left(sorted_others, target)
+    best: Optional[float] = None
+    for j in (i - 1, i):
+        if 0 <= j < len(sorted_others):
+            d = abs((sorted_others[j] - target).total_seconds())
+            if best is None or d < best:
+                best = d
+    return best
+
+
+def caller_explicability(tape_root: Path,
+                         family: str,
+                         days: Optional[Sequence[str]] = None,
+                         tolerance_s: float = CO_OCCURRENCE_TOLERANCE_S,
+                         max_examples: int = 20,
+                         ) -> Dict[str, Any]:
+    """Is each of a family's realized passes explicable by a REGISTERED caller? (L222)
+
+    For every distinct pass of ``family``, ask whether any registered caller of that family
+    co-wrote one of its OTHER (ungated) legs within ``tolerance_s`` — the wall-clock signature
+    a real invocation leaves. A pass with no such witness anywhere near it was produced by
+    something this repo does not know about, which is exactly the condition L222 could only
+    establish by hand.
+
+    Returns ``verdict``:
+      * ``FAMILY_NOT_REGISTERED`` — no known caller writes this family; no explicability claim
+        is made (an unregistered family is a gap in `REGISTERED_CALLER_FAMILIES`, not evidence).
+      * ``NO_PASSES`` — the family committed nothing in scope.
+      * ``NO_WITNESS_TAPE`` — registered, but not one witness family has a committed pass in
+        scope, so "unexplained" would only be measuring the absence of witness tape.
+      * ``ALL_EXPLICABLE`` / ``UNEXPLAINED_PASSES`` — a real reading.
+
+    ``n_unexplained == 0`` is NOT proof of correct provenance: co-occurrence is a proxy, and a
+    rogue invocation running concurrently with a scheduled pass is indistinguishable here. Only
+    L222's other candidate — `capture_source` on the record — can close that. This function can
+    prove a pass INEXPLICABLE; it can never certify one as legitimate. That limit is restated
+    in the returned ``coverage_note`` so it travels with any quoted number.
+
+    ``explained_by_caller`` counts per caller and its values OVERLAP — `crypto_hourly` and
+    `polymarket_macro_pairs` are witnesses for BOTH registered callers, so one pass can be
+    explained by both. The values do NOT sum to ``n_explained``; never add them.
+
+    Also reports ``min_consecutive_pass_gap_s`` and ``concurrent_invocations_proven``: two pass
+    starts closer than ``PASS_RATE_LIMIT_FLOOR_S`` cannot come from one sequential caller.
+
+    Read-only, offline, non-gating.
+    """
+    callers = sorted(c for c, fams in REGISTERED_CALLER_FAMILIES.items() if family in fams)
+    targets = pass_instants(tape_root, family, days=days)
+    base: Dict[str, Any] = {
+        "family": family,
+        "registered_callers": callers,
+        "days_scanned": sorted(days) if days is not None else None,
+        "tolerance_s": tolerance_s,
+        "n_passes": len(targets),
+        "n_explained": 0,
+        "n_unexplained": 0,
+        "unexplained_fraction": None,
+        "explained_by_caller": {},
+        "witness_families": {},
+        "n_witness_passes": 0,
+        "nearest_witness_gap_s": {},
+        "unexplained_examples": [],
+        "per_day_unexplained": {},
+        "n_passes_near_slice_edge": 0,
+        "min_consecutive_pass_gap_s": None,
+        "concurrent_invocations_proven": False,
+        "rate_limit_floor_s": PASS_RATE_LIMIT_FLOOR_S,
+        "verdict": "FAMILY_NOT_REGISTERED",
+        "coverage_note": (
+            "Co-occurrence with a registered caller's sibling legs is a PROXY for provenance, "
+            "never proof: n_unexplained==0 means a caller's signature is PRESENT, not that the "
+            "caller wrote the pass. Only L222's other candidate (a `capture_source` field on "
+            "each record) can certify provenance. This check can prove a pass inexplicable; it "
+            "cannot certify one as legitimate."
+        ),
+    }
+
+    gaps = [round((targets[i + 1] - targets[i]).total_seconds(), 3)
+            for i in range(len(targets) - 1)]
+    if gaps:
+        base["min_consecutive_pass_gap_s"] = min(gaps)
+        base["concurrent_invocations_proven"] = min(gaps) < PASS_RATE_LIMIT_FLOOR_S
+
+    if not callers:
+        return base
+    if not targets:
+        base["verdict"] = "NO_PASSES"
+        return base
+
+    witness: Dict[str, List[datetime]] = {}
+    per_caller: Dict[str, List[datetime]] = {}
+    for caller in callers:
+        fams = [f for f in _WITNESS_FAMILIES.get(caller, ()) if f != family]
+        base["witness_families"][caller] = fams
+        merged: List[datetime] = []
+        for fam in fams:
+            if fam not in witness:
+                witness[fam] = pass_instants(tape_root, fam, days=days)
+            merged.extend(witness[fam])
+        per_caller[caller] = sorted(merged)
+
+    base["n_witness_passes"] = sum(len(v) for v in witness.values())
+    if base["n_witness_passes"] == 0:
+        base["verdict"] = "NO_WITNESS_TAPE"
+        return base
+
+    explained_by = {c: 0 for c in callers}
+    nearest_all: List[float] = []
+    unexplained: List[datetime] = []
+    for t in targets:
+        hit = False
+        best: Optional[float] = None
+        for caller in callers:
+            g = _nearest_gap_s(t, per_caller[caller])
+            if g is None:
+                continue
+            if best is None or g < best:
+                best = g
+            if g <= tolerance_s:
+                explained_by[caller] += 1
+                hit = True
+        if best is not None:
+            nearest_all.append(round(best, 3))
+        if not hit:
+            unexplained.append(t)
+
+    per_day: Dict[str, int] = {}
+    for t in unexplained:
+        stem = "dt=" + t.astimezone(timezone.utc).date().isoformat()
+        per_day[stem] = per_day.get(stem, 0) + 1
+
+    # A pass within `tolerance_s` of the edge of a PINNED slice may look unexplained only
+    # because its witness lies in an adjacent day-file that was not scanned. Reported, never
+    # silently dropped. With `days=None` every committed day is scanned, so no witness can be
+    # out of scope and the field is None (there is nothing to caveat) rather than a bare 0.
+    scanned_days = sorted({t.astimezone(timezone.utc).date() for t in targets})
+    edge: Optional[int] = None if days is None else 0
+    if days is not None and scanned_days:
+        lo = datetime.combine(scanned_days[0], time(0, 0), tzinfo=timezone.utc)
+        hi = datetime.combine(scanned_days[-1], time(0, 0), tzinfo=timezone.utc) + timedelta(days=1)
+        edge = sum(1 for t in targets
+                   if (t - lo).total_seconds() <= tolerance_s
+                   or (hi - t).total_seconds() <= tolerance_s)
+
+    base.update({
+        "n_explained": len(targets) - len(unexplained),
+        "n_unexplained": len(unexplained),
+        "unexplained_fraction": round(len(unexplained) / len(targets), 6),
+        "explained_by_caller": explained_by,
+        "nearest_witness_gap_s": {
+            "min": min(nearest_all) if nearest_all else None,
+            "median": sorted(nearest_all)[len(nearest_all) // 2] if nearest_all else None,
+            "max": max(nearest_all) if nearest_all else None,
+        },
+        "unexplained_examples": [t.isoformat() for t in unexplained[:max_examples]],
+        "per_day_unexplained": per_day,
+        "n_passes_near_slice_edge": edge,
+        "verdict": "UNEXPLAINED_PASSES" if unexplained else "ALL_EXPLICABLE",
+    })
+    return base
+
+
 def _scan_file_max_captured_at(path: Path, now: datetime) -> Optional[datetime]:
     """Newest captured_at <= now in one file (streaming, O(1) extra memory)."""
     newest: Optional[datetime] = None
@@ -1789,6 +2108,19 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="comma-separated dt= day stems to restrict --slot-cadence to "
                          "(e.g. dt=2026-07-18,dt=2026-07-19). Pins a FROZEN slice, per L191. "
                          "Default: every committed day-file the family has.")
+    ap.add_argument("--caller-explicability", default=None, metavar="FAMILY",
+                    help="print ONLY the L222 caller-explicability audit for FAMILY "
+                         "(read-only, no notify) and exit. Answers 'is each realized pass "
+                         "explicable by a registered caller', via co-occurrence with that "
+                         "caller's other legs — the question a family with no `capture_source` "
+                         "field on its records cannot answer about itself.")
+    ap.add_argument("--explicability-days", default=None,
+                    help="comma-separated dt= day stems to restrict --caller-explicability to "
+                         "(e.g. dt=2026-07-23). Pins a FROZEN slice, per L191. Default: every "
+                         "committed day-file the family has.")
+    ap.add_argument("--explicability-tolerance-s", type=float, default=CO_OCCURRENCE_TOLERANCE_S,
+                    help=f"co-occurrence window in seconds (default {CO_OCCURRENCE_TOLERANCE_S}, "
+                         "the widest observed real hourly_pass leg spread plus headroom).")
     args = ap.parse_args(argv)
 
     if args.window_grid:
@@ -1807,6 +2139,14 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if args.slot_cadence_days else None)
         out = slot_cadence_by_time_of_day(Path(args.tape_root), args.slot_cadence,
                                           args.slot_window[0], args.slot_window[1], days=days)
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+
+    if args.caller_explicability:
+        days = ([d.strip() for d in args.explicability_days.split(",") if d.strip()]
+                if args.explicability_days else None)
+        out = caller_explicability(Path(args.tape_root), args.caller_explicability,
+                                   days=days, tolerance_s=args.explicability_tolerance_s)
         print(json.dumps(out, indent=2, sort_keys=True))
         return 0
 
