@@ -85,6 +85,150 @@ RUN DIGEST
 - Next: no gate opens within 72h; pipeline stays data-constrained (VPS dead 9d); Q47 `ws_depth` (Ryan-gated) is the one unblock. `kalshi-burst-fomc-0729` named for deletion.
 - Repo: 874f7c5 → edge-hunter/20260731-review-q21 (PR #<n>, merged)
 
+---
+
+## 2026-07-31 ~03:2x UTC — research loop IDLE RUN: L222's caller-explicability half converted UNENFORCED → test
+
+Second research-loop firing of 2026-07-31 (protocol v3). Steps 0/0a were done by the orchestrating
+session and handed over: no open PR claims a queue item (#243-#247 all merged; #208 is a Ryan-only
+retro doc), and `kb/00-LOG.md`'s newest entry (~00:2x UTC) sits within 2 days of the newest committed
+tape day — no rewind.
+
+**Step 0b (targeted, two branches).** Scoped as directed rather than diffing all ~180 stranded heads.
+The correct test is LINE-LEVEL content presence on `main`, not commit ancestry — neither branch is an
+ancestor of `main`, yet one of them is 100% redundant, which `git merge-base` alone would have gotten
+backwards. (a) **`tape/hourly-20260731T0103Z`** (commit 01:02:44Z, ~2h old, clears the 30-min skip
+rule): 3 files, 409 lines, **409 missing from `main`** — `main` had no `dt=2026-07-31` files at all.
+Swept. Schemas verified key-for-key identical to the `dt=2026-07-30` files already on `main`, 0
+malformed, `sports_pairs` 386/386 `price_source_tag=real_ask`. (b) **`tape/hourly-20260730T2205Z`**:
+7 files, 8,309 lines, **0 missing / 8,309 already on `main`** — PR #247's swept-and-merged claim
+CONFIRMED at line level, so the branch is genuinely redundant and safe to delete (deletion NOT done
+here; reported to the orchestrator, per "only delete what you've confirmed").
+
+**Full Q0–Q48 rescan** of every `### Q` header's current `Status:` line: all DONE/DEAD/BLOCKED /
+calendar-gated (Q37 opens ~08-05; Q19's remaining per-event legs and Q48/S55 both burst-gated, next
+FOMC/CPI far outside this window) / density-gated (Q36, Q42/Q43) / credential-BLOCKED
+(Q32/Q33/Q35-build/Q47) / Q21 standing-but-round-complete. **0 eligible TODO/IN-PROGRESS → IDLE RUN,
+policy (a).**
+
+**Row selection.** `scripts/invariants.py::stale_unenforced_recall_report()` (the repo's own parser,
+not prose recall): 241 rows parsed, 34 `**UNENFORCED**`, 29 formally disposed, **5 open** —
+`L145, L213, L221, L222, L227`. Prior runs screened out L145 (a live CLAUDE.md policy call: whether
+read-only signed market-data auth may live in `collection/`, Ryan's to make), L213's remaining half
+(a Ryan-account trigger-prompt change), and L227's prevention half (not statically assertable ahead of
+a future outage). That leaves L221 and L222, both previously deferred as "changes a LIVE collector's
+write path". **The deferral was right about L221 and only HALF right about L222** — that row names two
+candidates, and its SECOND ("a tape-quality check asserts each family's realized pass count is
+explicable by its registered callers") is purely READ-ONLY over committed tape. Confirmed unbuilt
+before scoping, per L152 (`grep -rn "capture_source|explicable|registered_caller|co_occur" scripts/
+tests/ collection/ core/` → 0 hits).
+
+**What was built.** `scripts/tape_gap_monitor.py` gains `pass_instants()` and
+`caller_explicability()`, plus `--caller-explicability FAMILY [--explicability-days ...]
+[--explicability-tolerance-s N]`. A "pass" is one `capture_id` located at its EARLIEST `captured_at`,
+so an L210-case-(a) ladder walk counts once, at its start. The discriminator is **co-occurrence**, not
+a hard-coded firing-window table: every registered caller drives several families per invocation, so a
+genuine pass leaves a wall-clock signature in its siblings. Two design choices are load-bearing and
+were measured, not guessed:
+
+- **Tolerance 900s** — derived from real tape, not assumed. On `dt=2026-07-20` a healthy
+  `hourly_pass` invocation spreads `sports_pairs → crypto_hourly → orderbook_depth →
+  polymarket_macro_pairs → perp_tape → weather_books` over 57s → 542s, eight times over. 900s is that
+  worst case with ~1.7x headroom, chosen deliberately in the conservative direction: a FALSE
+  "unexplained" would manufacture a provenance incident, a missed one only leaves the status quo.
+- **A gated leg may never witness another gated leg.** `anomalies` and `econ_prints` are both hour-09
+  legs, so a caller that skips the ungated legs skips both — crediting their mutual co-occurrence
+  would let the defect explain itself.
+
+**It reproduces L222's own finding and, more importantly, ABSTAINS where a naive rule would not.**
+`dt=2026-07-23`: 18 econ_prints passes, **18/18 unexplained**, nearest witness 8,242–9,595s away
+(2.3–2.7h) — the incident that previously had to be hand-derived is now one command. `dt=2026-07-14`:
+137 econ_prints passes, the loudest anomaly in the family and something a firing-window rule would
+flag 137 times — but `burst_capture` genuinely co-wrote `crypto_hourly` and `polymarket_macro_pairs`
+throughout the CPI burst, so the check reports **0 unexplained**. That same slice pins L222's other
+measured fact: `min_consecutive_pass_gap_s = 0.153` against `validation/v3_market.py`'s ~1.8s per-pass
+floor ⇒ `concurrent_invocations_proven = True`. Negative control: `sports_pairs` is 8/8 explicable on
+a day `econ_prints` is 14/23 unexplained.
+
+**Full-tape census (descriptive, no verdict, all 14 registered families):** the two hour-09 GATED legs
+are the outliers — `econ_prints` **57/369 (15.4%)** and `anomalies` **53/243 (21.8%)** unexplained —
+against `sports_pairs` 1/638, `crypto_hourly` 1/766, `polymarket_macro_pairs` 1/644,
+`polymarket_cpi_pairs` 1/127, `polymarket_pairs` 14/424, and `ALL_EXPLICABLE` for
+`orderbook_depth`/`perp_tape`/`weather_books`/`universe_sweep`/`settlement_ledger`/`weather_actuals`/
+`hyperliquid_funding`. **This 15.4% is not a contradiction of L222's own "roughly 65%"** — it is a
+strictly stronger LOWER bound on inexplicability, because co-occurrence credits the burst passes a
+by-hand caller census could not identify. **New fact beyond L222's scope:** `anomalies` carries the
+same defect at a HIGHER rate than the family the row was written about, and both gated legs are 18/18
+unexplained on the SAME day — consistent with an unknown caller firing the hour-09 gated legs WITHOUT
+the ungated ones, a sharper hypothesis than L222 could state.
+
+**Adversarial self-review caught two real defects before recording** (no `verifier` agent was
+dispatchable — see the process note): (1) `explained_by_caller`'s values OVERLAP, because
+`crypto_hourly` and `polymarket_macro_pairs` witness BOTH registered callers, so a consumer summing
+them would double-count — now stated in the docstring and pinned by a test asserting the sum EXCEEDS
+`n_explained`; (2) `n_passes_near_slice_edge` returned a bare `0` when `days=None`, which reads like a
+measured "no edge cases" but is vacuous (with every day scanned, no witness can be out of scope) —
+now `None` in that case, pinned by its own test. One test I wrote first was also simply WRONG about
+the code (expected `UNEXPLAINED_PASSES` where `NO_WITNESS_TAPE` is the more honest verdict); the code
+was right, the test was fixed and then split into two so both behaviours are pinned.
+
+**24 new tests** in `tests/test_tape_gap_monitor.py` (101 → 125 in the file), including three HARD
+real-tape acceptance tests over FROZEN committed slices per L191 (`::test_acceptance_11_...0723...`,
+`::test_acceptance_12_...0714_cpi_burst...`, `::test_acceptance_13_...ungated_leg_is_clean...`), and
+unit coverage for ladder-walk grouping, `capture_id`-less fallback, malformed/undated rows, the
+inclusive tolerance boundary, self-witnessing, and all five verdict branches.
+
+`kb/lessons/00-lessons.md` L222's enforcement cell moves fully-`UNENFORCED` → partially enforced
+(lesson TEXT unchanged, L152 own-row-update rule): half (2) is now **test**; half (1) — `capture_source`
+on every collector record, a LIVE collector WRITE-PATH change and the only thing that can ever PROVE
+provenance — stays **UNENFORCED** and flagged. Open `UNENFORCED` rows therefore stay at **5**, exactly
+as L213's partial conversion did; claiming 5 → 4 here would be dishonest.
+
+**Deliberately NOT wired into `invariants.py --full`** (L210/L213 posture): these are historical
+properties of already-committed append-only tape that no run can retroactively repair, so gating would
+halt the loop over a fact; there is no standing "family of the day" to re-check; and an all-family scan
+re-reads every sibling family's full tape, which is the runtime budget of the whole gate.
+
+No registry flip, no bootstrap CI, no kill decision — two-agent rule N/A for the milestone class
+(lesson→test conversion, same as L104/L110/L118/L126/L127/L137/L208/L213/L236). **Process note:** this
+run had NO `Task` tool, so no independent `verifier`/`edge-prober`/`kb-distiller` agent could be
+dispatched; the research lead executed and reviewed everything itself. Redundancy was therefore
+weaker than protocol v3 intends, so the descriptive census numbers above are recorded **PROVISIONAL** —
+every one is re-derivable in a single command, and no verdict rests on any of them.
+
+**Also flagged, NOT fixed (scope discipline — one milestone per run, same posture as the 07-30
+run's L209 note): L145's cell is now STALE.** It states that `inv_order_endpoints_confined` "will go
+RED the moment `collection/ws_depth.py` is committed/merged". That file IS committed (`git ls-files`
+confirms) and the rule returns `None` on it — PR #153 plus issue #157 (2026-07-23, Ryan-approved)
+added an explicit ws_depth carve-out sanctioning read-only auth HEADERS while still firing on any
+order verb, and separately exempted `tests/test_ws_depth.py` / `tests/test_polymarket_us_live.py`.
+Verified by calling the rule directly on the file. The row's underlying POLICY question — may
+read-only signed market-data auth live in `collection/`? — was answered by Ryan in that PR, so this
+is a cheap disposition for a future kb-distiller pass. Left alone here: amending a CLAUDE.md-adjacent
+policy row is not an autonomous call.
+
+**Gates (taken fresh AFTER the last code edit, L162).** `python3 -m pytest -o addopts='' -q` →
+**2,411 passed in 2288.25s (0:38:08), 0 failed, exit 0** (2,387 prior + 24 new).
+`python3 scripts/invariants.py --full` → **exit 0, `invariants: all green`**, pre-existing non-gating
+advisory classes only; L152's own stale-candidate advisory now reaches 3 of 5 open rows (up from 2)
+and correctly name-matches the new `--caller-explicability` flag against L222's cell. **Honest note on
+the pytest number:** the sandbox interpreter initially lacked `requests`/`pyyaml`/`numpy`/`openpyxl`/
+`cffi`, which masked the real suite behind 27 (then 3) COLLECTION errors — an earlier run in this
+series quoted a "≥N collected" FLOOR under similar conditions. Rather than quote a floor over a
+partially-collected suite, this run installed the missing packages into the interpreter (no repo
+change, no dependency added to the project) and re-ran to a genuinely clean 0-error collection
+(`--collect-only` → 2411, exactly 2387 + 24) before quoting anything.
+
+**Step 9.** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗ per Q34, paper-infra-only);
+`python3 scripts/paper_pass.py` → **0 newly processed** (1,531 records loaded; 207 already in ledger,
+93 deferred(caps), 272 deferred(coverage) — the 2 swept `crypto_hourly` lines opened no new event-hour),
+ledger unchanged at **$+24.84** (`broker_truth`, 1,385 settled contracts, 0 open, $0.00 open notional).
+No new `paper/` line to commit.
+
+No network, no orders, no credentials. Still **0 proven edges**.
+
+---
+
 ## 2026-07-31 ~00:2xz UTC — research loop IDLE RUN: L242's `git_ref`/`n_records_at_head` provenance candidate converted UNENFORCED → test
 
 First research-loop firing of 2026-07-31 (protocol v3). **0a PASS** — `git fetch origin main` landed at
