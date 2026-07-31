@@ -209,6 +209,8 @@ from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
+from collection import burst_capture as _burst_capture
+
 # --------------------------------------------------------------------------- #
 # Config — deliberately explicit, human-editable, NOT inferred from the data
 # (inferring cadence from noisy historical gaps would be circular with the very
@@ -1389,14 +1391,40 @@ HOURLY_PASS_CO_WRITTEN_FAMILIES: Tuple[str, ...] = (
     "hyperliquid_funding",
 )
 
-# Families `collection.burst_capture` drives concurrently in one round (L227: all three show
-# the same ~90s cadence and the same 717-720s outage across the 2026-07-29 FOMC release, which
-# is what established they share one process).
-BURST_CAPTURE_CO_WRITTEN_FAMILIES: Tuple[str, ...] = (
-    "polymarket_macro_pairs",
-    "crypto_hourly",
-    "econ_prints",
+# Every tape family a `collection.burst_capture` invocation CAN write, keyed by the
+# `--families` value that writes it (2026-07-31 polymarket_pairs tape audit: the previous
+# hand-maintained 3-family tuple only listed the families a MULTI-family FOMC burst happened
+# to co-write (L227), and silently omitted "wc"/"cpi"/"sports" — so `polymarket_pairs` and
+# `sports_pairs` were never even REGISTERED as burst_capture-written, and a real
+# `kalshi-burst-wcsemi2-0715` capture (14 passes, dt=2026-07-15 20:39-21:05Z) read as having
+# NO registered caller at all. Derived from `collection.burst_capture.FAMILY_REGISTRY` keys so
+# this can't drift again silently; `test_burst_capture_key_to_tape_family_matches_registry`
+# fails loudly if burst_capture adds/removes a family without this map being updated. See
+# findings/2026-07-31-polymarket-pairs-tape-audit.md.
+BURST_CAPTURE_KEY_TO_TAPE_FAMILY: Dict[str, str] = {
+    "wc": "polymarket_pairs",
+    "fed": "polymarket_macro_pairs",
+    "cpi": "polymarket_cpi_pairs",
+    "econ": "econ_prints",
+    "crypto": "crypto_hourly",
+    "sports": "sports_pairs",
+}
+
+BURST_CAPTURE_CO_WRITTEN_FAMILIES: Tuple[str, ...] = tuple(
+    BURST_CAPTURE_KEY_TO_TAPE_FAMILY.values()
 )
+
+# IMPORTANT LIMIT (2026-07-31, polymarket_pairs tape audit): this registry fix makes
+# `burst_capture` a registered caller of every family it can write, but co-occurrence
+# explicability is STILL structurally blind to a burst invoked with a SINGLE `--families`
+# value (e.g. `--families wc` alone, as `kalshi-burst-wcsemi2-0715` was) — a single-family
+# round writes no sibling leg at all, so there is no co-occurrence signature to witness by
+# construction, no matter how complete this map is. `caller_explicability()` will correctly
+# keep reporting such passes as UNEXPLAINED; that is NOT proof of a rogue process. Before
+# reading `n_unexplained > 0` as an incident, check whether the unexplained passes form a
+# regular fixed-interval train (a burst signature) rather than assuming co-occurrence is
+# exhaustive. Only L222's `capture_source`-on-record candidate (still UNENFORCED) can close
+# this gap for good.
 
 REGISTERED_CALLER_FAMILIES: Dict[str, Tuple[str, ...]] = {
     "hourly_pass": HOURLY_PASS_CO_WRITTEN_FAMILIES + (
@@ -1527,6 +1555,15 @@ def caller_explicability(tape_root: Path,
     Also reports ``min_consecutive_pass_gap_s`` and ``concurrent_invocations_proven``: two pass
     starts closer than ``PASS_RATE_LIMIT_FLOOR_S`` cannot come from one sequential caller.
 
+    ARITY BLIND SPOT (2026-07-31, polymarket_pairs audit): `burst_capture` can be invoked with
+    a SINGLE `--families` value (e.g. `kalshi-burst-wcsemi2-0715` ran `--families wc` alone). A
+    single-family round writes no sibling leg, so it leaves NO co-occurrence signature and reads
+    UNEXPLAINED here no matter how complete `BURST_CAPTURE_CO_WRITTEN_FAMILIES` is — this is a
+    limit of the co-occurrence METHOD, not a registry gap. Before treating `n_unexplained > 0` as
+    an incident, check whether the unexplained passes form a regular fixed-interval train (a
+    burst signature, e.g. a constant sub-second `captured_at` offset at the burst's `--interval`)
+    rather than assuming co-occurrence is exhaustive.
+
     Read-only, offline, non-gating.
     """
     callers = sorted(c for c, fams in REGISTERED_CALLER_FAMILIES.items() if family in fams)
@@ -1556,7 +1593,10 @@ def caller_explicability(tape_root: Path,
             "never proof: n_unexplained==0 means a caller's signature is PRESENT, not that the "
             "caller wrote the pass. Only L222's other candidate (a `capture_source` field on "
             "each record) can certify provenance. This check can prove a pass inexplicable; it "
-            "cannot certify one as legitimate."
+            "cannot certify one as legitimate. ARITY BLIND SPOT: a caller invoked with a SINGLE "
+            "family (e.g. a one-family burst_capture round) writes no sibling leg and is "
+            "unexplainable by construction — n_unexplained>0 is not automatically an incident; "
+            "check for a regular fixed-interval train before treating it as one."
         ),
     }
 

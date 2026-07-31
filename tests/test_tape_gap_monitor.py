@@ -17,6 +17,9 @@ from pathlib import Path
 
 import pytest
 
+from collection import burst_capture as _burst_capture
+from core.timeutil import parse_iso_utc as _parse_iso_utc
+
 # scripts/ is not a package; load the module by path.
 _MOD_PATH = Path(__file__).resolve().parent.parent / "scripts" / "tape_gap_monitor.py"
 _spec = importlib.util.spec_from_file_location("tape_gap_monitor", _MOD_PATH)
@@ -1944,3 +1947,49 @@ def test_acceptance_13_l222_an_ungated_leg_is_clean_on_the_same_tape():
     dirty = tgm.caller_explicability(_REAL_TAPE, "econ_prints", days=["dt=2026-07-20"])
     assert dirty["n_passes"] == 23
     assert dirty["n_unexplained"] == 14
+
+
+def test_burst_capture_key_to_tape_family_matches_registry():
+    """`BURST_CAPTURE_KEY_TO_TAPE_FAMILY` must cover exactly the `--families` values
+    `collection.burst_capture` actually accepts (2026-07-31 polymarket_pairs tape audit: the
+    prior hand-maintained 3-family tuple silently omitted "wc"/"cpi"/"sports", so
+    `polymarket_pairs` and `sports_pairs` were never registered as burst_capture-written at
+    all). This is the drift detector: it fails loudly the moment burst_capture's own family
+    registry changes without this map being updated."""
+    assert set(tgm.BURST_CAPTURE_KEY_TO_TAPE_FAMILY.keys()) == set(
+        _burst_capture.VALID_FAMILIES
+    )
+
+
+def test_burst_capture_co_written_families_now_includes_polymarket_pairs_and_sports_pairs():
+    assert "polymarket_pairs" in tgm.BURST_CAPTURE_CO_WRITTEN_FAMILIES
+    assert "polymarket_cpi_pairs" in tgm.BURST_CAPTURE_CO_WRITTEN_FAMILIES
+    assert "sports_pairs" in tgm.BURST_CAPTURE_CO_WRITTEN_FAMILIES
+    assert "polymarket_pairs" in tgm.REGISTERED_CALLER_FAMILIES["burst_capture"]
+    assert "sports_pairs" in tgm.REGISTERED_CALLER_FAMILIES["burst_capture"]
+
+
+@_real
+def test_acceptance_14_l222_polymarket_pairs_wcsemi2_burst_is_registered_but_still_arity_blind():
+    """HARD real-tape acceptance, FROZEN to dt=2026-07-15 (L191).
+
+    Reproduces `findings/2026-07-31-polymarket-pairs-tape-audit.md`: 14 of 57 `polymarket_pairs`
+    passes that day are the `kalshi-burst-wcsemi2-0715` one-shot (--families wc alone, 120s
+    cadence, 20:39:28Z-21:05:28Z). Before this fix `burst_capture` was not even a registered
+    caller of `polymarket_pairs`; after it, `burst_capture` IS registered and explains the other
+    43 passes (a multi-family CPI-style window earlier that day) — but these 14 remain
+    UNEXPLAINED, because a single-family round has no sibling leg to witness by. That is the
+    documented arity blind spot, not a registry bug: pin both facts so a future "fix" doesn't
+    silently paper over the blind spot by faking a witness."""
+    out = tgm.caller_explicability(_REAL_TAPE, "polymarket_pairs", days=["dt=2026-07-15"])
+    assert "burst_capture" in out["registered_callers"]
+    assert out["n_passes"] == 57
+    assert out["verdict"] == "UNEXPLAINED_PASSES"
+    assert out["n_unexplained"] == 14
+    assert out["explained_by_caller"]["burst_capture"] == 43
+    unexplained_minutes = sorted(
+        _parse_iso_utc(t) for t in out["unexplained_examples"]
+    )
+    assert len(unexplained_minutes) == 14
+    gaps = {round((b - a).total_seconds()) for a, b in zip(unexplained_minutes, unexplained_minutes[1:])}
+    assert gaps == {120}, "the unexplained passes form a regular 120s burst cadence, not noise"
