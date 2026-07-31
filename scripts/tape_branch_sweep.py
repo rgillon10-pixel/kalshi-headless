@@ -213,8 +213,30 @@ DEFAULT_MAX_FILE_BYTES = 2_000_000
 # this family has since crossed the same line and carries the same `capture_id` field, so
 # it gets the same treatment rather than leaving a freshly-discovered instance of the exact
 # gap this fix closes.
+#
+# L235 (2026-07-31): the L216/L217 fix above closed the gap for the four families it could
+# NAME, and thereby reproduced, one layer up, the exact defect it was written to fix — an
+# ENUMERATION where a DERIVATION was called for. Measured on this run's 218-branch sweep:
+# 126 branches (57.8%) still came back "no problem found but NOT FULLY VERIFIED" because
+# their only oversized files were `crypto_hourly` (121 branches), `econ_prints` (5) and
+# `anomalies` (1) day-files — every one of which carries `capture_id` and answers the
+# capture_id-set check perfectly well (verified live: `crypto_hourly/dt=2026-07-14.jsonl`
+# 116 branch ids vs 143 HEAD ids; `econ_prints/dt=2026-07-14.jsonl` 137 vs 137;
+# `anomalies/dt=2026-07-21.jsonl` 20 vs 21), but were excluded solely for not appearing in
+# the frozenset below. The gate is therefore no longer a family allowlist: the check is
+# ATTEMPTED on every oversized file and the blob's own content decides whether it applies
+# (`capture_ids_in_blob` returning empty == "no signal" == honest size-guard skip, the
+# behaviour L217 already relied on). A tape family that starts carrying `capture_id`, or
+# newly crosses the 2MB line, is covered the day it does so, with no constant to update.
+#
+# The frozenset survives ONLY as an observational record of which families have been
+# MEASURED above `DEFAULT_MAX_FILE_BYTES` (it is cited by name in `kb/lessons/00-lessons.md`
+# L217 and `findings/2026-07-28-...-bulk-family-blindspot.md`). It is NOT read by
+# `per_file_containment` and must never again become a gate — if you find yourself adding a
+# name here to make a check fire, the check is wrong, not the list.
 BULK_CAPTURE_ID_FAMILIES = frozenset(
-    {"orderbook_depth", "universe_sweep", "sports_pairs", "weather_books"})
+    {"orderbook_depth", "universe_sweep", "sports_pairs", "weather_books",
+     "crypto_hourly", "econ_prints", "anomalies"})
 
 
 def capture_ids_in_blob(rev: str, path: str, run_git: GitRunner = default_git_runner,
@@ -267,9 +289,10 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
         `missing` dict means "no problem found in what was checked", not "proven fully
         contained". Pass `max_file_bytes=None` to disable the guard and check every file
         regardless of size.
-      - `capture_id_checked`: {file: missing_capture_id_count} for oversized files under
-        one of `BULK_CAPTURE_ID_FAMILIES` where the branch side yielded >=1 real
-        `capture_id` (L216) — checked at capture_id granularity instead of skipped
+      - `capture_id_checked`: {file: missing_capture_id_count} for oversized files whose
+        branch side yielded >=1 real `capture_id` (L216, widened to every family by L235 —
+        the blob's content qualifies it, never a family allowlist), checked at
+        capture_id granularity instead of skipped
         outright. 0 means every capture_id the branch carries is already in HEAD's
         version of that file (coarser than, but a genuine alternative to, a full
         line-level proof); >0 means the branch carries at least one capture_id absent
@@ -308,16 +331,17 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
         if max_file_bytes is not None:
             size = blob_size(branch_rev, full_path, run_git, cwd)
             if size is not None and size > max_file_bytes:
-                family = rel_file.split("/", 1)[0]
-                if family in BULK_CAPTURE_ID_FAMILIES:
-                    branch_ids = capture_ids_in_blob(branch_rev, full_path, run_git, cwd)
-                    if branch_ids:  # non-empty: a real signal, not just "no capture_id found"
-                        if full_path not in head_capture_id_cache:
-                            head_ids = capture_ids_in_blob(base_ref, full_path, run_git, cwd)
-                            head_capture_id_cache[full_path] = head_ids or frozenset()
-                        head_ids = head_capture_id_cache[full_path]
-                        capture_id_checked[full_path] = len(branch_ids - head_ids)
-                        continue
+                # L235: capability is DERIVED from the blob, never from a family name.
+                # Try the capture_id-set check on EVERY oversized file; the extraction
+                # itself decides whether this family can support the check.
+                branch_ids = capture_ids_in_blob(branch_rev, full_path, run_git, cwd)
+                if branch_ids:  # non-empty: a real signal, not just "no capture_id found"
+                    if full_path not in head_capture_id_cache:
+                        head_ids = capture_ids_in_blob(base_ref, full_path, run_git, cwd)
+                        head_capture_id_cache[full_path] = head_ids or frozenset()
+                    head_ids = head_capture_id_cache[full_path]
+                    capture_id_checked[full_path] = len(branch_ids - head_ids)
+                    continue
                 skipped[full_path] = size
                 continue
         if full_path not in head_line_cache:

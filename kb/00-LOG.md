@@ -6,6 +6,115 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~18:3x UTC — research loop IDLE RUN: the step-0b sweep's own blind spot (L217's family allowlist) closed, and 1,271 stranded L2 lines recovered
+
+Research-loop firing (protocol v3). **0a PASS** (pre-flight by the calling session): local `main`
+hard-reset to `origin/main` at `6618cf3` (PR #254); the 5 most-recently-merged PRs (#254/#253/#252/
+#251/#250) are all reachable ancestors — no rewind; `kb/00-LOG.md`'s newest entry is same-day as the
+newest `tape/*/dt=2026-07-31.jsonl`. **Claim-check** — the only 5 open PRs (#208/#191/#166/#165/#125)
+are 5-12 days stale retro-improvement-proposals or old Ryan-draft build proposals; none names a
+current queue item, none merged or waited on.
+
+**Queue: still saturated → IDLE RUN.** Full Q0-Q48 re-scan. One trap worth recording because it will
+catch the next reader too: **Q24's topmost `Status:` line reads `TODO`**, which looks eligible at a
+glance — but that line is the 2026-07-13 *"added"* note and is superseded by the `DONE — VERDICT DEAD
+by data-adequacy (verifier-CONFIRMED)` line directly beneath it. Q24 is closed. Everything else is
+DONE, credential-BLOCKED (Q32/Q33/Q35-build/Q42-pt3/Q47), calendar-gated (Q37, ~08-05) or
+density-gated (Q43). Idle-run policy (a) was available — the `UNENFORCED` backlog is *not* empty
+(~30 open rows) — so this run took (a).
+
+## The milestone: step 0b's sweep was not checking 57.8% of its own input
+
+A full unfiltered `python3 scripts/tape_branch_sweep.py` over all **218** remote `tape/*` heads
+reported:
+
+```
+  30 fully contained + verified
+  48 contained via capture_id-level check only (L216)
+ 126 no problem found but NOT FULLY VERIFIED   <-- no check of any kind
+  14 carry line(s)/capture_id(s) genuinely MISSING from HEAD
+```
+
+126 branches — 57.8% — had **no containment check at all**. Every one was blocked by the same
+line of code. L216 (2026-07-25) found that oversized tape day-files were size-guard-skipped and the
+skip misread as "checked and clean", costing 21,303 stranded lines. Its disposition **L217**
+(2026-07-28) fixed that with a capture_id-set fallback — gated on a hard-coded allowlist:
+
+```python
+family = rel_file.split("/", 1)[0]
+if family in BULK_CAPTURE_ID_FAMILIES:   # {orderbook_depth, universe_sweep, sports_pairs, weather_books}
+```
+
+The files actually blocking the 126 were `crypto_hourly` (121 branches), `econ_prints` (5) and
+`anomalies` (1). All three carry `capture_id`. Measured live **before** touching the gate, by calling
+`capture_ids_in_blob` directly: `crypto_hourly/dt=2026-07-14.jsonl` 116 branch ids vs 143 HEAD ids;
+`econ_prints/dt=2026-07-14.jsonl` 137 vs 137; `anomalies/dt=2026-07-21.jsonl` 20 vs 21 — **0 missing
+in all three**. They were excluded for not being on a list, not for lacking the field the check needs.
+
+**This is L216's defect reproduced one layer up, inside L216's own fix** — an ENUMERATION where a
+DERIVATION was called for. L217's own text even flagged the smell (it had to add `weather_books` as a
+fourth family the same day it shipped) and shipped the list anyway. The second instance was harder to
+see precisely *because* a check now visibly fired on 48 branches: partial coverage reads as coverage.
+Recorded as **L245**, disposing L217's enumeration half (L217's capture_id mechanism stands).
+
+**Fix.** `per_file_containment` consults no family list. The capture_id-set check is attempted on
+every oversized file and the blob's own content decides whether it applies — a branch-side extraction
+yielding zero capture_ids still falls back to the honest size-guard skip, which is exactly the
+"no signal is never a clean bill of health" semantics L217 already relied on and what makes the
+derivation safe to universalize. `BULK_CAPTURE_ID_FAMILIES` survives only as an observational record
+of families measured above the 2MB guard (it is cited by name in L217 and in the 2026-07-28
+bulk-family-blindspot finding, so it must stay importable and factually current); it was extended to
+the 7 now-measured families and is read by nothing.
+
+**After, same 218 branches, same HEAD: unverified 126 → 0**, capture_id-verified 48 → 174, and the
+genuinely-missing count **unchanged at 14**. That null is the honest headline — this closed a blind
+spot rather than uncovering new loss, and the hole had to be measured rather than assumed empty. Full
+sweep cost 5m09s wall-clock.
+
+Four new tests in `tests/test_tape_branch_sweep.py::TestBulkCaptureIdCheck`. The load-bearing one is
+`::test_constant_is_not_consulted_by_the_containment_gate`, which parses the module with `ast` and
+asserts there is **no `ast.Load` of `BULK_CAPTURE_ID_FAMILIES` anywhere** — pinning the *absence* of
+the read is the only assertion that stops the enumeration returning a third time.
+
+## Triage of all 14 genuinely-missing branches (direct byte inspection, not inherited)
+
+- **8 × `tape/cloud-env-check.md`, 2 lines each** — FALSE POSITIVE, re-confirmed. `diff` shows HEAD is
+  strictly the richer document: the branch's two "missing" lines are a condensed provenance header and
+  an un-suffixed heading, both superseded on `main`, with HEAD additionally carrying a 22-line
+  `## Re-verify (Q0b) — 2026-07-03T00:08Z — UNBLOCKED` section the branch lacks. A prose rewrite, not
+  append-only tape. Left untouched.
+- **5 × `dt=2026-07-18` (`anomalies` 3 + `econ_prints` 3)** — FALSE POSITIVE, re-confirmed this run
+  rather than trusted from prior triage. The "missing" lines are literally `<<<<<<< HEAD`, `=======`,
+  `>>>>>>> 58145d7 (tape: hourly pass 2026-07-18T09:30:28Z (vps))` — the L142 conflict-marker
+  corruption already repaired on `main`. Recovering them would re-inject it. Left untouched.
+- **1 GENUINE — `tape/hourly-20260726T2204Z`**: two whole captures absent from `main`.
+  `tape/orderbook_depth/dt=2026-07-26.jsonl` **+729 lines** (`capture_id=20260726T215542Z`) and
+  `tape/weather_books/dt=2026-07-26.jsonl` **+542 lines** (`capture_id=20260726T220100Z`) —
+  **1,271 lines** of real L2 depth tape. Provenance note: a 2026-07-27 run already recovered this
+  branch's 134 *non-bulk* lines, but both of these files were size-guard-skipped outright on that
+  date, so the capture-level loss only became visible once the capture_id path existed. Union-appended
+  at EOF with original bytes preserved; verified (i) pure append — the pre-existing content is a
+  byte-exact prefix of the new file, (ii) every appended line parses as JSON and carries the expected
+  `capture_id`, (iii) 0 duplicate lines.
+
+## What this run does NOT claim
+
+No registry change, no bootstrap CI, no P&L, no kill decision — **the two-agent verdict rule is N/A**
+(tooling + data recovery, same posture as L156/L168/L172/L211/L215/L217). Recorded for the retro: **no
+`verifier` subagent was reachable from this session** — the harness exposed no Agent/Task tool — which
+is *why* no verdict-class work was attempted rather than attempted-and-downgraded. Any future firing
+in the same harness state must stay in this lane or commit `PROVISIONAL` only. Still **0 proven edges**.
+
+**Gates (taken AFTER this diff's last code change, per L162).** `python3 -m pytest -q`: **exit 0**, **0 failed** (no `F`/`E` anywhere in the run — note this is a change from the prior two runs, which carried 2 pre-existing `test_q42_funding_estimate_path_inference.py` real-tape-drift failures; they no longer reproduce). `python3 -m pytest --collect-only -q` on the identical tree: **2,442 collected across 92 test files**. `python3 scripts/invariants.py --full`: **exit 0, all green**, with the same pre-existing non-gating advisory classes and no new one introduced by this diff (L185 settlement_ledger capped-pagination coverage; L208 `perp_tape` 5 zero-pass windows of 45; L210 7 colliding capture_id groups; L138 36 direct `fromisoformat` sites; L152 stale-candidate on L222; L205 4 dangling test citations, all pre-existing and none of them the four node ids L245 cites; L157 recovery-dwell; L52/L155 settlement-literal).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = {`s14_ladder_underwriting`} (`dead ✗` per Q34,
+retained as paper-infrastructure only) — `scripts/paper_pass.py` was **idempotent** this run — 1,537 records loaded, **0 newly processed** (93 deferred by caps, 272 deferred by coverage, 207 already in the ledger), so there are **no new `paper/` ledger lines in this commit**. Ledger unchanged: realized P&L **+$24.84** (`broker_truth`), 1,385 settled contracts, 0 open positions, cash +$24.84, open notional $0.00.
+
+See `findings/2026-07-31-sweep-enumeration-blindspot-and-hourly20260726T2204Z-recovery.md`,
+`kb/lessons/00-lessons.md` L245, `scripts/tape_branch_sweep.py`, `tests/test_tape_branch_sweep.py`.
+
+---
+
 ## 2026-07-31 ~15:1x UTC — research loop IDLE RUN: L227's PREVENTION half converted UNENFORCED → test (burst-window liveness)
 
 Research-loop firing (protocol v3). **0a PASS** — `git fetch origin main` landed at `a3b4289`
