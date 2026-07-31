@@ -6,8 +6,15 @@ The audit is read-only and makes no network call, so nothing is monkeypatched.
 from __future__ import annotations
 
 import json
+import subprocess
 
-from scripts.polymarket_pair_terms_audit import audit, classify_record, main
+from scripts.polymarket_pair_terms_audit import (
+    audit,
+    classify_record,
+    count_pair_records_at_ref,
+    main,
+    resolve_git_ref,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -263,3 +270,98 @@ def test_cli_prints_json_and_exits_zero(tmp_path, capsys):
     assert rep["n_pair_records"] == 2
     assert rep["tape_dir"] == str(tmp_path)
     assert "DESCRIPTIVE ONLY" in rep["scope"]
+
+
+# --------------------------------------------------------------------------- #
+# L242 — git_ref / n_records_at_head: a working-tree-only census must never be
+# quotable as "committed" (see kb/lessons/00-lessons.md L242).
+# --------------------------------------------------------------------------- #
+def _init_git_repo(root):
+    """A throwaway, fully local git repo — no network, isolated identity so this never
+    depends on (or pollutes) the caller's global git config."""
+    env_args = ["-c", "user.name=test", "-c", "user.email=test@example.com",
+                "-c", "commit.gpgsign=false"]
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git"] + env_args + ["-C", str(root), "commit", "-q", "--allow-empty",
+                    "-m", "init"], check=True)
+
+
+def _git_commit_all(root, message):
+    env_args = ["-c", "user.name=test", "-c", "user.email=test@example.com",
+                "-c", "commit.gpgsign=false"]
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(["git"] + env_args + ["-C", str(root), "commit", "-q", "-m", message],
+                    check=True)
+
+
+def _git_head(root):
+    return subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True,
+                           capture_output=True, text=True).stdout.strip()
+
+
+def test_resolve_git_ref_none_when_git_runner_fails(tmp_path):
+    def _raising_runner(args, cwd=None):
+        raise RuntimeError("git not found")
+    assert resolve_git_ref(tmp_path, run_git=_raising_runner) is None
+
+
+def test_resolve_git_ref_returns_head_sha_of_a_real_repo(tmp_path):
+    _init_git_repo(tmp_path)
+    sha = resolve_git_ref(tmp_path)
+    assert sha == _git_head(tmp_path)
+    assert len(sha) == 40 and all(c in "0123456789abcdef" for c in sha)
+
+
+def test_count_pair_records_at_ref_ignores_uncommitted_lines(tmp_path):
+    """The whole point of L242: an appended-but-uncommitted line must NOT be counted."""
+    _init_git_repo(tmp_path)
+    tape_dir = tmp_path / "tape" / "polymarket_macro_pairs"
+    _write(tape_dir, "2026-07-20", [_v1(market_id="M1"), _v1(market_id="M2")])
+    _git_commit_all(tmp_path, "committed tape")
+    head = _git_head(tmp_path)
+
+    # Uncommitted third record — present in the working tree, absent from git_ref.
+    _write(tape_dir, "2026-07-20", [_v1(market_id="M3")])
+
+    rep = audit(tape_dir, repo_root=tmp_path)
+    assert rep["n_pair_records"] == 3          # working tree: sees all 3
+    assert rep["git_ref"] == head
+    assert rep["n_records_at_head"] == 2       # committed only: sees 2
+
+
+def test_count_pair_records_at_ref_none_when_tape_dir_outside_repo_root(tmp_path):
+    repo_root = tmp_path / "repo"
+    outside = tmp_path / "elsewhere"
+    _init_git_repo(repo_root)
+    _write(outside, "2026-07-20", [_v1()])
+    assert count_pair_records_at_ref(outside, "HEAD", repo_root=repo_root) is None
+
+
+def test_count_pair_records_at_ref_none_on_bad_ref(tmp_path):
+    _init_git_repo(tmp_path)
+    tape_dir = tmp_path / "tape" / "polymarket_macro_pairs"
+    _write(tape_dir, "2026-07-20", [_v1()])
+    _git_commit_all(tmp_path, "committed tape")
+    assert count_pair_records_at_ref(tape_dir, "not-a-real-ref", repo_root=tmp_path) is None
+
+
+def test_audit_git_fields_are_null_when_git_runner_fails(tmp_path):
+    def _raising_runner(args, cwd=None):
+        raise RuntimeError("git not found")
+    _write(tmp_path, "2026-07-20", [_v1()])
+    rep = audit(tmp_path, repo_root=tmp_path, run_git=_raising_runner)
+    assert rep["git_ref"] is None
+    assert rep["n_records_at_head"] is None
+    assert rep["n_pair_records"] == 1          # the rest of the report is unaffected
+
+
+def test_audit_on_the_real_repo_reports_a_live_head_sha():
+    """Real-tree acceptance test: run the default `audit()` (real committed tape dir,
+    real repo root) and check `git_ref` against a freshly-queried `git rev-parse HEAD` —
+    never hardcoded, so it stays correct as the repo moves forward."""
+    live_head = subprocess.run(["git", "rev-parse", "HEAD"], check=True,
+                                capture_output=True, text=True).stdout.strip()
+    rep = audit()
+    assert rep["git_ref"] == live_head
+    assert rep["n_records_at_head"] is not None
+    assert rep["n_records_at_head"] <= rep["n_pair_records"]

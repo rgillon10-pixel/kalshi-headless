@@ -6,6 +6,87 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~00:2xz UTC — research loop IDLE RUN: L242's `git_ref`/`n_records_at_head` provenance candidate converted UNENFORCED → test
+
+First research-loop firing of 2026-07-31 (protocol v3). **0a PASS** — `git fetch origin main` landed at
+`cc5e985` (PR #246); independently verified the last 5 merged PRs (#246/#245/#244/#243/#242) are all
+ancestors of `origin/main` via `git merge-base --is-ancestor`; newest `kb/00-LOG.md` entry and newest
+committed `tape/*/dt=*` file are both 2026-07-30, gap 0 — no rewind. **Claim-check** — open PRs
+#208/#191/#166/#165/#125 unchanged, all long-standing Ryan-review-only drafts (`retro/*`,
+`worktree-*`, `tape-storage-migration`), none claims current queue work.
+
+**Step 0b.** `git ls-remote` still shows ~200+ stranded `tape/hourly-*`/`tape/burst-*` heads (known
+long-tail debt, Q17) — did not attempt the full backlog (out of one milestone's budget). Diffed the
+recent-looking candidates against `origin/main`: `tape/hourly-20260730T1302Z` and
+`tape/hourly-20260730T1310Z` are both fully redundant (pure deletions vs `main` on every touched file,
+confirming prior runs' findings — PR #243 already recovered `1310Z`'s genuine content). All July-29
+burst/hourly branches checked (`burst-chunk1..6`, `burst-20260729T1752Z`/`1803Z`/`1803Z-retry`,
+`hourly-20260729T1010Z`) are likewise pure supersets already in `main`. **`tape/hourly-20260730T2205Z`
+genuinely carried 2,401 lines missing from `main`** across 7 families — `crypto_hourly` 2,
+`hyperliquid_funding` 2, `orderbook_depth` 1,459, `perp_tape` 17, `polymarket_macro_pairs` 21,
+`sports_pairs` 357, `weather_books` 543. Union-appended by exact-line dedupe (no reordering of existing
+lines, no file touched that had zero missing lines).
+
+**Full Q0–Q48 rescan** of every `### Q` header's current `Status:` line (not prose recall): all
+DONE/DEAD/BLOCKED/calendar-gated (Q37 opens ~08-05) / density-gated (Q36 `n_settled_events=2/10`, Q42/
+Q43) / credential-BLOCKED (Q32/Q33/Q35-build/Q47) / burst-gated (Q48/S55 COLLECT-AND-REVISIT). Q21
+idea-gen already ran today (17th consecutive zero-registration round, PR #238) — not repeated, per the
+anti-treadmill note. **0 eligible TODO/IN-PROGRESS → IDLE RUN, policy (a).**
+
+**Row selection.** `scripts/invariants.py::stale_unenforced_recall_report()` (the repo's own parser, not
+prose recall): **6** open `UNENFORCED` rows at run start — `L145, L213, L221, L222, L227, L242`. The
+~17:2x ET 07-30 run (L213) already screened out L145 (live Ryan policy call), L221/L222 (both propose
+changing a LIVE collector's write path — bigger/riskier than one idle-run milestone), and L227
+(remaining half explicitly not statically assertable); that same entry named **L242** — a brand-new row
+it introduced via the concurrent L214 PR — as the next pick. Confirmed unbuilt first (`grep -rn
+"git_ref\|n_records_at_head" scripts/ tests/` → 0 hits) before scoping work, per the L152 rule.
+
+**What was built.** L242: a working-tree-only census must never be quotable as "committed" — its own
+originating incident quoted "9,575 records committed" when the real committed-at-`HEAD` count was 0 v2
+records (100% unauditable, not 99.79%). Built exactly the named candidate in
+`scripts/polymarket_pair_terms_audit.py`:
+- `resolve_git_ref(repo_root, run_git)` — local `git rev-parse HEAD` only (no network); `None` on any
+  git/subprocess failure, never raises.
+- `count_pair_records_at_ref(tape_dir, git_ref, repo_root, run_git)` — local `git ls-tree`/`git show` at
+  that ref, counting only `PAIR_SCHEMAS` lines actually committed there (ignores uncommitted
+  working-tree lines); `None` when `tape_dir` isn't inside `repo_root`, the ref is bad, or git fails.
+  Both take an injectable `run_git` callable, same pattern as `scripts/tape_branch_sweep.py`'s
+  `default_git_runner` (so no test touches the real repo's history).
+- `audit()` now reports `git_ref` and `n_records_at_head` alongside the existing working-tree-only
+  `n_pair_records`, plus a `provenance_note` field spelling out which counts describe which population.
+
+**9 new tests** in `tests/test_polymarket_pair_terms_audit.py`: a real, throwaway, isolated-identity
+(`commit.gpgsign=false`) git repo per test proves an appended-but-uncommitted line is excluded from
+`n_records_at_head` while still counted in `n_pair_records` (the L242 fix's whole point); a `run_git`
+that raises proves both new fields degrade to `None` without disturbing the rest of the report;
+`tape_dir` outside `repo_root` and a bad ref both return `None`; a real-tree acceptance test compares
+`audit()`'s `git_ref` against a freshly-queried `git rev-parse HEAD` (never hardcoded, so it stays
+correct as the repo moves forward). Live run over the real committed tape at `HEAD=cc5e985`: `git_ref`
+matches, `n_records_at_head == n_pair_records == 9,575` (no uncommitted tape in this working tree at
+run time) — the forward fix is in place; it cannot and does not retroactively fix L242's own
+already-published mis-citation, which stands corrected only by this note.
+
+`kb/lessons/00-lessons.md` L242's enforcement cell moved `UNENFORCED` → `test` (lesson TEXT unchanged,
+only the cell moves, per the L152 own-row-update rule). Open `UNENFORCED` rows **6 → 5**
+(`L145, L213, L221, L222, L227` remain — all previously screened out as Ryan-gated or larger-scope).
+
+No registry flip, no bootstrap CI, no kill decision — two-agent rule N/A (lesson→test conversion, same
+class as L104/L110/L118/L127/L137/L208/L213/L236). Gates (taken fresh after the last edit, L162):
+`python3 -m pytest -o addopts='' -q` → **≥2,387 collected, 0 failed (dot-stream + exit code 0; summary line suppressed by addopts doubling -q/-qq, per L162 stated as a floor — fresh `--collect-only -q` recount taken after the final edit), ~36 min (00:20-00:56 UTC)**;
+`python3 scripts/invariants.py --full` → exit 0, `invariants: all green` (same pre-existing non-gating
+advisory classes; `_stale_unenforced_scan` now flags only L227, extraction reaching 2 of 5 open rows).
+
+**Step 9.** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗ per Q34, paper-infra-only);
+`python3 scripts/paper_pass.py` → **24 newly processed** (the swept `crypto_hourly` tape lines fed new
+event-hours), 93 deferred(caps)/272 deferred(coverage)/183 already-in-ledger, ledger
+**+$23.45 → +$24.84** (`broker_truth`, 1,385 settled contracts, 0 open) — new line appended to
+`paper/ledger/dt=2026-07-31.jsonl`. No network calls, no orders, no credentials touched. Still
+**0 proven edges**. See `kb/lessons/00-lessons.md` L242 (enforcement cell); no new `findings/` file (the
+originating finding, `findings/2026-07-30-l214-crossvenue-terms-provenance.md`, already covers the
+mis-citation this closes).
+
+---
+
 ## 2026-07-30 ~20:3xz UTC — research loop IDLE RUN: L214 converted UNENFORCED → test (cross-venue resolution-terms provenance on the Fed pair tape)
 
 Sixth research-loop firing of 2026-07-30, protocol v3. Steps 0a/0/0b were performed by the
