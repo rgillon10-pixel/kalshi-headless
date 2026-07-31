@@ -1685,6 +1685,159 @@ def caller_explicability(tape_root: Path,
     return base
 
 
+# Declared burst-trigger windows (LOOP-QUEUE.md "Burst-capture legs" table, 2026-07-10
+# Ryan-approved). Hand-transcribed from that table, not the live trigger API — an offline
+# check may not reach the network, and the table IS the record of what was PROMISED, which
+# is exactly what L227's audit needs to compare the tape against. `burst_keys` reuses
+# `BURST_CAPTURE_KEY_TO_TAPE_FAMILY` so a family rename there can't silently desync this map.
+BURST_TRIGGER_WINDOWS: Dict[str, Dict[str, Any]] = {
+    "kalshi-burst-cpi-0714": {
+        "window_start": "2026-07-14T12:05:00+00:00",
+        "window_end": "2026-07-14T13:45:00+00:00",
+        "expected_interval_s": 60.0,
+        "burst_keys": ("econ", "cpi", "fed", "crypto"),
+    },
+    "kalshi-burst-wcsemi1-0714": {
+        "window_start": "2026-07-14T20:10:00+00:00",
+        "window_end": "2026-07-14T22:30:00+00:00",
+        "expected_interval_s": 120.0,
+        "burst_keys": ("wc",),
+    },
+    "kalshi-burst-wcsemi2-0715": {
+        "window_start": "2026-07-15T20:10:00+00:00",
+        "window_end": "2026-07-15T22:30:00+00:00",
+        "expected_interval_s": 120.0,
+        "burst_keys": ("wc",),
+    },
+    "kalshi-burst-wcfinal-0719": {
+        "window_start": "2026-07-19T20:10:00+00:00",
+        "window_end": "2026-07-19T22:45:00+00:00",
+        "expected_interval_s": 120.0,
+        "burst_keys": ("wc",),
+    },
+    "kalshi-burst-fomc-0729": {
+        "window_start": "2026-07-29T17:40:00+00:00",
+        "window_end": "2026-07-29T19:45:00+00:00",
+        "expected_interval_s": 90.0,
+        "burst_keys": ("fed", "econ", "crypto"),
+    },
+}
+
+
+def burst_window_liveness(tape_root: Path,
+                          family: str,
+                          window_start: datetime,
+                          window_end: datetime,
+                          expected_interval_s: float,
+                          gap_multiplier: float = 3.0,
+                          ) -> Dict[str, Any]:
+    """L227's PREVENTION half: did `family`'s capture cadence stay LIVE across a burst
+    trigger's DECLARED window, or did it go dark during the one event the burst leg exists
+    to catch? A `0 burst windows cover the release` verdict from a downstream probe (L227's
+    own originating case, `q48_s55_fomc_lag_probe.py`) doesn't distinguish sparse tape from a
+    real capture outage — this answers that question directly, from the tape alone, any time
+    after the fact (no live process/container log needed).
+
+    Compares actual `pass_instants()` against `expected_interval_s` inside
+    `[window_start, window_end]`. Any gap exceeding `gap_multiplier * expected_interval_s`
+    (default 3x — generous vs the ~1.1-1.8x jitter seen on healthy real burst tape, so normal
+    scheduling noise never false-alarms) is a silence episode, reported with its own
+    start/end/duration so a human can see exactly what was missed, not just a bare flag. LEAD-IN
+    (`window_start` to the first pass) and TRAIL (the last pass to `window_end`) are checked the
+    same way as interior gaps — a burst that never started, or stopped early, is exactly as much
+    an outage as a mid-window gap, and a naive "gap between passes" scan would miss both.
+
+    Read-only, offline, non-gating: this reports an outage, it does not repair one — by the
+    time it runs, the burst window has already closed. `verdict`: `NO_PASSES_IN_WINDOW` (the
+    family committed nothing at all in scope — the total-loss case), `LIVE` (no gap exceeded
+    the threshold), `OUTAGE_DETECTED` (one or more episodes did).
+    """
+    days = sorted({window_start.date().isoformat(), window_end.date().isoformat()})
+    day_stems = [f"dt={d}" for d in days]
+    in_day = pass_instants(tape_root, family, days=day_stems)
+    window = [t for t in in_day if window_start <= t <= window_end]
+
+    threshold_s = gap_multiplier * expected_interval_s
+    base: Dict[str, Any] = {
+        "family": family,
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
+        "expected_interval_s": expected_interval_s,
+        "gap_multiplier": gap_multiplier,
+        "threshold_s": threshold_s,
+        "n_passes_in_window": len(window),
+        "first_pass": None,
+        "last_pass": None,
+        "gaps": [],
+        "max_gap_s": None,
+        "verdict": "NO_PASSES_IN_WINDOW",
+    }
+    if not window:
+        return base
+    base["first_pass"] = window[0].isoformat()
+    base["last_pass"] = window[-1].isoformat()
+
+    episodes: List[Dict[str, Any]] = []
+    lead_in = (window[0] - window_start).total_seconds()
+    if lead_in > threshold_s:
+        episodes.append({"start": window_start.isoformat(), "end": window[0].isoformat(),
+                          "duration_s": round(lead_in, 3), "kind": "lead_in"})
+    for i in range(len(window) - 1):
+        gap = (window[i + 1] - window[i]).total_seconds()
+        if gap > threshold_s:
+            episodes.append({"start": window[i].isoformat(), "end": window[i + 1].isoformat(),
+                              "duration_s": round(gap, 3), "kind": "interior"})
+    trail = (window_end - window[-1]).total_seconds()
+    if trail > threshold_s:
+        episodes.append({"start": window[-1].isoformat(), "end": window_end.isoformat(),
+                          "duration_s": round(trail, 3), "kind": "trail"})
+
+    base["gaps"] = episodes
+    base["max_gap_s"] = max((e["duration_s"] for e in episodes), default=None)
+    base["verdict"] = "OUTAGE_DETECTED" if episodes else "LIVE"
+    return base
+
+
+def burst_trigger_liveness(tape_root: Path,
+                           trigger_name: str,
+                           gap_multiplier: float = 3.0,
+                           ) -> Dict[str, Any]:
+    """Runs `burst_window_liveness` for every tape family a named burst trigger drives, per
+    `BURST_TRIGGER_WINDOWS` (LOOP-QUEUE.md's own declared table — see that dict's docstring
+    note on provenance). An unknown trigger name returns an honest `UNKNOWN_TRIGGER` verdict
+    rather than guessing a window. `families` de-duplicates by tape family (some burst keys,
+    e.g. a multi-family FOMC round, can map distinct keys to distinct families; two keys never
+    collide onto the same family within one trigger in the table as written, but the dedup
+    guards against it if one ever does)."""
+    cfg = BURST_TRIGGER_WINDOWS.get(trigger_name)
+    if cfg is None:
+        return {"trigger": trigger_name, "verdict": "UNKNOWN_TRIGGER", "families": {}}
+    window_start = _parse_iso(cfg["window_start"])
+    window_end = _parse_iso(cfg["window_end"])
+    families: Dict[str, Any] = {}
+    any_outage = False
+    any_total_loss = False
+    for key in cfg["burst_keys"]:
+        fam = BURST_CAPTURE_KEY_TO_TAPE_FAMILY[key]
+        if fam in families:
+            continue
+        result = burst_window_liveness(tape_root, fam, window_start, window_end,
+                                       cfg["expected_interval_s"], gap_multiplier=gap_multiplier)
+        families[fam] = result
+        if result["verdict"] == "OUTAGE_DETECTED":
+            any_outage = True
+        elif result["verdict"] == "NO_PASSES_IN_WINDOW":
+            any_total_loss = True
+    verdict = "OUTAGE_DETECTED" if (any_outage or any_total_loss) else "LIVE"
+    return {
+        "trigger": trigger_name,
+        "window_start": cfg["window_start"],
+        "window_end": cfg["window_end"],
+        "verdict": verdict,
+        "families": families,
+    }
+
+
 def _scan_file_max_captured_at(path: Path, now: datetime) -> Optional[datetime]:
     """Newest captured_at <= now in one file (streaming, O(1) extra memory)."""
     newest: Optional[datetime] = None
@@ -2161,6 +2314,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--explicability-tolerance-s", type=float, default=CO_OCCURRENCE_TOLERANCE_S,
                     help=f"co-occurrence window in seconds (default {CO_OCCURRENCE_TOLERANCE_S}, "
                          "the widest observed real hourly_pass leg spread plus headroom).")
+    ap.add_argument("--burst-liveness", default=None, metavar="TRIGGER_NAME",
+                    help="print ONLY the L227 burst-window liveness audit for TRIGGER_NAME "
+                         "(one of BURST_TRIGGER_WINDOWS, e.g. kalshi-burst-fomc-0729; "
+                         "read-only, no notify) and exit. Answers 'did every family this "
+                         "trigger drives stay live across its declared window, or did tape "
+                         "go dark during the one event the burst leg exists to catch'.")
+    ap.add_argument("--burst-gap-multiplier", type=float, default=3.0,
+                    help="a gap > this many x the trigger's expected interval is flagged as "
+                         "an outage episode (default 3.0).")
     args = ap.parse_args(argv)
 
     if args.window_grid:
@@ -2187,6 +2349,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if args.explicability_days else None)
         out = caller_explicability(Path(args.tape_root), args.caller_explicability,
                                    days=days, tolerance_s=args.explicability_tolerance_s)
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+
+    if args.burst_liveness:
+        out = burst_trigger_liveness(Path(args.tape_root), args.burst_liveness,
+                                     gap_multiplier=args.burst_gap_multiplier)
         print(json.dumps(out, indent=2, sort_keys=True))
         return 0
 
