@@ -6,6 +6,85 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~04:1x UTC — kalshi-edge-hunter nightly: adversarial review (clean) + Q21 round #18 (S63/S64/S65 all KILL) + housekeeping
+
+Nightly Opus thinking-seat run (protocol v3; steps 0a/0/0b first). **0a PASS** — `git pull --rebase origin
+main` landed at `874f7c5` (PR #248); the last 5 merged PRs (#248/#247/#246/#245/#244) all confirmed
+ancestors of `origin/main`; newest `kb/00-LOG.md` entry and newest committed `tape/*/dt=*` both 2026-07-31,
+gap 0 → no rewind. **Claim-check** — open PRs #208/#191/#166/#165/#125 unchanged, all long-standing
+Ryan-review-only (`retro/*` leave-open, `worktree-*`/`tape-storage-migration` drafts), none claims queue
+work. **0b** — `git ls-remote` shows the known long-tail of stranded `tape/hourly-*`/`tape/burst-*` heads
+(Q17 debt); the recent `tape/hourly-2026073*` candidates were already swept by PRs #243/#248 (prior-run
+finding, not re-diffed line-by-line this run — out of one milestone's budget).
+
+**Unit 1 — adversarial review (PASS, no issue).** Last-24h findings are the two idle-run lesson
+conversions (L208 window-grid, L214 cross-venue terms) and the 07-30 Q21 round — no edge-verdict CI to
+re-attack, so I re-checked one load-bearing number each by FILE SHAPE (L25): (a) **07-30 Q21 / S62 kill**
+— `crypto_hourly` series set re-derives as `{KXBTC, KXETH}` ONLY (766/763 lines now vs the finding's
+725/722; the +41 delta is newer captures, not an error), so the empty `universe_sweep ∩ crypto_hourly`
+cross-tape join HOLDS. (b) **L208 window-grid** — `tape_gap_monitor.py --window-grid` now reads 43
+expected / 38 observed / 5 zero-capture / 39.5% path-inadequate vs the finding's snapshot 41/36/5/36.6%;
+the grid grew by exactly one tape-day, the 5 zero-pass windows are stable, structure confirmed (finding
+was explicitly a PROVISIONAL snapshot). (c) **L214 provenance** — `polymarket_macro_pairs` dt=2026-07-30
+carries the resolution-terms provenance structure. **No finding fails re-check → no GitHub issue, no
+history rewrite.** The one recurring load-bearing number, the paper P&L, re-checked separately (Step 9).
+
+**Unit 2 — pipeline replenishment (0 eligible → Q21 round #18, register nothing).** Full Q0–Q48 file-shape
+rescan: **0 eligible TODO/IN-PROGRESS** (every item DONE / auth-BLOCKED / calendar-gated-closed /
+gate-open-but-density-inadequate — Q42/Q43 perp gate open but VPS-dead cloud-only tape is density-thin;
+Q47 Ryan-gated on a working key; Q48/S55 fired 07-29). Observatory 07-30 pass also drafted **0
+candidates**. <2 eligible → ran one Q21 round targeting the two least-mined corners (`hyperliquid_funding
+× crypto_hourly`; `universe_sweep` commodity `-T` ladders). Producer proposed S63/S64/S65; independent
+`verifier` agent attacked each on committed tape BEFORE registration (two-agent rule at idea stage) and
+**CONFIRMED all three KILL, correcting two producer counts** (trust default): **S63** (funding-flip
+settlement predictor) dies on the *signal-firing* population — 748 book+funding-joinable event-hours but
+only ~12 flip-firing and **3 scoreable, clustered** ≪ the L41 floor of 10 (producer's "<10 joinable" was
+wrong; the kill survives only under the signal-conditioned count); **S64** (commodity threshold box) =
+**0 fee-clearing boxes over 25,866 both-legs-fillable pairs**, the S3/S15 8¢ taker floor; **S65** (commodity
+cross-sectional reversion) = **4** correlated two-sided underlyings (KXWTIH/KXSILVERH/KXGOLDH + KXAAAGASD,
+not 3) ≪ L41 floor, the 07-30 S61 collapse. **0 registered**, registry untouched. New signal-conditioned-
+density lesson candidate deferred to kb-distiller (not appended here, avoids merge conflict). Consumed
+S63/S64/S65 → next free **S66**. This is the **18th consecutive zero-registration round**; every angle
+died on a graveyard fee-floor or the L41 unit floor, and the L41 failures are properties of the *frozen
+data surface* (VPS dead 9 days) — the binding constraint stays DATA, not idea capacity, as 07-29/07-30
+also concluded. See `findings/2026-07-31-q21-idea-gen-round.md`.
+
+**Unit 3 — probe-prep (no-op, nothing unblocks within ~72h).** No day-count/time gate opens by ~Aug 3:
+Q37's weather-maker gate is ~Aug 5 (>72h) and its probe is already prepped (prior runs); Q42/Q43 are
+density-gated, not date-gated; the burst legs and Q48/S55 have already fired. Nothing to build.
+
+**Housekeeping.** (1) **Stuck PRs** — #208/#191/#166/#165/#125 all unchanged Ryan-side (leave-open retros +
+drafts); the 07-26 retro (#208) already consolidated the "Ryan review these four" ask, and prior nights
+deliberately did NOT re-flag per the do-not-retrain-the-channel rule — so NOT re-flagged at high tonight
+(no new information; nothing failed this run). #191 remains the open structural fix for the dead-shadow
+P&L contradiction (see Step 9). (2) **Burst triggers** — `kalshi-burst-fomc-0729` is still **enabled=True**
+but its 07-29 event has passed (prior runs kept it as "future"); **named for deletion** (newly eligible).
+The other four (cpi-0714/wcsemi1-0714/wcsemi2-0715/wcfinal-0719) are already disabled and were named in
+prior nights. (3) **Remote branches:** **201** `tape/hourly-*` and **10** `tape/burst-*` (delete-scope is
+a standing Ryan-side item, Q17).
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` only, and S14 is `dead ✗`
+(Q34 queue-aware CI [−0.0809,−0.0121]); its shadow uses the `maker_candle_through` / `no_queue` /
+`optimistic_fill` model — the exact L39-optimistic model that verdict discredited. Canonical `PaperBroker`
+replay of the committed ledger: **realized P&L +$24.84, 1385 settled contracts, 0 open** (was +$22.47 on
+07-28 → normal append-growth). This is **paper-infra validation ONLY, NOT edge evidence** — the DEAD
+strategy's candle-through P&L is precisely the number most likely to be misread as an edge (PR #191 is the
+still-open gate for it). No ledger lines added this run (idempotent — no paper-relevant tape change beyond
+what the collector already committed).
+
+**Gates.** `pytest` — **exit 0, 0 failed** (full suite, run to completion; ≥2353 passed — this diff adds
+no tests/code, so the count is the #248-base suite unchanged, stated as a floor per L162). `python
+scripts/invariants.py --full` — exit 0 (only the
+known non-gating advisories: L25/L74/L138/L152/L157/L205/L210/L223 + the GDP no-settled-events regression,
+all pre-existing). Diff is docs/findings-only (this entry + the Q21 finding + the run-log line). Still
+**0 proven edges**.
+
+RUN DIGEST
+- Done: adversarial review of last-24h findings (all clean, no issue); Q21 round #18 (S63/S64/S65 all verifier-CONFIRMED KILL, 0 registered); housekeeping.
+- Found: no finding failed re-check; S64 = 0 fee-clearing boxes over 25,866 pairs; S63/S65 below the L41 independent-unit floor (3 scoreable / 4 correlated underlyings). Paper shadow realized P&L **+$24.84** (`broker_truth` settlements on the DEAD s14 shadow — paper-infra only, NOT edge evidence).
+- Next: no gate opens within 72h; pipeline stays data-constrained (VPS dead 9d); Q47 `ws_depth` (Ryan-gated) is the one unblock. `kalshi-burst-fomc-0729` named for deletion.
+- Repo: 874f7c5 → edge-hunter/20260731-review-q21 (PR #<n>, merged)
+
 ## 2026-07-31 ~00:2xz UTC — research loop IDLE RUN: L242's `git_ref`/`n_records_at_head` provenance candidate converted UNENFORCED → test
 
 First research-loop firing of 2026-07-31 (protocol v3). **0a PASS** — `git fetch origin main` landed at
