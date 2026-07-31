@@ -1993,3 +1993,171 @@ def test_acceptance_14_l222_polymarket_pairs_wcsemi2_burst_is_registered_but_sti
     assert len(unexplained_minutes) == 14
     gaps = {round((b - a).total_seconds()) for a, b in zip(unexplained_minutes, unexplained_minutes[1:])}
     assert gaps == {120}, "the unexplained passes form a regular 120s burst cadence, not noise"
+
+
+# --------------------------------------------------------------------------- #
+# burst_window_liveness / burst_trigger_liveness — L227's PREVENTION half
+# --------------------------------------------------------------------------- #
+def _burst_pass(tape_root, family, day, ts, cid=None):
+    _write_lines(tape_root, family, day, [_pass(cid or ts, ts)])
+
+
+def test_burst_window_liveness_no_passes_in_window_is_total_loss(tmp_path):
+    _burst_pass(tmp_path, "crypto_hourly", "2026-07-14", "2026-07-14T10:00:00+00:00")
+    out = tgm.burst_window_liveness(
+        tmp_path, "crypto_hourly",
+        _dt(2026, 7, 14, 17, 40), _dt(2026, 7, 14, 19, 45),
+        expected_interval_s=90.0,
+    )
+    assert out["verdict"] == "NO_PASSES_IN_WINDOW"
+    assert out["n_passes_in_window"] == 0
+    assert out["gaps"] == []
+    assert out["max_gap_s"] is None
+
+
+def test_burst_window_liveness_steady_cadence_is_live(tmp_path):
+    start = _dt(2026, 7, 14, 17, 40)
+    for i in range(20):
+        ts = (start + timedelta(seconds=90 * i)).isoformat()
+        _burst_pass(tmp_path, "crypto_hourly", "2026-07-14", ts, cid=f"p{i}")
+    out = tgm.burst_window_liveness(
+        tmp_path, "crypto_hourly", start, start + timedelta(seconds=90 * 19),
+        expected_interval_s=90.0,
+    )
+    assert out["verdict"] == "LIVE"
+    assert out["n_passes_in_window"] == 20
+    assert out["gaps"] == []
+
+
+def test_burst_window_liveness_interior_gap_is_reported_with_bounds(tmp_path):
+    start = _dt(2026, 7, 14, 17, 40)
+    times = [start, start + timedelta(seconds=90), start + timedelta(seconds=1200)]
+    for i, t in enumerate(times):
+        _burst_pass(tmp_path, "crypto_hourly", "2026-07-14", t.isoformat(), cid=f"p{i}")
+    out = tgm.burst_window_liveness(
+        tmp_path, "crypto_hourly", start, times[-1] + timedelta(seconds=90),
+        expected_interval_s=90.0, gap_multiplier=3.0,
+    )
+    assert out["verdict"] == "OUTAGE_DETECTED"
+    assert out["threshold_s"] == 270.0
+    interior = [g for g in out["gaps"] if g["kind"] == "interior"]
+    assert len(interior) == 1
+    assert interior[0]["start"] == times[1].isoformat()
+    assert interior[0]["end"] == times[2].isoformat()
+    assert interior[0]["duration_s"] == pytest.approx(1110.0)
+    assert out["max_gap_s"] == pytest.approx(1110.0)
+
+
+def test_burst_window_liveness_lead_in_and_trail_gaps_are_flagged(tmp_path):
+    window_start = _dt(2026, 7, 14, 17, 40)
+    window_end = _dt(2026, 7, 14, 19, 45)
+    # First pass 20 minutes late; last pass 20 minutes before window close.
+    first = window_start + timedelta(seconds=1200)
+    last = window_end - timedelta(seconds=1200)
+    _burst_pass(tmp_path, "crypto_hourly", "2026-07-14", first.isoformat(), cid="a")
+    _burst_pass(tmp_path, "crypto_hourly", "2026-07-14", last.isoformat(), cid="b")
+    out = tgm.burst_window_liveness(
+        tmp_path, "crypto_hourly", window_start, window_end, expected_interval_s=90.0,
+    )
+    kinds = {g["kind"] for g in out["gaps"]}
+    assert "lead_in" in kinds
+    assert "trail" in kinds
+    assert out["verdict"] == "OUTAGE_DETECTED"
+
+
+def test_burst_window_liveness_gap_multiplier_controls_the_threshold(tmp_path):
+    start = _dt(2026, 7, 14, 17, 40)
+    mid = start + timedelta(seconds=200)
+    _burst_pass(tmp_path, "crypto_hourly", "2026-07-14", start.isoformat(), cid="a")
+    _burst_pass(tmp_path, "crypto_hourly", "2026-07-14", mid.isoformat(), cid="b")
+    # 200s gap: LIVE at the default 3x90s=270s threshold, OUTAGE at a tight 1x=90s threshold.
+    live = tgm.burst_window_liveness(
+        tmp_path, "crypto_hourly", start, mid, expected_interval_s=90.0, gap_multiplier=3.0,
+    )
+    assert live["verdict"] == "LIVE"
+    strict = tgm.burst_window_liveness(
+        tmp_path, "crypto_hourly", start, mid, expected_interval_s=90.0, gap_multiplier=1.0,
+    )
+    assert strict["verdict"] == "OUTAGE_DETECTED"
+
+
+def test_burst_trigger_liveness_unknown_trigger_is_honest_not_a_guess(tmp_path):
+    out = tgm.burst_trigger_liveness(tmp_path, "kalshi-burst-does-not-exist")
+    assert out["verdict"] == "UNKNOWN_TRIGGER"
+    assert out["families"] == {}
+
+
+def test_burst_trigger_liveness_dispatches_every_configured_family(tmp_path):
+    cfg = tgm.BURST_TRIGGER_WINDOWS["kalshi-burst-fomc-0729"]
+    start = _dt(2026, 7, 29, 17, 40)
+    end = _dt(2026, 7, 29, 19, 45)
+    n_passes = int((end - start).total_seconds() // 90.0) + 1
+    for i in range(n_passes):
+        ts = (start + timedelta(seconds=90 * i)).isoformat()
+        for key in cfg["burst_keys"]:
+            fam = tgm.BURST_CAPTURE_KEY_TO_TAPE_FAMILY[key]
+            _burst_pass(tmp_path, fam, "2026-07-29", ts, cid=f"{fam}-{i}")
+    out = tgm.burst_trigger_liveness(tmp_path, "kalshi-burst-fomc-0729")
+    assert out["verdict"] == "LIVE"
+    expected_families = {tgm.BURST_CAPTURE_KEY_TO_TAPE_FAMILY[k] for k in cfg["burst_keys"]}
+    assert set(out["families"].keys()) == expected_families
+    for fam_result in out["families"].values():
+        assert fam_result["verdict"] == "LIVE"
+
+
+def test_burst_trigger_windows_keys_are_all_known_burst_capture_keys():
+    """Every `burst_keys` entry in the declared-window table must be a real
+    `collection.burst_capture` family key — the same drift guard as
+    `test_burst_capture_key_to_tape_family_matches_registry`, applied to this table."""
+    for trigger, cfg in tgm.BURST_TRIGGER_WINDOWS.items():
+        for key in cfg["burst_keys"]:
+            assert key in tgm.BURST_CAPTURE_KEY_TO_TAPE_FAMILY, (trigger, key)
+
+
+@_real
+def test_acceptance_15_l227_fomc_burst_had_a_real_outage_in_its_declared_window():
+    """HARD real-tape acceptance, FROZEN to the kalshi-burst-fomc-0729 trigger's declared
+    window (17:40-19:45Z, 2026-07-29). This is L227's own originating incident, now
+    machine-detected from the DECLARED window instead of the narrower 17:40-18:30Z slice a
+    human happened to inspect by hand: crypto_hourly/econ_prints/polymarket_macro_pairs all
+    show a >=700s interior gap bracketing the 18:00:00Z FOMC statement, AND (a fact the
+    narrower hand audit didn't see) further multi-hundred-second gaps recur through the rest
+    of the declared window — the burst leg was live for barely the first ten minutes, not
+    merely blipping once at the release instant."""
+    out = tgm.burst_trigger_liveness(_REAL_TAPE, "kalshi-burst-fomc-0729")
+    assert out["verdict"] == "OUTAGE_DETECTED"
+    for fam in ("crypto_hourly", "econ_prints", "polymarket_macro_pairs"):
+        r = out["families"][fam]
+        assert r["verdict"] == "OUTAGE_DETECTED"
+        assert r["n_passes_in_window"] > 0
+        release_bracketing = [
+            g for g in r["gaps"]
+            if g["start"] < "2026-07-29T18:00:00" < g["end"]
+        ]
+        assert release_bracketing, f"{fam}: no gap brackets the 18:00:00Z release"
+        assert release_bracketing[0]["duration_s"] > 700.0
+
+
+@_real
+def test_acceptance_16_l227_cpi_burst_is_the_negative_control_stayed_live():
+    """HARD real-tape acceptance, FROZEN to kalshi-burst-cpi-0714's declared window
+    (12:05-13:45Z, 2026-07-14). The negative control every L213/L222 precedent already
+    established by hand: this burst's own tape shows dense, unbroken cadence throughout —
+    the detector must not flag a healthy burst just because it CAN flag one."""
+    out = tgm.burst_trigger_liveness(_REAL_TAPE, "kalshi-burst-cpi-0714")
+    assert out["verdict"] == "LIVE"
+    for fam, r in out["families"].items():
+        assert r["verdict"] == "LIVE", fam
+        assert r["n_passes_in_window"] > 50, fam
+
+
+@_real
+def test_acceptance_17_l227_wcfinal_burst_was_a_total_loss():
+    """HARD real-tape acceptance, FROZEN to kalshi-burst-wcfinal-0719's declared window
+    (20:10-22:45Z, 2026-07-19). L213's own text names this trigger (alongside WC-semi1) as
+    having "lost ... entirely" — the total-loss case NO_PASSES_IN_WINDOW exists for, distinct
+    from a mid-window OUTAGE_DETECTED gap."""
+    out = tgm.burst_trigger_liveness(_REAL_TAPE, "kalshi-burst-wcfinal-0719")
+    assert out["verdict"] == "OUTAGE_DETECTED"
+    assert out["families"]["polymarket_pairs"]["verdict"] == "NO_PASSES_IN_WINDOW"
+    assert out["families"]["polymarket_pairs"]["n_passes_in_window"] == 0
