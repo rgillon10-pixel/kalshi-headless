@@ -6,6 +6,92 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~07:3x UTC — research loop IDLE RUN: polymarket_pairs tape-quality deep-dive, resolves the L222 14/424 caller-explicability anomaly (tool blind spot, not a data hole)
+
+Research-loop firing (protocol v3). **0a PASS** — `git fetch origin main` landed exactly at `0dc048c`
+(PR #250, the prior L222 idle run); `mcp__github__list_pull_requests` confirmed the last 5 merged PRs
+(#250/#249/#248/#247/#246) all closed with `merged_at` set and `origin/main` HEAD is literally #250's
+merge commit — no rewind. **Claim-check** — open PRs #208/#191/#166/#165/#125 unchanged, all
+Ryan-review-only, none claims queue work. **0b** — the long-tail `tape/hourly-*`/`tape/burst-*` stranded
+heads (Q17 debt, ~200+) were not re-diffed line-by-line (out of one milestone's budget, same posture as
+recent runs); no branch newer than 30 minutes existed to check.
+
+**Queue rescan → IDLE RUN.** Full Q0–Q48 `Status:` line scan found exactly one `TODO`, Q24 — but its
+entry has TWO status lines in atypical (oldest-first) order for that row, and its second line is
+`DONE (2026-07-13) — VERDICT DEAD`; Q24 is actually closed, not eligible. Confirmed 0 genuinely eligible
+TODO/IN-PROGRESS items, matching the two prior runs tonight. `stale_unenforced_recall_report()`: still
+5 open UNENFORCED rows (`L145, L213, L221, L222, L227`), and every buildable half is already built per
+the last two runs' own screening — nothing new to convert under policy (a). Policy (b): Q37's probe is
+already prepped and its gate is still >72h out — nothing to build. Fell to **policy (c)**: a dedicated
+data-quality deep-dive on one tape family. Picked `tape/polymarket_pairs/` — the one actively-collected
+family with no dedicated audit doc yet, and newly relevant post-2026-07-15 (Polymarket now a tradeable
+venue).
+
+**What a `tape-auditor` subagent found.** Coverage/drift/join-ability are all clean (11 days, 6,369
+lines, 0 malformed, 100% `real_ask` on both legs, 1 schema throughout; both gaps — the repo-wide 07-09
+outage and the post-07-15 World-Cup-is-over silence — are pre-existing and already classified). The one
+real thread: last night's new `caller_explicability()` (L222) flagged `polymarket_pairs` at **14/424
+(3.3%) unexplained passes**, the highest of any UNGATED leg (others ≤0.4%) though far below the gated
+legs (econ_prints 15.4%, anomalies 21.8%) — nobody had dug into *why*. Traced it fully: all 14 sit on
+`dt=2026-07-15`, `20:39:28Z`→`21:05:28Z`, exactly 120s apart with an identical sub-second offset — the
+interior of the `kalshi-burst-wcsemi2-0715` one-shot (Argentina `yes_ask` visibly moving 0.26→1.00 across
+those exact 14 rows as the semifinal resolves). **Verdict: DEAD — a tool blind spot, not a tape defect.**
+Two compounding causes, both in `scripts/tape_gap_monitor.py`, not the data: (1) its
+`BURST_CAPTURE_CO_WRITTEN_FAMILIES` registry was a hand-picked 3-family tuple that silently omitted
+`polymarket_pairs`/`polymarket_cpi_pairs`/`sports_pairs`, even though `collection/burst_capture.py`'s
+own `FAMILY_REGISTRY` has always driven all six — so `burst_capture` was never even a *registered
+caller* of `polymarket_pairs`; (2) even fixed, a burst run with a SINGLE `--families` value (this one
+ran `--families wc` alone) writes no sibling leg at all, so it is unexplainable by co-occurrence *by
+construction* — a structural method limit, not a registry gap.
+
+**Fix applied (tool code, not a live collector — same lane as prior idle-run tool fixes).**
+`BURST_CAPTURE_CO_WRITTEN_FAMILIES` is now derived from an explicit `BURST_CAPTURE_KEY_TO_TAPE_FAMILY`
+map instead of a hand-picked subset; a new drift-detector test asserts its keys equal
+`collection.burst_capture.VALID_FAMILIES` so this can't silently omit a family again. The single-family
+arity blind spot is deliberately **not** papered over: the docstring and the function's own
+`coverage_note` now both state it, and a new HARD real-tape acceptance test
+(`test_acceptance_14_l222_polymarket_pairs_wcsemi2_burst_is_registered_but_still_arity_blind`, FROZEN to
+dt=2026-07-15) pins BOTH facts together — `burst_capture` is now correctly registered and explains the
+OTHER 43 passes that day, while these 14 remain unexplained AND form a regular 120s cadence (a burst
+signature, not noise). Verified live before/after: `registered_callers` gained `burst_capture`;
+`n_unexplained` stayed 14, exactly as designed. **4 new tests** in `tests/test_tape_gap_monitor.py`
+(129 total). Two lesson candidates for kb-distiller: the arity-floor limit of co-occurrence
+explicability, and "a hand-maintained caller registry drifts from its source of truth — derive it and
+pin the correspondence with a test." See `findings/2026-07-31-polymarket-pairs-tape-audit.md`.
+
+No registry flip, no bootstrap CI, no kill decision on any strategy — two-agent rule N/A (a data-quality
+audit plus an analysis-tool correctness fix, same posture as the perp_tape/settlement_ledger/
+polymarket_macro_pairs/econ_prints audit precedents). Not touched (out of a research run's lane, live
+collector write path): `collection/polymarket_pairs.py:354`'s `run()` still lacks the L212
+always-write-a-summary fix its `run_fed_decision` sibling got on 07-28.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` only (dead ✗ per Q34).
+`python3 scripts/paper_pass.py` → **0 newly processed** (1,531 loaded; 207 already-in-ledger, 93
+deferred(caps), 272 deferred(coverage)), ledger unchanged **$+24.84** (`broker_truth`, 1,385 settled,
+0 open) — no new paper-relevant tape since the last pass, idempotent as expected.
+
+**Gates (fresh, after the last edit, L162).** `pytest` — **2,414 collected, 0 failed, exit 0** (full
+suite; `.pytest_cache/v/cache/lastfailed` confirmed `{}` after the fresh run). Note: the very first draft
+of the new acceptance test used a raw `datetime.fromisoformat(...)` and correctly tripped this repo's
+own `no_raw_datetime_fromisoformat` hard gate (L136/L150) before it was committed — fixed to
+`core.timeutil.parse_iso_utc` and re-verified green, the invariant catching exactly the class of bug it
+exists to catch. `python3 scripts/invariants.py --full` → exit 0, `invariants: all green` (only
+pre-existing non-gating advisories, unchanged in kind by this diff). No network, no orders, no
+credentials. Still **0 proven edges**.
+
+RUN DIGEST
+- Done: idle-run policy (c) — dedicated `polymarket_pairs` tape-quality audit; found and fixed a real
+  registry bug in `scripts/tape_gap_monitor.py` that had hidden `burst_capture` as `polymarket_pairs`'s
+  caller.
+- Found: the L222 14/424 unexplained-pass anomaly is fully explained (the `kalshi-burst-wcsemi2-0715`
+  one-shot) — DEAD as a data-quality concern, tool blind spot not a tape defect. Paper shadow P&L
+  unchanged at **+$24.84** (`broker_truth`, DEAD s14 shadow, paper-infra only).
+- Next: no gate opens within 72h; every UNENFORCED lesson's buildable half is exhausted; pipeline stays
+  data-constrained (VPS dead). `kalshi-burst-fomc-0729` still named for deletion (Ryan/weekly-retro).
+- Repo: (commit pending) → run/20260731-polymarket-pairs-audit (PR pending)
+
+---
+
 ## 2026-07-31 ~04:1x UTC — kalshi-edge-hunter nightly: adversarial review (clean) + Q21 round #18 (S63/S64/S65 all KILL) + housekeeping
 
 Nightly Opus thinking-seat run (protocol v3; steps 0a/0/0b first). **0a PASS** — `git pull --rebase origin
