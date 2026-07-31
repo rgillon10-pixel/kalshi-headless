@@ -18,12 +18,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.pricing import MAKER_FEE_RATE, fee_per_contract
 from scripts.q37_weather_summer_makerno_probe import (
+    BOOKS_GLOB,
     LONGSHOT_MAX,
     SUMMER_DAYS_REQUIRED,
+    SUMMER_END,
+    SUMMER_START,
     bootstrap_cut,
     build_emos_filter,
     group_snapshots,
     is_summer,
+    is_temperature_series,
     load_daily_snapshots,
     load_settlement,
     movement_dual_cut,
@@ -400,3 +404,83 @@ def test_series_to_forecast_city_maps_real_config():
     m = _series_to_forecast_city()
     assert m.get("KXHIGHAUS") == "Austin"
     assert isinstance(m, dict) and len(m) >= 1
+
+
+# --------------------------------------------------------------------------- #
+# GATE-CONTAMINATION FIX (2026-07-31 research loop, idle-run policy (c) pre-flight audit —
+# `findings/2026-07-31-weather-gate-preflight-audit.md`). Two defects let non-temperature,
+# far-future weather markets buy Q37's self-activation gate days it had not earned: `is_summer()`
+# was unbounded above, and the daily loader had no series whitelist. Measured contamination on
+# the committed tape: reported 19 summer contract-days where only 17 real ones existed, which
+# would have opened the >=21 gate two calendar days early. These tests pin BOTH guards.
+#
+# NOTE (L191 / Q42 test-hygiene lesson): the real-tape pins below are deliberately written as
+# MONOTONE properties ("no loaded row is out-of-window", "no loaded series is non-temperature")
+# rather than an exact day-count. `tape/weather_books/` is a live, still-growing family; an
+# exact-count assertion over an open-ended glob red-lines on routine capture and teaches future
+# runs to relax the pin instead of trusting it.
+# --------------------------------------------------------------------------- #
+def test_is_summer_has_an_upper_bound():
+    """A far-future contract day is NOT summer 2026 — the defect that inflated the gate."""
+    assert is_summer(SUMMER_END) is True                 # end of window, inclusive
+    assert is_summer(date(2026, 9, 23)) is False         # one day past the window
+    assert is_summer(date(2026, 10, 1)) is False         # the real KXARCTICICEMIN contract day
+    assert is_summer(date(2028, 12, 31)) is False        # the real KXTXURI contract day
+    assert SUMMER_START < SUMMER_END
+
+
+def test_is_temperature_series_whitelist():
+    """Only KXHIGH*/KXLOW* daily temperature ladders belong to the S1/S5 family."""
+    for good in ("KXHIGHNY", "KXHIGHTATL", "KXLOWTNYC", "KXLOWTDEN", "KXHIGHAUS"):
+        assert is_temperature_series(good) is True, good
+    # the two real contaminating series measured in tape/weather_books/ on 2026-07-31
+    for bad in ("KXARCTICICEMIN", "KXTXURI"):
+        assert is_temperature_series(bad) is False, bad
+    assert is_temperature_series(None) is False
+    assert is_temperature_series("") is False
+
+
+def test_loader_drops_nontemperature_and_out_of_window_rows(tmp_path):
+    """A phantom row of EITHER contaminating shape must not reach the population or the gate."""
+    books = tmp_path / "books"
+    books.mkdir()
+    rows = [
+        # legitimate: temperature series, in-window contract day
+        {"group": "daily", "ticker": "KXHIGHNY-26JUL15-B90.5", "captured_at": "2026-07-14T12:00:00Z",
+         "close_time": "2026-07-16T05:59:00Z", "best_yes_ask": 0.10, "best_yes_bid": 0.05,
+         "best_no_ask": 0.95, "best_no_bid": 0.90, "no_bids": [[0.90, 100.0]]},
+        # contaminant (1): non-temperature series, in-window day
+        {"group": "daily", "ticker": "KXARCTICICEMIN-26JUL15-T4.5", "captured_at": "2026-07-14T12:00:00Z",
+         "close_time": "2026-07-16T05:59:00Z", "best_yes_ask": 0.10, "best_yes_bid": 0.05,
+         "best_no_ask": 0.95, "best_no_bid": 0.90, "no_bids": [[0.90, 100.0]]},
+        # contaminant (2): temperature-shaped series, far-future contract day
+        {"group": "daily", "ticker": "KXHIGHNY-28DEC31-B90.5", "captured_at": "2026-07-14T12:00:00Z",
+         "close_time": "2029-01-01T05:59:00Z", "best_yes_ask": 0.10, "best_yes_bid": 0.05,
+         "best_no_ask": 0.95, "best_no_bid": 0.90, "no_bids": [[0.90, 100.0]]},
+        # contaminant (3): both wrong at once — the exact KXTXURI shape seen in real tape
+        {"group": "daily", "ticker": "KXTXURI-28DEC31-27JAN01", "captured_at": "2026-07-14T12:00:00Z",
+         "close_time": "2029-01-01T05:59:00Z", "best_yes_ask": 0.10, "best_yes_bid": 0.05,
+         "best_no_ask": 0.95, "best_no_bid": 0.90, "no_bids": [[0.90, 100.0]]},
+    ]
+    (books / "dt=2026-07-14.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    glob_pat = str(books / "dt=*.jsonl")
+    snaps = load_daily_snapshots(glob_pat)
+    assert [s["series"] for s in snaps] == ["KXHIGHNY"]
+    assert summer_contract_days(snaps) == [date(2026, 7, 15)]
+    # the gate counts 1, not 3 — phantoms cannot buy the gate a day
+    assert _summer_contract_days_available(glob_pat) == 1
+
+
+def test_real_weather_books_tape_carries_no_phantom_gate_days():
+    """Monotone pin over the COMMITTED tape: whatever the loader admits today, every admitted row
+    is an in-window day on a temperature series. Regression guard for the real 2026-07-31 finding
+    (KXARCTICICEMIN-26OCT01 / KXTXURI-28DEC31 each bought the gate a phantom day)."""
+    snaps = load_daily_snapshots(BOOKS_GLOB)
+    if not snaps:                       # tape not present in this checkout — nothing to pin
+        return
+    for s in snaps:
+        assert is_temperature_series(s["series"]), s["ticker"]
+        assert SUMMER_START <= s["contract_day"] <= SUMMER_END, s["ticker"]
+    for d in summer_contract_days(snaps):
+        assert SUMMER_START <= d <= SUMMER_END, d

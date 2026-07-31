@@ -6,6 +6,108 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~12:2x UTC — research loop IDLE RUN: weather-revival gate pre-flight — Q37's summer-day counter was contaminated (19 reported vs 17 real) and its EMOS half cannot run in a cloud checkout
+
+Research-loop firing (protocol v3). Steps **0a/0/most of 0b were done by the orchestrating
+session** and handed over: **0a PASS** (`origin/main` = `b6fc064`/PR #252, main not rewound,
+`kb/00-LOG.md`'s newest entry date matches the newest committed tape date); **claim-check** — the
+same 5 long-standing open PRs (#208/#191/#166/#165/#125), all Ryan-review-only, none claiming
+queue work; **queue rescan** — the immediately preceding merged run (PR #252, ~2h earlier) had
+already done a full Q0-Q48 rescan finding 0 eligible TODO/IN-PROGRESS, spot-re-checked on Q9/Q24
+(both stale archived spec text sitting under a later DONE line, per the append-don't-rewrite
+convention). All 5 open UNENFORCED rows (L145, L213, L221, L222, L227) re-confirmed
+not-cleanly-buildable from a cloud run. So: **a third consecutive IDLE RUN.**
+
+**0b — one genuinely fresh stranded branch swept.** `tape/hourly-20260731T0956Z` (`7a3de829`,
+authored 10:06:22Z, well past the 30-minute freshness bar) carried `dt=2026-07-31` lines absent
+from `main` across ten families. Union-appended **2,314 lines** with line-level dedupe:
+`orderbook_depth` 1516, `sports_pairs` 375, `weather_books` 303 (+48 `meta/`),
+`polymarket_cpi_pairs` 24, `polymarket_macro_pairs` 21, `perp_tape` 17, `econ_prints` 5,
+`crypto_hourly` 2, `hyperliquid_funding` 2, `anomalies` 1. Verified per file, three ways:
+`main`'s prior content is a strict PREFIX of the new content (nothing rewritten or reordered),
+every branch line is present, and every resulting line parses as JSON — zero deletions in the
+diff. `tape/hourly-Z` and `tape/burst-20260714T120659Z` deliberately untouched (ancient,
+badly-diverged, pre-existing clutter; branch deletion has been a broken permission boundary for
+cloud sessions since 2026-07-03).
+
+**Milestone — idle-run policy (c), on a tape family never previously audited.** The last two idle
+runs both spent policy (c) on `econ_prints`/`anomalies`/`polymarket_pairs`, so this one went to
+the weather legs, chosen because **Q37 was the next queue gate due to open** (~early August) and
+because `tape/weather_actuals/` had no audit in its history. Framing question: *will Q37's inputs
+actually be adequate on the day its gate fires?* Answer: **no on two of three, and the day-count
+gate itself was measurably wrong.**
+
+**(A) The gate counter was contaminated — it would have opened two days early.**
+`_summer_contract_days_available()` reported **19** summer daily contract-days where only **17**
+real ones existed. Two compounding defects: `is_summer(d)` was `d >= SUMMER_START` with no upper
+bound, so any future-dated contract day counted as "summer 2026"; and `load_daily_snapshots()`
+applied no series whitelist, so `tape/weather_books/` — captured by weather FAMILY, not by ladder
+SHAPE — fed non-temperature markets into a daily-temperature-ladder population. The two real
+contaminants, over 56,096 parsed daily rows: `KXARCTICICEMIN-26OCT01-*` (Arctic sea-ice minimum
+extent, 162 snapshots) and `KXTXURI-28DEC31-*` (69 snapshots). Each bought exactly one phantom
+gate day. Effect at the deliberately optimistic one-day-per-day rate: the gate fires **2026-08-02
+instead of 2026-08-04** — two calendar days early, on 19 real days of tape rather than the 21 the
+gate exists to require, a 10% shortfall against its own design. Population effect, sized by
+force-opening the gate with and without the contaminants: 682 → 680 groups, 2,289 → 2,279
+longshot trades (0.44%). **Nothing in that forced-open diagnostic is a Q37 verdict** — real gate
+closed, day requirement overridden, `optimistic_fill=True`, EMOS absent. Fixed this run by
+**tightening only**: `SUMMER_END = 2026-09-22` bounds the window at both ends and
+`is_temperature_series()` pins the `KXHIGH*`/`KXLOW*` grammar shared by all 41 real daily
+temperature series. Both guards can only ever remove rows — neither can admit anything the old
+code rejected — so the gate is strictly tightened, never relaxed. The probe now reports 17.
+
+**(B) `tape/weather_actuals/` — joinability perfect, coverage one third.** First audit of the
+family. Alive but sparse, not frozen: 7 day-files / 162 lines, capture days
+07-16/17/18/21/22/27/30 — 7 of a possible 16, so **9 daily passes never happened**. 1,374
+`broker_truth` settled result tickers and 229 `(series, contract_day)` realized-high actuals over
+only **7 distinct settled contract-days**. The join is sound where data exists — **1.0 precision
+at BOTH keys, 0 orphans** on the `(series, contract_day)` key and on the exact market ticker — so
+this is purely a coverage defect, not a schema or key defect: **229 of 680 book groups (33.7%)
+carry settlement truth.** Coverage and joinability are reported separately on purpose; a single
+"join rate" would have hidden which one was broken. And the holes **do not self-heal**:
+`collection/weather_actuals.py` targets `cap_ts.date() - timedelta(days=1)` — yesterday only, no
+backfill — so a missed pass is a permanently missing settlement day unless someone explicitly
+invokes `--target-day`, which nothing schedules.
+
+**(C) `data/forecast_tape/` — the EMOS half is structurally unavailable to any cloud run.** Q37's
+milestone is *maker-NO fill-sim × S5 EMOS entry filter*. The EMOS half reads
+`FORECAST_DIR = data/forecast_tape`, and `data/` is gitignored by project contract, so its
+presence is a property of the CHECKOUT, not the repo: `emos_input_available=False` here and in
+every cloud checkout, permanently (`emos_available: false` / `EMOS_UNAVAILABLE` confirmed in the
+forced-open diagnostic). This is **not** a collector failure — Q38 is legitimately DONE and the
+forecast leg is wired into `hourly_pass.py`. It is a lane mismatch: the collector writes to a lane
+that cannot reach the analysis surface. Left alone, Q37 fires on its gate day with half its
+designed signal layer silently missing.
+
+**What did NOT change.** No registry row moved; S1/S5 keep their status. No CI, no bootstrap, no
+P&L, no kill. Q37 stays GATED — its gate now just reads honestly. Two items recorded as Ryan-side
+and deliberately not acted on: making the forecast lane reachable from an analysis checkout, and
+backfilling the 9 missed `weather_actuals` days while Kalshi still serves them (both are
+lane/write-path decisions above a research run).
+
+**Two-agent posture.** No `Task` tool was available in this session, so no subagent could be
+dispatched. Since this is a pure data-quality/provenance finding with **no registry flip, no CI,
+and no kill decision**, the two-agent verdict rule does not bind (same posture as the two
+preceding idle runs). Redundancy was supplied instead by independent re-derivation: every headline
+number was computed twice — once ad hoc during exploration, then again by the committed
+`scripts/weather_revival_gate_preflight_audit.py`, which recomputes the counter under BOTH the
+pre-fix and post-fix admission rules so the 19-vs-17 claim stays reproducible after the fix
+landed. One self-caught defect worth recording: the first draft of the real-tape pin contained a
+tautological `assert ... or True`, replaced with a real property (phantom days are disjoint from
+admitted days, and the phantom count equals the two rules' difference).
+
+**Paper sub-pass (step 9).** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`).
+`python3 scripts/paper_pass.py` over the newly-swept tape: **0 processed**, 93 deferred(caps),
+272 deferred(coverage), 207 already-in-ledger. `daily_summary()`: *paper: 0 open position(s),
+1385 settled contract(s), realized P&L $+24.84, cash $+24.84, open notional $0.00.* No new ledger
+lines — `paper/` is unchanged in this commit.
+
+Produced: `findings/2026-07-31-weather-gate-preflight-audit.md`,
+`scripts/weather_revival_gate_preflight_audit.py` (+10 offline tests),
+the Q37 probe gate fix (+4 tests), lessons row **L244** (enforcement `test`).
+
+---
+
 ## 2026-07-31 ~09:2x UTC — research loop IDLE RUN: econ_prints/anomalies "unknown caller" solved — repeat hour-09 side-effect firings by agent sessions, not a rogue scheduler
 
 Research-loop firing (protocol v3). **0a PASS** — `git fetch origin main` landed exactly at
