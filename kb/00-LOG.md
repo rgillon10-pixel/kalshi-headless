@@ -6,6 +6,86 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~09:2x UTC — research loop IDLE RUN: econ_prints/anomalies "unknown caller" solved — repeat hour-09 side-effect firings by agent sessions, not a rogue scheduler
+
+Research-loop firing (protocol v3). **0a PASS** — `git fetch origin main` landed exactly at
+`6e2dd3b` (PR #251, the prior idle run); last 5 merged PRs (#251/#250/#249/#248/#247) all show
+`merged_at` set and are directly visible in `origin/main`'s own commit chain — no rewind.
+`kb/00-LOG.md`'s newest entry and the newest committed `tape/*/dt=*` file are both 2026-07-31.
+**Claim-check** — open PRs #208/#191/#166/#165/#125 unchanged, all Ryan-review-only, none claims
+queue work. **0b** — newest stranded branch is `tape/hourly-20260731T0103Z` (already swept by
+PR #250) and `tape/hourly-20260730T2205Z` (confirmed redundant, PR #247); nothing newer than 30
+minutes; nothing to sweep this run.
+
+**Queue rescan → IDLE RUN, again.** Own full Q0-Q48 `Status:` line scan (first line under each
+heading, since the file prepends newest-first, with Q9/Q24 flagged exceptions per the two prior
+runs' own documented convention check) found 0 eligible TODO/IN-PROGRESS — every item is
+DONE/DEAD/BLOCKED/GATED/RESERVED, consistent with the last several runs' independent scans.
+`stale_unenforced_recall_report()`: 5 open UNENFORCED rows (L145, L213, L221, L222, L227).
+L145 needs a Ryan policy call (invariant-exemption for `ws_depth.py`'s authenticated read-only
+WS signing — deliberately not decided unilaterally here, it's the kind of Stop-rule-adjacent
+call this run's own lane excludes). L213's general half is already built (PR #246); its
+remaining half is Ryan's own trigger-prompt fix. L221's candidate (a once-per-day dedup key
+replacing `hourly_pass.py`'s bare `ts.hour == N` gate) substantially overlaps the unmerged,
+open, Ryan-review-only PR #165's `daily_leg_due()` catch-up-gate design — building a second,
+competing implementation risked real merge conflict with Ryan's own pending review, so this run
+did not attempt it. L227's remaining half is explicitly not statically assertable per its own
+row. So none of the 5 had a cleanly buildable next test/invariant this run — instead of a sixth
+straight `tape_gap_monitor.py` addition, this run fell to policy (c): a data-quality deep-dive,
+picking up a specific open thread the immediately preceding run (PR #251) surfaced but didn't
+chase — L222's row calls `econ_prints`/`anomalies` "roughly 65%"/"21.8%" unexplained by
+registered-caller co-occurrence without saying what produced those passes.
+
+**What a `tape-auditor` subagent found (independently re-verified by the lead, not taken on
+faith).** Live re-derivation first: PR #251's same-day `BURST_CAPTURE_CO_WRITTEN_FAMILIES` fix
+already re-credited 5 econ_prints passes, so the current, correct count is **econ_prints
+52/369 (14.09%)** (L222's quoted 57 is now stale) and **anomalies 53/243 (21.79%)** (unchanged
+— no burst family co-writes it). All 105 unexplained passes attribute to **8 specific commits**
+via `git log`-diff attribution over the two tape families' files, cross-referenced against each
+commit's own message — every hash independently re-verified against this session's own full
+(791-commit, non-shallow) history, not the subagent's report alone. Several commit messages
+narrate the mechanism directly: `add12b5259` ("Two `invariants.py --full` runs this session ...
+each triggered the 09-UTC-hour anomaly_sweep + econ_prints sub-passes as a side effect"),
+`3a6053d6e0` ("Landed ... during the concurrent hourly-collector's hour==9 pass"). **Root
+cause, confirmed empirically not just architecturally: `ts.hour == N` is a rate gate, not an
+idempotence gate (L221's own framing) — an autonomous session running `hourly_pass.run()` live
+for a routine smoke-test/gate-check, landing during UTC hour 9, re-fires the two hour-gated
+legs as a side effect, appending genuine-but-redundant captures that share no timing signature
+with a real concurrent invocation's other legs.** Minute-of-hour is one continuous 09:17-09:45
+smear (no `:2x`/`:5x` VPS-vs-cloud bimodality per L117/Q44), ruling out a second competing
+cron scheduler as the dominant cause — though one commit's own message describes a genuinely
+concurrent real invocation too, so both mechanisms may co-occur on some days; this audit does
+not fully separate them. Honest limit restated: this is commit-diff (tree) attribution, not
+runtime-process proof.
+
+**What this does and doesn't close.** Not a new invariant/test — L222's `test` marker is
+unchanged (no new machine check was built) and the `capture_source` write-path half stays
+UNENFORCED (deliberately not duplicated against PR #165, see above). What it closes: L222's own
+stated limit ("can prove a pass inexplicable, never certify one legitimate") no longer needs to
+stay hypothetical for these 105 passes — they're attributed, not mysterious. L222's enforcement
+cell updated in place (lesson TEXT unchanged, per the L152 own-row-update rule) with the
+corrected 52 count and this session's attribution. Full detail:
+`findings/2026-07-31-econ-prints-anomalies-unexplained-passes-provenance.md`.
+
+No registry flip, no bootstrap CI, no kill decision on any strategy — two-agent rule N/A (a
+provenance/data-quality investigation, same posture as the perp_tape/settlement_ledger/
+polymarket_macro_pairs/econ_prints/polymarket_pairs audit precedents).
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` only (dead ✗ per
+Q34). `python3 scripts/paper_pass.py` → **0 newly processed** (1,531 loaded; 207
+already-in-ledger, 93 deferred(caps), 272 deferred(coverage)), ledger unchanged **$+24.84**
+(`broker_truth`, 1,385 settled, 0 open) — no new paper-relevant tape since the last pass.
+
+**Gates.** `python3 scripts/invariants.py --full` → exit 0, `invariants: all green` (only the
+pre-existing non-gating advisory classes, unchanged in kind by this diff). `pytest -o addopts=''
+-q` (fresh full run, taken after this diff's last edit, L162) → **2,414 passed, 0 failed, exit 0**
+(2185.93s / 0:36:25) — this run's diff is docs/findings-only (`kb/lessons/00-lessons.md`,
+`kb/00-LOG.md`, `LOOP-QUEUE.md`, `findings/`), so the count is unchanged from the pre-edit
+baseline as expected. No network calls beyond read-only `git log`/`git show` archaeology, no
+orders, no credentials. Still **0 proven edges**.
+
+---
+
 ## 2026-07-31 ~07:3x UTC — research loop IDLE RUN: polymarket_pairs tape-quality deep-dive, resolves the L222 14/424 caller-explicability anomaly (tool blind spot, not a data hole)
 
 Research-loop firing (protocol v3). **0a PASS** — `git fetch origin main` landed exactly at `0dc048c`
