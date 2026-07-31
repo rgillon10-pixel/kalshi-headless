@@ -127,7 +127,26 @@ CITIES_YAML = REPO_ROOT / "config" / "cities.yaml"
 
 # ── the self-activation gate: Q37 is GATED on >=21 SUMMER contract-days of daily coverage ──
 SUMMER_START = date(2026, 6, 21)          # astronomical summer 2026 (gate #5: summer-only window)
+SUMMER_END = date(2026, 9, 22)            # astronomical summer 2026 END (inclusive) — see below
 SUMMER_DAYS_REQUIRED = 21
+
+# GATE-CONTAMINATION FIX (2026-07-31 research loop, idle-run policy (c) pre-flight audit —
+# `findings/2026-07-31-weather-gate-preflight-audit.md`). Both guards below only ever REMOVE
+# rows; neither can admit anything the previous code rejected, so the gate is strictly TIGHTENED
+# (Stop rule: never relax a gate).
+#   (1) `is_summer()` was `d >= SUMMER_START` with NO upper bound, so ANY future-dated contract
+#       day passed as "summer 2026" — a 2028-12-31 ticker counted as a summer contract-day.
+#   (2) `load_daily_snapshots()` applied NO series whitelist, so non-temperature weather series
+#       flowed into the daily-ladder population as if they were KXHIGH*/KXLOWT* temperature
+#       ladders. Measured on the committed tape at 2026-07-31: `KXARCTICICEMIN-26OCT01-*`
+#       (Arctic sea-ice minimum extent, 162 snapshots) and `KXTXURI-28DEC31-*` (69 snapshots)
+#       each contributed one PHANTOM "summer contract-day", reporting 19 where only 17 real
+#       temperature contract-days existed — which would have opened the >=21 gate two calendar
+#       days early, on 19 real days of tape instead of 21. Neither series can settle inside the
+#       study window at all, so no amount of waiting would have made them legitimate.
+# The whitelist is a grammar pin, not a hardcoded list: every one of the 41 daily temperature
+# series observed in `tape/weather_books/` is `KXHIGH*` (daily high) or `KXLOW*` (daily low).
+_TEMP_SERIES_RE = re.compile(r"^KX(HIGH|LOW)[A-Z]*$")
 
 # ── modeling choices (documented; re-settle against the real leg when the gate opens) ──
 DECISION_LEAD_HOURS = 24.0    # S1's T-24h strictly-causal decision time
@@ -169,8 +188,23 @@ def parse_daily_ticker(ticker: Any) -> Optional[Tuple[str, date, str]]:
 
 
 def is_summer(d: date) -> bool:
-    """Astronomical-summer gate (2026-06-21 onward) — the gate #5 season boundary."""
-    return d >= SUMMER_START
+    """Astronomical-summer 2026 window, BOTH ends inclusive — the gate #5 season boundary.
+
+    The upper bound is load-bearing, not cosmetic: without it a contract day years in the future
+    satisfies "summer" and inflates the self-activation day-count (see the GATE-CONTAMINATION
+    FIX note above). Bounded both ways, an out-of-season or far-future ticker can never buy the
+    gate a day it did not earn."""
+    return SUMMER_START <= d <= SUMMER_END
+
+
+def is_temperature_series(series: Any) -> bool:
+    """True only for a DAILY TEMPERATURE ladder series (`KXHIGH*` / `KXLOW*`).
+
+    `tape/weather_books/` is captured by weather FAMILY, not by ladder shape, so it legitimately
+    carries non-temperature weather series (Arctic sea-ice extent, named-storm markets). Those
+    are not S1/S5-family daily temperature ladders and must never enter this probe's population
+    or its day-count gate."""
+    return isinstance(series, str) and bool(_TEMP_SERIES_RE.match(series))
 
 
 def _parse_iso(v: Any) -> Optional[datetime]:
@@ -220,7 +254,8 @@ def load_daily_snapshots(books_glob: str = BOOKS_GLOB) -> List[Dict[str, Any]]:
     """Every DAILY-group weather_books snapshot for a SUMMER contract-day, normalized to the
     fields this probe consumes. Sizes stay FLOAT (L47 — a real observed best-level size was
     91,316.82 contracts; int-coercion silently corrupts queue-depth reads). Non-daily rows,
-    non-summer contract-days, and grammar-mismatched tickers are skipped."""
+    NON-TEMPERATURE series, out-of-window contract-days, and grammar-mismatched tickers are
+    skipped (the last three are the GATE-CONTAMINATION FIX guards documented above)."""
     out: List[Dict[str, Any]] = []
     for path in sorted(glob.glob(books_glob)):
         for line in _iter_lines(path):
@@ -231,6 +266,8 @@ def load_daily_snapshots(books_glob: str = BOOKS_GLOB) -> List[Dict[str, Any]]:
             if parsed is None:
                 continue
             series, cday, bracket = parsed
+            if not is_temperature_series(series):
+                continue
             if not is_summer(cday):
                 continue
             out.append({
