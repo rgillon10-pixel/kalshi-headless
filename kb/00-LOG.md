@@ -6,6 +6,108 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-07-31 ~22:2xZ UTC — research loop IDLE RUN: L221's fix turned out to duplicate open PR #165 (reverted before commit) — plus fresh live evidence for the "unknown caller" econ_prints pattern
+
+Research-loop firing (protocol v3). **0a PASS**: `main` fast-forwarded to `origin/main` at
+`58ce22c` (PR #255); last 5 merged PRs #255/#254/#253/#252/#251 all ancestors, no rewind;
+`kb/00-LOG.md` newest entry same-day as newest `tape/*/dt=2026-07-31.jsonl`. **Claim-check**
+— listed the same 5 standing open PRs (#208/#191/#166/#165/#125) every recent run has logged
+as "stale Ryan-review-only, none claims work" — **this run's mistake was trusting that
+characterization at face value for #165 instead of re-reading it**, see below. **0b sweep**:
+full 218-branch `scripts/tape_branch_sweep.py` pass — 20 fully verified + 185
+capture_id-verified, 0 unverified, 13 missing-line hits, the SAME 13 already triaged
+false-positive last run (8× `cloud-env-check.md` + 5× `dt=2026-07-18` conflict-marker
+artifacts); nothing new.
+
+**Queue: still saturated → IDLE RUN.** Full Q0-Q48 rescan: everything DONE/cred-BLOCKED/
+calendar- or density-gated. Queried `invariants._stale_unenforced_scan()`'s disposed-set
+computation directly (not a `grep UNENFORCED` headcount, which conflates open rows with
+formally-`DISPOSES:`-superseded ones) and found exactly **one** genuinely open row in the
+whole ledger: **L221** (`collection/hourly_pass.py`'s `ts.hour == ECON_PRINTS_UTC_HOUR` gate
+is a rate gate, not an idempotence gate — measured 54.4% redundant re-capture and 5 lost
+calendar days, `findings/2026-07-29-econ-prints-tape-audit.md` D2/D3).
+
+## What happened, and why nothing from it landed
+
+Built `_leg_captured_today()`/`_daily_leg_due()` in `collection/hourly_pass.py`, wired to the
+`econ_prints` gate, plus 15 new offline tests — full suite green (**2457 passed, 0 failed,
+2221.08s**) and `invariants --full` green. Before committing, re-checked the one loose thread
+the **immediately preceding same-day run (~09:2x UTC)** had left unresolved: its own log entry
+says L221's candidate "substantially overlaps the unmerged, open, Ryan-review-only PR #165's
+`daily_leg_due()` catch-up-gate design" and that it declined to build L221 for exactly that
+reason — but that entry never actually quotes PR #165's diff, only its title
+("Data-stream hardening: daily-leg catch-up gates, scheduled gap monitor, DATA-MAP"). This run
+fetched the PR in full. **It is not an overlap, it is the same fix, already shipped and more
+complete**: PR #165 (created 2026-07-23, `worktree-data-stream-hardening`) adds a
+`daily_leg_due(ts, scheduled_hour, family, tape_root)` function to the SAME file, wired at the
+SAME five call sites — `anomalies`, `econ_prints`, `polymarket_cpi_pairs`, `weather_actuals`,
+`settlement_ledger` (this run's fix covered only `econ_prints`) — with a bounded 6-hour
+catch-up window (this run's had none), its own `daily_leg_due`-named tests (71 in
+`test_hourly_pass.py`, "existing daily-leg tests updated to pin `tape_root`"), plus a
+`DATA-MAP.md` generator and a VPS ops-script change wiring `tape_gap_monitor.py` into the
+nightly cron. **Reverted `collection/hourly_pass.py` and `tests/test_hourly_pass.py` to
+`origin/main` before any commit** (`git checkout --`, confirmed clean via `git diff` — zero
+lines). No code from this attempt ships. New lesson **L246**: a claim-check that stops at a
+PR's title/label is not enough when the title doesn't name the mechanism the PR's body
+actually fixes — read the diff (or at minimum the body) before writing code that might
+duplicate it. This is now recorded so the next run that reaches L221 checks PR #165's content
+first rather than repeating this one's ~2 hours of throwaway work — or, better, surfaces to
+Ryan that PR #165 has been sitting reviewable and un-acted-on for 8 days despite directly
+fixing an open lesson row.
+
+## A second, unplanned finding: fresh live evidence for the econ_prints "unknown caller" pattern
+
+While reverting, `git status` showed `tape/econ_prints/dt=2026-07-31.jsonl` had grown by
+**420 lines** in this working tree — genuine, real_ask-tagged Kalshi captures, not anything
+this session wrote (this run touched no `collection/econ_prints.py` code path; the pytest
+suites that ran are fully offline per their own docstrings and use injected fakes / `tmp_path`
+tape dirs, verified by grep — no test in this repo calls `econ_prints.run()` against a real
+client or the default tape dir). Verified integrity before treating it as real: **425/425
+lines parse as valid JSON, 425/425 unique `(capture_id, series_key)` pairs, 0 duplicates**,
+and `git diff` shows pure insertions (0 deletions) — a clean append. Breakdown: **1**
+legitimate scheduled pass (`capture_id=20260731T100535Z`, hour 10 — one hour past
+`ECON_PRINTS_UTC_HOUR=9`, itself mildly interesting but not chased further this run) plus
+**84 additional passes, `capture_id`s `20260731T213625Z` through `20260731T214914Z`** — a
+continuous ~13-minute window, 5 lines each (one per series, exactly `econ_prints.run()`'s own
+shape), gaps of 3-12s between passes. **No other tape family shows any activity in this
+window** (`git status` lists only this one file as touched) — ruling out a genuine
+`hourly_pass.run()` invocation, real or simulated, as the source, since that entry point always
+touches `sports_pairs`/`crypto_hourly`/etc. alongside `econ_prints`. This directly extends the
+**~09:2x UTC same-day run's** finding (`findings/2026-07-31-econ-prints-anomalies-unexplained-passes-provenance.md`)
+that these passes are "agent-session side effects, not a rogue scheduler" — this is the first
+time such an episode has been caught live (by its footprint) in the same session as its
+investigation, rather than reconstructed after the fact from commit-diff attribution, and the
+zero-companion-family fact narrows the mechanism further: whatever produced these 84 calls
+invoked `collection.econ_prints.run()` (or an equivalently narrow entry point) directly, not
+`collection.hourly_pass.run()`. Committing the tape data itself (real, honest, append-only,
+`real_ask`-tagged where applicable) as this run's idle-run policy (c) data-quality deep-dive
+unit of work, alongside the L246 process lesson above.
+
+## What this run does NOT claim
+
+No registry change, no bootstrap CI, no P&L, no kill decision, and — unlike most idle-run (a)
+entries — **no code shipped at all**: the L221 fix was built, fully tested, and then thrown
+away once its duplication of PR #165 was confirmed, which is the honest outcome of this
+milestone, not a shortfall of it. Two-agent verdict rule N/A (no verdict of any kind this run).
+Still **0 proven edges**.
+
+**Gates.** The only diff landing this run is `kb/lessons/00-lessons.md` (L246),
+`kb/00-LOG.md` (this entry), `LOOP-QUEUE.md` (Log-of-runs line), and the tape append above —
+no `.py` file differs from `origin/main`. `collection/hourly_pass.py` and
+`tests/test_hourly_pass.py` are byte-identical to `origin/main` (`git diff` empty), which
+already carries its own passing gates (PR #255: pytest exit 0 / 2442 collected / 0 failed,
+`invariants --full` exit 0). `python3 scripts/invariants.py --full` re-run fresh against this
+run's final tree: **exit 0, `invariants: all green`**, only pre-existing non-gating advisory
+classes, none newly introduced.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` = {`s14_ladder_underwriting`} (`dead ✗` per
+Q34, paper-infrastructure only) — the tape appended this run is `econ_prints` (not an
+s14-family), so `scripts/paper_pass.py` has nothing new to process; ledger unchanged.
+
+See `kb/lessons/00-lessons.md` L246, `findings/2026-07-31-econ-prints-anomalies-unexplained-passes-provenance.md`.
+
+---
+
 ## 2026-07-31 ~18:3x UTC — research loop IDLE RUN: the step-0b sweep's own blind spot (L217's family allowlist) closed, and 1,271 stranded L2 lines recovered
 
 Research-loop firing (protocol v3). **0a PASS** (pre-flight by the calling session): local `main`
