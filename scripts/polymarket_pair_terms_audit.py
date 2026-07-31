@@ -31,11 +31,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 # Repo root on sys.path so `core` imports work when run directly as a script.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,6 +52,71 @@ SUMMARY_SCHEMA = "polymarket_macro_pairs_summary.v1"
 
 # The buckets carrying the known >25bps-vs->=50bps asymmetry.
 FIFTY_PLUS_BUCKETS = ("hike_50plus", "cut_50plus")
+
+GitRunner = Callable[..., str]
+
+
+def _default_git_runner(args: List[str], cwd: Optional[str] = None) -> str:
+    """Run a git command, returning stripped stdout. Raises RuntimeError on failure.
+    Local git plumbing only (`rev-parse`/`ls-tree`/`show`) — no network. Same
+    non-UTF-8-tolerant decode as `scripts/tape_branch_sweep.py::default_git_runner`:
+    `git show <rev>:<path>` can hit non-UTF-8 bytes, and a strict decode would crash the
+    whole audit on the first such blob rather than degrading this one line."""
+    result = subprocess.run(["git"] + args, cwd=cwd, capture_output=True)
+    stdout = result.stdout.decode("utf-8", errors="replace")
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace")
+        raise RuntimeError(f"git {' '.join(args)} failed: {stderr.strip()}")
+    return stdout.strip()
+
+
+def resolve_git_ref(repo_root: Path = REPO_ROOT,
+                     run_git: GitRunner = _default_git_runner) -> Optional[str]:
+    """Best-effort HEAD sha of `repo_root`. None when git or a repo isn't available —
+    never raises, so a missing git binary can never poison the report (L242)."""
+    try:
+        sha = run_git(["-C", str(repo_root), "rev-parse", "HEAD"])
+    except (RuntimeError, OSError):
+        return None
+    return sha or None
+
+
+def count_pair_records_at_ref(tape_dir: Path, git_ref: str, repo_root: Path = REPO_ROOT,
+                               run_git: GitRunner = _default_git_runner) -> Optional[int]:
+    """Count `PAIR_SCHEMAS` records as committed AT `git_ref`, ignoring any uncommitted
+    working-tree lines under `tape_dir` — the L242 fix: `n_pair_records` describes the
+    working tree at `audited_at`, this describes what a fresh clone of `git_ref` would
+    see. None on any git failure or when `tape_dir` isn't inside `repo_root` — never
+    raises."""
+    try:
+        tape_rel = Path(tape_dir).resolve().relative_to(Path(repo_root).resolve())
+    except ValueError:
+        return None
+    try:
+        listing = run_git(["-C", str(repo_root), "ls-tree", "-r", "--name-only", git_ref,
+                            "--", str(tape_rel)])
+    except (RuntimeError, OSError):
+        return None
+    n = 0
+    for relpath in listing.splitlines():
+        relpath = relpath.strip()
+        if not relpath.endswith(".jsonl"):
+            continue
+        try:
+            blob = run_git(["-C", str(repo_root), "show", f"{git_ref}:{relpath}"])
+        except (RuntimeError, OSError):
+            return None
+        for line in blob.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(rec, dict) and rec.get("schema_version") in PAIR_SCHEMAS:
+                n += 1
+    return n
 
 
 def _nonempty(value: Any) -> bool:
@@ -110,7 +176,8 @@ def _blank_bucket_row() -> Dict[str, int]:
             "n_terms_verdict_null": 0, "n_no_terms_block": 0}
 
 
-def audit(tape_dir: Path = DEFAULT_TAPE_DIR) -> Dict[str, Any]:
+def audit(tape_dir: Path = DEFAULT_TAPE_DIR, repo_root: Path = REPO_ROOT,
+          run_git: GitRunner = _default_git_runner) -> Dict[str, Any]:
     """Scan `tape_dir/dt=*.jsonl` and report terms-auditability. `tape_dir` injectable."""
     tape_dir = Path(tape_dir)
     n_files = n_lines = n_bad_json = 0
@@ -207,9 +274,20 @@ def audit(tape_dir: Path = DEFAULT_TAPE_DIR) -> Dict[str, Any]:
     n_fifty_plus_unauditable = sum(r["n_unauditable"] for r in fifty_plus.values())
     n_fifty_plus_eq_false = sum(r["n_terms_equivalent_false"] for r in fifty_plus.values())
 
+    git_ref = resolve_git_ref(repo_root, run_git)
+    n_records_at_head = (count_pair_records_at_ref(tape_dir, git_ref, repo_root, run_git)
+                          if git_ref is not None else None)
+
     return {
         "audited_at": datetime.now(timezone.utc).isoformat(),
         "tape_dir": str(tape_dir),
+        # L242: `n_pair_records` (and every other count below) describes the WORKING TREE
+        # at `audited_at`, which can hold uncommitted lines. `git_ref`/`n_records_at_head`
+        # describe what a fresh clone of `git_ref` would see — null when git or a repo
+        # isn't available (never poisons the rest of the report). Never quote
+        # `n_pair_records` as "committed" without checking it against `n_records_at_head`.
+        "git_ref": git_ref,
+        "n_records_at_head": n_records_at_head,
         "n_files": n_files,
         "n_lines": n_lines,
         "n_bad_json": n_bad_json,
