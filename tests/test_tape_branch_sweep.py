@@ -431,9 +431,77 @@ class TestBulkCaptureIdCheck:
         _git(repo, "commit", "-q", "-m", "HEAD adds cap-B")
         return repo
 
-    def test_bulk_family_constant_is_the_expected_four(self):
-        assert BULK_CAPTURE_ID_FAMILIES == frozenset(
+    def test_bulk_family_constant_is_observational_not_a_gate(self):
+        """L235: the constant is a MEASUREMENT RECORD of families observed above the size
+        guard, not the gate that decides whether the capture_id check fires. It must stay
+        importable (cited by name in `kb/lessons/00-lessons.md` L217 and the 2026-07-28
+        bulk-family-blindspot finding) and factually current, but nothing may read it to
+        decide behaviour — see `test_capture_id_check_fires_for_family_absent_from_constant`.
+        """
+        assert BULK_CAPTURE_ID_FAMILIES >= frozenset(
             {"orderbook_depth", "universe_sweep", "sports_pairs", "weather_books"})
+        # the three families L217's enumeration missed, each measured oversized on 2026-07-31
+        assert BULK_CAPTURE_ID_FAMILIES >= frozenset(
+            {"crypto_hourly", "econ_prints", "anomalies"})
+
+    def test_constant_is_not_consulted_by_the_containment_gate(self):
+        """The enumeration must not be re-introduced as a gate: no function in the module
+        may branch on `BULK_CAPTURE_ID_FAMILIES`. Pinning the ABSENCE of a read is the only
+        way to stop L217's defect (enumerate-where-you-should-derive) recurring a third time.
+        """
+        src = Path("scripts/tape_branch_sweep.py").read_text(encoding="utf-8")
+        module = ast.parse(src)
+        reads = [n for n in ast.walk(module)
+                 if isinstance(n, ast.Name)
+                 and n.id == "BULK_CAPTURE_ID_FAMILIES"
+                 and isinstance(n.ctx, ast.Load)]
+        assert reads == [], (
+            "BULK_CAPTURE_ID_FAMILIES is read at line(s) "
+            f"{[n.lineno for n in reads]} — it is an observational record, not a gate")
+
+    def test_capture_id_check_fires_for_family_absent_from_constant(self, tmp_path):
+        """L235 regression: an oversized day-file in a family that is NOT in
+        `BULK_CAPTURE_ID_FAMILIES` at all still gets the capture_id-set check, because the
+        blob's own content (it carries `capture_id`) is what qualifies it. Before this fix
+        such a file was reported as an unverified skip — the state 126 of 218 real branches
+        were in on 2026-07-31 solely because `crypto_hourly` was not on the list.
+        """
+        assert "brand_new_family" not in BULK_CAPTURE_ID_FAMILIES
+        repo = _init_repo(tmp_path / "repo")
+        _commit(repo, "tape/brand_new_family/dt=2026-07-31.jsonl",
+                '{"capture_id": "cap-A", "ticker": "X"}\n', "seed cap-A")
+        _git(repo, "branch", "-M", "main")
+        _git(repo, "checkout", "-q", "-b", "stranded")
+        (repo / "tape/brand_new_family/dt=2026-07-31.jsonl").write_text(
+            '{"capture_id": "cap-A", "ticker": "X"}\n{"capture_id": "cap-C", "ticker": "Z"}\n')
+        _git(repo, "add", "tape/brand_new_family/dt=2026-07-31.jsonl")
+        _git(repo, "commit", "-q", "-m", "adds cap-C")
+        _git(repo, "checkout", "-q", "main")
+        sha = _git(repo, "rev-parse", "stranded")
+        missing, skipped, capture_id_checked = per_file_containment(
+            sha, "HEAD", "tape", cwd=str(repo), max_file_bytes=1)
+        assert skipped == {}, "must not fall back to an unverified skip"
+        assert capture_id_checked == {"tape/brand_new_family/dt=2026-07-31.jsonl": 1}
+
+    def test_oversized_file_without_capture_id_still_skips_honestly(self, tmp_path):
+        """The no-signal fallback survives the L235 widening: attempting the check on every
+        oversized file must NOT turn "yielded zero capture_ids" into a clean bill of health.
+        """
+        repo = _init_repo(tmp_path / "repo")
+        _commit(repo, "tape/no_id_family/dt=2026-07-31.jsonl",
+                '{"ticker": "X"}\n', "seed")
+        _git(repo, "branch", "-M", "main")
+        _git(repo, "checkout", "-q", "-b", "stranded")
+        (repo / "tape/no_id_family/dt=2026-07-31.jsonl").write_text(
+            '{"ticker": "X"}\n{"ticker": "Z"}\n')
+        _git(repo, "add", "tape/no_id_family/dt=2026-07-31.jsonl")
+        _git(repo, "commit", "-q", "-m", "adds a line")
+        _git(repo, "checkout", "-q", "main")
+        sha = _git(repo, "rev-parse", "stranded")
+        missing, skipped, capture_id_checked = per_file_containment(
+            sha, "HEAD", "tape", cwd=str(repo), max_file_bytes=1)
+        assert capture_id_checked == {}
+        assert list(skipped) == ["tape/no_id_family/dt=2026-07-31.jsonl"]
 
     def test_contained_branch_verified_via_capture_id_zero_missing(self, bulk_family_repo):
         repo = bulk_family_repo
