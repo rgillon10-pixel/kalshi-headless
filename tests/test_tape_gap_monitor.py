@@ -2161,3 +2161,248 @@ def test_acceptance_17_l227_wcfinal_burst_was_a_total_loss():
     assert out["verdict"] == "OUTAGE_DETECTED"
     assert out["families"]["polymarket_pairs"]["verdict"] == "NO_PASSES_IN_WINDOW"
     assert out["families"]["polymarket_pairs"]["n_passes_in_window"] == 0
+
+
+# ─── L221: single-hour gate idempotence (rate gate vs idempotence gate) ────────────────
+
+def _write_leg_tape(root: Path, family: str, day: str, rows):
+    """rows = [(capture_id, captured_at_iso, payload_dict), ...] -> one dt= day-file."""
+    d = root / family
+    d.mkdir(parents=True, exist_ok=True)
+    with open(d / f"dt={day}.jsonl", "w", encoding="utf-8") as fh:
+        for cid, ca, payload in rows:
+            rec = dict(payload)
+            rec["capture_id"] = cid
+            rec["captured_at"] = ca
+            fh.write(json.dumps(rec) + "\n")
+
+
+def test_l221_payload_identity_ignores_only_the_volatile_fields():
+    """Two captures of the SAME payload differ only in the pass stamps, so they must share an
+    identity — and a genuine payload change must NOT."""
+    a = {"capture_id": "A", "captured_at": "2026-07-13T09:00:00+00:00", "series": "cpi", "v": 1}
+    b = {"capture_id": "B", "captured_at": "2026-07-13T09:40:00+00:00", "series": "cpi", "v": 1}
+    c = {"capture_id": "C", "captured_at": "2026-07-13T09:41:00+00:00", "series": "cpi", "v": 2}
+    assert tgm.payload_identity(a) == tgm.payload_identity(b)
+    assert tgm.payload_identity(a) != tgm.payload_identity(c)
+
+
+def test_l221_payload_volatile_fields_reuse_the_l210_sequence_constant():
+    """The within-pass sequence fields must come FROM the L210 constant, never be re-listed —
+    a second copy is exactly the desync this repo's twin discipline forbids."""
+    for f in tgm.WITHIN_PASS_SEQUENCE_FIELDS:
+        assert f in tgm.PAYLOAD_VOLATILE_FIELDS
+    assert "capture_id" in tgm.PAYLOAD_VOLATILE_FIELDS
+    assert "captured_at" in tgm.PAYLOAD_VOLATILE_FIELDS
+
+
+def test_l221_missing_family_is_none_not_a_clean_result(tmp_path):
+    """`no_signal` discipline: a family with no committed day-files returns None, which must
+    never be conflated with 'checked and clean'."""
+    (tmp_path / "tape").mkdir()
+    assert tgm.single_hour_leg_idempotence(tmp_path / "tape", "nope", 9) is None
+
+
+def test_l221_rejects_an_impossible_gate_hour(tmp_path):
+    """A gate hour outside 0..23 raises rather than silently auditing a window that cannot
+    occur (the same posture as the wrapped-slot-window guard)."""
+    _write_leg_tape(tmp_path, "fam", "2026-07-13",
+                    [("A", "2026-07-13T09:00:00+00:00", {"v": 1})])
+    for bad in (-1, 24, 99, True):
+        with pytest.raises(ValueError):
+            tgm.single_hour_leg_idempotence(tmp_path, "fam", bad)
+
+
+def test_l221_one_pass_per_day_is_clean(tmp_path):
+    """The negative control: a genuinely idempotent leg (one pass/day, changing payload)
+    reports ONE_PASS_PER_DAY with zero redundancy."""
+    _write_leg_tape(tmp_path, "fam", "2026-07-13",
+                    [("A", "2026-07-13T09:10:00+00:00", {"v": 1})])
+    _write_leg_tape(tmp_path, "fam", "2026-07-14",
+                    [("B", "2026-07-14T09:10:00+00:00", {"v": 2})])
+    r = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)
+    assert r["verdict"] == "ONE_PASS_PER_DAY"
+    assert r["max_passes_per_day"] == 1
+    assert r["max_passes_per_day_excl_burst"] == 1
+    assert r["n_days_over_capture"] == 0
+    assert r["redundant_line_fraction"] == 0.0
+    assert r["gate_attributable_redundant_line_fraction"] == 0.0
+
+
+def test_l221_repeat_passes_same_day_are_over_capture(tmp_path):
+    """Two passes inside the gated hour re-capturing an unchanged payload: the exact L221
+    failure. Both measures must fire."""
+    _write_leg_tape(tmp_path, "fam", "2026-07-13", [
+        ("A", "2026-07-13T09:10:00+00:00", {"v": 1}),
+        ("B", "2026-07-13T09:40:00+00:00", {"v": 1}),
+    ])
+    r = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)
+    assert r["verdict"] == "OVER_CAPTURE"
+    assert r["max_passes_per_day"] == 2
+    assert r["max_passes_in_gate_hour"] == 2
+    assert r["n_lines"] == 2 and r["n_distinct_payloads"] == 1
+    assert r["redundant_line_fraction"] == 0.5
+    assert r["gate_attributable_redundant_line_fraction"] == 0.5
+    assert r["over_capture_examples"][0]["day"] == "dt=2026-07-13"
+
+
+def test_l221_fast_moving_payload_reads_zero_redundant_but_still_over_capture(tmp_path):
+    """Limit (b), pinned: a payload that changes every pass makes redundancy read 0.0. Only
+    the pass-count measure can see the gate leak — this is why BOTH are reported."""
+    _write_leg_tape(tmp_path, "fam", "2026-07-13", [
+        ("A", "2026-07-13T09:10:00+00:00", {"v": 1}),
+        ("B", "2026-07-13T09:40:00+00:00", {"v": 2}),
+    ])
+    r = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)
+    assert r["redundant_line_fraction"] == 0.0
+    assert r["verdict"] == "OVER_CAPTURE"
+    assert r["max_passes_per_day"] == 2
+
+
+def test_l221_redundancy_decomposition_partitions_exactly(tmp_path):
+    """The three shares must sum to the whole-slice fraction with no remainder, and each must
+    land on the right mechanism: intra-pass (collector wrote it twice in ONE pass), across-pass
+    within day (the gate), cross-day (legitimate re-report)."""
+    _write_leg_tape(tmp_path, "fam", "2026-07-13", [
+        ("A", "2026-07-13T09:10:00+00:00", {"v": 1}),   # pass A
+        ("A", "2026-07-13T09:10:01+00:00", {"v": 1}),   # same pass, duplicate -> intra_pass
+        ("B", "2026-07-13T09:40:00+00:00", {"v": 1}),   # 2nd pass, same payload -> gate
+    ])
+    _write_leg_tape(tmp_path, "fam", "2026-07-14", [
+        ("C", "2026-07-14T09:10:00+00:00", {"v": 1}),   # next day, same payload -> cross_day
+    ])
+    r = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)
+    d = r["redundancy_decomposition"]
+    assert r["n_lines"] == 4 and r["n_distinct_payloads"] == 1
+    assert d["intra_pass"] == pytest.approx(0.25)
+    assert d["across_pass_within_day"] == pytest.approx(0.25)
+    assert d["cross_day"] == pytest.approx(0.25)
+    assert (d["intra_pass"] + d["across_pass_within_day"] + d["cross_day"]
+            == pytest.approx(r["redundant_line_fraction"]))
+    assert r["gate_attributable_redundant_line_fraction"] == pytest.approx(0.25)
+
+
+def test_l221_off_gate_hour_pass_still_counts_toward_the_verdict(tmp_path):
+    """Limit (e), pinned: a leg landing after its pass-start hour stamps `captured_at` in the
+    NEXT hour. The verdict measure is passes-per-DAY, so such a pass is still counted — while
+    `max_passes_in_gate_hour` (the drift-sensitive one) stays a lower bound."""
+    _write_leg_tape(tmp_path, "fam", "2026-07-13", [
+        ("A", "2026-07-13T09:55:00+00:00", {"v": 1}),
+        ("B", "2026-07-13T10:05:00+00:00", {"v": 1}),
+    ])
+    r = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)
+    assert r["max_passes_in_gate_hour"] == 1          # drift hides one
+    assert r["max_passes_per_day"] == 2               # the verdict measure does not
+    assert r["verdict"] == "OVER_CAPTURE"
+    assert r["per_day"]["dt=2026-07-13"]["n_passes_off_gate_hour"] == 1
+
+
+def test_l221_declared_burst_window_passes_are_excused(tmp_path):
+    """A declared burst trigger re-fires these collectors on purpose. Those passes must not be
+    counted as gate leakage — otherwise the check manufactures an incident out of sanctioned
+    collection."""
+    rows = [(f"P{i}", f"2026-07-14T12:{10 + i:02d}:00+00:00", {"v": 1}) for i in range(6)]
+    _write_leg_tape(tmp_path, "econ_prints", "2026-07-14", rows)
+    r = tgm.single_hour_leg_idempotence(tmp_path, "econ_prints", 9)
+    assert r["max_passes_per_day"] == 6
+    assert r["max_passes_per_day_excl_burst"] == 0
+    assert r["n_burst_expected_passes"] == 6
+    assert r["verdict"] == "ONE_PASS_PER_DAY"
+    # a family NOT driven by any declared trigger gets no exclusion at all
+    _write_leg_tape(tmp_path, "weather_actuals", "2026-07-14", rows)
+    r2 = tgm.single_hour_leg_idempotence(tmp_path, "weather_actuals", 12)
+    assert r2["n_burst_expected_passes"] == 0
+    assert r2["verdict"] == "OVER_CAPTURE"
+
+
+def test_l221_days_pins_a_frozen_slice_and_max_days_trims(tmp_path):
+    """L191 frozen-slice discipline: `days` selects exact stems; `max_days` keeps the N most
+    recent AFTER that filter, so a cheap routine run cannot silently redefine a pinned slice."""
+    for day in ("2026-07-13", "2026-07-14", "2026-07-15"):
+        _write_leg_tape(tmp_path, "fam", day,
+                        [("A" + day, f"{day}T09:10:00+00:00", {"v": day})])
+    assert tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)["n_days"] == 3
+    pinned = tgm.single_hour_leg_idempotence(
+        tmp_path, "fam", 9, days=["dt=2026-07-13", "dt=2026-07-14"])
+    assert pinned["days_scanned"] == ["dt=2026-07-13", "dt=2026-07-14"]
+    assert pinned["slice_pinned"] is True
+    trimmed = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9, max_days=1)
+    assert trimmed["days_scanned"] == ["dt=2026-07-15"]
+    both = tgm.single_hour_leg_idempotence(
+        tmp_path, "fam", 9, days=["dt=2026-07-13", "dt=2026-07-14"], max_days=1)
+    assert both["days_scanned"] == ["dt=2026-07-14"]
+
+
+def test_l221_malformed_lines_are_counted_never_guessed(tmp_path):
+    """A malformed line is reported, not silently dropped into the denominator."""
+    d = tmp_path / "fam"
+    d.mkdir(parents=True)
+    (d / "dt=2026-07-13.jsonl").write_text(
+        '{"capture_id":"A","captured_at":"2026-07-13T09:10:00+00:00","v":1}\n'
+        "not json\n"
+        "[]\n"
+        "\n", encoding="utf-8")
+    r = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)
+    assert r["n_lines"] == 1
+    assert r["n_malformed_lines"] == 2
+
+
+def test_l221_files_present_but_nothing_parseable_is_a_distinct_verdict(tmp_path):
+    """Files exist but yield no record: NO_PARSEABLE_LINES, distinct from None (no files)."""
+    d = tmp_path / "fam"
+    d.mkdir(parents=True)
+    (d / "dt=2026-07-13.jsonl").write_text("garbage\n", encoding="utf-8")
+    r = tgm.single_hour_leg_idempotence(tmp_path, "fam", 9)
+    assert r is not None
+    assert r["verdict"] == "NO_PARSEABLE_LINES"
+    assert r["n_lines"] == 0
+
+
+def test_l221_coverage_note_names_every_limit_it_must_travel_with():
+    """The honest limits have to ride along with any quoted number (L155/L165 discipline)."""
+    note = None
+    root = _REAL_TAPE if _REAL_TAPE.is_dir() else None
+    if root is not None:
+        rep = tgm.single_hour_leg_idempotence(root, "econ_prints", 9, max_days=1)
+        note = rep and rep.get("coverage_note")
+    if note is None:
+        pytest.skip("committed tape/ not present")
+    for token in ("PROXY", "capture_source", "max_passes_per_day", "LOWER bound",
+                  "burst", "write path"):
+        assert token in note, token
+
+
+@_real
+def test_acceptance_18_l221_econ_prints_frozen_slice_reproduces_the_recorded_54pct():
+    """HARD real-tape acceptance on the FROZEN dt=2026-07-05..28 slice (L191) that produced
+    L221's own recorded numbers: 1,720 committed lines collapsing to 785 distinct payloads =
+    54.4% byte-redundant re-capture (findings/2026-07-29-econ-prints-tape-audit.md D2). The
+    row's per-series figures are reproduced by the same identity rule. This is the row's own
+    finding, now machine-reported instead of hand-derived."""
+    days = [f"dt=2026-07-{d}" for d in
+            ("05", "06", "07", "08", "11", "12", "13", "14", "15", "16",
+             "17", "18", "19", "20", "21", "22", "23", "26", "28")]
+    r = tgm.single_hour_leg_idempotence(_REAL_TAPE, "econ_prints", 9, days=days)
+    assert r["n_lines"] == 1720
+    assert r["n_distinct_payloads"] == 785
+    assert r["redundant_line_fraction"] == pytest.approx(0.5436, abs=5e-4)
+    assert r["verdict"] == "OVER_CAPTURE"
+    # the gate admitted 58 passes inside ONE gated hour — a fact the hand audit did not state
+    assert r["max_passes_in_gate_hour"] == 58
+    assert r["per_day"]["dt=2026-07-13"]["n_passes_in_gate_hour"] == 58
+    # and the 07-14 CPI burst is the busiest DAY, but its passes are excused as declared
+    assert r["over_capture_examples"][0]["day"] == "dt=2026-07-14"
+    assert r["per_day"]["dt=2026-07-14"]["n_passes"] > r["per_day"]["dt=2026-07-14"]["n_passes_excl_burst"]
+
+
+@_real
+def test_acceptance_19_l221_settlement_ledger_is_the_zero_redundancy_control():
+    """HARD real-tape negative control for limit (b): `settlement_ledger`'s payload is a page
+    of unique market rows, so byte-redundancy reads EXACTLY 0.0 across its whole committed
+    history — yet its gate still admitted 3 passes in one day. A one-measure check would call
+    this family clean; the pass-count measure is what catches it."""
+    r = tgm.single_hour_leg_idempotence(_REAL_TAPE, "settlement_ledger", 10)
+    assert r["redundant_line_fraction"] == 0.0
+    assert r["gate_attributable_redundant_line_fraction"] == 0.0
+    assert r["max_passes_per_day_excl_burst"] >= 2
+    assert r["verdict"] == "OVER_CAPTURE"

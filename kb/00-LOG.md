@@ -6,6 +6,125 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~04:xxZ UTC — research loop IDLE RUN: L221's fix was un-buildable (PR #165 owns it), but its MEASUREMENT was missing — all five hour-gated collector legs over-capture
+
+Research-loop firing (protocol v3). **0a / claim-check** performed by the calling session: no
+rewind (`563087c` on `main`, PRs #257/#256/#255/#254/#253 all ancestors; newest `kb/00-LOG.md`
+entry and newest committed `tape/*/dt=*` both 2026-08-01, gap 0 days). Open PRs
+#208/#191/#166/#165/#125 — all retro / Ryan-review-only, none claims a TODO queue item.
+
+**Eligibility rescan (Q0-Q48), done fresh rather than trusted.** Zero eligible items, and the
+three gates worth re-testing were re-tested LIVE this run, not read off prior prose:
+`scripts/q36_kxtempnych_settlement_basis_probe.py` -> `{"status":"INSUFFICIENT DATA",
+"n_settled_events":2,"min_events":10}`; `scripts/q43_perp_binary_consistency_probe.py` -> 9
+fee-clearing dislocations but **0 EXECUTABLE** (all depth-unmeasurable);
+`scripts/q37_weather_summer_makerno_probe.py` -> **18 of 21** summer contract-days, gate opens
+~08-04. Q19/Q48 stay burst-gated (no CPI/FOMC inside the horizon). So: **IDLE RUN**, policy (a).
+
+**0b stranded-tape sweep — 218 branches, 0 lines swept, and that remains the correct answer.**
+`python3 scripts/tape_branch_sweep.py`: 20 fully line-verified, 185 verified at capture_id level
+(the L216 size-guard fallback — a real check, coarser than byte-level, reported as the coverage
+limit it is and never as an all-clear), 0 unverified, **13 not-contained**. All 13 carry ONLY
+git conflict markers or `tape/cloud-env-check.md` prose — zero union-appendable JSONL, exactly
+the L247 class. 54 malformed branch names (ordered by commit date, never name — L161).
+
+**The milestone: L221's measurement half, UNENFORCED -> test.** `invariants._stale_unenforced_scan()`
+reports 245 lesson rows, 32 `**UNENFORCED**`, 29 formally `DISPOSES:`-closed, **3 genuinely
+open** — L213, L221, L222. Two of the three have only a non-cloud half left (L213's is a
+Ryan-account trigger prompt; L222's is a live-collector `capture_source` write-path field). L221
+looked buildable. Per **L246** the run re-read
+`findings/2026-07-31-l221-pr165-duplicate-and-live-econ-prints-burst.md` BEFORE writing anything,
+and that finding is unambiguous: L221's own named candidate — a once-per-day dedup key replacing
+`if ts.hour == N` — is a **duplicate** of open draft **PR #165**'s `daily_leg_due()`, already
+wired at all five gate sites with a bounded 6h catch-up window and 71 tests, awaiting Ryan; a
+second implementation was written and reverted before commit on 07-31. So the write-path half was
+deliberately left alone.
+
+What PR #165 does NOT do — and nothing in the repo did — is **measure** the damage from committed
+tape, or detect the shape recurring. That is this build:
+
+- `scripts/tape_gap_monitor.py::single_hour_leg_idempotence(tape_root, family, gate_hour_utc,
+  days=..., max_days=...)`, with `payload_identity` / `PAYLOAD_VOLATILE_FIELDS` (which REUSES
+  L210's `WITHIN_PASS_SEQUENCE_FIELDS` rather than re-listing it) and `_burst_windows_for_family`
+  (which reuses `BURST_TRIGGER_WINDOWS` + `BURST_CAPTURE_KEY_TO_TAPE_FAMILY`). CLI:
+  `python3 scripts/tape_gap_monitor.py --leg-idempotence FAMILY --leg-gate-hour N
+  [--leg-idempotence-days dt=...] [--leg-idempotence-max-days N]`.
+- `scripts/invariants.py::single_hour_leg_idempotence_warning` — NON-GATING advisory over
+  `SINGLE_HOUR_LEG_FAMILIES`, each leg's hour PARSED out of `collection/hourly_pass.py`'s own
+  `<NAME>_UTC_HOUR` constant (`_single_hour_leg_gate_hours`), so a collector-side hour change
+  cannot desync the audit and no number is re-declared. Wired into `--full` (unlike the
+  L210/L213/L222 posture) because the shape is STILL RECURRING while PR #165 sits unmerged and
+  the five families together are only ~15k lines: measured cost ~5s inside a ~51s run.
+
+**Finding — every registered single-hour leg carries the defect.** Non-burst passes admitted in
+ONE UTC day (the gate's contract is 1) / days affected / gate-attributable byte-redundant share:
+
+| family | gate | max non-burst passes/day | days over | gate-attributable redundancy |
+|---|---|---|---|---|
+| `econ_prints` | 09Z | **85** | 16 / 22 | **57.7%** of 2,275 lines |
+| `anomalies` | 09Z | 58 | 15 / 23 | 22.0% of 245 |
+| `polymarket_cpi_pairs` | 09Z | 2 | 9 / 20 | 55.2% of 1,692 |
+| `weather_actuals` | 12Z | 2 | 2 / 7 | 24.7% of 162 |
+| `settlement_ledger` | 10Z | 3 | 1 / 2 | **0.0%** of 10,605 |
+
+Three things in that table are new. (1) `anomalies` — a family L221 was never written about —
+carries the SAME pass magnitude (58/day) as `econ_prints`, which independently corroborates
+L222's sharper hypothesis of an unknown caller that fires the two hour-09 gated legs without the
+ungated ones. (2) `settlement_ledger` is the built-in negative control: its payload is a page of
+unique market rows, so byte-redundancy reads EXACTLY 0.0 across its whole history — a
+redundancy-only check would call it clean, and only the pass-count measure catches its 3 passes
+in a day. (3) The FROZEN `dt=2026-07-05..28` acceptance slice reproduces L221's own recorded
+numbers to the digit (1,720 lines -> 785 distinct payloads = 54.36%, per-series `payrolls` 87.5%
+/ `gdp` 72.1% / `cpi_core_mom` 52.0%) and adds a fact the hand audit never stated:
+**`max_passes_in_gate_hour == 58` on `dt=2026-07-13`**.
+
+**Three self-corrections during the build, all recorded as L248 — and all three move the number
+DOWN.** (a) A single whole-slice redundancy percentage cannot accuse anything: it lumps
+intra-pass duplication (the collector), across-pass-within-day duplication (the gate — the only
+share L221 is about), and cross-day re-report (a retrospective family working correctly). The
+nesting `n_lines >= D_pass >= D_day >= D_all` makes the three deltas an exact partition, so
+`redundancy_decomposition` costs nothing and the alternative would have booked `weather_actuals`'
+legitimate re-reports as gate leakage. (b) The headline was first keyed on `captured_at.hour ==
+gate_hour`, which is wrong for a late leg — the gate is evaluated on pass-start `ts`, and
+`econ_prints` is leg #10 landing ~40min later (L222's measured 380-542s spread), so
+`tape/weather_actuals/dt=2026-07-17`'s 12:29Z + 13:02Z pair is almost certainly ONE pass, not a
+leaked gate; the verdict moved to `max_passes_per_day`, immune to the drift, with
+`max_passes_in_gate_hour` demoted to an explicit LOWER bound. (c) Un-excused, the check read
+`econ_prints` at 137 passes/day and `polymarket_cpi_pairs` at 101 — both the sanctioned
+2026-07-14 CPI burst doing exactly what Ryan approved it to do; a padded (±900s) exclusion built
+from the existing declared-window table drops those to 85 and 2.
+
+22 new tests (15 `tests/test_tape_gap_monitor.py`, 7 `tests/test_invariants.py`), including two
+HARD real-tape acceptance tests on frozen slices per L191
+(`::test_acceptance_18_l221_econ_prints_frozen_slice_reproduces_the_recorded_54pct`,
+`::test_acceptance_19_l221_settlement_ledger_is_the_zero_redundancy_control`). L221's enforcement
+cell moves `UNENFORCED` -> `UNENFORCED (write-path, DO NOT BUILD — PR #165 owns it) + test`; its
+lesson TEXT is unchanged, per the L152 own-row-update rule. New row **L248** generalizes the
+methodology beyond this family.
+
+**Paper sub-pass (step 9).** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`).
+`python3 scripts/paper_pass.py` replayed deterministically over committed tape and appended **0
+new ledger lines** — today's `paper/ledger/dt=2026-08-01.jsonl` (377 lines) is already caught up:
+232 events already in the ledger, 68 deferred(caps) by `execution/limits`, 272
+deferred(coverage). `daily_summary()`: `paper: 0 open position(s), 1474 settled contract(s),
+realized P&L $+27.15, cash $+27.15, open notional $0.00`. Provenance of that ledger: 89 fills
+`price_source_tag=real_bid` / `fill_model=maker_candle_through`, 89 settlements
+`price_source_tag=broker_truth`, **zero synthetic-priced fills** — paper-tier evidence, never a
+substitute for the real-ask CI bar.
+
+**Two-agent rule: N/A** — no registry status flip, no bootstrap CI, no P&L claim, no kill
+decision; this is descriptive tape-quality tooling, the same posture as the 07-30 L208 and 07-31
+L222 builds. Recorded for the record: the Agent/Task tool was **unavailable** in this session, so
+no independent `verifier` subagent could have been dispatched had one been required — the
+milestone was chosen to be non-verdict-class partly for that reason, and every number above is
+re-derivable by the pinned CLI or the frozen-slice acceptance test rather than by trusting this
+entry.
+
+Still **0 proven edges**. Nothing in this run measured a strategy; `kb/strategies/00-index.md` is
+untouched.
+
+---
+
 ## 2026-08-01 ~0x:xxZ UTC — research loop IDLE RUN: L145's sanction was half-enforced for 9 days; the private-WS-channel conjunct is now an assert (plus: the 13-branch sweep triage stops being a memory file)
 
 Research-loop firing (protocol v3). **0a / claim-check** performed by the calling session: no
