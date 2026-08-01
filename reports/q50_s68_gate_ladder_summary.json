@@ -227,6 +227,8 @@
       },
       "funnel": {
         "candidates": 63,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -264,6 +266,28 @@
       },
       "median_entry_spread": 0.020000000000000018,
       "median_ttc_hours_entry": 5.622298373333333,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 7,
+          "n_units": 14,
+          "reasons": []
+        },
+        "ci95": [
+          -0.014878048780487804,
+          0.020338983050847456
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.00595238095238096,
+        "n_boot": 10000,
+        "n_obs": 63,
+        "n_single_side_legs": 43,
+        "n_units_series": 14,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 37,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.14591836734693878 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -497,6 +521,8 @@
       },
       "funnel": {
         "candidates": 25,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -534,6 +560,31 @@
       },
       "median_entry_spread": 0.04000000000000001,
       "median_ttc_hours_entry": 5.760404379444444,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 4,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.0025000000000000087,
+          0.012982456140350884
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.010800000000000008,
+        "n_boot": 10000,
+        "n_obs": 25,
+        "n_single_side_legs": 18,
+        "n_units_series": 4,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 13,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=4 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -768,6 +819,8 @@
       },
       "funnel": {
         "candidates": 16,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -805,6 +858,31 @@
       },
       "median_entry_spread": 0.05000000000000002,
       "median_ttc_hours_entry": 5.688842107222222,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 1,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.014687500000000006,
+          0.014687500000000006
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.014687500000000006,
+        "n_boot": 10000,
+        "n_obs": 16,
+        "n_single_side_legs": 12,
+        "n_units_series": 1,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 6,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=1 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -1039,6 +1117,8 @@
       },
       "funnel": {
         "candidates": 12,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -1076,6 +1156,31 @@
       },
       "median_entry_spread": 0.05000000000000002,
       "median_ttc_hours_entry": 5.688501712638889,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 1,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.010416666666666671,
+          0.010416666666666671
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.010416666666666671,
+        "n_boot": 10000,
+        "n_obs": 12,
+        "n_single_side_legs": 8,
+        "n_units_series": 1,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 5,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=1 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -1307,6 +1412,8 @@
       },
       "funnel": {
         "candidates": 0,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -1344,6 +1451,30 @@
       },
       "median_entry_spread": null,
       "median_ttc_hours_entry": null,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 0,
+          "reasons": [
+            "empty"
+          ]
+        },
+        "ci95": [
+          null,
+          null
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": null,
+        "n_boot": 10000,
+        "n_obs": 0,
+        "n_single_side_legs": 0,
+        "n_units_series": 0,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 0,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: empty_population [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -1571,6 +1702,8 @@
       },
       "funnel": {
         "candidates": 76,
+        "control_no_fill_instant": 2,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -1608,6 +1741,28 @@
       },
       "median_entry_spread": 0.020000000000000018,
       "median_ttc_hours_entry": 11.61446190388889,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 4,
+          "n_units": 15,
+          "reasons": []
+        },
+        "ci95": [
+          -0.025866666666666663,
+          0.012851239669421496
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": -0.00171052631578947,
+        "n_boot": 10000,
+        "n_obs": 76,
+        "n_single_side_legs": 46,
+        "n_units_series": 15,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 38,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.09126582278481013 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -1841,6 +1996,8 @@
       },
       "funnel": {
         "candidates": 30,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -1878,6 +2035,30 @@
       },
       "median_entry_spread": 0.06,
       "median_ttc_hours_entry": 11.656741913333335,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 2,
+          "n_units": 6,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          0.0009090909090908998,
+          0.025781250000000012
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.019000000000000006,
+        "n_boot": 10000,
+        "n_obs": 30,
+        "n_single_side_legs": 21,
+        "n_units_series": 6,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 15,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=6 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -2112,6 +2293,8 @@
       },
       "funnel": {
         "candidates": 23,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -2149,6 +2332,30 @@
       },
       "median_entry_spread": 0.060000000000000026,
       "median_ttc_hours_entry": 11.7493498875,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 1,
+          "n_units": 3,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -5.204170427930421e-18,
+          0.02725000000000001
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.023695652173913055,
+        "n_boot": 10000,
+        "n_obs": 23,
+        "n_single_side_legs": 17,
+        "n_units_series": 3,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 11,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=3 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -2382,6 +2589,8 @@
       },
       "funnel": {
         "candidates": 20,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -2419,6 +2628,30 @@
       },
       "median_entry_spread": 0.060000000000000026,
       "median_ttc_hours_entry": 11.749766554166666,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 1,
+          "n_units": 2,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.004999999999999996,
+          0.0286842105263158
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.027000000000000014,
+        "n_boot": 10000,
+        "n_obs": 20,
+        "n_single_side_legs": 15,
+        "n_units_series": 2,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 9,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=2 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -2652,6 +2885,8 @@
       },
       "funnel": {
         "candidates": 7,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 10,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -2689,6 +2924,31 @@
       },
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 11.749905443055555,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 1,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.015000000000000001,
+          0.015000000000000001
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.015000000000000001,
+        "n_boot": 10000,
+        "n_obs": 7,
+        "n_single_side_legs": 4,
+        "n_units_series": 1,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 4,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=1 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -2916,6 +3176,8 @@
       },
       "funnel": {
         "candidates": 120,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 8,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -2953,6 +3215,28 @@
       },
       "median_entry_spread": 0.020000000000000018,
       "median_ttc_hours_entry": 17.616652107222222,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 4,
+          "n_units": 14,
+          "reasons": []
+        },
+        "ci95": [
+          -0.01076190476190476,
+          0.0008267716535433061
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": -0.003916666666666668,
+        "n_boot": 10000,
+        "n_obs": 120,
+        "n_single_side_legs": 58,
+        "n_units_series": 14,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 50,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.03820224719101124 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -3181,6 +3465,8 @@
       },
       "funnel": {
         "candidates": 47,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 8,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -3218,6 +3504,28 @@
       },
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 17.691161192777777,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 5,
+          "n_units": 11,
+          "reasons": []
+        },
+        "ci95": [
+          -7.812500000000083e-05,
+          0.012500000000000004
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.004255319148936167,
+        "n_boot": 10000,
+        "n_obs": 47,
+        "n_single_side_legs": 17,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 25,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.027377049180327875 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -3450,6 +3758,8 @@
       },
       "funnel": {
         "candidates": 34,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 8,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -3487,6 +3797,31 @@
       },
       "median_entry_spread": 0.86,
       "median_ttc_hours_entry": 17.65664610527778,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 7,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.0005555555555555549,
+          0.018958333333333324
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.006029411764705878,
+        "n_boot": 10000,
+        "n_obs": 34,
+        "n_single_side_legs": 8,
+        "n_units_series": 7,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 14,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=7 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -3719,6 +4054,8 @@
       },
       "funnel": {
         "candidates": 30,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 8,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -3756,6 +4093,31 @@
       },
       "median_entry_spread": 0.86,
       "median_ttc_hours_entry": 17.753998297916667,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 5,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.00034883720930232494,
+          0.022058823529411766
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.006499999999999998,
+        "n_boot": 10000,
+        "n_obs": 30,
+        "n_single_side_legs": 6,
+        "n_units_series": 5,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 12,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=5 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -3988,6 +4350,8 @@
       },
       "funnel": {
         "candidates": 25,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 8,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -4025,6 +4389,31 @@
       },
       "median_entry_spread": 0.86,
       "median_ttc_hours_entry": 17.752997323055556,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 3,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.00024999999999999925,
+          0.08000000000000007
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.0064,
+        "n_boot": 10000,
+        "n_obs": 25,
+        "n_single_side_legs": 2,
+        "n_units_series": 3,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 11,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=3 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -4252,6 +4641,8 @@
       },
       "funnel": {
         "candidates": 176,
+        "control_no_fill_instant": 1,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -4289,6 +4680,28 @@
       },
       "median_entry_spread": 0.030000000000000027,
       "median_ttc_hours_entry": 23.616630729444445,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 5,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          -0.005000000000000002,
+          0.0669306930693069
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.02534090909090908,
+        "n_boot": 10000,
+        "n_obs": 176,
+        "n_single_side_legs": 74,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 63,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.024248366013071905 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -4517,6 +4930,8 @@
       },
       "funnel": {
         "candidates": 100,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -4554,6 +4969,28 @@
       },
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 23.651388161666667,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 1,
+          "n_units": 13,
+          "reasons": []
+        },
+        "ci95": [
+          0.0025657894736842097,
+          0.10194852941176467
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.04939999999999999,
+        "n_boot": 10000,
+        "n_obs": 100,
+        "n_single_side_legs": 43,
+        "n_units_series": 13,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 47,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "flatten_at_cross: strategy-level 95% CI lower bound -0.01481012658227849 not > 0 [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-CI]"
@@ -4782,6 +5219,8 @@
       },
       "funnel": {
         "candidates": 82,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -4819,6 +5258,28 @@
       },
       "median_entry_spread": 0.1,
       "median_ttc_hours_entry": 23.709616410277782,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 1,
+          "n_units": 11,
+          "reasons": []
+        },
+        "ci95": [
+          0.0004929577464788731,
+          0.11748387096774195
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.058597560975609767,
+        "n_boot": 10000,
+        "n_obs": 82,
+        "n_single_side_legs": 32,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 36,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -5.742532885992189e-18 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -5051,6 +5512,8 @@
       },
       "funnel": {
         "candidates": 64,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -5088,6 +5551,30 @@
       },
       "median_entry_spread": 0.205,
       "median_ttc_hours_entry": 23.73860745375,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 1,
+          "n_units": 7,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.0002040816326530607,
+          0.14234374999999996
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.074453125,
+        "n_boot": 10000,
+        "n_obs": 64,
+        "n_single_side_legs": 22,
+        "n_units_series": 7,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 25,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=7 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -5320,6 +5807,8 @@
       },
       "funnel": {
         "candidates": 55,
+        "control_no_fill_instant": 0,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -5357,6 +5846,31 @@
       },
       "median_entry_spread": 0.27999999999999997,
       "median_ttc_hours_entry": 23.73888816166667,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 5,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.0029285714285714258,
+          0.16375
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.08654545454545454,
+        "n_boot": 10000,
+        "n_obs": 55,
+        "n_single_side_legs": 16,
+        "n_units_series": 5,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 24,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=5 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -5584,6 +6098,8 @@
       },
       "funnel": {
         "candidates": 309,
+        "control_no_fill_instant": 32,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -5621,6 +6137,28 @@
       },
       "median_entry_spread": 0.03999999999999998,
       "median_ttc_hours_entry": 35.612724675277775,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 4,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          0.003311036789297656,
+          0.09236933797909405
+        ],
+        "clears_tick_magnitude": false,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.03527508090614886,
+        "n_boot": 10000,
+        "n_obs": 309,
+        "n_single_side_legs": 113,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 67,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.010478468899521535 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -5848,6 +6386,8 @@
       },
       "funnel": {
         "candidates": 209,
+        "control_no_fill_instant": 24,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -5885,6 +6425,30 @@
       },
       "median_entry_spread": 0.06,
       "median_ttc_hours_entry": 35.616961259722224,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 15,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.010437956204379558,
+          0.12099567099567095
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.05452153110047846,
+        "n_boot": 10000,
+        "n_obs": 209,
+        "n_single_side_legs": 76,
+        "n_units_series": 15,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 57,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.02120879120879121 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -6113,6 +6677,8 @@
       },
       "funnel": {
         "candidates": 165,
+        "control_no_fill_instant": 15,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -6150,6 +6716,30 @@
       },
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 35.615255059166664,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 12,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.012666666666666665,
+          0.13859848484848478
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.06763636363636362,
+        "n_boot": 10000,
+        "n_obs": 165,
+        "n_single_side_legs": 59,
+        "n_units_series": 12,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 43,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.007799999999999994 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
@@ -6382,6 +6972,8 @@
       },
       "funnel": {
         "candidates": 134,
+        "control_no_fill_instant": 13,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -6419,6 +7011,31 @@
       },
       "median_entry_spread": 0.09999999999999998,
       "median_ttc_hours_entry": 35.61316561694444,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 9,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.014504504504504495,
+          0.1586585365853658
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.0812686567164179,
+        "n_boot": 10000,
+        "n_obs": 134,
+        "n_single_side_legs": 44,
+        "n_units_series": 9,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 36,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=9 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -6651,6 +7268,8 @@
       },
       "funnel": {
         "candidates": 98,
+        "control_no_fill_instant": 7,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -6688,6 +7307,31 @@
       },
       "median_entry_spread": 0.16999999999999998,
       "median_ttc_hours_entry": 35.5911557775,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 9,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.014710144927536228,
+          0.1765441176470587
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.10530612244897956,
+        "n_boot": 10000,
+        "n_obs": 98,
+        "n_single_side_legs": 29,
+        "n_units_series": 9,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 28,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=9 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -6915,6 +7559,8 @@
       },
       "funnel": {
         "candidates": 358,
+        "control_no_fill_instant": 14,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -6952,6 +7598,30 @@
       },
       "median_entry_spread": 0.059999999999999956,
       "median_ttc_hours_entry": 47.26530892805555,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 17,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.012905405405405407,
+          0.11906249999999997
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.05505586592178769,
+        "n_boot": 10000,
+        "n_obs": 358,
+        "n_single_side_legs": 139,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 52,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "flatten_at_cross: strategy-level 95% CI lower bound -0.0035635359116022074 not > 0 [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-CI]"
@@ -7179,6 +7849,8 @@
       },
       "funnel": {
         "candidates": 281,
+        "control_no_fill_instant": 11,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -7216,6 +7888,30 @@
       },
       "median_entry_spread": 0.06999999999999998,
       "median_ttc_hours_entry": 47.57550414805555,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 17,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.02041666666666667,
+          0.13904530744336566
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.07165480427046261,
+        "n_boot": 10000,
+        "n_obs": 281,
+        "n_single_side_legs": 110,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 46,
       "verdict": "DEAD-by-magnitude",
       "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
@@ -7443,6 +8139,8 @@
       },
       "funnel": {
         "candidates": 244,
+        "control_no_fill_instant": 10,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -7480,6 +8178,30 @@
       },
       "median_entry_spread": 0.07000000000000003,
       "median_ttc_hours_entry": 47.576062845833334,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 13,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.02485239852398524,
+          0.15547826086956518
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.08188524590163933,
+        "n_boot": 10000,
+        "n_obs": 244,
+        "n_single_side_legs": 95,
+        "n_units_series": 13,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 39,
       "verdict": "DEAD-by-magnitude",
       "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
@@ -7708,6 +8430,8 @@
       },
       "funnel": {
         "candidates": 208,
+        "control_no_fill_instant": 8,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -7745,6 +8469,30 @@
       },
       "median_entry_spread": 0.08999999999999997,
       "median_ttc_hours_entry": 47.57342880416667,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 11,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.02880733944954128,
+          0.17148698884758357
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.09447115384615384,
+        "n_boot": 10000,
+        "n_obs": 208,
+        "n_single_side_legs": 79,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 34,
       "verdict": "DEAD-by-magnitude",
       "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
@@ -7977,6 +8725,8 @@
       },
       "funnel": {
         "candidates": 151,
+        "control_no_fill_instant": 7,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -8014,6 +8764,31 @@
       },
       "median_entry_spread": 0.24,
       "median_ttc_hours_entry": 42.94678424916667,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 9,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.03678082191780821,
+          0.20196531791907513
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.12311258278145693,
+        "n_boot": 10000,
+        "n_obs": 151,
+        "n_single_side_legs": 54,
+        "n_units_series": 9,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 27,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "hold_to_settlement: n_units_series=9 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
@@ -8241,6 +9016,8 @@
       },
       "funnel": {
         "candidates": 423,
+        "control_no_fill_instant": 9,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -8278,6 +9055,28 @@
       },
       "median_entry_spread": 0.06,
       "median_ttc_hours_entry": 49.65097102166667,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 1,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          0.01727011494252874,
+          0.15614285714285717
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.07130023640661938,
+        "n_boot": 10000,
+        "n_obs": 423,
+        "n_single_side_legs": 163,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 44,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "flatten_at_cross: strategy-level 95% CI lower bound -0.0023333333333333305 not > 0 [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-CI]"
@@ -8505,6 +9304,8 @@
       },
       "funnel": {
         "candidates": 355,
+        "control_no_fill_instant": 9,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -8542,6 +9343,28 @@
       },
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 50.175389437499994,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 1,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          0.023333333333333334,
+          0.1733074534161491
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.08622535211267605,
+        "n_boot": 10000,
+        "n_obs": 355,
+        "n_single_side_legs": 133,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 43,
       "verdict": "DEAD-by-magnitude",
       "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
@@ -8769,6 +9592,8 @@
       },
       "funnel": {
         "candidates": 318,
+        "control_no_fill_instant": 9,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -8806,6 +9631,30 @@
       },
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 52.419304355,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 12,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.026894736842105266,
+          0.18250000000000002
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.09551886792452831,
+        "n_boot": 10000,
+        "n_obs": 318,
+        "n_single_side_legs": 122,
+        "n_units_series": 12,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 41,
       "verdict": "DEAD-by-magnitude",
       "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
@@ -9034,6 +9883,8 @@
       },
       "funnel": {
         "candidates": 270,
+        "control_no_fill_instant": 8,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -9071,6 +9922,30 @@
       },
       "median_entry_spread": 0.08000000000000002,
       "median_ttc_hours_entry": 58.76424983861111,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 11,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.030893536121672997,
+          0.19807017543859654
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.11048148148148147,
+        "n_boot": 10000,
+        "n_obs": 270,
+        "n_single_side_legs": 106,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 38,
       "verdict": "DEAD-by-magnitude",
       "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
@@ -9299,6 +10174,8 @@
       },
       "funnel": {
         "candidates": 199,
+        "control_no_fill_instant": 6,
+        "control_unquotable_single_side": 0,
         "entry_missing_quote": 2,
         "entry_not_two_sided": 0,
         "entry_single_snapshot": 0,
@@ -9336,11 +10213,36 @@
       },
       "median_entry_spread": 0.29,
       "median_ttc_hours_entry": 50.09815083833334,
+      "mid_as_truth": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 10,
+          "reasons": [
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          0.04015,
+          0.22950757575757577
+        ],
+        "clears_tick_magnitude": true,
+        "control_treatment": "mid_as_truth",
+        "mean": 0.14376884422110553,
+        "n_boot": 10000,
+        "n_obs": 199,
+        "n_single_side_legs": 71,
+        "n_units_series": 10,
+        "n_unmeasurable_single_side": 0,
+        "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+      },
       "n_distinct_entry_timestamps": 31,
       "verdict": "DEAD-by-magnitude",
       "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     }
   ],
+  "control_note": "EVERY cell also publishes a ZERO-INFORMATION mid-as-truth control (L255): an unhedged leg's broker_truth payout is replaced by the book's own contemporaneous mid, so the leg carries no outcome information at all. A positive CI the control REPRODUCES is gate arithmetic (half-spread x fill-rate \u2212 fees), not an edge, and `cell_verdict` returns DEAD-by-zero-information-control. The mid is a derived `midpoint` reference and never a fill price.",
   "double_fill_object_note": "pnl_both_fill is SIGN-BOUNDED BY CONSTRUCTION under this gate (L249) \u2014 reported as a diagnostic, never a verdict",
   "exit_treatment_note": "EVERY cell is bootstrapped under BOTH exit treatments and its verdict is the WORSE of the two (L256): hold_to_settlement marks an orphan single-side leg to the broker_truth payout (most generous); flatten_at_cross closes it by lifting the other side's real ask (maker fee in, TAKER fee out). A cell that is ALIVE only under hold_to_settlement is not ALIVE.",
   "fill_model_note": "touch is primary (L250); the turnover rule saturates on multi-day holds and is a labeled diagnostic only",

@@ -6,6 +6,70 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~22:5x UTC — research loop IDLE RUN (policy a): L255's zero-information mid-as-truth control stops being a hand-run verifier memory and becomes code — reproduces the positive CI in 10/10 hold-ALIVE cells
+
+**Nothing flips. Q50 stays DONE/CLOSED, S68 stays `dead ✗`, still 0 proven edges.** Full Q0-Q50
+status-line rescan found 0 eligible TODO/IN-PROGRESS items (Q1's odds leg 100% `blocked_key` on
+cloud tape since dt=2026-07-23; Q36 re-verified live at `n_settled_events=2/10`; Q37 re-verified
+live at 18/21 summer contract-days; `tape/polymarket_us_pairs/` and `tape/polymarket_sports_pairs/`
+still absent; today's earlier three commits already took L256, L251 and Q50's own verifier pass) →
+idle-run policy (a). Of the 8 open `UNENFORCED` rows, **L255 was the only genuinely code-buildable
+one left** — its own text says the zero-information control that killed Q50 stronger "existed only
+inside a verifier's hand-run session," an L165 provenance hole.
+
+**What was built.** `scripts/q50_s68_gate_ladder.py` gains the control as re-runnable code:
+`mid_as_truth_payout` (the zero-information payout — the book's own contemporaneous mid for a YES
+leg, `1 - mid` for NO; `None`, never 0.0, on an unquotable book, L86), `mid_as_truth_pnl`,
+`mid_as_truth_analysis`, and `control_reproduces`. Plumbed into every trade row
+(`pnl_strategy_mid_as_truth`, `mid_at_fill`, `mid_price_source_tag=midpoint`) and every cell.
+**Operative half:** a ONE-WAY override in `cell_verdict` — a cell that clears L256's flatten-at-cross
+treatment is then checked against the control, and `DEAD-by-zero-information-control` is returned if
+the control reproduces the positive CI; the control is a REQUIRED key on that path (raises rather
+than defaulting to "no control, therefore alive") and can only remove an ALIVE, never award one.
+
+**Measured on committed tape** (n_boot=10,000, seed 42): the control reproduces the positive CI in
+**10 of the 10** hold-to-settlement ALIVE cells — L255 confirmed AS STATED (unlike sibling L256,
+whose stated straddle mechanism held for only 3 of the same 10). Headline H=24h/N=1: hold mean
+**+$0.0695** CI **[+0.0235,+0.1473]** vs zero-information control mean **+$0.0494** CI
+**[+0.0026,+0.1019]** (`real_bid` entries, `midpoint` control payout, `broker_truth` settlement,
+n=100 trades/13 series). Control mean lands between 71% and 125% of the hold mean across the ten
+cells; 0 of 1,855 orphan legs anywhere had an unquotable mid. Every pre-existing number in
+`reports/q50_s68_gate_ladder_summary.json` re-ran byte-identical (only additive keys). New lesson
+**L258**: the override never fires on this tape (L256's flatten branch kills all ten cells first),
+so its evidentiary value is the published per-cell hold-vs-control comparison, not the verdict
+string — a last-resort gate is measured by what it says, not by how often it is the executioner.
+
+**Two-agent trail.** No `Task` tool was available in this harness — no `verifier` subagent could be
+dispatched, so the control CIs are recorded **PROVISIONAL**. Redundancy substituted: an independent
+code path (own fee function, own grouping, own bootstrap, different seed) re-derived all 4,727
+persisted per-row control P&Ls from `reports/q50_s68_gate_ladder_rows.jsonl` with 0 mismatches,
+reproducing the mean exactly on 33/34 cells and the 10/10 claim in full (the one disagreement, cell
+H=24/N=3, isn't one of the ten — its control lower bound is zero to numerical noise either way).
+Nothing depends on the PROVISIONAL label: no registry row moves, no verdict changes.
+
+**Tests:** 20 new test functions / 24 items in `tests/test_q50_s68_gate_ladder.py` (83 items in the
+file, was 59), including two HARD real-tape acceptance tests asserting non-vacuity first.
+**Gates (fresh, after last edit, L162):** `pytest -q` 2,647 items, 0 failed, exit 0; `python3
+scripts/invariants.py --full` exit 0, all green (13 pre-existing non-gating advisories, none
+touching this diff — the stale-UNENFORCED advisory now reports 7 open rows, was 8).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗ per Q34,
+paper-infra-only); `scripts/paper_pass.py` → 0 newly processed (idempotent, no new tape touches
+the s14 family since the ledger's last entry) — `paper: 0 open position(s), 1474 settled
+contract(s), realized P&L $+27.15, cash $+27.15, open notional $0.00`, no new `paper/` ledger lines
+this commit.
+
+**Step 0b:** the 7 most-recent `tape/hourly-*` branches (dt 2026-07-30 through 2026-08-01T10:05Z)
+were each diffed against `main` — every one is a strict subset of what `main` already has (all
+lines show as deletions relative to `main`), so nothing new to sweep. The ~214-branch historical
+backlog stays out of scope for this run (tracked under Q17).
+
+No `findings/` entry (consistent with the L256/L251 idle-run precedent: a lesson conversion that
+changes no verdict lives in the lesson row + this log, not a new dossier). Numbers live in the
+committed `reports/q50_s68_gate_ladder_*` artifacts. See `kb/lessons/00-lessons.md` L255/L258.
+
+---
+
 ## 2026-08-01 ~18:5x UTC — IDLE RUN (policy a): L256's flatten-at-cross exit treatment stops being a hand-run verifier memory and becomes code — the kill is confirmed 10/10, its stated mechanism is only right for 3 of them
 
 **Nothing flips. S68 stays `dead ✗`, still 0 proven edges.** This was an idle run: the full Q0-Q50

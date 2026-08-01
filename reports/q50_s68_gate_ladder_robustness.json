@@ -4,6 +4,8 @@
     "fill_model": "touch",
     "funnel": {
       "candidates": 100,
+      "control_no_fill_instant": 0,
+      "control_unquotable_single_side": 0,
       "entry_missing_quote": 2,
       "entry_not_two_sided": 0,
       "entry_single_snapshot": 0,
@@ -70,7 +72,7 @@
     "n_obs": 100,
     "n_units_series": 13
   },
-  "interpretation": "ALL THREE ARE ATTACKS THAT FAILED. None is evidence for an edge. The cell is DEAD on other evidence: flatten-at-cross on the unhedged legs leaves the CI straddling zero (L256), a zero-information mid-as-truth control reproduces the same CI shape (L255), the estimate is monotone in the entry horizon and negative in the near-close windows (L254 \u2014 a spread-regime difference: the wide-spread population does not exist near close), and the verdict sits inside an adverse-selection term this depth-only tape cannot measure (L253).",
+  "interpretation": "ALL THREE ARE ATTACKS THAT FAILED. None is evidence for an edge. The cell is DEAD on other evidence: flatten-at-cross on the unhedged legs leaves the CI straddling zero (L256), a zero-information mid-as-truth control reproduces the same CI shape (L255 \u2014 now code, see `mid_as_truth_control` in this artifact), the estimate is monotone in the entry horizon and negative in the near-close windows (L254 \u2014 a spread-regime difference: the wide-spread population does not exist near close), and the verdict sits inside an adverse-selection term this depth-only tape cannot measure (L253).",
   "leave_one_series_out": {
     "all_drops_keep_ci_positive": true,
     "attack": "leave_one_series_out",
@@ -362,6 +364,28 @@
     "n_series_dropped_one_at_a_time": 13,
     "note": "an attack that FAILED to kill the cell; it is not evidence for an edge \u2014 the cell dies to the flatten-at-cross exit treatment (L256) and is reproduced by the zero-information mid-as-truth control (L255)"
   },
+  "mid_as_truth_control": {
+    "admissible": {
+      "admissible": true,
+      "n_opposing_units": 1,
+      "n_units": 13,
+      "reasons": []
+    },
+    "ci95": [
+      0.0025657894736842097,
+      0.10194852941176467
+    ],
+    "clears_tick_magnitude": false,
+    "control_treatment": "mid_as_truth",
+    "mean": 0.04939999999999999,
+    "n_boot": 10000,
+    "n_obs": 100,
+    "n_single_side_legs": 43,
+    "n_units_series": 13,
+    "n_unmeasurable_single_side": 0,
+    "note": "L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived reference, never a fill. Unquotable mids are dropped, never zeroed (L86).",
+    "price_source_tag": "midpoint(control payout)+real_bid(entry)"
+  },
   "n_boot": 10000,
   "price_offset_placebo": {
     "attack": "price_offset_placebo",
@@ -373,6 +397,8 @@
     },
     "baseline_funnel": {
       "candidates": 100,
+      "control_no_fill_instant": 0,
+      "control_unquotable_single_side": 0,
       "entry_missing_quote": 2,
       "entry_not_two_sided": 0,
       "entry_single_snapshot": 0,

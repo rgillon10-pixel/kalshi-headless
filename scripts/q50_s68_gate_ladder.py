@@ -82,6 +82,18 @@ twice, over the same object, unit and ``n_boot``:
 the generous branch can never become the headline by omission. On a mirrored book that has not
 moved since the fill, the flatten costs exactly the two fees.
 
+ZERO-INFORMATION CONTROL (L255; built 2026-08-01, second provenance fix)
+------------------------------------------------------------------------
+The exit treatment above asks "what if we refuse to keep the orphan?". The L255 control asks a
+sharper question: **"what if the orphan carries no information at all?"** Every unhedged leg's
+``broker_truth`` settlement payout is replaced by the book's OWN CONTEMPORANEOUS MID at the fill
+instant (``mid_as_truth_pnl``) — i.e. the market is assumed exactly right — and the identical
+bootstrap is re-run (``mid_as_truth_analysis``). A positive verdict that a ZERO-INFORMATION
+control REPRODUCES contains nothing that came from the outcome data; it is
+``half-spread x fill-rate − fees`` arithmetic, true by construction of the entry gate. So
+``cell_verdict`` may only ever LOWER a cell on this evidence: an otherwise-ALIVE cell whose
+control reproduces its positive CI is returned ``DEAD-by-zero-information-control``.
+
 ROBUSTNESS (added 2026-08-01 after the verifier pass — provenance fix)
 ---------------------------------------------------------------------
 The first cut of this probe reported three "attacks that did NOT kill it" (leave-one-series-out,
@@ -440,6 +452,145 @@ def flatten_analysis(trades: Sequence[dict], model: str = PRIMARY_FILL_MODEL,
 
 
 # --------------------------------------------------------------------------- #
+# ZERO-INFORMATION CONTROL — the L255 mid-as-truth counterfactual
+#
+# L256 (above) asks what happens if we refuse to keep the orphan. L255 asks something sharper:
+# what happens if the orphan carries NO INFORMATION AT ALL?
+#
+# The Q50 verifier replaced every unhedged single-side leg's `broker_truth` $0/$1 payout with
+# the book's OWN CONTEMPORANEOUS MID at the fill instant — the market is assumed exactly right,
+# so no outcome information enters the P&L anywhere — and re-ran the identical bootstrap. The CI
+# came back the SAME SHAPE AND SIGN as the real verdict. That is decisive: a positive result a
+# zero-information control reproduces is `half-spread x fill-rate − fees` arithmetic, true by
+# construction of the entry gate, NOT a claim that the fills pick winners.
+#
+# The verifier ran it BY HAND and no committed artifact carried the number — the same L165
+# provenance hole L256 had, and flagged in L255's own row ("Not yet built as code in the probe").
+# This section is that control as re-runnable code.
+#
+# WHAT THE MID IS AND IS NOT (read before quoting any number this produces):
+#   * the mid is `book_mid` = (best_yes_bid + (1 - best_no_bid)) / 2 — DERIVED from the two real
+#     resting bids, tagged `midpoint`, and never a fill price (CLAUDE.md trust defaults);
+#   * it prices no ENTRY here. Every entry in this probe stays `real_bid`; the mid replaces only
+#     the counterfactual PAYOUT of a leg we already hold, inside a control whose entire purpose
+#     is to carry no information;
+#   * a control result is therefore never an edge claim in either direction. Structurally it can
+#     only take an ALIVE cell AWAY (`cell_verdict`), never award one.
+# --------------------------------------------------------------------------- #
+def mid_as_truth_payout(side: str, mid: Optional[float]) -> Optional[float]:
+    """The zero-information payout of a long `side` position when the BOOK is assumed exactly
+    right: `mid` for a YES leg, `1 - mid` for a NO leg (`book_mid` is quoted in YES terms).
+
+    Returns None — never 0.0 — when the mid is absent (a one-sided book at the fill instant,
+    L23): an unquotable mid makes the control UNMEASURABLE for that leg, and L86 forbids booking
+    an unmeasured leg as a free zero."""
+    if side not in ("yes", "no"):
+        raise ValueError(f"side must be 'yes' or 'no' (got {side!r})")
+    if mid is None:
+        return None
+    m = float(mid)
+    if not (0.0 <= m <= 1.0):
+        raise ValueError(f"mid must be a probability in [0, 1] (got {mid!r})")
+    return m if side == "yes" else (1.0 - m)
+
+
+def mid_as_truth_pnl(entry_price: float, side: str,
+                     mid_at_fill: Optional[float]) -> Optional[float]:
+    """`single_side_pnl` with its ONE informative term — the `broker_truth` settlement payout —
+    replaced by the book's own contemporaneous mid::
+
+        pnl = mid_as_truth_payout(side, mid_at_fill) - entry_price - maker_fee(entry_price)
+
+    The fee treatment is UNCHANGED (one MAKER leg, exactly as the hold branch charges it), so
+    the only difference between this and `single_side_pnl` is the payout term. Any gap between
+    the two bootstraps is therefore attributable to outcome information and nothing else — which
+    is the whole point of a control.
+
+    IDENTITY the tests pin: this equals `leg_markout(mids, fill_idx, side, price, k=0)` minus
+    `maker_fee(price)`. The control IS the immediate markout charged its entry fee; two names
+    for one quantity, pinned so a refactor cannot drift them apart.
+
+    Returns None when the mid is unquotable (see `mid_as_truth_payout`)."""
+    payout = mid_as_truth_payout(side, mid_at_fill)
+    if payout is None:
+        return None
+    p = float(entry_price)
+    return payout - p - maker_fee(p)
+
+
+def mid_as_truth_analysis(trades: Sequence[dict], model: str = PRIMARY_FILL_MODEL,
+                          n_boot: int = 10000) -> Dict[str, Any]:
+    """The strategy-level bootstrap under the L255 ZERO-INFORMATION control — same object, same
+    unit (GAME-SERIES, L6/L41), same `n_boot` and same admissibility gate as the two exit
+    treatments it sits beside. The ONLY difference is that an unhedged leg's payout comes from
+    the book's own mid instead of the settlement.
+
+    `both` (no settlement term in the capture) and `neither` (no position) rows are IDENTICAL to
+    the hold branch by construction; only the orphan legs move.
+
+    `n_unmeasurable_single_side` counts orphans whose mid was unquotable at the fill instant.
+    Those rows are DROPPED (L86) — reported, never zeroed — so a large count means the control
+    speaks for a smaller population than the branch it is being compared with, and the reader is
+    told rather than left to assume."""
+    from core.bootstrap import (block_bootstrap, bootstrap_verdict_admissible,
+                                clears_tick_magnitude)
+
+    units = per_series_pnl(trades, "pnl_strategy_mid_as_truth", model)
+    boot = block_bootstrap(units, n_boot=n_boot)
+    adm = bootstrap_verdict_admissible(units, min_units=MIN_CI_UNITS)
+    n_unmeasurable = sum(
+        1 for t in trades
+        if t["models"][model]["fill_category"] in ("yes_only", "no_only")
+        and t["models"][model].get("pnl_strategy_mid_as_truth") is None)
+    n_single = sum(1 for t in trades
+                   if t["models"][model]["fill_category"] in ("yes_only", "no_only"))
+    return {
+        "control_treatment": "mid_as_truth",
+        "mean": boot["mean"],
+        "ci95": boot["ci95"],
+        "n_units_series": len(units) if units else 0,
+        "n_obs": sum(len(v) for v in units.values()),
+        "admissible": adm,
+        "clears_tick_magnitude": clears_tick_magnitude(boot["ci95"], tick=PRICE_TICK,
+                                                       min_ticks=1.0),
+        "n_single_side_legs": n_single,
+        "n_unmeasurable_single_side": n_unmeasurable,
+        "n_boot": n_boot,
+        "price_source_tag": "midpoint(control payout)+real_bid(entry)",
+        "note": ("L255: a ZERO-INFORMATION control, not a P&L claim. The mid is a derived "
+                 "reference, never a fill. Unquotable mids are dropped, never zeroed (L86)."),
+    }
+
+
+def control_reproduces(hold: Dict[str, Any], control: Dict[str, Any]) -> Dict[str, Any]:
+    """L255's decision rule: does the zero-information control REPRODUCE the hold branch's
+    POSITIVE verdict?
+
+    `reproduces` is True only when BOTH lower bounds sit strictly above zero — i.e. a strategy
+    that provably cannot pick winners produces the same positive answer, so the positive part of
+    the real result is gate arithmetic rather than information.
+
+    Deliberately asymmetric: there is nothing to reproduce when the hold branch is not positive,
+    and a control that comes back NEGATIVE is not evidence FOR an edge either — it only means
+    this particular control did not reproduce this particular cell. `cell_verdict` uses the
+    result in one direction only (to remove ALIVE, never to award it)."""
+    hold_lo = hold.get("ci95", [None, None])[0]
+    ctrl_lo = control.get("ci95", [None, None])[0]
+    if hold_lo is None or hold_lo <= 0.0:
+        return {"reproduces": False, "hold_ci_lower": hold_lo, "control_ci_lower": ctrl_lo,
+                "reason": "hold branch is not positive — nothing for a control to reproduce"}
+    if ctrl_lo is None or ctrl_lo <= 0.0:
+        return {"reproduces": False, "hold_ci_lower": hold_lo, "control_ci_lower": ctrl_lo,
+                "reason": (f"zero-information control CI lower bound {ctrl_lo} is not > 0 while "
+                           f"the hold branch's is {hold_lo:+.4f} — the control did NOT "
+                           f"reproduce this cell")}
+    return {"reproduces": True, "hold_ci_lower": hold_lo, "control_ci_lower": ctrl_lo,
+            "reason": (f"a mid-as-truth control that carries NO outcome information reproduces "
+                       f"the positive CI (control lower bound {ctrl_lo:+.4f} vs hold "
+                       f"{hold_lo:+.4f}) — the positive part is gate arithmetic, not an edge")}
+
+
+# --------------------------------------------------------------------------- #
 # Trade construction (same row schema as Q49 so `analyze_cut` consumes it unchanged)
 # --------------------------------------------------------------------------- #
 def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dict],
@@ -462,8 +613,9 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
               "entry_missing_quote": 0, "entry_not_two_sided": 0,
               "entry_spread_below_two_fees": 0, "entry_spread_below_fees_plus_ticks": 0,
               "entry_single_snapshot": 0, "offset_price_non_positive": 0, "candidates": 0,
-              # L256 flatten-branch coverage, reported not hidden
-              "flatten_unquotable_single_side": 0, "flatten_no_fill_instant": 0}
+              # L256 flatten-branch / L255 control coverage, reported not hidden
+              "flatten_unquotable_single_side": 0, "flatten_no_fill_instant": 0,
+              "control_unquotable_single_side": 0, "control_no_fill_instant": 0}
     for tk, all_snaps in sorted(per_ticker.items()):
         idx = select_entry_index(all_snaps, horizon_hours)
         if idx is None:
@@ -514,6 +666,11 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
         fy_idx = touch_fill_index(yes_ladders, yes_best, p_yes, q_yes)
         fn_idx = touch_fill_index(no_ladders, no_best, p_no, q_no)
 
+        # The book's own mid at every snapshot. Read by BOTH the L253 markout and the L255
+        # zero-information control (which needs the mid at the FILL instant), so it is computed
+        # once, before the model loop, rather than twice from two places that could drift.
+        mids = [book_mid(s2["record"]) for s2 in snaps]
+
         s = settlement[tk]
         # L52: a Kalshi settlement is NOT always binary ('scalar' exists). `load_settlements`
         # already drops non-binary rows, but this probe must not depend on an upstream filter
@@ -543,15 +700,21 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
             # `both` is already hedged and `neither` has nothing to close, so those rows are
             # identical across the two treatments; only an orphan leg moves.
             flat_price: Optional[float] = None
+            mid_at_fill: Optional[float] = None
             if category in ("both", "neither"):
                 pnl_flatten: Optional[float] = pnl_strategy
+                # a hedged capture carries no settlement term and a no-fill carries no position,
+                # so the L255 control cannot move these rows either — identical by construction
+                pnl_control: Optional[float] = pnl_strategy
             elif model != PRIMARY_FILL_MODEL:
                 # the `turnover` rule accumulates departures across the WHOLE hold and never
                 # localises a fill instant, so there is no snapshot at which to read a flatten
                 # quote. UNMEASURABLE under that model -- reported, never zeroed (L86). It is
                 # a labeled diagnostic anyway (L250); the verdict rests on `touch`.
                 pnl_flatten = None
+                pnl_control = None
                 funnel["flatten_no_fill_instant"] += 1
+                funnel["control_no_fill_instant"] += 1
             else:
                 orphan_side = "yes" if category == "yes_only" else "no"
                 orphan_price = p_yes if category == "yes_only" else p_no
@@ -562,6 +725,14 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
                 pnl_flatten = flatten_at_cross_pnl(orphan_price, orphan_side, flat_price)
                 if pnl_flatten is None:
                     funnel["flatten_unquotable_single_side"] += 1
+                # ---- L255: the SAME orphan under the zero-information control -----------
+                # The mid is read at the FILL instant (the same snapshot the flatten quote comes
+                # from), so the two counterfactuals are answered on the same book.
+                mid_at_fill = (mids[idx_fill]
+                               if idx_fill is not None and idx_fill < len(mids) else None)
+                pnl_control = mid_as_truth_pnl(orphan_price, orphan_side, mid_at_fill)
+                if pnl_control is None:
+                    funnel["control_unquotable_single_side"] += 1
             models[model] = {
                 "filled_yes": fy["filled"], "filled_no": fn["filled"],
                 "departures_yes": fy["cumulative_departures"],
@@ -574,9 +745,12 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
                 "pnl_strategy_flatten": pnl_flatten,
                 "flatten_price": flat_price,
                 "flatten_price_source_tag": (None if flat_price is None else "real_ask"),
+                # L255 -- the zero-information control, reported beside both exit treatments
+                "pnl_strategy_mid_as_truth": pnl_control,
+                "mid_at_fill": mid_at_fill,
+                "mid_price_source_tag": (None if mid_at_fill is None else "midpoint"),
             }
 
-        mids = [book_mid(s2["record"]) for s2 in snaps]
         markouts: Dict[str, List[Optional[float]]] = {str(k): [] for k in MARKOUT_HORIZONS_K}
         for k in MARKOUT_HORIZONS_K:
             if fy_idx is not None:
@@ -619,7 +793,7 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
             "fillable_entry_spread": True,
             "fillable_entry_nearclose": (horizon_hours is not None),
             "price_source_tag": ("real_bid(fills)+real_bid(queue)+broker_truth(settlement)"
-                                 "+real_ask(flatten_exit)"),
+                                 "+real_ask(flatten_exit)+midpoint(l255_control)"),
         })
     return trades, funnel
 
@@ -645,9 +819,10 @@ def distinct_entry_timestamps(trades: Sequence[dict]) -> int:
 # unhedged single-side legs (L256 — now `flatten_analysis`/`flatten_at_cross_pnl` in this
 # module, folded into `cell_verdict` as the worse-of-two, no longer the hand-run verifier
 # derivation this comment used to cite), a zero-information "mid-as-truth" control that
-# reproduces the same CI shape and sign (L255 — still verifier-hand-run, NOT code here, and
-# therefore still an open L165 provenance hole), and the L253 blindness caveat bounds all three
-# of these attacks anyway. Published so they are not re-run.
+# reproduces the same CI shape and sign (L255 — as of 2026-08-01 also CODE here:
+# `mid_as_truth_pnl` / `mid_as_truth_analysis` / `control_reproduces`, published per cell and in
+# this robustness artifact, so neither provenance hole remains open), and the L253 blindness
+# caveat bounds all three of these attacks anyway. Published so they are not re-run.
 # --------------------------------------------------------------------------- #
 def strategy_units_by_series(trades: Sequence[dict],
                              model: str = PRIMARY_FILL_MODEL) -> Dict[str, List[float]]:
@@ -831,6 +1006,7 @@ def run_robustness(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dict
         "price_source_tags": {"fills": "real_bid", "queue_depth": "real_bid",
                               "settlement": "broker_truth"},
         "headline": _boot_row(strategy_units_by_series(trades, model), n_boot),
+        "mid_as_truth_control": mid_as_truth_analysis(trades, model, n_boot),
         "leave_one_series_out": leave_one_series_out(trades, model, n_boot),
         "drop_longshot_single_side": drop_longshot_single_side(trades, model, n_boot),
         "price_offset_placebo": price_offset_placebo(per_ticker, settlement, horizon_hours,
@@ -839,7 +1015,8 @@ def run_robustness(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dict
                            "The cell is DEAD on other evidence: flatten-at-cross on the "
                            "unhedged legs leaves the CI straddling zero (L256), a "
                            "zero-information mid-as-truth control reproduces the same CI shape "
-                           "(L255), the estimate is monotone in the entry horizon and negative "
+                           "(L255 — now code, see `mid_as_truth_control` in this artifact), the "
+                           "estimate is monotone in the entry horizon and negative "
                            "in the near-close windows (L254 — a spread-regime difference: the "
                            "wide-spread population does not exist near close), and the verdict "
                            "sits inside an adverse-selection term this depth-only tape cannot "
@@ -869,6 +1046,14 @@ def print_robustness(rob: Dict[str, Any]) -> None:
     for d in loo["drops"]:
         print(f"    drop {d['dropped_series']:<14} n={d['n_obs_dropped']:>3} -> "
               f"mean {_f(d['mean'])} CI {_ci(d['ci95'])}")
+    ct = rob.get("mid_as_truth_control")
+    if ct is not None:
+        print(f"mid-as-truth control (L255): mean {_f(ct['mean'])} CI {_ci(ct['ci95'])} "
+              f"units={ct['n_units_series']} n={ct['n_obs']} n_boot={ct['n_boot']} "
+              f"unmeasurable={ct['n_unmeasurable_single_side']}/{ct['n_single_side_legs']}")
+        print(f"    reproduces the headline? "
+              f"{control_reproduces({'ci95': h['ci95']}, ct)['reproduces']} — "
+              f"a control CI of the SAME SIGN means the positive part is gate arithmetic")
     ls = rob["drop_longshot_single_side"]
     b = ls["bootstrap_after_drop"]
     print(f"longshot-drop (<= ${ls['max_price_dropped']:.2f} single-side): dropped "
@@ -898,6 +1083,9 @@ VERDICT_SEVERITY: Dict[str, int] = {
     "ALIVE-CANDIDATE": 0,
     "DEAD-by-magnitude": 1,
     "DEAD-by-CI": 2,
+    #: L255. Not produced by `branch_verdict` and never a tiebreak winner in the worse-of-two —
+    #: it is an OVERRIDE applied only to a cell that would otherwise be reported ALIVE.
+    "DEAD-by-zero-information-control": 2,
     "DEAD-by-adequacy": 3,
 }
 
@@ -935,7 +1123,14 @@ def cell_verdict(cell: Dict[str, Any]) -> Tuple[str, str]:
     survived anything. The flatten-at-cross branch (`flatten_analysis`) is therefore a
     REQUIRED key: `cell_verdict` raises rather than quietly falling back to the generous
     branch, so the honest treatment cannot be dropped by a future refactor without the suite
-    going red. That absence-of-fallback is the assertable half of the lesson."""
+    going red. That absence-of-fallback is the assertable half of the lesson.
+
+    **L255 is enforced here too, as a one-way override.** A cell that clears both exit
+    treatments is then checked against the ZERO-INFORMATION mid-as-truth control: if a strategy
+    that provably cannot pick winners reproduces the same positive CI, the positive part is gate
+    arithmetic and the cell is returned `DEAD-by-zero-information-control`. The control is a
+    REQUIRED key on that path (it raises rather than defaulting to "no control, therefore
+    alive") and is consulted in ONE direction only — it can remove an ALIVE, never award one."""
     a = cell["analysis"]
     n = a["n_candidates"]
     hold = branch_verdict(n, a["bootstrap_strategy_level_diagnostic"],
@@ -948,9 +1143,24 @@ def cell_verdict(cell: Dict[str, Any]) -> Tuple[str, str]:
     flat = branch_verdict(n, flat_a, flat_a["clears_tick_magnitude"], "flatten_at_cross")
     worse = max((hold, flat), key=lambda vr: VERDICT_SEVERITY[vr[0]])
     if hold[0] == flat[0] == "ALIVE-CANDIDATE":
-        return "ALIVE-CANDIDATE", ("BOTH exit treatments admissible, CI > 0, clearing the tick "
-                                   "gate (L256 worse-of-two)")
-    return worse[0], f"{worse[1]} [L256 worse-of-two; hold={hold[0]} flatten={flat[0]}]"
+        verdict, why = "ALIVE-CANDIDATE", ("BOTH exit treatments admissible, CI > 0, clearing "
+                                           "the tick gate (L256 worse-of-two)")
+    else:
+        verdict = worse[0]
+        why = f"{worse[1]} [L256 worse-of-two; hold={hold[0]} flatten={flat[0]}]"
+    if verdict != "ALIVE-CANDIDATE":
+        # the control can only ever REMOVE an ALIVE (L255); a dead cell stays dead on the
+        # evidence that already killed it, and no control result can revive it
+        return verdict, why
+    if "mid_as_truth" not in cell:
+        raise KeyError(
+            "cell would be reported ALIVE-CANDIDATE without its `mid_as_truth` "
+            "zero-information control — L255 requires the control BEFORE any ALIVE verdict; "
+            "there is no no-control fallback")
+    rep_ = control_reproduces(a["bootstrap_strategy_level_diagnostic"], cell["mid_as_truth"])
+    if rep_["reproduces"]:
+        return "DEAD-by-zero-information-control", f"L255: {rep_['reason']}"
+    return verdict, f"{why} [L255 control did NOT reproduce: {rep_['reason']}]"
 
 
 def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
@@ -1005,6 +1215,9 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
                     trades, model, n_boot=n_boot),
                 # L256 -- the honest exit treatment. Required by `cell_verdict`.
                 "flatten_at_cross": flatten_analysis(trades, model, n_boot=n_boot),
+                # L255 -- the zero-information control. Required by `cell_verdict` before any
+                # ALIVE verdict; published on EVERY cell so the comparison is never selective.
+                "mid_as_truth": mid_as_truth_analysis(trades, model, n_boot=n_boot),
                 "analysis": analysis,
             }
             v, why = cell_verdict(cell)
@@ -1020,6 +1233,10 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
                 row["flatten_price_source_tag"] = (
                     t["models"][model]["flatten_price_source_tag"])
                 row["pnl_both_fill"] = t["models"][model]["pnl_both_fill"]
+                row["pnl_strategy_mid_as_truth"] = (
+                    t["models"][model]["pnl_strategy_mid_as_truth"])
+                row["mid_at_fill"] = t["models"][model]["mid_at_fill"]
+                row["mid_price_source_tag"] = t["models"][model]["mid_price_source_tag"]
                 row["fill_model"] = model
                 all_rows.append(row)
 
@@ -1034,6 +1251,13 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
         "bootstrapped_object": ("strategy_level_pnl (double fill = realized capture; "
                                 "single-side fill = unhedged directional position marked to "
                                 "broker_truth settlement; no fill = 0) — L249"),
+        "control_note": ("EVERY cell also publishes a ZERO-INFORMATION mid-as-truth control "
+                         "(L255): an unhedged leg's broker_truth payout is replaced by the "
+                         "book's own contemporaneous mid, so the leg carries no outcome "
+                         "information at all. A positive CI the control REPRODUCES is gate "
+                         "arithmetic (half-spread x fill-rate − fees), not an edge, and "
+                         "`cell_verdict` returns DEAD-by-zero-information-control. The mid is a "
+                         "derived `midpoint` reference and never a fill price."),
         "exit_treatment_note": ("EVERY cell is bootstrapped under BOTH exit treatments and its "
                                 "verdict is the WORSE of the two (L256): hold_to_settlement "
                                 "marks an orphan single-side leg to the broker_truth payout "
@@ -1136,6 +1360,23 @@ def print_report(rep: Dict[str, Any]) -> None:
               f"{_f(st['mean']):>9} {_f(fl['mean']):>9} "
               f"{str(fl['n_unmeasurable_single_side']) + '/' + str(fl['n_single_side_legs']):>7}"
               f"  {c['verdict']}")
+    print()
+    print("ZERO-INFORMATION CONTROL (L255) — replaces each unhedged leg's broker_truth payout")
+    print("  with the book's OWN contemporaneous mid, so the leg carries no outcome information.")
+    print("  A positive CI the control REPRODUCES is half-spread x fill-rate − fees arithmetic,")
+    print("  not an edge; such a cell is returned DEAD-by-zero-information-control.")
+    ch = (f"{'H':>5} {'N':>2} {'CI95(hold-to-settle)':>21} {'CI95(mid-as-truth ctrl)':>23} "
+          f"{'meanHold':>9} {'meanCtrl':>9} {'unmeas':>7}  reproduces?")
+    print(ch)
+    print("-" * len(ch))
+    for c in rep["cells"]:
+        st = c["analysis"]["bootstrap_strategy_level_diagnostic"]
+        ct = c["mid_as_truth"]
+        print(f"{str(c['horizon_hours']):>5} {c['gate_extra_ticks']:>2} "
+              f"{_ci(st['ci95']):>21} {_ci(ct['ci95']):>23} "
+              f"{_f(st['mean']):>9} {_f(ct['mean']):>9} "
+              f"{str(ct['n_unmeasurable_single_side']) + '/' + str(ct['n_single_side_legs']):>7}"
+              f"  {control_reproduces(st, ct)['reproduces']}")
     print()
     print("DIAGNOSTIC ONLY (L249 — sign-bounded by the gate, carries NO evidentiary weight):")
     for c in rep["cells"]:
