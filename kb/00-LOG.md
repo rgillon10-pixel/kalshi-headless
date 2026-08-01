@@ -6,6 +6,110 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~09:2x UTC — Q49 / S68 two-sided both-bid overround-capture maker fill-sim: **DEAD (edge) — PROVISIONAL**, the both-fill overround is real and unreachable
+
+Research-loop milestone (protocol v3). Steps 0a/0/0b handed over by the orchestrating session: **0a PASS**
+(`origin/main` = `dfdd6ce`/PR #259; newest `kb/00-LOG.md` entry and newest committed `tape/*/dt=*` both 2026-08-01,
+gap 0 → no rewind). **Claim-check** — open PRs #208/#191/#166/#165/#125 unchanged, all long-standing
+Ryan-review-only, none claims queue work. **0b** — **213** `tape/hourly-*`/`tape/burst-*` stranded heads (was 212;
+the known Q17 backlog reserved for PR #46), explicitly out of one milestone's budget to re-diff; no branch touched
+or deleted. **Q49 was the single genuine TODO in Q0–Q49.**
+
+**Built:** `scripts/q49_two_sided_maker_fillsim.py` + `tests/test_q49_two_sided_maker_fillsim.py` (**44** offline
+synthetic-fixture tests). Read-only and **fully offline** — both legs (`tape/settlement_ledger/` `broker_truth`,
+`tape/orderbook_depth/` `real_bid`) are committed, so a verifier re-runs with no credentials and no cache refresh.
+Queue-aware price-time-priority BOTH-sides-fill sim over the `yes_bids`/`no_bids` ladders of the **same** binary
+book (L39-free, never a candle-through print), ex-post settlement join (L50) that gates the **payout, never a
+fill**, one flat 1¢ maker fee **per filled leg** from `core.pricing` (L18/L30), block-bootstrap by **GAME-SERIES**
+(L6/L41) routed through `bootstrap_verdict_admissible` + `clears_tick_magnitude`.
+
+**Invariant gate did its job mid-build:** the probe's first draft used a raw `datetime.fromisoformat` and
+`scripts/invariants.py --full` went RED on `no_raw_datetime_fromisoformat` (L136/L150); routed through
+`core.timeutil.parse_iso_utc`, and the binary/scalar settlement decision through
+`core.settlement.is_binary_result`/`normalize_result` (L52) rather than a hand-rolled string comparison.
+Every headline number below is byte-identical before and after that fix.
+
+**The structural finding that reframes the whole item.** If BOTH legs fill, the P&L is *arithmetically
+deterministic* and adverse selection cannot touch it — you hold one YES and one NO on the same binary market and
+exactly one settles $1 regardless of the outcome. So conditioning the verdict on "both filled" reproduces the
+idea-stage +5.31¢ **by construction** and proves nothing (Q49 gate 3 / L5). Adverse selection enters in exactly one
+place: the attempts where only ONE leg fills, which is a naked directional position, not the capture (gate 2). The
+deployable unit of account is therefore the **PER-ATTEMPT** P&L over all four exhaustive cases
+(both / YES-only / NO-only / neither), and that is the binding metric.
+
+**Binding cell** (entry `late` — the idea-stage regime, mean yes-spread 4.09¢, mean `yes_bid+no_bid` **0.9591**,
+**< $1 for 100.0%**; min-spread 2¢ = S68's own gate; fill model `queue_price_through`): population **564 attempts /
+18 game series / 316 games**. Both-fill rate **21.81%** — roughly **48× the S19 0.45% queue-aware floor**, so it
+**dies on the EDGE, not adequacy** (L53, same class as S14's 27.18%). Both-fill cut **+$0.0115** net of the two
+maker fees (exactly what the arithmetic promises). But **PER-ATTEMPT block-boot by game-series mean −$0.0923, 95%
+CI [−0.1311, −0.0423]** — *fully below zero*, `bootstrap_verdict_admissible` **PASS** (18 units), 
+`clears_tick_magnitude` **FAIL**, 17/18 series negative. Where the money goes: 123 both-fills at +$0.0115 against
+**247 single-leg fills at ≈−$0.21**, plus 194 no-fills at $0.
+
+**Adverse selection MEASURED, not assumed:** P(settles YES | YES-leg-only fill, n=126) = **0.127** vs base 0.418
+(**0.30×**); P(settles NO | NO-leg-only fill, n=121) = **0.248** vs base 0.582 (**0.43×**). The leg that fills alone
+settles in our favour two to three times less often than the base rate — the exact mechanism S68's own registration
+named ("the side that fills is disproportionately the side about to lose"), confirmed on real book tape. Median
+queue-ahead at entry **500 (YES) / 707 (NO)** contracts, consistent with Q24's median-485 binding-risk finding.
+
+**Entry-policy confound, recorded because it moves the headline.** `late` entry reproduces the idea-stage
+*price* regime but also truncates the observation window to a **median 3** post-entry snapshots (mean 11.3,
+p10 = 1) versus **median 65** (mean 64.0) under `first`. With a few snapshots left the book makes essentially
+one more move, which fills exactly one of the two bids — the losing one — by construction. Part of the
+−$0.0923 is therefore short-horizon structure, not adverse selection alone, and a verifier should attack it
+there. The two cells are consequently **co-binding**: the fairer full-life implementation (`first` + model B,
+median 65 snapshots) is a **wash at +$0.0011, CI [−0.0533, +0.0797]**, and the verdict is stated on the
+weakest sufficient claim — **of the four cells run (2 entry policies × 2 fill models), NONE produces a
+`bootstrap_verdict_admissible` CI > 0 that clears `clears_tick_magnitude`** — so it does not depend on the
+`late` cell's magnitude.
+
+**Non-circularity check (this is what makes the kill robust).** Model B's fill condition is definitionally
+correlated with adverse price movement, so the kill could be suspected of being baked in. It is not: the
+**price-movement-BLIND** model (`queue_only`, fills on queue departures alone with no reference to which way the
+book went) also fails — +$0.0083, CI **[−0.0014, +0.0277]**, `clears_tick_magnitude` FAIL. And its `first`-entry cut's
+apparent **+$0.1617** is precisely the artifact `bootstrap_verdict_admissible` exists to catch: **L41-degenerate**,
+`no_opposing_unit`, 18/18 series same-sign, 98.0% both-fill under a proxy that lets a cancelled queue count as a
+fill. **Four cells, four failures, by three different routes.** Wide-spread sensitivity does not rescue it either
+(5¢ → −$0.0533 CI [−0.0776, −0.0293]; 7.31¢ → −$0.0357 CI [−0.0817, +0.0043]): a bigger overround buys a more
+mispriced book, which buys more one-sided flow, which buys more half-fills.
+
+**Two-agent rule UNSATISFIED — verdict recorded PROVISIONAL, registry NOT flipped.** This run's harness exposed no
+`Task`/subagent-dispatch tool, so no independent `verifier` (and no `edge-prober`/`kb-distiller`) could be
+dispatched; the lead executed and reviewed everything itself. `kb/strategies/00-index.md`'s **S68 row therefore
+stays at `idea`**, with a PROVISIONAL clause appended in place (S55 precedent — status word unchanged). Redundancy
+substitute, stated as strictly weaker than protocol v3 intends: the headline cell was re-derived by **independent
+code written from the tape up that imports nothing from the probe**, reproducing the counts, fill rates, both-fill
+net, per-attempt mean and adverse-selection rates **to the digit** (only the bootstrap CI bound moved in the 4th
+decimal, from dict-ordering in the resample draw). That rules out a transcription/indexing bug; it does not
+substitute for an adversarial second agent, because the same author chose the population, the fill model and the
+gates in both passes. **Next action for a future run: dispatch a `verifier` against
+`scripts/q49_two_sided_maker_fillsim.py --entry-policy late`; on CONFIRM, flip S68 `idea` → `dead ✗`.**
+
+**Honest reconstruction note (recorded because it is load-bearing for provenance).** The idea-stage figures
+**205 tickers / 16 series / 7.31¢ mean spread / 0.927 mean `yes_bid+no_bid`** did **not** reproduce exactly under
+any snapshot-selection rule tried; nearest reconstructions bracket them (last pre-close snapshot: 179/15 at
+0.0711/0.9289; last pre-close *two-sided* snapshot: 232/16 at 0.0669/0.9331). This probe defines its own explicit
+documented population (564/18) rather than inheriting an unreproducible one. **The load-bearing qualitative claims
+all reproduce**: `yes_bid + no_bid < $1` for **100.0%** of the population, mean spread in the 4–7¢ band, 15–18 game
+series ≥ the L41 ≥10 floor. The 205/16/7.31¢ triple should be treated as approximate provenance, not a citable
+statistic.
+
+**Limitation left standing (the one steelman):** a live maker would cancel the surviving leg once the first fills.
+That policy cannot be evaluated ex-post at hourly-scale depth cadence, and it is a *different strategy* — it
+forfeits the deterministic capture that is S68's entire claim.
+
+**Gates (fresh, after the last edit, L162):** `pytest` → **2,538 passed, 0 failed, exit 0** (27m09s);
+`python scripts/invariants.py --full` → exit 0, `invariants: all green`. **Step 9:**
+`SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗ per Q34, paper-infra-only); `scripts/paper_pass.py` → **0 newly
+processed** (1,541 loaded; 232 already-in-ledger, 68 deferred(caps), 272 deferred(coverage)), no new ledger lines,
+`daily_summary()` = *paper: 0 open position(s), 1474 settled contract(s), realized P&L $+27.15, cash $+27.15, open
+notional $0.00* (`broker_truth`). No network, no orders, no credentials, no synthetic fills.
+
+Same short-the-spread maker factor family as S6/S13/S19/S23 (Hard-Rule-#6 ρ cap, not diversification).
+**Still 0 proven edges.** See `findings/2026-08-01-q49-s68-two-sided-maker-fillsim-verdict.md`.
+
+---
+
 ## 2026-08-01 ~04:1xZ UTC — kalshi-edge-hunter nightly: adversarial review (clean) + Q21 round #19 ENDS the 18-round zero-registration streak — S68 registered `idea` (a deterministic overround, NOT an edge) + probe-prep + housekeeping
 
 Nightly Opus thinking-seat run (protocol v3; steps 0a/0/0b first). **0a PASS** — `git pull --rebase origin main` clean at
