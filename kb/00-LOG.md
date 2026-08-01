@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~09:2xZ UTC — research loop: Q49/S68 both-bid overround-capture maker fill-sim — verdict DEAD (headline `DEAD-by-fee`), verifier-CONFIRMED
+
+Executed the topmost eligible queue item (Q49, registered 04:1xZ this morning). Built
+`scripts/q49_s68_bothside_maker_fillsim.py` + 53 offline unit tests: a queue-aware BOTH-sides-fill maker
+sim over `tape/orderbook_depth/` `yes_bids`/`no_bids` ladders (L39-free, price-priority-correct `touch`
+fill model primary; the generous Q27/S19 `turnover` rule reported as a labeled diagnostic — it saturates
+at 98% "fill rate" on this multi-day-hold population, vs 42% under `touch`, because book migration away
+from a stale price counts as queue advancement under that rule), joined to `tape/settlement_ledger/`
+`broker_truth`. Primary cut (fillable_entry × touch): 20 candidates / 5 series / 14 games, 55.0%
+both-fill rate, realized double-fill overround net of BOTH maker fees = exactly $0.0000 on 11/11
+observations (every one sub-tick). Block-boot by game-series CI [$0.0000,$0.0000], n_units=5
+(< the 10-series floor, L41-inadmissible); strategy-level diagnostic (single-side fills counted as the
+directional position held) CI [−0.2422,+0.0853] straddles zero.
+
+**The structural finding:** `best_yes_ask ≡ round(1 − best_no_bid, 4)` by collector construction
+(`collection/normalize.py:35` — Kalshi posts only bids per outcome), so the entry gate "spread ≥ two
+maker fees" arithmetically **guarantees** every double-fill's gross capture ≥ the two fees — net P&L can
+never go negative under this design, and the tightest/most realistic population sits almost exactly on
+that boundary, so net rounds to zero. This also means the L41-inadmissible verdicts on the wider cuts
+(spread≤10c, unrestricted — both showed a positive-looking point estimate) carry **no evidentiary
+weight**: a gate that arithmetically guarantees non-negative P&L can never produce an opposing-sign
+bootstrap cluster, so that "DEAD-by-CI" is a definitional artifact of the gate, not new information. The
+two non-degenerate objects that actually kill the candidate are the per-observation sub-tick magnitude
+decomposition and the (genuinely admissible) strategy-level bootstrap.
+
+**Two-agent rule.** Independent `verifier` re-ran everything from a fresh shell: pytest (2547/2547) and
+`invariants.py --full` (green) both reproduced; ran the probe script twice and JSON-diffed the output —
+byte-identical modulo timestamp, fully deterministic; brute-force-checked the fee identity on all 445
+wide-spread candidates (0 net-negative, min net = $0.0000 exactly); confirmed 0/53 depth-tape series
+prefixes are `KXMVE*` (the S68 exclusion is moot on this tape, not violated). It then built an
+**independent alternative entry rule** — "first snapshot with ttc≤H" (a genuine at-T-minus-H entry, not
+earliest-then-filter) at four horizons — and reran the full sim: every population is DEAD, and the
+ttc≤6h cut's strategy-level CI is **negative** (mean −$0.0562, [−$0.1459,+$0.0046]). **Verdict:
+CONFIRMED.**
+
+Verifier flagged two disclosure caveats that don't change the verdict: (1) the primary `fillable_entry`
+cut's 20 candidates all share ONE `entry_captured_at` — the depth tape's first-ever capture pass, so
+"5 series / 14 games" implies more temporal breadth than a single instant carries; the verifier's
+alternative ttc≤24h population (176 candidates / 17 series / 131 games spanning the full tape) is the
+more defensible near-close test, and it too is DEAD; (2) the script's "measured, not assumed" framing of
+the fee-identity check is a tautology given the collector's construction, not an empirical measurement —
+harmless (it makes `net ≥ 0` exact) but should be described accurately.
+
+Fixed one real issue mid-run: `scripts/invariants.py::no_yes_ask_arithmetic` false-positived on a
+comment string ("yes_bid 0.35 / yes_ask 0.36") in the new test file — reworded the comment, not the
+check; `invariants: all green` after.
+
+**Still 0 proven edges.** `LOOP-QUEUE.md` Q49 → DONE; `kb/strategies/00-index.md` S68 → `dead ✗`. Four
+lesson candidates filed (unreachable-ALIVE-branch bootstrap design; turnover-proxy saturation on
+multi-day holds; earliest-then-filter entry rules selecting on tape-start date; a fee-boundary wide-spread
+gate). Step 9: `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`); `scripts/paper_pass.py` → 0
+processed / 68 deferred(caps) / 272 deferred(coverage) / 232 already-in-ledger this pass, no new ledger
+lines; `daily_summary()` = *paper: 0 open position(s), 1474 settled contract(s), realized P&L $+27.15,
+cash $+27.15, open notional $0.00*. See
+`findings/2026-08-01-q49-s68-bothside-maker-fillsim-verdict.md`.
+
+---
+
 ## 2026-08-01 ~04:1xZ UTC — kalshi-edge-hunter nightly: adversarial review (clean) + Q21 round #19 ENDS the 18-round zero-registration streak — S68 registered `idea` (a deterministic overround, NOT an edge) + probe-prep + housekeeping
 
 Nightly Opus thinking-seat run (protocol v3; steps 0a/0/0b first). **0a PASS** — `git pull --rebase origin main` clean at
