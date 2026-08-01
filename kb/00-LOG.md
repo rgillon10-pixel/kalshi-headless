@@ -6,6 +6,135 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~15:5x UTC — research loop IDLE RUN (policy (a)): L251's MEASUREMENT half UNENFORCED → test — and Q49's tape-start artifact was never confined to its primary cut (+ L257)
+
+**Step 0a PASS.** No GitHub API is reachable from this session (`api.github.com` → 403 "GitHub access
+is not enabled for this session"), so the merged-PR ancestry check was done through local git as an
+explicit proxy and is reported as such: `origin/main` = `ae1445c`, HEAD identical, and the squash-merge
+PR numbers on `main` run `#262, #260, #259, #258, #257, #256, #255, …` — contiguous and monotonic, with
+the single gap (`#261`) explained on the face of `46bb1ec`'s own message as the deliberately-closed
+duplicate of `#260`. No commit is unreachable and no rewind signature is present. Second half PASS with
+gap 0: newest `kb/00-LOG.md` entry `2026-08-01`, newest committed `tape/*/dt=*` `dt=2026-08-01`.
+**Limitation stated honestly:** without the API this cannot see a PR merged on GitHub whose merge commit
+never reached this remote; the local evidence is consistent with no rewind, it does not prove it.
+
+**Step 0 claim-check (degraded, stated).** Same API limitation → done over `git for-each-ref` on all 220+
+fetched remote heads, sorted by committer date. One branch post-dates `main`'s tip:
+`origin/idle-run-a-q50-s68-gate-ladder` (`4bbba0e9`, 2026-08-01T14:14Z), which **adds Q50 to the queue and
+claims it** (S68 tighter-gate ladder, PROVISIONAL, no verifier — its own message says the Task tool was
+unavailable to it too), and which also already claims lesson IDs **L253/L254**. Treated as CLAIMED; not
+redone, not merged (this session cannot merge).
+
+**Step 0b sweep — 1 branch of 220 carried genuinely strandable tape.** `scripts/tape_branch_sweep.py`:
+220 branches checked, 54 malformed names, 20 fully line-verified contained, 186 contained via the L216
+capture_id-level check, 14 carrying lines missing from HEAD — of which **13 carry nothing appendable**
+(every missing line is a git conflict marker or sits in a non-`.jsonl` file under `tape/`; sweeping them
+would re-inject the L142 corruption, per L247). The one real branch, `tape/hourly-20260801T0657Z`
+(`b7fc435`, committed 07:01Z — well past the 30-min freshness rule), was union-appended into this commit:
+**393 lines** = `sports_pairs/dt=2026-08-01` 370, `polymarket_macro_pairs/dt=2026-08-01` 21,
+`crypto_hourly/dt=2026-08-01` 2. Every appended line was JSON-parsed and conflict-marker-screened before
+the append; no existing line was rewritten or reordered.
+
+**Queue state: DRAINED → IDLE RUN.** Re-derived from the file rather than trusted: for every `### Q…`
+header, the item's CURRENT status is its newest-dated `Status:` line (the file's ordering is not uniformly
+newest-first — Q23 leads with DONE, Q24 leads with its original TODO and carries DONE below it, so a
+first-line-wins read is wrong). Q0–Q49 yields no item whose newest status is TODO/IN-PROGRESS: Q4/Q8/Q9/
+Q11/Q12/Q16/Q23/Q24/Q27 all resolve DONE, Q1's odds leg is `BLOCKED(key)` (Ryan-side, never cloud-runnable),
+Q17 is RESERVED-do-not-start, Q19/Q21/Q35/Q36/Q37/Q38/Q42/Q43/Q44/Q47/Q48 are gated or complete. Q50 is
+claimed (above). Idle-run policy (a) selected.
+
+**Milestone — L251's two named halves, both built.**
+1. **protocol:** `.claude/agents/edge-prober.md:123` gains a house-style bullet citing **L251** by ID —
+   write a near-close entry rule as "FIRST snapshot with ttc≤H", never "earliest capture, THEN filter",
+   with Q49's own case stated verbatim.
+2. **test:** `core.bootstrap.entry_instant_concentration()` + `TAPE_START_CONCENTRATION_SHARE = 0.5`.
+   Reports `n_distinct_instants` / `top_instant` / `max_instant_share` / `entries_per_distinct_instant`
+   and, given the same unit the caller will block-bootstrap on (L6), `n_units` /
+   `n_units_on_top_instant` / `unit_share_on_top_instant` / `n_unit_instant_pairs`. The load-bearing
+   read is `n_units == n_units_on_top_instant`: every bootstrap block drawn from one capture instant
+   means the unit count is not evidence of independence. Descriptor, never a verdict — the 0.5 flag is
+   blunt and documented, the threshold used is echoed in every result, empty input returns
+   `no_signal=True` (never a clean bill), a `unit_labels` length mismatch raises, and top-instant ties
+   break by `str()` order so a quoted instant reproduces byte-identically.
+   **17 tests** (14 unit + 3 acceptance) in `tests/test_bootstrap.py`.
+   L251's own "not statically assertable" judgment is corrected in place: the entry RULE cannot be
+   scanned (protocol), but the resulting timestamp DISTRIBUTION is a plain statistic and nothing
+   prevented computing it.
+
+**What building it MEASURED (new, → L257).** Re-running Q49's own unmodified loaders over committed tape
+and feeding each labeled cut's `entry_captured_at` list to the new descriptor (unit = `series_of(ticker)`,
+Q49's own bootstrap unit): the SAME instant — **`2026-07-07T01:23:57.700581+00:00`, the `orderbook_depth`
+tape's first full capture pass (704 tickers)** — is the top instant of **all four** cuts, carrying
+`fillable_entry` **20/20 = 100%** (5/5 series), `nearclose_le_24h` **20/20 = 100%** (5/5 series),
+`spread_le_10c` **156/284 = 54.9%** (12/17 series), `unrestricted` **210/445 = 47.2%** (12/18 series).
+Q49's verifier caveat #1 named ONLY the primary cut; the entry rule that caused the pile-up was shared by
+every cut, so the artifact was too — even the widest "445 candidates / 18 series" population is nearly
+half one snapshot. **Honest counterweight recorded rather than omitted:** `unrestricted`'s 47.2% sits
+BELOW the 0.5 flag and is reported not-flagged — the flag is not a rubber stamp. **Q49/S68's `DEAD-by-fee`
+verdict is UNCHANGED** and no registry status moved: the kill rested on the fee identity plus the
+strategy-level bootstrap, and the verifier's own alternative-rule population (176 candidates / 17 series /
+131 games) was already DEAD too. Still **0 proven edges**.
+
+**Provenance.** No price is asserted anywhere in this unit of work — the frozen fixture stores capture
+timestamps and ticker-derived series labels only. The underlying probe's tags are unchanged: `real_bid`
+(entry prices, queue depth) and `broker_truth` (settlement). No P&L number is produced, so Hard Rule #4
+has nothing to tag.
+
+**L191/L192 discipline.** `tape/orderbook_depth/` grows hourly, so the exact counts are frozen at
+`tests/fixtures/q49_entry_instants_2026-08-01.json` (measured at `ae1445c`, 2026-08-01T15:40Z, command
+recorded inside the file) and the acceptance tests assert against THAT. The one live-tree assertion is
+deliberately **monotone**: a future stranded-tape sweep can union-append older lines into
+`dt=2026-07-07.jsonl`, so its earliest `captured_at` can only move earlier — the test asserts `<=`, never
+`==`.
+
+**A hazard hit and reverted mid-run.** Drafting L251's new enforcement cell, the phrase "…should add
+`DISPOSES: L251` if it concurs" SILENTLY CLOSED THE ROW: per L190 the disposition marker is parsed out of
+the enforcement column, so prose and marker are the same bytes there. The census moved
+`30 disposed / 7 open` → `31 disposed / 6 open` with no adjudication having occurred. Caught by re-running
+the census immediately after the edit, reworded, re-verified back to `30 / 7`. Recorded in L251's own cell
+and in the finding.
+
+**Two-agent verdict rule: N/A by milestone class, and stated rather than assumed.** No independent
+`verifier` was dispatchable — the Task tool is not available in this session's context — so this run
+deliberately produced NO verdict-class output: no registry flip, no bootstrap CI, no kill.
+`kb/strategies/00-index.md` is untouched. L251 is left ON the open UNENFORCED queue with **no** disposition
+marker, precisely so a future verifier adjudicates it instead of the author adjudicating their own work;
+the `--full` stale-candidate advisory now names L251 as a candidate, so that handoff is machine-visible
+rather than prose. Open UNENFORCED rows: **7 → 7** (unchanged by design; 253 rows, 36 UNENFORCED-marked,
+30 disposed).
+
+**Step 9 paper sub-pass.** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (non-empty). `scripts/paper_pass.py`
+over the post-sweep tape: 1549 records loaded, **0 newly processed** (68 deferred by caps, 272 deferred by
+coverage, 232 already in ledger) — idempotent, no new ledger lines committed.
+`paper: 0 open position(s), 1474 settled contract(s), realized P&L $+27.15, cash $+27.15, open notional $0.00`.
+
+**Gates (L162 fresh-gate-line rule applied literally, including where it is inconvenient).**
+The full suite takes ~34 minutes here, so the honest statement is split rather than rounded up into one
+number:
+- **After the last change to code / tests / fixtures / tape** (everything except the three
+  append-only documents): `python3 -m pytest -o addopts='' -q` → **2564 collected, 2564 passed, 0 failed**
+  (2049.48s). Baseline was 2547 at PR #260; +17 = exactly this run's new tests, with no other module moved.
+- **After the final appends to `kb/00-LOG.md`, `LOOP-QUEUE.md` and `findings/`** — the only tests whose
+  result can depend on those bytes are the document-scanning ones, so all of them were re-run:
+  `tests/test_bootstrap.py tests/test_stale_unenforced_advisory.py tests/test_invariants.py
+  tests/test_recovery_dwell_advisory.py` → **477 passed, 0 failed** (1468.01s), and
+  `tests/test_anomaly_sweep.py tests/test_gen_problems_dashboard.py
+  tests/test_hollow_crypto_ladder_advisory.py tests/test_polymarket_pair_terms_audit.py
+  tests/test_polymarket_us_live.py tests/test_reversal.py tests/test_tape_branch_sweep.py` →
+  **162 passed, 0 failed** (45.41s). The remaining modules touch no document this run edited.
+  Stated as a floor per step 4: **≥2564 collected, 0 failed** at the final tree.
+- `python3 scripts/invariants.py --full` → **exit 0, `invariants: all green`**, 14 non-gating advisories
+  (unchanged in count from the pre-edit baseline), **re-run after the document appends**, not before.
+
+Artifacts: `findings/2026-08-01-l251-entry-instant-concentration.md`; `core/bootstrap.py`
+(`entry_instant_concentration`, `TAPE_START_CONCENTRATION_SHARE`); `tests/test_bootstrap.py` (+17);
+`tests/fixtures/q49_entry_instants_2026-08-01.json`; `.claude/agents/edge-prober.md`;
+`kb/lessons/00-lessons.md` (L251 enforcement cell updated, text unchanged, per the L152 own-row-update
+rule; **L257** appended — `L253`-`L256` were already claimed by the Q50 verifier-pass branch, which
+merged first; this rebase resolved the collision by renumbering).
+
+---
+
 ## 2026-08-01 ~14:0x UTC — Q50 VERIFIER PASS: the S68 tighter-gate finding is CONFIRMED, was under-supported by two provenance gaps (fixed), and the kill is actually STRONGER
 
 **Verdict: CONFIRMED. Nothing flips.** An independent verifier re-ran

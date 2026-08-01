@@ -120,6 +120,24 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   mistake one abstraction up (a nominal ONE-SIDED quote, not a synthetic
   midpoint); making the restricted population a robustness footnote applied
   AFTER a positive headline is how a dead strategy reads as alive.
+- **L251 — write the near-close entry rule as "FIRST snapshot with ttc<=H",
+  never "earliest capture, THEN filter to ttc<=H".** The two read identically
+  and are not: "earliest, then filter" keeps a ticker whose ENTIRE pre-close
+  history begins inside the window, which drags every such candidate back to
+  the tape's own first pass. Q49/S68's primary population reported "20
+  candidates, 5 game-series, 14 games" and all 20 shared ONE
+  `entry_captured_at` (`2026-07-07T01:23:57.700581+00:00`, the depth tape's
+  first full capture) — a unit count wearing the costume of temporal breadth,
+  caught by a verifier reading timestamps rather than by any gate. Then MEASURE
+  it, do not eyeball it: run `core.bootstrap.entry_instant_concentration(
+  entry_instants, unit_labels=<the SAME unit you will block-bootstrap on>)`
+  over EVERY labeled cut you report, and print `n_distinct_instants` /
+  `max_instant_share` / `n_units_on_top_instant` beside each cut's n. When
+  `n_units == n_units_on_top_instant`, the bootstrap's blocks all draw from one
+  moment and the unit count is not evidence of independence. The helper is a
+  DESCRIPTOR with a blunt documented 0.5 flag, not a verdict — a genuine
+  event-window study SHOULD concentrate; the judgment stays yours, but the
+  number goes in the write-up either way.
 - When a probe's P&L carries a large, low-frequency CATASTROPHIC leg (a binary
   payout on the rare adverse outcome — e.g. a bracket-ladder winner's near-$1
   payout) and some units get DROPPED because that leg's measurability can't be
