@@ -931,6 +931,111 @@ def unregistered_single_hour_leg_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Single-hour gate IDEMPOTENCE advisory (L221: non-gating, offline-safe) ──────────
+#
+# L144's meta-guard above and L74's daily-gap check together cover ONE half of what
+# `if ts.hour == N:` does wrong — the ZERO-passes-outside-the-hour half that freezes a family.
+# L221 recorded the other half: the same line is a RATE gate, not an IDEMPOTENCE gate, so it
+# admits UNBOUNDED passes inside its hour. Its measured cost on `econ_prints` was 1,720 lines
+# collapsing to 785 distinct payloads (54.4% byte-redundant re-capture of a monthly-cadence
+# print) plus five fully-lost calendar days, from one predicate.
+#
+# The check lives in `scripts/tape_gap_monitor.py::single_hour_leg_idempotence` (its coverage
+# limits and the burst-window exclusion are documented there and restated in every report's own
+# `coverage_note`); this is only the surface that makes it visible on the one command every
+# autonomous run is required to run. Legs and their tape families come from
+# `SINGLE_HOUR_LEG_FAMILIES` above; each leg's HOUR is parsed out of `collection/hourly_pass.py`
+# so the number is never re-declared here and cannot desync from the collector (the same
+# single-source discipline as `_TS_HOUR_EQ_RE`).
+#
+# NON-GATING, deliberately: these are historical properties of already-committed append-only
+# tape that no run can repair, and the real fix — a once-per-day dedup KEY on the write path —
+# is a live-collector change outside a research run's lane (and overlaps the `daily_leg_due()`
+# design already under Ryan review in PR #165). It PRINTS; it never flips the exit code.
+
+_UTC_HOUR_CONST_RE = re.compile(r"^([A-Z][A-Z0-9_]*_UTC_HOUR)\s*=\s*(\d+)\s*(?:#.*)?$", re.M)
+
+
+def _single_hour_leg_gate_hours(
+        hourly_pass_path: Path = ROOT / "collection" / "hourly_pass.py",
+        source: Optional[str] = None,
+        known: Optional[Dict[str, Tuple[str, ...]]] = None,
+) -> Dict[str, int]:
+    """`tape/<family>` -> the UTC hour its single-hour leg is gated on, read off
+    `collection/hourly_pass.py`'s own `<NAME>_UTC_HOUR = <int>` constants (never re-declared
+    here). A constant that is registered in `known` but absent from the source is SKIPPED,
+    not defaulted — guessing an hour would silently audit the wrong window. Best-effort:
+    any failure returns {}. Pure given `source`."""
+    known = SINGLE_HOUR_LEG_FAMILIES if known is None else known
+    try:
+        if source is None:
+            source = hourly_pass_path.read_text(encoding="utf-8")
+        hours = {m.group(1): int(m.group(2)) for m in _UTC_HOUR_CONST_RE.finditer(source)}
+        out: Dict[str, int] = {}
+        for const, fams in known.items():
+            h = hours.get(const)
+            if h is None or not (0 <= h <= 23):
+                continue
+            for fam in fams:
+                out[fam] = h
+        return out
+    except Exception:
+        return {}
+
+
+def _single_hour_leg_idempotence_issues(
+        tape_root: Path = ROOT / "tape",
+        gate_hours: Optional[Dict[str, int]] = None,
+) -> List[str]:
+    """One issue label per single-hour-gated family whose committed tape shows the gate
+    admitted MORE THAN ONE pass on some day (L221), excluding declared burst windows.
+    Best-effort/offline: any failure returns [] and can never poison the gate."""
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None:
+            return []
+        hours = _single_hour_leg_gate_hours() if gate_hours is None else gate_hours
+        issues: List[str] = []
+        for fam in sorted(hours):
+            rep = tgm.single_hour_leg_idempotence(tape_root, fam, hours[fam])
+            if not rep or rep.get("verdict") != "OVER_CAPTURE":
+                continue
+            issues.append(
+                f"{fam} (gate hour {hours[fam]}Z): up to "
+                f"{rep['max_passes_per_day_excl_burst']} non-burst pass(es) in ONE day "
+                f"(intended 1) on {rep['n_days_over_capture_excl_burst']}/{rep['n_days']} "
+                f"day(s); {rep['gate_attributable_redundant_line_fraction']:.1%} of its "
+                f"{rep['n_lines']} lines are gate-attributable byte-redundant re-capture")
+        return issues
+    except Exception:
+        return []
+
+
+def single_hour_leg_idempotence_warning(issues: List[str]) -> Optional[str]:
+    """A non-gating advisory when a once-per-UTC-day collector leg's committed tape proves
+    its hour-equality gate admitted repeat passes (L221), else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    body = "".join(f"\n  - {i}" for i in issues[:6])
+    more = f"\n  - ... and {n - 6} more" if n > 6 else ""
+    return (
+        f"warning (non-gating): {n} single-hour collector leg(s) show their `if ts.hour == N` "
+        f"gate is a RATE gate, not an IDEMPOTENCE gate — it admitted repeat passes on the same "
+        f"UTC day and the extra passes re-captured an unchanged payload:{body}{more}\n"
+        f"  Declared burst-trigger windows are EXCUSED (padded), so these counts exclude "
+        f"sanctioned re-capture and under-report rather than over-report. The verdict measure "
+        f"is passes-per-DAY, not passes-in-the-gate-hour, because a leg landing ~40min after "
+        f"pass start can stamp `captured_at` in the next hour (L222). Byte-redundancy is a "
+        f"proxy for wasted capture, never proof of WHICH caller fired — only an on-record "
+        f"`capture_source` (L222 candidate 1) can attribute a pass. Computed from committed "
+        f"tape only via scripts/tape_gap_monitor.py::single_hour_leg_idempotence; full limits "
+        f"in that report's own coverage_note. Fix = a once-per-day dedup KEY per leg (never an "
+        f"hour predicate). Advisory only — does NOT affect the exit code. "
+        f"See kb/lessons/00-lessons.md L221."
+    )
+
+
 # ─── Dead collector-leg advisory (L117/L129 recurrence: non-gating, offline-safe) ──
 #
 # The live data pipe runs TWO staggered collectors (VPS cron :23 UTC, cloud `kalshi-collector`
@@ -3172,6 +3277,18 @@ def main() -> int:
         leg_warning = unregistered_single_hour_leg_warning(_unregistered_single_hour_leg_issues())
         if leg_warning:
             sys.stderr.write(leg_warning + "\n")
+        # L221 advisory: a single-hour leg's hour-equality gate admitted repeat passes on the
+        # same UTC day (rate gate, not idempotence gate) and the extra passes are byte-redundant
+        # re-capture. Non-gating; BaseException-wrapped for the same reason as the stanzas below
+        # (it dynamically exec's tape_gap_monitor.py, and a formatter raise must not become a gate).
+        try:
+            idem_warning = single_hour_leg_idempotence_warning(
+                _single_hour_leg_idempotence_issues())
+            if idem_warning:
+                sys.stderr.write(idem_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: single-hour-gate idempotence advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
         # L117/L129 advisory: one of the two staggered collector legs (VPS :23 / cloud :53)
         # apparently dead — computed from committed tape's captured_at minute buckets. Loud but
         # NON-GATING: a dead VPS cron is un-fixable from a cloud run, so gating would halt the

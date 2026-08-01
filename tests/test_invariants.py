@@ -2224,3 +2224,70 @@ def test_acceptance_l208_perp_tape_real_tape_advisory_fires():
     assert (issue["observed_only"]["min_passes"] or 0) >= 1
     msg = inv.window_grid_coverage_warning(issues)
     assert "perp_tape" in msg and "L208" in msg
+
+
+# ─── L221: single-hour gate idempotence advisory (non-gating) ─────────────────────────
+
+def test_l221_gate_hours_are_read_off_hourly_pass_never_redeclared():
+    """The hour numbers must come from `collection/hourly_pass.py`'s own constants, so a
+    collector-side hour change cannot silently desync this advisory."""
+    hours = inv._single_hour_leg_gate_hours()
+    assert hours, "no single-hour leg hours resolved from hourly_pass.py"
+    for fam, h in hours.items():
+        assert isinstance(h, int) and 0 <= h <= 23, (fam, h)
+    # every registered family resolves
+    registered = {f for fams in inv.SINGLE_HOUR_LEG_FAMILIES.values() for f in fams}
+    assert registered == set(hours)
+
+
+def test_l221_gate_hours_skip_a_constant_absent_from_the_source():
+    """A registered constant that is NOT in the source is SKIPPED, never defaulted — guessing
+    an hour would audit the wrong window and report a confident wrong answer."""
+    out = inv._single_hour_leg_gate_hours(
+        source="ECON_PRINTS_UTC_HOUR = 9\n",
+        known={"ECON_PRINTS_UTC_HOUR": ("econ_prints",),
+               "GONE_UTC_HOUR": ("phantom",)})
+    assert out == {"econ_prints": 9}
+
+
+def test_l221_gate_hours_reject_an_out_of_range_constant():
+    out = inv._single_hour_leg_gate_hours(
+        source="BAD_UTC_HOUR = 99\n", known={"BAD_UTC_HOUR": ("fam",)})
+    assert out == {}
+
+
+def test_l221_warning_is_none_when_there_are_no_issues():
+    assert inv.single_hour_leg_idempotence_warning([]) is None
+
+
+def test_l221_warning_names_its_limits_and_stays_non_gating_in_wording():
+    msg = inv.single_hour_leg_idempotence_warning(["fam (gate hour 9Z): up to 5 pass(es)"])
+    assert msg is not None
+    for token in ("RATE gate", "IDEMPOTENCE gate", "does NOT affect the exit code",
+                  "L221", "capture_source", "burst", "dedup KEY"):
+        assert token in msg, token
+
+
+def test_l221_issues_degrade_to_empty_on_a_missing_tape_root(tmp_path):
+    """Best-effort/offline: an unreadable tape root can never poison the gate."""
+    assert inv._single_hour_leg_idempotence_issues(tape_root=tmp_path / "nope") == []
+
+
+def test_acceptance_l221_real_tape_advisory_fires_on_every_registered_leg():
+    """HARD acceptance against real committed tape, STRUCTURAL (L191 — counts drift as tape
+    grows, and are pinned on a FROZEN slice in tests/test_tape_gap_monitor.py
+    ::test_acceptance_18_l221_econ_prints_frozen_slice_reproduces_the_recorded_54pct).
+
+    The finding this pins: EVERY registered single-hour leg carries L221's defect — the
+    hour-equality gate admitted repeat non-burst passes on the same UTC day. `econ_prints` is
+    the row's own subject; `settlement_ledger` is the case a redundancy-only check would call
+    clean (0.0% redundant, unique payload) and only the pass-count measure catches."""
+    if not (ROOT / "tape" / "econ_prints").is_dir():
+        pytest.skip("committed tape/econ_prints/ not present")
+    issues = inv._single_hour_leg_idempotence_issues()
+    assert issues, "expected the L221 advisory to fire on committed tape"
+    joined = "\n".join(issues)
+    assert "econ_prints (gate hour 9Z)" in joined
+    assert "settlement_ledger (gate hour 10Z)" in joined
+    msg = inv.single_hour_leg_idempotence_warning(issues)
+    assert "L221" in msg and "does NOT affect the exit code" in msg

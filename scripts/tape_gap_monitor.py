@@ -1685,6 +1685,322 @@ def caller_explicability(tape_root: Path,
     return base
 
 
+# ─── L221: single-hour gate IDEMPOTENCE (the rate-gate half nothing measured) ──────────
+#
+# `if ts.hour == N:` in `collection/hourly_pass.py` is a RATE gate, not an IDEMPOTENCE gate.
+# One line of code produces BOTH failure modes at once: UNBOUNDED passes inside hour N, and
+# ZERO passes outside it. The zero-outside half is already covered — L74/L123's
+# `daily_family_gap_warning` sees the frozen family, and L144's meta-guard makes sure every
+# such leg is registered for it. NOTHING measured the other half, which is what L221 recorded
+# and what this answers: how many passes did the gate actually ADMIT inside its hour, and how
+# much of the resulting tape is byte-redundant re-capture that carries no new information?
+#
+# `econ_prints` is L221's own reference case: over dt=2026-07-05..28 its 1,720 committed lines
+# collapse to 785 distinct payloads once `capture_id`/`captured_at` are stripped — **54.4%
+# byte-redundant re-capture** of a monthly-cadence print (`payrolls` 87.5%, `gdp` 72.1%,
+# `cpi_core_mom` 52.0%). See `findings/2026-07-29-econ-prints-tape-audit.md` D2.
+#
+# TWO measures, deliberately BOTH reported, because each is blind exactly where the other
+# sees (the L59 both-measures discipline — frequency and magnitude can disagree in sign of
+# implication, so a check that picks one is a check that can be talked out of its own finding):
+#   * `max_passes_per_day` — the DIRECT rate-gate measure, and the HEADLINE one. The gate's
+#     contract is ONE pass per UTC day, so any day with >1 pass is a pass it had no way to
+#     refuse, whichever hour that pass's own `captured_at` fell in. This stays sound on a
+#     FAST-MOVING payload, where every re-capture differs and redundancy reads 0.
+#     (`max_passes_in_gate_hour` is reported too, but it is the WEAKER of the two — see
+#     limit (e): a leg landing ~40min after pass start can carry a `captured_at` in hour N+1
+#     while its gate was evaluated on a pass-start `ts` in hour N.)
+#   * `redundant_line_fraction` — the COST measure: what share of the family is re-capture of
+#     an unchanged payload. This stays sound where a modest pass count looks innocuous but
+#     the family's cadence is monthly, so every extra pass is pure duplication.
+#
+# HONEST LIMITS (restated in every report's own `coverage_note`, so they travel with any
+# quoted number):
+#   (a) Byte-redundancy is a PROXY for "the gate admitted a pass that added nothing". It
+#       cannot prove the GATE caused the duplicate — a deliberate twice-daily sampling of a
+#       monthly print would read identically. It proves the tape is redundant, not who made
+#       it so; only an on-record `capture_source` field (L222 candidate (1), still UNENFORCED)
+#       can attribute a pass.
+#   (b) `redundant_line_fraction == 0` is NOT evidence of an idempotent gate — see the
+#       fast-moving-payload case above. Read it WITH `max_passes_in_gate_hour`, never alone.
+#   (c) Passes are keyed by `capture_id`, so an L210 second-granularity collision merges two
+#       real invocations into one apparent pass: `max_passes_in_gate_hour` is a LOWER bound
+#       (it errs toward under-reporting over-capture, never toward a false alarm).
+#   (d) This is a historical property of already-committed append-only tape. No run can
+#       repair the redundant lines; the fix is a once-per-day dedup KEY on the write path
+#       (L221's own candidate, a live-collector change out of a research run's lane).
+#   (e) The gate is evaluated on the PASS-START `ts`, but tape carries only each LEG's own
+#       `captured_at`. `econ_prints` is leg #10 and lands ~40min after pass start (L222
+#       measured 380-542s intra-invocation leg spread), so a pass gated in hour N can stamp
+#       its records in hour N+1. `max_passes_in_gate_hour` is therefore a LOWER bound and
+#       `n_passes_off_gate_hour` an UPPER bound on "the gate leaked" — neither is read as a
+#       verdict. `max_passes_per_day` is immune to the drift and carries the verdict instead.
+#       Live example: `tape/weather_actuals/dt=2026-07-17` has one pass at 12:29Z (in the
+#       hour-12 gate) and one at 13:02Z (out of it) — almost certainly ONE late leg of a pass
+#       that started inside hour 12, not a leaked gate.
+
+# Fields that differ between two captures of the SAME payload and therefore must NOT count
+# toward a record's information content. `capture_id`/`captured_at` are the pass stamps L221's
+# own measurement excluded; the within-pass sequence fields are the same class (a ladder walk's
+# step index is not payload) and are reused from the L210 constant so the two cannot desync.
+PAYLOAD_VOLATILE_FIELDS: Tuple[str, ...] = (
+    ("capture_id", "captured_at") + WITHIN_PASS_SEQUENCE_FIELDS
+)
+
+
+def payload_identity(rec: Dict[str, Any]) -> str:
+    """Canonical JSON of one record with `PAYLOAD_VOLATILE_FIELDS` removed (L221).
+
+    Two records sharing an identity carry the SAME information, captured twice. Pure;
+    `default=str` so an exotic value can never raise inside a best-effort audit.
+    """
+    stripped = {k: v for k, v in rec.items() if k not in PAYLOAD_VOLATILE_FIELDS}
+    return json.dumps(stripped, sort_keys=True, separators=(",", ":"), default=str)
+
+
+# A declared burst trigger DELIBERATELY re-fires the same collectors every 60-120s inside its
+# window (LOOP-QUEUE.md "Burst-capture legs", Ryan-approved 2026-07-10). Those passes are
+# EXPECTED, not gate leakage — counting them as over-capture would manufacture an incident out
+# of sanctioned collection. The pad absorbs trigger start/stop jitter; it only ever EXCUSES
+# passes, so it biases toward under-reporting over-capture, never toward a false alarm.
+BURST_WINDOW_PAD_S: float = 900.0
+
+
+def _burst_windows_for_family(family: str) -> List[Tuple[datetime, datetime]]:
+    """Declared burst windows (padded) during which `family` is deliberately re-captured.
+    Reuses BURST_TRIGGER_WINDOWS + BURST_CAPTURE_KEY_TO_TAPE_FAMILY so a rename in either
+    cannot silently desync this. Best-effort: an unparseable bound is skipped, never guessed."""
+    out: List[Tuple[datetime, datetime]] = []
+    pad = timedelta(seconds=BURST_WINDOW_PAD_S)
+    for spec in BURST_TRIGGER_WINDOWS.values():
+        fams = {BURST_CAPTURE_KEY_TO_TAPE_FAMILY.get(k) for k in spec.get("burst_keys", ())}
+        if family not in fams:
+            continue
+        lo = _parse_iso(spec.get("window_start"))
+        hi = _parse_iso(spec.get("window_end"))
+        if lo is None or hi is None:
+            continue
+        out.append((lo - pad, hi + pad))
+    return sorted(out)
+
+
+def single_hour_leg_idempotence(tape_root: Path,
+                                family: str,
+                                gate_hour_utc: int,
+                                days: Optional[Sequence[str]] = None,
+                                max_days: Optional[int] = None,
+                                max_examples: int = 10,
+                                ) -> Optional[Dict[str, Any]]:
+    """Did a once-per-UTC-day `ts.hour == N` collector gate behave idempotently? (L221)
+
+    Returns ``None`` — a distinct `no_signal`, never conflated with a clean result — when
+    the family has no committed ``dt=*.jsonl`` day-files at all. A family whose files exist
+    but yield no parseable line returns a dict with ``verdict == "NO_PARSEABLE_LINES"``.
+
+    ``days`` pins a FROZEN ``dt=YYYY-MM-DD`` slice (L191); ``max_days`` keeps only the N most
+    RECENT day-files after that filter (so a routine advisory stays cheap without silently
+    changing which days a pinned slice covers). Passing both applies ``days`` first.
+
+    ``gate_hour_utc`` must be 0..23; anything else raises ``ValueError`` rather than
+    quietly scanning for an hour that cannot occur.
+    """
+    if not isinstance(gate_hour_utc, int) or isinstance(gate_hour_utc, bool) \
+            or not (0 <= gate_hour_utc <= 23):
+        raise ValueError(f"gate_hour_utc must be an int in 0..23, got {gate_hour_utc!r}")
+
+    files = _family_files(tape_root, family)
+    if days is not None:
+        wanted = set(days)
+        files = [(d, p) for d, p in files if p.stem in wanted]
+    if max_days is not None and max_days >= 0:
+        files = files[-max_days:] if max_days else []
+    if not files:
+        return None
+
+    n_lines = 0
+    n_malformed = 0
+    payloads: Set[str] = set()
+    per_day: Dict[str, Dict[str, Any]] = {}
+    # day stem -> capture_id -> earliest captured_at
+    day_passes: Dict[str, Dict[str, datetime]] = {}
+    # (day stem, capture_id) -> payload identities written under that one pass. A line with no
+    # usable capture_id keys on its own identity, so it forms its own singleton "pass" bucket
+    # and can never make intra-pass redundancy look larger than it is.
+    pass_payloads: Dict[Tuple[str, str], Set[str]] = {}
+
+    for _d, path in files:
+        stem = path.stem
+        entry = per_day.setdefault(stem, {"n_lines": 0, "payloads": set()})
+        day_passes.setdefault(stem, {})
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    n_malformed += 1
+                    continue
+                if not isinstance(rec, dict):
+                    n_malformed += 1
+                    continue
+                n_lines += 1
+                entry["n_lines"] += 1
+                key = payload_identity(rec)
+                payloads.add(key)
+                entry["payloads"].add(key)
+                cid = rec.get("capture_id") or rec.get("captured_at")
+                if not isinstance(cid, str) or not cid:
+                    cid = ""
+                pass_payloads.setdefault((stem, cid or key), set()).add(key)
+                ts = _parse_iso(rec.get("captured_at"))
+                if ts is None or not cid:
+                    continue
+                prev = day_passes[stem].get(cid)
+                if prev is None or ts < prev:
+                    day_passes[stem][cid] = ts
+
+    scanned = sorted(per_day)
+    burst_windows = _burst_windows_for_family(family)
+    coverage_note = (
+        "L221 two-measure report. `redundant_line_fraction` is a PROXY for 'the gate admitted "
+        "a pass that added nothing' — it cannot prove the GATE caused the duplicate (only an "
+        "on-record capture_source, L222 candidate (1), can attribute a pass), and a value of 0 "
+        "is NOT evidence of idempotence on a fast-moving payload. The whole-slice figure is "
+        "also a LUMP of three mechanisms with three different culprits, so it can accuse a "
+        "clean gate: `redundancy_decomposition` splits it into intra_pass (the collector "
+        "duplicated inside ONE invocation), across_pass_within_day (the GATE admitted a "
+        "redundant second pass — the only gate-attributable share, surfaced as "
+        "`gate_attributable_redundant_line_fraction`), and cross_day (a legitimate "
+        "retrospective re-report). The whole-slice figure is kept because it is the number "
+        "L221 itself quoted. Read any of them WITH "
+        "`max_passes_in_gate_hour`, which is the direct rate-gate measure and stays sound "
+        "there. Passes are keyed by capture_id, so an L210 second-granularity collision makes "
+        "`max_passes_in_gate_hour` a LOWER bound (errs toward under-reporting, never a false "
+        "alarm), and a leg landing ~40min after pass start can stamp `captured_at` in the "
+        "hour AFTER the one its gate was evaluated on, so `max_passes_in_gate_hour` is a "
+        "LOWER bound and `n_passes_off_gate_hour` an UPPER bound on 'the gate leaked' — the "
+        "verdict is carried by `max_passes_per_day`, which is immune to that drift because "
+        "the gate's contract is one pass per DAY — and specifically "
+        "`max_passes_per_day_excl_burst`, since a DECLARED burst trigger re-fires these "
+        "collectors on purpose and those passes are excused (padded window, so the exclusion "
+        "only ever under-reports over-capture). Historical property of committed append-only tape: no run can repair these "
+        "lines; the fix is a once-per-day dedup KEY on the collector write path."
+    )
+    base: Dict[str, Any] = {
+        "family": family,
+        "gate_hour_utc": gate_hour_utc,
+        "days_scanned": scanned,
+        "n_days": len(scanned),
+        "n_lines": n_lines,
+        "n_malformed_lines": n_malformed,
+        "slice_pinned": days is not None,
+        "max_days": max_days,
+        "coverage_note": coverage_note,
+    }
+    if n_lines == 0:
+        base["verdict"] = "NO_PARSEABLE_LINES"
+        return base
+
+    day_rows: Dict[str, Dict[str, Any]] = {}
+    over_capture_days: List[Dict[str, Any]] = []
+    zero_gate_hour_days: List[str] = []
+    max_in_gate = 0
+    max_per_day = 0
+    max_per_day_excl_burst = 0
+    n_days_multi_pass = 0
+    n_days_multi_pass_excl_burst = 0
+    n_burst_passes = 0
+    for stem in scanned:
+        starts = day_passes.get(stem, {})
+        in_gate = sorted(t for t in starts.values()
+                         if t.astimezone(timezone.utc).hour == gate_hour_utc)
+        off_gate = len(starts) - len(in_gate)
+        d_lines = per_day[stem]["n_lines"]
+        d_distinct = len(per_day[stem]["payloads"])
+        non_burst = sorted(t for t in starts.values()
+                           if not any(lo <= t <= hi for lo, hi in burst_windows))
+        n_burst_passes += len(starts) - len(non_burst)
+        row = {
+            "n_passes": len(starts),
+            "n_passes_excl_burst": len(non_burst),
+            "n_passes_in_gate_hour": len(in_gate),
+            "n_passes_off_gate_hour": off_gate,
+            "n_lines": d_lines,
+            "n_distinct_payloads": d_distinct,
+            "redundant_line_fraction": (round(1.0 - d_distinct / d_lines, 6)
+                                        if d_lines else None),
+        }
+        day_rows[stem] = row
+        max_in_gate = max(max_in_gate, len(in_gate))
+        max_per_day = max(max_per_day, len(starts))
+        max_per_day_excl_burst = max(max_per_day_excl_burst, len(non_burst))
+        if len(non_burst) > 1:
+            n_days_multi_pass_excl_burst += 1
+        if len(starts) > 1:
+            n_days_multi_pass += 1
+            all_starts = sorted(starts.values())
+            over_capture_days.append({
+                "day": stem,
+                "n_passes": len(starts),
+                "n_passes_excl_burst": len(non_burst),
+                "n_passes_in_gate_hour": len(in_gate),
+                "first_pass": all_starts[0].isoformat(),
+                "last_pass": all_starts[-1].isoformat(),
+            })
+        if len(in_gate) == 0:
+            zero_gate_hour_days.append(stem)
+
+    over_capture_days.sort(key=lambda r: (-r["n_passes"], r["day"]))
+    n_distinct = len(payloads)
+    # Redundancy DECOMPOSITION (L236 artifact-decomposition discipline). The whole-slice
+    # figure L221 quoted lumps three mechanisms with three different culprits; only the
+    # middle one is the hour-gate's doing, so a check that reports the lump alone can accuse
+    # a clean gate. Nesting is exact: n_lines >= D_pass >= D_day >= D_all, and the three
+    # deltas below partition (n_lines - D_all) with no remainder.
+    #   * intra-pass  (n_lines - D_pass): the COLLECTOR wrote the same payload twice inside
+    #     ONE invocation. Nothing to do with the gate.
+    #   * across-pass-within-day (D_pass - D_day): the GATE admitted a second pass the same
+    #     day that re-captured an unchanged payload. THIS is L221's rate-gate cost.
+    #   * cross-day (D_day - D_all): the same payload re-reported on a later day — legitimate
+    #     for a retrospective/monthly-cadence family, and not a gate defect at all.
+    n_distinct_within_pass = sum(len(v) for v in pass_payloads.values())
+    n_distinct_within_day = sum(len(per_day[s]["payloads"]) for s in scanned)
+    base.update({
+        "n_distinct_payloads": n_distinct,
+        "n_distinct_payloads_within_day": n_distinct_within_day,
+        "n_distinct_payloads_within_pass": n_distinct_within_pass,
+        "redundant_line_fraction": round(1.0 - n_distinct / n_lines, 6),
+        "redundancy_decomposition": {
+            "intra_pass": round((n_lines - n_distinct_within_pass) / n_lines, 6),
+            "across_pass_within_day": round(
+                (n_distinct_within_pass - n_distinct_within_day) / n_lines, 6),
+            "cross_day": round((n_distinct_within_day - n_distinct) / n_lines, 6),
+        },
+        "gate_attributable_redundant_line_fraction": round(
+            (n_distinct_within_pass - n_distinct_within_day) / n_lines, 6),
+        "max_passes_per_day": max_per_day,
+        "max_passes_per_day_excl_burst": max_per_day_excl_burst,
+        "max_passes_in_gate_hour": max_in_gate,
+        "n_days_over_capture": n_days_multi_pass,
+        "n_days_over_capture_excl_burst": n_days_multi_pass_excl_burst,
+        "n_burst_expected_passes": n_burst_passes,
+        "burst_windows_applied": [[lo.isoformat(), hi.isoformat()] for lo, hi in burst_windows],
+        "n_days_zero_gate_hour_pass": len(zero_gate_hour_days),
+        "zero_gate_hour_days": zero_gate_hour_days[:max_examples],
+        "over_capture_examples": over_capture_days[:max_examples],
+        "per_day": day_rows,
+        "verdict": ("OVER_CAPTURE" if max_per_day_excl_burst > 1
+                    else "ONE_PASS_PER_DAY"),
+    })
+    return base
+
+
 # Declared burst-trigger windows (LOOP-QUEUE.md "Burst-capture legs" table, 2026-07-10
 # Ryan-approved). Hand-transcribed from that table, not the live trigger API — an offline
 # check may not reach the network, and the table IS the record of what was PROMISED, which
@@ -2314,6 +2630,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--explicability-tolerance-s", type=float, default=CO_OCCURRENCE_TOLERANCE_S,
                     help=f"co-occurrence window in seconds (default {CO_OCCURRENCE_TOLERANCE_S}, "
                          "the widest observed real hourly_pass leg spread plus headroom).")
+    ap.add_argument("--leg-idempotence", default=None, metavar="FAMILY",
+                    help="print ONLY the L221 single-hour-gate idempotence report for FAMILY "
+                         "(read-only, no notify) and exit. Requires --leg-gate-hour. Answers "
+                         "'how many passes did the `ts.hour == N` gate ADMIT inside its hour, "
+                         "and how much of the tape is byte-redundant re-capture' — the "
+                         "rate-gate half that L74/L123's frozen-family check cannot see.")
+    ap.add_argument("--leg-gate-hour", type=int, default=None, metavar="N",
+                    help="the UTC hour (0-23) the leg is gated on (required with "
+                         "--leg-idempotence); read it off collection/hourly_pass.py's "
+                         "<NAME>_UTC_HOUR constant, never guessed.")
+    ap.add_argument("--leg-idempotence-days", default=None,
+                    help="comma-separated dt= day stems to restrict --leg-idempotence to "
+                         "(e.g. dt=2026-07-23). Pins a FROZEN slice, per L191. Default: every "
+                         "committed day-file the family has.")
+    ap.add_argument("--leg-idempotence-max-days", type=int, default=None,
+                    help="keep only the N most RECENT day-files after --leg-idempotence-days "
+                         "filtering (default: all).")
     ap.add_argument("--burst-liveness", default=None, metavar="TRIGGER_NAME",
                     help="print ONLY the L227 burst-window liveness audit for TRIGGER_NAME "
                          "(one of BURST_TRIGGER_WINDOWS, e.g. kalshi-burst-fomc-0729; "
@@ -2349,6 +2682,23 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if args.explicability_days else None)
         out = caller_explicability(Path(args.tape_root), args.caller_explicability,
                                    days=days, tolerance_s=args.explicability_tolerance_s)
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+
+    if args.leg_idempotence:
+        if args.leg_gate_hour is None:
+            print("[tape_gap_monitor] --leg-idempotence requires --leg-gate-hour N",
+                  file=sys.stderr)
+            return 2
+        days = ([d.strip() for d in args.leg_idempotence_days.split(",") if d.strip()]
+                if args.leg_idempotence_days else None)
+        try:
+            out = single_hour_leg_idempotence(Path(args.tape_root), args.leg_idempotence,
+                                              args.leg_gate_hour, days=days,
+                                              max_days=args.leg_idempotence_max_days)
+        except ValueError as exc:
+            print(f"[tape_gap_monitor] {exc}", file=sys.stderr)
+            return 2
         print(json.dumps(out, indent=2, sort_keys=True))
         return 0
 
