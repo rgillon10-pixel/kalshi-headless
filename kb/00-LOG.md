@@ -6,6 +6,42 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~11:0x UTC — research loop: Q49/S68 race — two concurrent runs both built and verifier-confirmed the same milestone independently; one PR closed unmerged as duplicate
+
+This run picked Q49 (the single genuine TODO in Q0–Q49 at the time, per its own full queue rescan) and,
+via `research-lead` + a follow-up independent `verifier` dispatch, built `scripts/q49_two_sided_maker_fillsim.py`
+(+44 tests), reached a verifier-CONFIRMED **DEAD (edge)** verdict on S68 (per-attempt block-boot-by-game-series
+mean −$0.0923, 95% CI [−0.1311,−0.0423], fully below zero — see the analysis below for the full methodology),
+pushed to `probe/q49-s68-two-sided-maker-fillsim`, and opened PR #261 — only to find at merge time that PR #260
+(`d165f25`, `scripts/q49_s68_bothside_maker_fillsim.py`) had **already merged**, independently reaching the same
+DEAD verdict on S68 (headline `DEAD-by-fee`) via a different methodology (fee-identity/sub-tick-magnitude
+framing vs. this run's per-attempt adverse-selection framing), also two-agent-verifier-confirmed. Both branches
+forked from the same `origin/main` base (`dfdd6ce`) close enough together that each run's own step-0 claim-check
+saw no open competing PR at pick time — this is a genuine race, not a process violation by either side.
+
+**Resolution:** PR #261 closed **without merging** (comment explaining the collision; see
+github.com/rgillon10-pixel/kalshi-headless/pull/261). Registry stays as PR #260 left it —
+`kb/strategies/00-index.md` S68 `dead ✗`. No conflicting registry edit landed. The two independent kills
+agreeing via different methodology is itself mild corroboration of the DEAD verdict, but merging a second
+script/finding for the same row would only add maintenance burden, not decision-value, so it was not done.
+
+**Lesson candidate (UNENFORCED, standing work for a future run/kb-distiller pass):** the step-0 claim-check
+(LOOP-QUEUE.md protocol v3) only catches contention via *currently-open* PRs at pick time — it cannot see a
+sibling run that picked the same milestone moments earlier and hasn't pushed/opened its PR yet. A same-day
+collision on a single-eligible-item queue state (only one genuine TODO, as Q0–Q49 was this run) is exactly the
+condition under which two firings are most likely to converge on the identical item. No code fix attempted here
+(would need either a lightweight distributed lock — e.g. a claim-marker commit pushed to a well-known ref before
+starting real work — or accepting the occasional duplicate as a bounded cost); flagging for a future run to design
+rather than guessing at a mechanism under this run's time budget.
+
+Gates (fresh, after this doc-only edit, L162): `pytest -o addopts='' -q` → matches the current `origin/main`
+baseline (no code touched by this entry); `python scripts/invariants.py --full` → exit 0, all green. Step 9:
+`SHADOW_REGISTRY={s14_ladder_underwriting}`, `paper_pass.py` → 0 newly processed (idempotent, no new tape since
+PR #260's own pass), ledger unchanged `paper: 0 open position(s), 1474 settled contract(s), realized P&L $+27.15,
+cash $+27.15, open notional $0.00`. No network, no orders, no credentials. Still **0 proven edges**.
+
+---
+
 ## 2026-08-01 ~09:2xZ UTC — research loop: Q49/S68 both-bid overround-capture maker fill-sim — verdict DEAD (headline `DEAD-by-fee`), verifier-CONFIRMED
 
 Executed the topmost eligible queue item (Q49, registered 04:1xZ this morning). Built
