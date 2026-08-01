@@ -1017,6 +1017,93 @@ def test_order_endpoint_rule_silent_on_read_only_uses(snippet):
     assert not any("[order_endpoints_confined]" in f for f in inv.scan_text(GENERIC, snippet))
 
 
+# ─── L145 residual: private/user WS channel subscription gate ────────────────
+#
+# L145's sanction for authenticated auth headers in `collection/ws_depth.py` rests on a
+# two-part premise ("no order verb AND no private/fill channel subscription"). Only the
+# order-verb half was enforced (2026-07-23, issue #157); these pin the other half.
+
+_RULE = "[no_private_ws_channel_subscription]"
+
+
+@pytest.mark.parametrize("snippet", [
+    # the realistic regression: a private channel appended to the module's own tuple,
+    # where the banned literal and its context token are on DIFFERENT physical lines
+    'DEFAULT_CHANNELS = (\n    "orderbook_delta",\n    "fill",\n)',
+    # the raw subscribe envelope
+    'return {"cmd": "subscribe", "params": {"channels": ["market_positions"]}}',
+    # a caller passing it in rather than editing the collector
+    'run(channels=("orderbook_delta", "user_orders"))',
+    'sub = subscribe_command(tickers, channels=["user_fills"])',
+])
+def test_private_ws_channel_rule_fires(snippet):
+    assert any(_RULE in f for f in inv.scan_text(GENERIC, snippet))
+
+
+@pytest.mark.parametrize("snippet", [
+    # public market-data channels are the whole point of the collector
+    'DEFAULT_CHANNELS = ("orderbook_delta", "ticker", "trade", "market_lifecycle")',
+    # the 23 innocent sites a context-free literal match would have broken (L145 residual
+    # note): paper-tier record kinds, probe report keys, ledger id lists
+    'record_kind: str = "fill"',
+    'report["fill"] = {"n_filled": 3}',
+    '"fills": [f.fill_id for f in fills],',
+    'fills_dir = DATA / "fills"',
+    # a comment is not code
+    '# DEFAULT_CHANNELS = ("fill",)',
+])
+def test_private_ws_channel_rule_silent_on_innocent_uses(snippet):
+    assert not any(_RULE in f for f in inv.scan_text(GENERIC, snippet))
+
+
+def test_private_ws_channel_rule_known_blind_spot_variable_indirection():
+    """KNOWN BLIND SPOT, regression-tested as a MISS (the L155/L157 convention in this
+    repo: a low count is PRECISION evidence, not recall). Binding the channel tuple to a
+    plain name on one balanced line and passing that NAME to `subscribe_command` on
+    another puts the literal and the context token in two different logical lines, so this
+    static rule cannot see it. Recorded rather than papered over — widening the context
+    regex to catch it would drag in the 23 innocent `"fill"`/`"fills"` sites the rule
+    exists to stay clear of. The realistic regression (editing `DEFAULT_CHANNELS` in
+    place, or passing `channels=(...)` at a call site) IS caught, above."""
+    snippet = 'CH = ("order_group_updates",)\nconn.send(subscribe_command(t, CH))'
+    assert not any(_RULE in f for f in inv.scan_text(GENERIC, snippet))
+
+
+def test_private_ws_channel_rule_exempts_only_the_sanctioned_sites():
+    # the live client (unbuilt) legitimately watches its OWN fills once it exists…
+    assert inv.scan_text(ROOT / "execution" / "kalshi_client.py",
+                         'CHANNELS = ("fill",)') == []
+    # …and ws_depth's own test file, pre-emptively: L145's root cause was PR #153
+    # exempting two source files but not their tests.
+    assert inv.scan_text(ROOT / "tests" / "test_ws_depth.py",
+                         'CHANNELS = ("fill",)') == []
+    # everything else, ws_depth.py very much included, still fires.
+    assert any(_RULE in f for f in inv.scan_text(
+        ROOT / "collection" / "ws_depth.py",
+        'DEFAULT_CHANNELS = ("orderbook_delta", "fill")'))
+
+
+def test_ws_depth_real_source_subscribes_only_to_public_channels():
+    """Acceptance test on the REAL committed collector, not a fixture (L145's premise is a
+    claim about that file). Its module docstring asserts 'never subscribes to a user/private
+    channel (fills, orders, positions)' — this is that sentence as an assertion."""
+    ws = ROOT / "collection" / "ws_depth.py"
+    assert inv.scan_text(ws, ws.read_text(encoding="utf-8")) == []
+    import collection.ws_depth as wsd
+    assert wsd.DEFAULT_CHANNELS == ("orderbook_delta",)
+    env = wsd.subscribe_command(["KXBTC-T1"])
+    assert env["params"]["channels"] == ["orderbook_delta"]
+
+
+def test_bracket_joined_lines_reports_the_opening_lineno_and_survives_eof():
+    text = 'a = (\n  1,\n  2,\n)\nb = 3\nc = (\n  4,\n'
+    joined = inv._bracket_joined_lines(text)
+    assert joined[0] == (1, "a = ( 1, 2, )")
+    assert joined[1] == (5, "b = 3")
+    # unterminated bracket at EOF is still yielded, never silently dropped
+    assert joined[-1][0] == 6 and "4," in joined[-1][1]
+
+
 def test_risk_caps_rule_fires_on_rebind_and_exempt_in_limits():
     assert any("[risk_caps_sanctioned]" in f
                for f in inv.scan_text(GENERIC, "MAX_DAILY_ORDERS = 10_000"))

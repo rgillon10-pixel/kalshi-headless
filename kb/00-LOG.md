@@ -6,6 +6,165 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~0x:xxZ UTC — research loop IDLE RUN: L145's sanction was half-enforced for 9 days; the private-WS-channel conjunct is now an assert (plus: the 13-branch sweep triage stops being a memory file)
+
+Research-loop firing (protocol v3). **0a / claim-check** performed by the calling session: no
+rewind (`48633c6` on `main`, matching the last merged PRs), open PRs #208/#191/#166/#165/#125,
+none claiming a TODO queue item. Per **L246** this run re-read PR #165's actual scope before
+picking work — it is the `daily_leg_due()` / L221 fix, and nothing here touches it.
+
+**0b stranded-tape sweep — 218 branches, 0 lines swept, and that is the correct answer.**
+`python3 scripts/tape_branch_sweep.py`: 20 fully line-verified + 185 capture_id-verified, 0
+unverified, **13 not-contained**. Every one of the 13 was re-triaged line-by-line against `HEAD`
+blobs this run rather than trusted from the prior run's prose, and **0 of the 13 carry any
+recoverable tape**:
+
+- **5 branches** (`tape/hourly-20260722T0357Z`, `…0403Z`, `…1256Z`, `tape/hourly-20260723T0359Z`,
+  `…0715Z`) carry exactly the three unresolved git conflict markers of the 2026-07-23 incident —
+  `<<<<<<< HEAD`, `=======`, `>>>>>>> 58145d7 (tape: hourly pass 2026-07-18T09:30:28Z (vps))` —
+  inside `tape/anomalies/dt=2026-07-18.jsonl` and `tape/econ_prints/dt=2026-07-18.jsonl`. Every
+  real JSONL line in those files is already present in `HEAD`.
+- **8 branches** carry two superseded prose headers of `tape/cloud-env-check.md` — a hand-written
+  markdown doc that happens to live under `tape/` and is not append-only JSONL at all.
+
+Executing step 0b's literal instruction on the first class would have re-injected the exact
+corruption `scripts/invariants.py::_tape_conflict_marker_issues` exists to gate (L142/L148) — the
+sweep would have handed the next run a red gate.
+
+**Queue: still saturated → IDLE RUN.** Full Q0-Q48 re-read from HEAD. Everything is DONE,
+credential-BLOCKED, or calendar/density-gated. Q24 and Q27 (flagged as possible eligible TODOs)
+both carry a DONE verdict beneath an older TODO line — S21 and S23 are registered `dead ✗`, so
+neither is eligible. Q37's weather gate is ~2026-08-04, not yet open.
+
+**A correction before the milestone: the open-lesson queue was undercounted.** The immediately
+preceding run's log entry and run-log line both state it found "exactly **one** genuinely open
+lesson row: **L221**". Re-derived live this run via
+`scripts.invariants.stale_unenforced_recall_report()` against the ledger blob at **both**
+`58ce22c` and `48633c6`: the open set is **4** — `('L145', 'L213', 'L221', 'L222')`, out of 33
+`**UNENFORCED**`-marked rows minus 29 formally disposed. That undercount is exactly what hid
+**L145** for a run, and L145 sits above L221 in the ledger.
+
+Of the four: **L213**'s residual is a trigger-prompt change in Ryan's own account (out of lane);
+**L222**'s residual is a `capture_source` field on a LIVE collector's write path (out of lane, and
+overlapping PR #165); **L221**'s buildable half is PR #165's shipped `daily_leg_due()` (claimed,
+per L246 and the prior run's revert). **L145 was the one genuinely actionable row** — and
+actionable in a way its own marker did not advertise.
+
+## Milestone (idle-run policy (a)): L145's second conjunct becomes an assert
+
+L145 sanctioned RSA-signed, read-only market-data auth inside `collection/ws_depth.py` on an
+explicitly **two-part** premise: *"read-only market-data auth (a signed WS handshake … with no
+order verb **and no private/fill channel subscription**) legitimately lives in `collection/`."*
+
+**Half (a) — the collision — was already resolved, and the marker was 9 days stale** (an L152-class
+instance *in the lessons ledger itself*, which is what L152 was written about). `ws_depth.py` is
+tracked on `main` today and the gate is green because `inv_order_endpoints_confined` took the first
+branch L145 proposed: a **partial** carve-out (auth headers sanctioned, order verbs still fire),
+pinned by `tests/test_invariants.py::test_order_endpoint_rule_ws_depth_auth_headers_sanctioned_order_verbs_still_fire`;
+issue #157 (Ryan-approved, 2026-07-23) then extended it to `tests/test_ws_depth.py` and
+`tests/test_polymarket_us_live.py` after PR #153 exempted the two SOURCE files but not their TESTS
+— precisely the collision L145 predicted.
+
+**Half (b) — the private-channel conjunct — was never an assertion.** It existed only as prose in
+`ws_depth.py`'s module docstring ("never subscribes to a user/private channel (fills, orders,
+positions)"), which is the memory-file-instead-of-an-assert that CLAUDE.md prime directive #3
+forbids. It is one edit from false: `DEFAULT_CHANNELS` is a plain module tuple and
+`run(..., channels=...)` a plain kwarg, and crucially **no order verb is needed to read your own
+fills** — so a `fill` / `market_positions` subscription would convert a sanctioned read-only
+collector into an account-data client with the order-verb rule still green.
+
+Built `scripts/invariants.py::inv_no_private_ws_channel_subscription` (registered
+`no_private_ws_channel_subscription`). It fires on a Kalshi private/user channel literal —
+`fill`/`fills`/`user_fills`/`market_positions`/`user_orders`/`order_group_updates`, the families
+named in `kb/kalshi-api/02-rest-and-websocket.md` — appearing with an underscore-segment
+`channel`/`channels`/`subscribe` context token, scanned over a **bracket-continuation-joined** view
+(`_bracket_joined_lines`) so the realistic regression shape
+
+```
+DEFAULT_CHANNELS = (
+    "orderbook_delta",
+    "fill",              # literal and context on DIFFERENT physical lines
+)
+```
+
+cannot slip past a physical-line matcher the way every other static rule here would.
+
+**The context requirement is load-bearing, and that is measured rather than assumed:** a bare
+private-literal match fires on **23** innocent sites in this repo today — `record_kind = "fill"` in
+`execution/schema.py`, `report["fill"]` in five probe scripts, `"fills": [...]` in
+`execution/paper_broker.py` — while the two-part match fires on **0**. The tree is green at build
+time and the rule has a real, non-trivial false-positive surface it correctly avoids.
+
+Exempt: `execution/kalshi_client.py` (a live client legitimately watches its own fills once built)
+and, pre-emptively per L145's own root cause, `tests/test_ws_depth.py`.
+
+**Honest limit, stated in the rule's own docstring:** a dynamically-constructed channel name
+(`channels=[cfg["chan"]]`) is invisible to any static check. This closes the source-literal path,
+not the runtime one. Verified this run that `ws_depth.py` exposes **no** CLI flag and **no** env var
+for `channels` (only `--max-reconnects` / `--max-messages`), so the source-literal path is the whole
+realistic surface today.
+
+14 new test items / 6 functions in `tests/test_invariants.py`: 4 firing shapes (including the
+multi-line tuple, the raw subscribe envelope, and a caller passing `channels=` in rather than
+editing the collector), 6 innocent-use negatives drawn from the 23 real sites, one KNOWN BLIND
+SPOT regression-tested as a MISS (a channel tuple bound to a variable on one line and passed by
+NAME on another — recorded per this repo's L155/L157 precision-is-not-recall convention rather
+than papered over: widening the context regex to catch it would drag in exactly the 23 innocent
+`"fill"`/`"fills"` sites the rule exists to avoid), the exemption/non-exemption split, a
+`_bracket_joined_lines` lineno/unterminated-EOF unit, and
+`::test_ws_depth_real_source_subscribes_only_to_public_channels` — a HARD acceptance test on the
+**real committed collector** asserting `DEFAULT_CHANNELS == ("orderbook_delta",)` and that
+`subscribe_command()`'s envelope carries only that channel. That last one is L145's premise as an
+assertion instead of a sentence.
+
+## Second unit (step-0b encoding, L247): the 13-branch triage stops being prose
+
+At least three consecutive runs (2026-07-29 → 07-31) re-derived the 13-branch false-positive triage
+by hand and re-published it as narrative — "the SAME 13 already triaged false-positive last run".
+That is a hand-triage functioning as a memory file, and the next run pays for it again.
+
+`scripts/tape_branch_sweep.py` now answers it itself. New `missing_line_is_appendable(full_path,
+line)` is deliberately **conservative**: a missing line is appendable only if its file is a `.jsonl`
+day-file **and** the line parses as JSON — so a conflict marker, a `.md` or `.gz` file, and a
+truncated write are all withheld. That errs toward a wrongly-**withheld** line (which reappears in
+the next sweep) over a wrongly-**appended** one (which breaks `main`'s gate) — the right direction.
+
+Plumbed through `per_file_containment(..., unappendable_out=)` — an optional out-dict, so the
+existing 3-tuple return and every caller stay untouched — into `BranchTriage.unappendable_files` and
+a new `all_missing_unappendable` property, and surfaced in `format_report` as a per-file
+"N NOT union-appendable" annotation, a per-branch "carries NO strandable tape" line, and a summary
+count. Re-run against the 13 real branches it reads **13 of 13** — the hand-triage, now derived.
+
+15 new test items / 8 functions in `tests/test_tape_branch_sweep.py`, including the **negative
+control** that matters most: a real git branch mixing one conflict marker with one genuinely stranded JSONL line must still
+report `all_missing_unappendable is False`, so real tape is never withheld by this change.
+
+## What did NOT happen
+
+No registry status flipped, no bootstrapped CI was produced, no strategy was killed or revived —
+so the two-agent verdict rule is **N/A** for this milestone class (lesson→invariant conversion plus
+tooling), consistent with every prior idle-run policy-(a) entry. Still **0 proven edges**. Nothing
+in this run touched the demo or live tiers, credentials, or any network path.
+
+**Gates (fresh, taken after this run's last code change — L162):** `python3 -m pytest -q` →
+**2471 collected / 2471 passed / 0 failed** (`--collect-only -q` per-file sum independently
+reads 2471); `python3 scripts/invariants.py --full` → **all green**, standing non-gating
+advisories only. Baseline `main` was 2442 (the prior run's published 2457 included the 15 tests
+it then reverted); +29 items this run. Paper sub-pass: `python3 scripts/paper_pass.py` advanced
+`s14_ladder_underwriting` over tape appended since `paper/ledger/dt=2026-07-31.jsonl` — 25
+processed / 68 deferred(caps) / 272 deferred(coverage) / 207 already-in-ledger; broker
+`daily_summary()`: `paper: 0 open position(s), 1474 settled contract(s), realized P&L $+27.15,
+cash $+27.15, open notional $0.00`. New ledger day `paper/ledger/dt=2026-08-01.jsonl`. (S14 is
+registered `dead ✗` per Q34; the shadow stays registered because deregistering it is Ryan's
+call, not a run's — flagged again here.)
+
+**Next:** the open UNENFORCED queue is now **3** (`L213`, `L221`, `L222`) and all three are
+Ryan-side or claimed by PR #165 — a future idle run drawing from policy (a) will find nothing
+buildable until PR #165 lands or Ryan acts, so policy (b)/(c) is the likely next default. Q37's
+weather-revival gate (~2026-08-04) is the nearest time-gated item.
+
+---
+
 ## 2026-07-31 ~22:2xZ UTC — research loop IDLE RUN: L221's fix turned out to duplicate open PR #165 (reverted before commit) — plus fresh live evidence for the "unknown caller" econ_prints pattern
 
 Research-loop firing (protocol v3). **0a PASS**: `main` fast-forwarded to `origin/main` at
