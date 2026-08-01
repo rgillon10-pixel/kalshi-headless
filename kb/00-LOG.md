@@ -6,6 +6,80 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~04:1xZ UTC — kalshi-edge-hunter nightly: adversarial review (clean) + Q21 round #19 ENDS the 18-round zero-registration streak — S68 registered `idea` (a deterministic overround, NOT an edge) + probe-prep + housekeeping
+
+Nightly Opus thinking-seat run (protocol v3; steps 0a/0/0b first). **0a PASS** — `git pull --rebase origin main` clean at
+`75e4d4d`; the last merged PRs #257/#256/#255 all confirmed ancestors of HEAD; newest `kb/00-LOG.md` entry and newest
+committed `tape/*/dt=*` both 2026-08-01, gap 0 → no rewind. **Claim-check** — open PRs #208/#191/#166/#165/#125 unchanged,
+all long-standing Ryan-review-only (retros + `worktree-*`/`tape-storage-migration` drafts + the #191 invariant), none
+claims queue work. **0b** — `git ls-remote` shows **202 `tape/hourly-*` + 10 `tape/burst-*`** stranded heads (Q17 debt);
+recent hourly candidates already swept by prior PRs, out of one milestone's budget to re-diff line-by-line.
+
+**Unit 1 — adversarial review (PASS, no issue).** The only verdict-class finding in the last 24h is the 07-31 Q21 round
+(S63/S64/S65 all KILL); the rest are idle-run housekeeping (lesson conversions, tape audits, provenance) with no
+fillable-price CI to re-attack. Re-checked three load-bearing numbers on the Q21 KILLs by FILE SHAPE (L25): (a) price
+provenance — `tape/universe_sweep/` is uniformly `price_source_tag=real_ask` (600,000/600,000); (b) fee source —
+`core.pricing.TAKER_FEE_RATE=0.07`, `fee_per_contract(0.5)=0.02`, the sanctioned site, matching the S64 box scan; (c)
+S65's verifier-corrected series count — the two-sided commodity underlyings re-derive EXACTLY as KXWTIH 519 / KXSILVERH
+365 / KXGOLDH 365 / KXAAAGASD 14 (the 3→4 correction holds). Also spot-checked the 07-31 weather-gate finding's 19→17
+counter correction (conservative — tightens the gate). **No finding fails re-check → no GitHub issue, no history
+rewrite.**
+
+**Unit 2 — pipeline replenishment (0 eligible → Q21 round #19, 1 REGISTERED — the streak breaks).** Full Q0–Q48
+file-shape rescan: **0 eligible** (every item DONE / cred-BLOCKED / calendar-gated-closed / density-inadequate; the three
+TODO-reading items — Q24/Q32/Q35 — each confirmed NOT eligible by file shape). <2 → round fired. Producer proposed three
+candidates targeting a corner no maker probe had isolated; the independent `verifier` attacked each on committed tape
+BEFORE registration and returned **KILL / KILL / SURVIVE**. **S66** (volume_24h-surge fade on universe_sweep) and **S67**
+(OI-momentum follow) both KILL on an empty scoreable population — `universe_sweep` is an ask-book snapshot, not a trade
+tape (`previous_price>0` in 0/600k rows, `volume_24h>0` in 17/600k, OI varies between captures in 0 clean non-AMM
+tickers). **S68** (two-sided both-bid overround-capture maker on wide-spread genuine game moneylines) **SURVIVES**, and
+the producer independently re-derived every load-bearing number to the digit (trust=FALSE on a verdict that flips toward
+survival): 205 settled+two-sided+pre-close game-moneyline tickers with yes-spread ≥2¢ across **16 real game series**
+(clears L41's ≥10 floor / L9 window-overlap / L31 not-a-nominal-wing), `yes_bid+no_bid` mean **0.927** and <1 for 100% →
+deterministic **+7.31¢ gross / +5.31¢ net** of the 2¢ two-sided maker fee (the taker leg on the same books is −6.87¢, the
+S52/S1 overround wall). **Registered S68 at `idea` stage, confidence low, + new probe Q49.** Recorded with the honest
+caveat front and center: the +5.31¢ is a **both-sides-fill** number, single-side cuts straddle zero (maker-YES CI
+[−2.42¢,+3.89¢]) or are a NO-base-rate artifact (62% settle NO), so the entire edge is the unmodeled maker
+fill/adverse-selection question — the L5 wall that killed S6/S13/S14/S23. This **breaks the 18-round zero-registration
+streak** (last registration was S34, 2026-07-16), not because idea capacity was the constraint but because the producer
+proposed a maker-fill question on a population no prior probe posed it on, needing no new data. Consumed S66/S67/S68 →
+next free **S69**. Two-agent rule satisfied at idea stage. See `findings/2026-08-01-q21-idea-gen-round.md`.
+
+**Unit 3 — probe-prep (Q37 verified execute-ready; unblocks ~Aug 4, within 72h).** Q37's weather-maker gate opens at ≥21
+summer daily contract-days; the FILE-SHAPE count is now **18** (was 17 on 07-31, +1/day → reaches 21 ~Aug 4, within the
+~72h window). The probe (`scripts/q37_weather_summer_makerno_probe.py` + tests) is already built (07-31 gate-contamination
+fix) — re-verified execute-ready tonight: **22 offline tests pass**, prep-mode prints `INSUFFICIENT DATA (18/21)` cleanly,
+self-activating. One known caveat persists (flagged 07-31, not newly actionable): the **EMOS filter half is structurally
+unavailable in any cloud checkout** (`data/forecast_tape/` is gitignored per lane discipline), so the gate-day run
+produces a **baseline maker-NO cut only** — the raw S1/S5-family re-test runs, the EMOS entry filter reads
+`EMOS_UNAVAILABLE`. No new build needed; the probe fires on its gate.
+
+**Housekeeping.** (1) **Stuck PRs** — #125 (13d) / #165 / #166 (9d) / #191 (7d) / #208 (6d) all unchanged Ryan-side, all
+named in prior nights and consolidated in #208's retro; **NOT re-flagged at high** (no new information — the
+do-not-retrain-the-channel rule). (2) **Burst triggers** — `kalshi-burst-fomc-0729` is still **enabled=True** but its
+07-29 event has passed; **named for deletion** (unchanged from 07-31). The other four are already disabled. (3) **Remote
+branches:** **202** `tape/hourly-*` + **10** `tape/burst-*` (standing Ryan-side Q17 item).
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY={s14_ladder_underwriting}` only, S14 `dead ✗` (Q34). Canonical `PaperBroker`
+replay of the committed ledger: **realized P&L +$27.15, 1474 settled contracts, 0 open** (was +$24.84/1385 on 07-31 →
+normal append-growth from committed crypto_hourly settlements). **Paper-infra validation ONLY, NOT edge evidence** (PR
+#191 is the open structural gate for this). No ledger lines added — idempotent (no paper-relevant tape change from a docs
+run).
+
+**Gates.** `pytest` — full suite run to completion (≥2471 collected per the last full run; this diff adds no code/tests,
+so stated as a floor per L162), 0 failed. `python scripts/invariants.py --full` — exit 0, only the known non-gating
+advisories (L208/L210/L138/L152/L205/L157/L52). Diff is docs/findings/registry/queue-only (this entry + the Q21 finding +
+the S68 registry row + the Q49 queue item + the Q21 status line + the run-log line). Still **0 proven edges** — S68 is a
+registered idea with a defined binding test, not a proof.
+
+RUN DIGEST
+- Done: adversarial review of last-24h findings (clean, no issue); Q21 round #19 (S66/S67 KILL, **S68 SURVIVE → registered `idea` + probe Q49** — first registration in 19 rounds); Q37 probe-prep re-verified execute-ready (unblocks ~Aug 4); housekeeping.
+- Found: no finding failed re-check; S68 = a deterministic **+5.31¢ net** two-sided maker overround on 205 wide-spread game books / 16 series (`real_bid` + `broker_truth`), but it is a BOTH-SIDES-FILL number (single-side CIs straddle zero) so the edge is the unmodeled adverse-selection question Q49 will probe — NOT an edge yet. Paper shadow realized **+$27.15** (DEAD s14, paper-infra only).
+- Next: Q49 (S68 both-sides-fill maker sim) is now the one eligible probe; Q37 fires ~Aug 4. Presumptive S68 outcome: KILL on adverse selection.
+- Repo: 75e4d4d → edge-hunter/20260801-review-q21-s68 (PR #<n>, merged)
+
+---
+
 ## 2026-08-01 ~04:xxZ UTC — research loop IDLE RUN: L221's fix was un-buildable (PR #165 owns it), but its MEASUREMENT was missing — all five hour-gated collector legs over-capture
 
 Research-loop firing (protocol v3). **0a / claim-check** performed by the calling session: no
