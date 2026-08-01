@@ -1,0 +1,419 @@
+{
+  "bootstrap_unit": "game_series (L6/L41)",
+  "cell": {
+    "fill_model": "touch",
+    "funnel": {
+      "candidates": 100,
+      "entry_missing_quote": 2,
+      "entry_not_two_sided": 0,
+      "entry_single_snapshot": 0,
+      "entry_spread_below_fees_plus_ticks": 76,
+      "entry_spread_below_two_fees": 304,
+      "no_snapshot_within_horizon": 123,
+      "offset_price_non_positive": 0,
+      "tickers_with_preclose": 605
+    },
+    "gate_extra_ticks": 1,
+    "horizon_hours": 24.0,
+    "median_entry_spread": 0.07,
+    "median_ttc_hours_entry": 23.651388161666667,
+    "n_candidates": 100,
+    "n_distinct_entry_timestamps": 47,
+    "n_games": 81,
+    "n_series": 13
+  },
+  "drop_longshot_single_side": {
+    "attack": "drop_longshot_single_side",
+    "bootstrap_after_drop": {
+      "admissible": {
+        "admissible": true,
+        "n_opposing_units": 1,
+        "n_units": 13,
+        "reasons": []
+      },
+      "ci95": [
+        0.013372781065088756,
+        0.13583333333333333
+      ],
+      "ci_lower_positive": true,
+      "clears_tick_magnitude": true,
+      "mean": 0.05246913580246913,
+      "n_boot": 10000,
+      "n_obs": 81,
+      "n_units_series": 13
+    },
+    "dropped_mean_pnl": 0.14210526315789473,
+    "max_price_dropped": 0.3,
+    "n_boot": 10000,
+    "n_dropped": 19,
+    "n_kept": 81,
+    "n_trades_in": 100,
+    "note": "an attack that FAILED to kill the cell; the retained population is still tail-shaped and still bounded by the unmeasurable adverse-selection term (L253)"
+  },
+  "headline": {
+    "admissible": {
+      "admissible": true,
+      "n_opposing_units": 2,
+      "n_units": 13,
+      "reasons": []
+    },
+    "ci95": [
+      0.0235,
+      0.14732394366197182
+    ],
+    "ci_lower_positive": true,
+    "clears_tick_magnitude": true,
+    "mean": 0.06949999999999999,
+    "n_boot": 10000,
+    "n_obs": 100,
+    "n_units_series": 13
+  },
+  "interpretation": "ALL THREE ARE ATTACKS THAT FAILED. None is evidence for an edge. The cell is DEAD on other evidence: flatten-at-cross on the unhedged legs leaves the CI straddling zero (L256), a zero-information mid-as-truth control reproduces the same CI shape (L255), the estimate is monotone in the entry horizon and negative in the near-close windows (L254 \u2014 a spread-regime difference: the wide-spread population does not exist near close), and the verdict sits inside an adverse-selection term this depth-only tape cannot measure (L253).",
+  "leave_one_series_out": {
+    "all_drops_keep_ci_positive": true,
+    "attack": "leave_one_series_out",
+    "drops": [
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.018585858585858577,
+          0.14833333333333332
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXBRASILEIROBGAME",
+        "mean": 0.06557894736842104,
+        "n_boot": 10000,
+        "n_obs": 95,
+        "n_obs_dropped": 5,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.023786407766990283,
+          0.16537313432835818
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXBRASILEIROCGAME",
+        "mean": 0.07285714285714284,
+        "n_boot": 10000,
+        "n_obs": 91,
+        "n_obs_dropped": 9,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.025050505050505042,
+          0.1490625
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXCHNSLGAME",
+        "mean": 0.06999999999999999,
+        "n_boot": 10000,
+        "n_obs": 99,
+        "n_obs_dropped": 1,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.016842105263157887,
+          0.13476190476190478
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXECULPGAME",
+        "mean": 0.06177083333333333,
+        "n_boot": 10000,
+        "n_obs": 96,
+        "n_obs_dropped": 4,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.021941747572815532,
+          0.14411764705882354
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXELITESERIENGAME",
+        "mean": 0.06787878787878787,
+        "n_boot": 10000,
+        "n_obs": 99,
+        "n_obs_dropped": 1,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 1,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.041399999999999985,
+          0.17208333333333334
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXKBOGAME",
+        "mean": 0.08234042553191488,
+        "n_boot": 10000,
+        "n_obs": 94,
+        "n_obs_dropped": 6,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.024144144144144137,
+          0.14828125
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXMLBGAME",
+        "mean": 0.0701010101010101,
+        "n_boot": 10000,
+        "n_obs": 99,
+        "n_obs_dropped": 1,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.016578947368421047,
+          0.17657894736842109
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXNPBGAME",
+        "mean": 0.07828571428571429,
+        "n_boot": 10000,
+        "n_obs": 70,
+        "n_obs_dropped": 30,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.022727272727272714,
+          0.1501470588235294
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXNWSLGAME",
+        "mean": 0.06927083333333332,
+        "n_boot": 10000,
+        "n_obs": 96,
+        "n_obs_dropped": 4,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.016249999999999994,
+          0.15032258064516127
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXUCLGAME",
+        "mean": 0.06303370786516853,
+        "n_boot": 10000,
+        "n_obs": 89,
+        "n_obs_dropped": 11,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.017589285714285707,
+          0.14038461538461539
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXURYPDGAME",
+        "mean": 0.06297872340425531,
+        "n_boot": 10000,
+        "n_obs": 94,
+        "n_obs_dropped": 6,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 1,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.03752427184466017,
+          0.17470588235294116
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXUSLCUPGAME",
+        "mean": 0.08762499999999998,
+        "n_boot": 10000,
+        "n_obs": 80,
+        "n_obs_dropped": 20,
+        "n_units_series": 12
+      },
+      {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.014715447154471532,
+          0.11514285714285713
+        ],
+        "ci_lower_positive": true,
+        "clears_tick_magnitude": true,
+        "dropped_series": "KXWNBAGAME",
+        "mean": 0.057244897959183666,
+        "n_boot": 10000,
+        "n_obs": 98,
+        "n_obs_dropped": 2,
+        "n_units_series": 12
+      }
+    ],
+    "full_population": {
+      "admissible": {
+        "admissible": true,
+        "n_opposing_units": 2,
+        "n_units": 13,
+        "reasons": []
+      },
+      "ci95": [
+        0.0235,
+        0.14732394366197182
+      ],
+      "ci_lower_positive": true,
+      "clears_tick_magnitude": true,
+      "mean": 0.06949999999999999,
+      "n_boot": 10000,
+      "n_obs": 100,
+      "n_units_series": 13
+    },
+    "max_ci_lower_over_drops": 0.041399999999999985,
+    "min_ci_lower_over_drops": 0.014715447154471532,
+    "n_boot": 10000,
+    "n_drops_ci_lower_positive": 13,
+    "n_drops_clearing_tick_gate": 13,
+    "n_series_dropped_one_at_a_time": 13,
+    "note": "an attack that FAILED to kill the cell; it is not evidence for an edge \u2014 the cell dies to the flatten-at-cross exit treatment (L256) and is reproduced by the zero-information mid-as-truth control (L255)"
+  },
+  "n_boot": 10000,
+  "price_offset_placebo": {
+    "attack": "price_offset_placebo",
+    "baseline": {
+      "both_fill_rate": 0.27,
+      "n_candidates": 100,
+      "no_leg_fill_rate": 0.44,
+      "yes_leg_fill_rate": 0.53
+    },
+    "baseline_funnel": {
+      "candidates": 100,
+      "entry_missing_quote": 2,
+      "entry_not_two_sided": 0,
+      "entry_single_snapshot": 0,
+      "entry_spread_below_fees_plus_ticks": 76,
+      "entry_spread_below_two_fees": 304,
+      "no_snapshot_within_horizon": 123,
+      "offset_price_non_positive": 0,
+      "tickers_with_preclose": 605
+    },
+    "bootstrap_placebo": {
+      "admissible": {
+        "admissible": true,
+        "n_opposing_units": 2,
+        "n_units": 13,
+        "reasons": []
+      },
+      "ci95": [
+        -0.04488372093023257,
+        0.023666666666666666
+      ],
+      "ci_lower_positive": false,
+      "clears_tick_magnitude": false,
+      "mean": -0.014600000000000002,
+      "n_boot": 10000,
+      "n_obs": 100,
+      "n_units_series": 13
+    },
+    "fill_model": "touch",
+    "fill_rate_collapsed": true,
+    "n_boot": 10000,
+    "note": "a discrimination check on the FILL MODEL, not on the strategy: a collapse shows `touch` respects price priority (L250), nothing more",
+    "offset": -0.02,
+    "placebo": {
+      "both_fill_rate": 0.01,
+      "n_candidates": 100,
+      "no_leg_fill_rate": 0.09,
+      "yes_leg_fill_rate": 0.02
+    },
+    "placebo_dropped_non_positive_price": 0
+  },
+  "price_source_tags": {
+    "fills": "real_bid",
+    "queue_depth": "real_bid",
+    "settlement": "broker_truth"
+  }
+}
