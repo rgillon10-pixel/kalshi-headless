@@ -22,6 +22,7 @@ from scripts.tape_branch_sweep import (
     list_remote_tape_branches,
     list_tree_files,
     main,
+    missing_line_is_appendable,
     parse_ls_remote,
     per_file_containment,
     read_blob_lines,
@@ -636,3 +637,96 @@ class TestNeverUsesMergeBaseIsAncestor:
         code_without_docstring = source.replace(docstring, "", 1)
         assert "merge-base" not in code_without_docstring
         assert "is-ancestor" not in code_without_docstring
+
+
+class TestUnionAppendabilityTriage:
+    """L247 (2026-08-01): a line missing from HEAD is a CONTAINMENT answer, not a
+    permission to union-append. The 2026-08-01 step-0b sweep found 13 not-contained
+    branches and ZERO carried recoverable tape: 5 carried the three unresolved git
+    conflict markers of the 2026-07-23 incident (L142) inside `anomalies`/`econ_prints`
+    day-files, 8 carried superseded prose from `tape/cloud-env-check.md`, a markdown doc
+    that lives under `tape/` but is not append-only JSONL. Appending either would have
+    handed `main` a red `invariants.py` gate."""
+
+    @pytest.mark.parametrize("line", [
+        "<<<<<<< HEAD",
+        "=======",
+        ">>>>>>> 58145d7 (tape: hourly pass 2026-07-18T09:30:28Z (vps))",
+    ])
+    def test_conflict_markers_are_never_appendable(self, line):
+        assert not missing_line_is_appendable("tape/econ_prints/dt=2026-07-18.jsonl", line)
+
+    @pytest.mark.parametrize("path", [
+        "tape/cloud-env-check.md",          # the real 2026-08-01 case: a hand-written doc
+        "tape/README.md",
+        "tape/ws_depth/dt=2026-07-22.jsonl.gz",   # gzipped: not line-unionable as text
+    ])
+    def test_non_jsonl_files_under_tape_are_never_appendable(self, path):
+        assert not missing_line_is_appendable(path, '{"capture_id": "20260718T091512Z"}')
+
+    def test_a_real_jsonl_tape_line_is_appendable(self):
+        assert missing_line_is_appendable(
+            "tape/econ_prints/dt=2026-07-18.jsonl",
+            '{"capture_id": "20260718T091512Z", "captured_at": "2026-07-18T09:15:12+00:00"}')
+
+    @pytest.mark.parametrize("line", ["123", "null", '"a bare string"', "[1, 2]"])
+    def test_a_bare_json_scalar_or_array_is_not_a_tape_record(self, line):
+        # parses, but is not a record — propagating it spreads corruption, not tape
+        assert not missing_line_is_appendable("tape/econ_prints/dt=2026-07-18.jsonl", line)
+
+    def test_a_non_json_line_in_a_jsonl_file_is_not_appendable(self):
+        # e.g. a truncated write or a stray log line — never blind-append it
+        assert not missing_line_is_appendable("tape/econ_prints/dt=2026-07-18.jsonl",
+                                              "Traceback (most recent call last):")
+
+    def test_per_file_containment_populates_the_unappendable_breakdown(self, main_repo):
+        clone, _remote = main_repo
+        branches = list_remote_tape_branches(remote="origin", cwd=str(clone))
+        fetch_branches(branches, remote="origin", cwd=str(clone))
+        b_sha = next(sha for sha, name in branches if name == "tape/hourly-20260725T0500Z")
+        out = {}
+        missing, _skipped, _cid = per_file_containment(b_sha, "HEAD", "tape", cwd=str(clone),
+                                                       unappendable_out=out)
+        # the fixture's missing line IS valid JSONL tape, so nothing is withheld
+        assert missing == {"tape/sports_pairs/dt=2026-07-25.jsonl": 1}
+        assert out == {}
+
+    def test_triage_flags_a_branch_whose_only_missing_line_is_a_conflict_marker(self, tmp_path):
+        remote = _init_repo(tmp_path / "remote")
+        day = remote / "tape" / "econ_prints"
+        day.mkdir(parents=True)
+        f = day / "dt=2026-07-18.jsonl"
+        f.write_text('{"capture_id": "A"}\n{"capture_id": "B"}\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "base")
+        _git(remote, "checkout", "-qb", "tape/hourly-20260718T0930Z")
+        f.write_text('{"capture_id": "A"}\n=======\n'
+                     '>>>>>>> 58145d7 (tape: hourly pass)\n{"capture_id": "B"}\n<<<<<<< HEAD\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "conflicted")
+        sha = _git(remote, "rev-parse", "HEAD").strip()
+        # base_ref = the branch's own parent, i.e. the pre-conflict "main" tree
+        t = triage_branch(sha, "tape/hourly-20260718T0930Z",
+                          base_ref=sha + "^", cwd=str(remote))
+        assert t.contained is False
+        assert t.missing_files == {"tape/econ_prints/dt=2026-07-18.jsonl": 3}
+        assert t.unappendable_files == {"tape/econ_prints/dt=2026-07-18.jsonl": 3}
+        assert t.all_missing_unappendable is True
+        report = format_report([t], base_ref=sha[:7])
+        assert "NOT union-appendable" in report
+        assert "carries NO strandable tape" in report
+
+    def test_all_missing_unappendable_is_false_when_real_tape_is_stranded(self, tmp_path):
+        remote = _init_repo(tmp_path / "remote2")
+        day = remote / "tape" / "econ_prints"
+        day.mkdir(parents=True)
+        f = day / "dt=2026-07-18.jsonl"
+        f.write_text('{"capture_id": "A"}\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "base")
+        _git(remote, "checkout", "-qb", "tape/hourly-20260718T1030Z")
+        f.write_text('{"capture_id": "A"}\n=======\n{"capture_id": "REAL"}\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "mixed")
+        sha = _git(remote, "rev-parse", "HEAD").strip()
+        t = triage_branch(sha, "tape/hourly-20260718T1030Z", base_ref=sha + "^", cwd=str(remote))
+        assert t.missing_files == {"tape/econ_prints/dt=2026-07-18.jsonl": 2}
+        assert t.unappendable_files == {"tape/econ_prints/dt=2026-07-18.jsonl": 1}
+        assert t.all_missing_unappendable is False   # one genuine line IS worth sweeping
+

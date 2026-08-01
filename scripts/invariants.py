@@ -278,6 +278,101 @@ def inv_order_endpoints_confined(path: Path, text: str) -> Optional[str]:
                 ) if hits else None
 
 
+# ─── Private WS-channel subscription gate (L145's residual half, 2026-08-01) ──
+#
+# L145 sanctioned read-only authenticated market-data auth in `collection/` on an EXPLICIT
+# two-part premise: "no order verb AND no private/fill channel subscription". The
+# order-verb half became `inv_order_endpoints_confined`'s ws_depth branch (2026-07-23,
+# issue #157). The private-channel half was never enforced — it lived only as prose in
+# `collection/ws_depth.py`'s module docstring ("never subscribes to a user/private channel
+# (fills, orders, positions)"), which is exactly the "memory file" CLAUDE.md's prime
+# directive #3 says must become an assertion. `DEFAULT_CHANNELS` is a plain module tuple and
+# `run(..., channels=...)` a plain kwarg, so one edit turns a read-only collector into an
+# account-data subscriber with a green gate.
+#
+# Kalshi's private/user WS channel names, per `kb/kalshi-api/02-rest-and-websocket.md`
+# ("user orders, user fills, market positions, order-group updates"). That KB page states
+# outright that the exact wire spellings are NOT pinned from the public index, so this list
+# is best-effort over the documented families, not an exhaustive pin — it is a ratchet
+# against the realistic regression, not a proof of absence.
+_PRIVATE_WS_CHANNEL_LITERAL_RE = re.compile(
+    r'["\'](?:fills?|user_fills?|market_positions?|user_orders?'
+    r'|order_group_updates?)["\']'
+)
+# The context token that makes such a literal a CHANNEL NAME rather than a dict key. Matched
+# as an underscore-delimited SEGMENT (the fee-rule convention) so `DEFAULT_CHANNELS`,
+# `subscribe_command`, and `"channels"` all count. This context requirement is load-bearing,
+# not decoration: a bare literal match fires on 23 innocent sites in this repo today
+# (`record_kind = "fill"` in the paper tier, `report["fill"]` in five probes,
+# `"fills": [...]` in `execution/paper_broker.py`), while the two-part match fires on none.
+_WS_CHANNEL_CONTEXT_RE = re.compile(
+    r'(?i)\b(?:[a-z0-9]+_)*(?:channel|channels|subscribe)(?:_[a-z0-9]+)*\b'
+)
+
+_BRACKET_OPEN, _BRACKET_CLOSE = "([{", ")]}"
+
+
+def _bracket_joined_lines(text: str) -> List[Tuple[int, str]]:
+    """(start_lineno, logical_line) with open-bracket continuations joined.
+
+    Every other static rule here is physical-line-based, which is fine when the banned token
+    and its context share a line. A channel tuple does not:
+
+        DEFAULT_CHANNELS = (
+            "orderbook_delta",
+            "fill",              <- banned literal, no context token in sight
+        )
+
+    so this rule (and only this rule) scans a joined view. Comment-only and SENTINEL lines
+    contribute no text and no bracket depth — a `#` bracket is not syntax, and a SENTINEL
+    rule-definition line is exempt by the file-wide convention. An unterminated bracket at
+    EOF still yields its buffer rather than being dropped."""
+    out: List[Tuple[int, str]] = []
+    buf = ""
+    start = 1
+    depth = 0
+    for i, ln in enumerate(text.splitlines(), 1):
+        core = "" if (SENTINEL in ln or ln.lstrip().startswith("#")) else ln
+        if depth == 0:
+            buf, start = core, i
+        else:
+            buf += " " + core.strip()
+        for ch in core:
+            if ch in _BRACKET_OPEN:
+                depth += 1
+            elif ch in _BRACKET_CLOSE:
+                depth = max(0, depth - 1)
+        if depth == 0:
+            out.append((start, buf))
+    if depth:
+        out.append((start, buf))
+    return out
+
+
+def inv_no_private_ws_channel_subscription(path: Path, text: str) -> Optional[str]:
+    """L145 residual: no Kalshi PRIVATE/user WS channel may be subscribed outside
+    execution/kalshi_client.py. `collection/ws_depth.py`'s auth-header sanction rests on the
+    collector being market-data-only; subscribing to `fill` / `market_positions` /
+    `user_orders` would make it an account-data client under a collector's name, with the
+    order-verb rule still green (no order verb is needed to read your own fills). Exempt:
+    execution/kalshi_client.py (the sanctioned live client, unbuilt — a live client legitimately
+    watches its own fills) and tests/test_ws_depth.py, pre-emptively, because L145's own
+    root cause was PR #153 exempting two source files but not their tests. HONEST LIMIT: a
+    dynamically-constructed channel name (`channels=[cfg["chan"]]`) is invisible to any static
+    check — this closes the source-literal path, not the runtime one."""
+    if _file_excluded(path) or _rel(path) in (SANCTIONED["order_endpoints"],
+                                              "tests/test_ws_depth.py"):
+        return None
+    hits = [(i, ln) for i, ln in _bracket_joined_lines(text)
+            if _PRIVATE_WS_CHANNEL_LITERAL_RE.search(ln)
+            and _WS_CHANNEL_CONTEXT_RE.search(ln)]
+    return _fmt(path, hits,
+                "private/user Kalshi WS channel in a subscribe context outside "
+                "execution/kalshi_client.py — lesson L145: the collector auth-header sanction "
+                "covers READ-ONLY market data only (orderbook_delta/ticker/trade/"
+                "market_lifecycle); fills/orders/positions are account data") if hits else None
+
+
 def inv_risk_caps_sanctioned(path: Path, text: str) -> Optional[str]:
     """Execution-lane invariant (2026-07-12). Risk-cap constants (MAX_CONTRACTS_PER_ORDER /
     MAX_OPEN_NOTIONAL_DOLLARS / MAX_DAILY_ORDERS) are bound ONLY in execution/limits.py —
@@ -405,6 +500,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_handrolled_fee_rate", inv_no_handrolled_fee_rate),
     ("no_http_server", inv_no_http_server),
     ("order_endpoints_confined", inv_order_endpoints_confined),
+    ("no_private_ws_channel_subscription", inv_no_private_ws_channel_subscription),
     ("risk_caps_sanctioned", inv_risk_caps_sanctioned),
     ("no_raw_datetime_fromisoformat", inv_no_raw_datetime_fromisoformat),
 ]

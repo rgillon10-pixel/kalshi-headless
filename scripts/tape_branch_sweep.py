@@ -264,6 +264,43 @@ def capture_ids_in_blob(rev: str, path: str, run_git: GitRunner = default_git_ru
     return frozenset(ids)
 
 
+# ─── Union-appendability triage of a "genuinely missing" line (L247, 2026-08-01) ──
+#
+# A line absent from HEAD is a containment answer; it is NOT automatically a line step 0b
+# should union-append. The 2026-08-01 sweep found 13 branches carrying "genuinely missing"
+# lines and ZERO of them were tape: 5 branches carried the three unresolved git conflict
+# markers of the 2026-07-23 incident (`<<<<<<< HEAD` / `=======` / `>>>>>>> <sha> (...)`,
+# lesson L142) sitting inside `anomalies`/`econ_prints` day-files, and 8 carried two
+# superseded prose headers of `tape/cloud-env-check.md`, a hand-written MARKDOWN doc that
+# happens to live under `tape/` and is not append-only JSONL at all. Union-appending the
+# first class would re-inject the exact corruption `scripts/invariants.py`'s
+# `_tape_conflict_marker_issues` gate exists to catch — the sweep would hand a future run a
+# red gate — and the second would splice a stale document header into a living doc.
+#
+# So the report distinguishes them. Deliberately CONSERVATIVE about what counts as
+# appendable: a line is appendable only if its file is a `.jsonl` day-file AND the line
+# parses as JSON. Anything else is reported as unappendable and left for a human, which is
+# the right error direction — a wrongly-withheld tape line is visible in the next sweep,
+# a wrongly-appended conflict marker breaks `main`'s gate.
+_CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|={7}|>{7})(?:\s|$)")
+
+
+def missing_line_is_appendable(full_path: str, line: str) -> bool:
+    """True only for a line that step 0b may safely union-append into `main`'s tape.
+
+    A tape line is a JSON OBJECT, so a bare JSON scalar (`123`, `null`, a quoted string)
+    or array is refused too — it parses, but it is not a record, and propagating it would
+    spread corruption rather than rescue tape."""
+    if not full_path.endswith(".jsonl"):
+        return False
+    if _CONFLICT_MARKER_RE.match(line):
+        return False
+    try:
+        return isinstance(json.loads(line), dict)
+    except Exception:
+        return False
+
+
 def per_file_containment(branch_rev: str, base_ref: str, path: str,
                           run_git: GitRunner = default_git_runner,
                           cwd: Optional[str] = None,
@@ -272,6 +309,7 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
                           base_tree: Optional[str] = None,
                           branch_tree: Optional[str] = None,
                           head_capture_id_cache: Optional[Dict[str, frozenset]] = None,
+                          unappendable_out: Optional[Dict[str, int]] = None,
                           ) -> Tuple[Dict[str, int], Dict[str, int], Dict[str, int]]:
     """For every file that DIFFERS between `branch_rev` and `base_ref` under `path`
     (via `diff_changed_files` — never full tree enumeration, see that function's
@@ -349,9 +387,14 @@ def per_file_containment(branch_rev: str, base_ref: str, path: str,
             head_line_cache[full_path] = frozenset(base_lines) if base_lines else frozenset()
         base_set = head_line_cache[full_path]
         branch_lines = read_blob_lines(branch_rev, full_path, run_git, cwd) or []
-        missing_count = sum(1 for line in branch_lines if line not in base_set)
-        if missing_count:
-            missing[full_path] = missing_count
+        absent = [line for line in branch_lines if line not in base_set]
+        if absent:
+            missing[full_path] = len(absent)
+            if unappendable_out is not None:
+                n_bad = sum(1 for line in absent
+                            if not missing_line_is_appendable(full_path, line))
+                if n_bad:
+                    unappendable_out[full_path] = n_bad
     return missing, skipped, capture_id_checked
 
 
@@ -366,6 +409,16 @@ class BranchTriage:
     missing_files: Dict[str, int] = field(default_factory=dict)  # file -> missing-line count
     skipped_files: Dict[str, int] = field(default_factory=dict)  # file -> byte size, size-guard
     capture_id_checked_files: Dict[str, int] = field(default_factory=dict)  # file -> missing capture_id count (L216)
+    unappendable_files: Dict[str, int] = field(default_factory=dict)  # file -> NOT-union-appendable missing lines (L247)
+
+    @property
+    def all_missing_unappendable(self) -> bool:
+        """True when EVERY genuinely-missing line this branch carries is one step 0b must
+        NOT union-append (a git conflict marker, or a line in a non-`.jsonl` file under
+        `tape/`) — i.e. the branch is 'not contained' but there is no tape to rescue. The
+        2026-08-01 sweep found all 13 not-contained branches were in exactly this state."""
+        return (bool(self.missing_files)
+                and sum(self.unappendable_files.values()) == sum(self.missing_files.values()))
 
     @property
     def fully_verified(self) -> bool:
@@ -411,15 +464,18 @@ def triage_branch(sha: str, name: str, base_ref: str = "HEAD", path: str = "tape
     # Mismatch does NOT mean "not contained" on an append-only tree — fall back to the
     # per-file line-set check (diff-scoped, not a full tree walk) to find out what, if
     # anything, is genuinely missing. Reuse the tree hashes already computed above.
+    unappendable: Dict[str, int] = {}
     missing, skipped, capture_id_checked = per_file_containment(
         sha, base_ref, path, run_git, cwd, head_line_cache, max_file_bytes,
         base_tree=base_tree, branch_tree=branch_tree,
-        head_capture_id_cache=head_capture_id_cache)
+        head_capture_id_cache=head_capture_id_cache,
+        unappendable_out=unappendable)
     contained = len(missing) == 0 and all(v == 0 for v in capture_id_checked.values())
     return BranchTriage(name=name, sha=sha, malformed=malformed, fetched=True,
                          contained=contained, commit_date=cdate,
                          missing_files=missing, skipped_files=skipped,
-                         capture_id_checked_files=capture_id_checked)
+                         capture_id_checked_files=capture_id_checked,
+                         unappendable_files=unappendable)
 
 
 def sweep(branches: List[Tuple[str, str]], base_ref: str = "HEAD", path: str = "tape",
@@ -500,6 +556,10 @@ def format_report(triage: List[BranchTriage], base_ref: str = "HEAD") -> str:
         f"  {len(has_missing)} carry line(s) or capture_id(s) genuinely MISSING from "
         f"{base_ref} (per-file line-set check, or capture_id-set check for oversized bulk "
         "families — not a raw tree-hash mismatch; see module docstring)",
+        f"  {sum(1 for t in has_missing if t.all_missing_unappendable)} of those carry "
+        "NO union-appendable tape at all — every missing line is a git conflict marker or "
+        "sits in a non-`.jsonl` file under tape/ (L247; sweeping them would re-inject the "
+        "L142 corruption `invariants.py` gates against)",
         f"  {len(no_tape)} fetched but carry no tape/ tree at all (anomaly for a tape/* branch)",
         f"  {len(not_fetched)} not yet fetched locally (run with fetch enabled, or "
         "`git fetch` them first)",
@@ -512,7 +572,15 @@ def format_report(triage: List[BranchTriage], base_ref: str = "HEAD") -> str:
                 lines.append(f"    - {t.name} ({t.sha[:12]}): {total_missing} line(s) across "
                               f"{len(t.missing_files)} file(s)")
                 for f, count in sorted(t.missing_files.items()):
-                    lines.append(f"        {f}: {count} missing line(s)")
+                    bad = t.unappendable_files.get(f, 0)
+                    suffix = ""
+                    if bad:
+                        suffix = (f" — {bad} NOT union-appendable (conflict marker / "
+                                  "non-JSONL file); do NOT sweep those, L247")
+                    lines.append(f"        {f}: {count} missing line(s){suffix}")
+                if t.all_missing_unappendable:
+                    lines.append("        ^ EVERY missing line here is unappendable — "
+                                 "this branch carries NO strandable tape (L247)")
             missing_capture_files = {f: n for f, n in t.capture_id_checked_files.items() if n}
             if missing_capture_files:
                 total_missing_captures = sum(missing_capture_files.values())
