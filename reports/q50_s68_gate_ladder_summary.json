@@ -9,86 +9,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.14581395348837212,
-              0.004848484848484846
+              -0.14591836734693878,
+              0.0046
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": -0.056190476190476187
+            "mean": -0.056190476190476187,
+            "n_boot": 10000
           },
           {
             "ci95": [
               -0.1517105263157895,
-              -0.0009900990099009944
+              -0.001079545454545458
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": -0.06198412698412699
+            "mean": -0.06198412698412699,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.1573684210526316,
-              -0.006785714285714298
+              -0.15775510204081636,
+              -0.0067901234567901295
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": -0.0677777777777778
+            "mean": -0.0677777777777778,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.1638709677419355,
-              -0.012500000000000011
+              -0.1638181818181818,
+              -0.012543859649122812
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": -0.07357142857142857
+            "mean": -0.07357142857142857,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.1696774193548387,
-              -0.018148148148148163
+              -0.16977272727272727,
+              -0.018214285714285728
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": -0.07936507936507936
+            "mean": -0.07936507936507936,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.17548387096774196,
-              -0.023750000000000007
+              -0.17565789473684212,
+              -0.023787878787878802
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": -0.08515873015873017
+            "mean": -0.08515873015873017,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.18129032258064517,
-              -0.02901408450704226
+              -0.18142857142857144,
+              -0.029215686274509812
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.09095238095238097
+            "mean": -0.09095238095238097,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.19290322580645167,
-              -0.04049019607843138
+              -0.1930434782608696,
+              -0.040312500000000015
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.10253968253968256
+            "mean": -0.10253968253968256,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.20500000000000004,
-              -0.05127659574468085
+              -0.20477611940298512,
+              -0.05146666666666667
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.11412698412698415
+            "mean": -0.11412698412698415,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -201,6 +211,7 @@
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 180,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 0,
@@ -227,6 +238,8 @@
           "n_filled_legs": 58
         }
       },
+      "median_entry_spread": 0.020000000000000018,
+      "median_ttc_hours_entry": 5.622298373333333,
       "n_distinct_entry_timestamps": 37,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.14591836734693878 not > 0"
@@ -242,7 +255,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": -0.0059999999999999975
+            "mean": -0.0059999999999999975,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -251,7 +265,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": -0.012000000000000002
+            "mean": -0.012000000000000002,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -260,7 +275,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": -0.018000000000000006
+            "mean": -0.018000000000000006,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -269,7 +285,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": -0.024000000000000004
+            "mean": -0.024000000000000004,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -278,7 +295,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": -0.03000000000000001
+            "mean": -0.03000000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -287,7 +305,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": -0.03600000000000001
+            "mean": -0.03600000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -296,7 +315,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.042000000000000016
+            "mean": -0.042000000000000016,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -305,7 +325,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.054000000000000006
+            "mean": -0.054000000000000006,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -314,9 +335,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.06600000000000002
+            "mean": -0.06600000000000002,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -431,6 +454,7 @@
         "entry_spread_below_fees_plus_ticks": 38,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 180,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 1,
@@ -457,6 +481,8 @@
           "n_filled_legs": 28
         }
       },
+      "median_entry_spread": 0.04000000000000001,
+      "median_ttc_hours_entry": 5.760404379444444,
       "n_distinct_entry_timestamps": 13,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=4 < 10 (L41 floor)"
@@ -472,7 +498,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.020000000000000004
+            "mean": 0.020000000000000004,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -481,7 +508,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.014375000000000004
+            "mean": 0.014375000000000004,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -490,7 +518,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.008749999999999994
+            "mean": 0.008749999999999994,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -499,7 +528,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.003124999999999996
+            "mean": 0.003124999999999996,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -508,7 +538,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": -0.0024999999999999935
+            "mean": -0.0024999999999999935,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -517,7 +548,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": -0.008124999999999999
+            "mean": -0.008124999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -526,7 +558,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.01375000000000001
+            "mean": -0.01375000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -535,7 +568,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.02500000000000001
+            "mean": -0.02500000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -544,9 +578,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.03625000000000002
+            "mean": -0.03625000000000002,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -662,6 +698,7 @@
         "entry_spread_below_fees_plus_ticks": 47,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 180,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 2,
@@ -688,6 +725,8 @@
           "n_filled_legs": 17
         }
       },
+      "median_entry_spread": 0.05000000000000002,
+      "median_ttc_hours_entry": 5.688842107222222,
       "n_distinct_entry_timestamps": 6,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=1 < 10 (L41 floor)"
@@ -703,7 +742,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.07166666666666667
+            "mean": 0.07166666666666667,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -712,7 +752,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.06583333333333334
+            "mean": 0.06583333333333334,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -721,7 +762,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.060000000000000005
+            "mean": 0.060000000000000005,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -730,7 +772,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.05416666666666667
+            "mean": 0.05416666666666667,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -739,7 +782,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.04833333333333334
+            "mean": 0.04833333333333334,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -748,7 +792,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.04250000000000001
+            "mean": 0.04250000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -757,7 +802,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.036666666666666674
+            "mean": 0.036666666666666674,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -766,7 +812,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.024999999999999994
+            "mean": 0.024999999999999994,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -775,9 +822,11 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.01333333333333333
+            "mean": 0.01333333333333333,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -893,6 +942,7 @@
         "entry_spread_below_fees_plus_ticks": 51,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 180,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 3,
@@ -919,6 +969,8 @@
           "n_filled_legs": 13
         }
       },
+      "median_entry_spread": 0.05000000000000002,
+      "median_ttc_hours_entry": 5.688501712638889,
       "n_distinct_entry_timestamps": 5,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=1 < 10 (L41 floor)"
@@ -934,7 +986,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -943,7 +996,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -952,7 +1006,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -961,7 +1016,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -970,7 +1026,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -979,7 +1036,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -988,7 +1046,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -997,7 +1056,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1006,9 +1066,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": null
+            "mean": null,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -1122,6 +1184,7 @@
         "entry_spread_below_fees_plus_ticks": 63,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 180,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 5,
@@ -1148,6 +1211,8 @@
           "n_filled_legs": 0
         }
       },
+      "median_entry_spread": null,
+      "median_ttc_hours_entry": null,
       "n_distinct_entry_timestamps": 0,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "empty_population"
@@ -1158,86 +1223,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.09246153846153846,
-              0.015
+              -0.09126582278481013,
+              0.012549019607843132
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": -0.03973684210526316
+            "mean": -0.03973684210526316,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.09885245901639346,
-              0.008865546218487393
+              -0.09775,
+              0.006397058823529398
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": -0.04578947368421053
+            "mean": -0.04578947368421053,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.10529914529914532,
-              0.0030769230769230704
+              -0.10421052631578948,
+              0.00035714285714285216
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": -0.0518421052631579
+            "mean": -0.0518421052631579,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.11172619047619049,
-              -0.0027659574468085263
+              -0.11062500000000003,
+              -0.005476190476190481
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": -0.05789473684210527
+            "mean": -0.05789473684210527,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.11819672131147542,
-              -0.008823529411764718
+              -0.11697368421052634,
+              -0.01152777777777778
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": -0.06394736842105264
+            "mean": -0.06394736842105264,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.12460317460317462,
-              -0.01460784313725492
+              -0.12326666666666668,
+              -0.01746153846153848
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": -0.07000000000000002
+            "mean": -0.07000000000000002,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.13105263157894737,
-              -0.020549450549450555
+              -0.1296969696969697,
+              -0.023370786516853932
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.07605263157894736
+            "mean": -0.07605263157894736,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.14377049180327872,
-              -0.032325581395348836
+              -0.1427142857142857,
+              -0.03546666666666668
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.08815789473684212
+            "mean": -0.08815789473684212,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.1563157894736842,
-              -0.044225352112676065
+              -0.15555555555555556,
+              -0.04688888888888892
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.10026315789473687
+            "mean": -0.10026315789473687,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -1349,6 +1424,7 @@
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 359,
         "no_snapshot_within_horizon": 160,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 0,
@@ -1375,6 +1451,8 @@
           "n_filled_legs": 81
         }
       },
+      "median_entry_spread": 0.020000000000000018,
+      "median_ttc_hours_entry": 11.61446190388889,
       "n_distinct_entry_timestamps": 38,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.09126582278481013 not > 0"
@@ -1385,12 +1463,13 @@
         "ladder": [
           {
             "ci95": [
-              0.015833333333333335,
+              0.015833333333333338,
               0.30999999999999994
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.05866666666666667
+            "mean": 0.05866666666666667,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1399,72 +1478,81 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.0535
+            "mean": 0.0535,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0056249999999999955,
+              0.005624999999999998,
               0.29900000000000004
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.04833333333333333
+            "mean": 0.04833333333333333,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0005208333333333303,
+              0.0005208333333333327,
               0.2935
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.043166666666666666
+            "mean": 0.043166666666666666,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.004583333333333335,
-              0.288
+              -0.0045833333333333325,
+              0.2879999999999999
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.038
+            "mean": 0.038,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.00968750000000001,
+              -0.009687500000000007,
               0.2825
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.03283333333333332
+            "mean": 0.03283333333333332,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.014827586206896563,
+              -0.01482758620689656,
               0.27699999999999997
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.027666666666666662
+            "mean": 0.027666666666666662,
+            "n_boot": 10000
           },
           {
             "ci95": [
               -0.025862068965517244,
-              0.26499999999999996
+              0.2649999999999999
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.017333333333333333
+            "mean": 0.017333333333333333,
+            "n_boot": 10000
           },
           {
             "ci95": [
               -0.036896551724137944,
-              0.25249999999999995
+              0.2524999999999999
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.0069999999999999915
+            "mean": 0.0069999999999999915,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -1580,6 +1668,7 @@
         "entry_spread_below_fees_plus_ticks": 46,
         "entry_spread_below_two_fees": 359,
         "no_snapshot_within_horizon": 160,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 1,
@@ -1606,6 +1695,8 @@
           "n_filled_legs": 30
         }
       },
+      "median_entry_spread": 0.06,
+      "median_ttc_hours_entry": 11.656741913333335,
       "n_distinct_entry_timestamps": 15,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=6 < 10 (L41 floor)"
@@ -1621,7 +1712,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.03391304347826088
+            "mean": 0.03391304347826088,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1630,7 +1722,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.029347826086956522
+            "mean": 0.029347826086956522,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1639,7 +1732,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.024782608695652176
+            "mean": 0.024782608695652176,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1648,7 +1742,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.02021739130434783
+            "mean": 0.02021739130434783,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1657,7 +1752,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.015652173913043483
+            "mean": 0.015652173913043483,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1666,7 +1762,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.011086956521739126
+            "mean": 0.011086956521739126,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1675,7 +1772,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.006521739130434779
+            "mean": 0.006521739130434779,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1684,7 +1782,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.0026086956521739154
+            "mean": -0.0026086956521739154,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1693,9 +1792,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.011739130434782618
+            "mean": -0.011739130434782618,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -1811,6 +1912,7 @@
         "entry_spread_below_fees_plus_ticks": 53,
         "entry_spread_below_two_fees": 359,
         "no_snapshot_within_horizon": 160,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 2,
@@ -1837,6 +1939,8 @@
           "n_filled_legs": 20
         }
       },
+      "median_entry_spread": 0.060000000000000026,
+      "median_ttc_hours_entry": 11.7493498875,
       "n_distinct_entry_timestamps": 11,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=3 < 10 (L41 floor)"
@@ -1852,7 +1956,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.03850000000000001
+            "mean": 0.03850000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1861,7 +1966,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.03375000000000001
+            "mean": 0.03375000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1870,7 +1976,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.029000000000000005
+            "mean": 0.029000000000000005,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1879,7 +1986,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.02425
+            "mean": 0.02425,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1888,7 +1996,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.019500000000000007
+            "mean": 0.019500000000000007,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1897,7 +2006,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.01474999999999999
+            "mean": 0.01474999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1906,7 +2016,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.009999999999999998
+            "mean": 0.009999999999999998,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1915,7 +2026,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.0004999999999999894
+            "mean": 0.0004999999999999894,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -1924,9 +2036,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.009000000000000018
+            "mean": -0.009000000000000018,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -2041,6 +2155,7 @@
         "entry_spread_below_fees_plus_ticks": 56,
         "entry_spread_below_two_fees": 359,
         "no_snapshot_within_horizon": 160,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 3,
@@ -2067,6 +2182,8 @@
           "n_filled_legs": 18
         }
       },
+      "median_entry_spread": 0.060000000000000026,
+      "median_ttc_hours_entry": 11.749766554166666,
       "n_distinct_entry_timestamps": 9,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=2 < 10 (L41 floor)"
@@ -2082,7 +2199,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.09142857142857143
+            "mean": 0.09142857142857143,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2091,7 +2209,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.08857142857142856
+            "mean": 0.08857142857142856,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2100,7 +2219,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.08571428571428572
+            "mean": 0.08571428571428572,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2109,7 +2229,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.08285714285714287
+            "mean": 0.08285714285714287,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2118,7 +2239,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.08
+            "mean": 0.08,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2127,7 +2249,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.07714285714285715
+            "mean": 0.07714285714285715,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2136,7 +2259,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.07428571428571429
+            "mean": 0.07428571428571429,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2145,7 +2269,8 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.06857142857142857
+            "mean": 0.06857142857142857,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -2154,9 +2279,11 @@
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.06285714285714286
+            "mean": 0.06285714285714286,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -2271,6 +2398,7 @@
         "entry_spread_below_fees_plus_ticks": 69,
         "entry_spread_below_two_fees": 359,
         "no_snapshot_within_horizon": 160,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 5,
@@ -2297,6 +2425,8 @@
           "n_filled_legs": 4
         }
       },
+      "median_entry_spread": 0.07,
+      "median_ttc_hours_entry": 11.749905443055555,
       "n_distinct_entry_timestamps": 4,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=1 < 10 (L41 floor)"
@@ -2307,86 +2437,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.037439024390243915,
-              0.0847945205479452
+              -0.03820224719101124,
+              0.08550335570469796
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.030833333333333313
+            "mean": 0.030833333333333313,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0427927927927928,
-              0.07866071428571429
+              -0.04331578947368423,
+              0.07923728813559325
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.025500000000000005
+            "mean": 0.025500000000000005,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04798076923076925,
-              0.07258503401360544
+              -0.04842519685039371,
+              0.07292929292929293
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.020166666666666663
+            "mean": 0.020166666666666663,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.053272727272727284,
-              0.06688356164383562
+              -0.05370786516853936,
+              0.06676767676767678
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.014833333333333327
+            "mean": 0.014833333333333327,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.05887850467289722,
-              0.06085271317829455
+              -0.05900000000000002,
+              0.06072072072072072
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.009499999999999982
+            "mean": 0.009499999999999982,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.06443396226415095,
-              0.05467391304347826
+              -0.06428571428571431,
+              0.05454166666666667
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.004166666666666652
+            "mean": 0.004166666666666652,
+            "n_boot": 10000
           },
           {
             "ci95": [
               -0.07,
-              0.04883720930232555
+              0.0486746987951807
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.0011666666666666908
+            "mean": -0.0011666666666666908,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.08095238095238096,
+              -0.08083333333333333,
               0.03669117647058823
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.011833333333333335
+            "mean": -0.011833333333333335,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.09138888888888891,
-              0.02457777777777777
+              -0.09226666666666668,
+              0.0245751633986928
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.022500000000000003
+            "mean": -0.022500000000000003,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -2498,6 +2638,7 @@
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 125,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 0,
@@ -2524,6 +2665,8 @@
           "n_filled_legs": 118
         }
       },
+      "median_entry_spread": 0.020000000000000018,
+      "median_ttc_hours_entry": 17.616652107222222,
       "n_distinct_entry_timestamps": 50,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.03820224719101124 not > 0"
@@ -2534,86 +2677,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.02734693877551021,
-              0.12999999999999998
+              -0.027377049180327875,
+              0.12875
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.030000000000000002
+            "mean": 0.030000000000000002,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03031250000000001,
-              0.12517857142857142
+              -0.030873015873015892,
+              0.12333333333333334
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.026914893617021273
+            "mean": 0.026914893617021273,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0339344262295082,
-              0.12035714285714284
+              -0.0352,
+              0.11826086956521738
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.02382978723404255
+            "mean": 0.02382978723404255,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03793103448275864,
-              0.11546874999999998
+              -0.03870000000000001,
+              0.1129032258064516
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.02074468085106382
+            "mean": 0.02074468085106382,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04200000000000001,
-              0.10964285714285714
+              -0.04275862068965518,
+              0.10750000000000001
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.017659574468085106
+            "mean": 0.017659574468085106,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.046166666666666675,
-              0.10449999999999998
+              -0.04700000000000001,
+              0.10293478260869567
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.014574468085106377
+            "mean": 0.014574468085106377,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.05069767441860466,
-              0.0996
+              -0.05133333333333336,
+              0.09777777777777777
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.011489361702127653
+            "mean": 0.011489361702127653,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.05846153846153848,
-              0.09037037037037035
+              -0.0602325581395349,
+              0.0875
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.005319148936170212
+            "mean": 0.005319148936170212,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.06680000000000001,
-              0.08088235294117646
+              -0.0692,
+              0.07766666666666665
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.0008510638297872377
+            "mean": -0.0008510638297872377,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -2726,6 +2879,7 @@
         "entry_spread_below_fees_plus_ticks": 73,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 125,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 1,
@@ -2752,6 +2906,8 @@
           "n_filled_legs": 28
         }
       },
+      "median_entry_spread": 0.07,
+      "median_ttc_hours_entry": 17.691161192777777,
       "n_distinct_entry_timestamps": 25,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.027377049180327875 not > 0"
@@ -2762,86 +2918,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.014754098360655743,
-              0.24692307692307697
+              -0.013720930232558147,
+              0.25000000000000006
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.03705882352941176
+            "mean": 0.03705882352941176,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.017142857142857147,
-              0.24192307692307694
+              -0.01627906976744187,
+              0.24458333333333337
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.034999999999999996
+            "mean": 0.034999999999999996,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.02125,
-              0.23692307692307693
+              -0.019166666666666665,
+              0.24000000000000005
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.03294117647058823
+            "mean": 0.03294117647058823,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.023783783783783794,
-              0.2319230769230769
+              -0.02238095238095239,
+              0.2355
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.030882352941176472
+            "mean": 0.030882352941176472,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.027500000000000007,
-              0.22692307692307695
+              -0.02500000000000001,
+              0.231
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.02882352941176471
+            "mean": 0.02882352941176471,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03208333333333334,
-              0.22192307692307692
+              -0.02888888888888889,
+              0.22642857142857142
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.02676470588235294
+            "mean": 0.02676470588235294,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03476190476190477,
-              0.2169230769230769
+              -0.03240000000000002,
+              0.22153846153846152
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.02470588235294117
+            "mean": 0.02470588235294117,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04142857142857143,
-              0.20692307692307693
+              -0.0386046511627907,
+              0.21153846153846154
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.02058823529411765
+            "mean": 0.02058823529411765,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04833333333333334,
-              0.1975
+              -0.04624999999999999,
+              0.20000000000000007
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.016470588235294122
+            "mean": 0.016470588235294122,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -2956,6 +3122,7 @@
         "entry_spread_below_fees_plus_ticks": 86,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 125,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 2,
@@ -2982,6 +3149,8 @@
           "n_filled_legs": 14
         }
       },
+      "median_entry_spread": 0.86,
+      "median_ttc_hours_entry": 17.65664610527778,
       "n_distinct_entry_timestamps": 14,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=7 < 10 (L41 floor)"
@@ -2992,21 +3161,23 @@
         "ladder": [
           {
             "ci95": [
-              -0.020000000000000004,
+              -0.020000000000000007,
               0.4633333333333334
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.03966666666666666
+            "mean": 0.03966666666666666,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.022750000000000003,
+              -0.02275000000000001,
               0.4575
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.03766666666666667
+            "mean": 0.03766666666666667,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3015,7 +3186,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.035666666666666666
+            "mean": 0.035666666666666666,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3024,7 +3196,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.033666666666666664
+            "mean": 0.033666666666666664,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3033,7 +3206,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.03166666666666667
+            "mean": 0.03166666666666667,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3042,16 +3216,18 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.029666666666666668
+            "mean": 0.029666666666666668,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04487179487179488,
+              -0.044871794871794886,
               0.4283333333333334
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.027666666666666666
+            "mean": 0.027666666666666666,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3060,7 +3236,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.02366666666666667
+            "mean": 0.02366666666666667,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3069,9 +3246,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.01966666666666667
+            "mean": 0.01966666666666667,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -3186,6 +3365,7 @@
         "entry_spread_below_fees_plus_ticks": 90,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 125,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 3,
@@ -3212,6 +3392,8 @@
           "n_filled_legs": 12
         }
       },
+      "median_entry_spread": 0.86,
+      "median_ttc_hours_entry": 17.753998297916667,
       "n_distinct_entry_timestamps": 12,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=5 < 10 (L41 floor)"
@@ -3227,7 +3409,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": -0.0072
+            "mean": -0.0072,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3236,7 +3419,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": -0.008400000000000001
+            "mean": -0.008400000000000001,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3245,7 +3429,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": -0.0096
+            "mean": -0.0096,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3254,7 +3439,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": -0.0108
+            "mean": -0.0108,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3263,7 +3449,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": -0.012
+            "mean": -0.012,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3272,7 +3459,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": -0.0132
+            "mean": -0.0132,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3281,7 +3469,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.0144
+            "mean": -0.0144,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3290,7 +3479,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.016800000000000002
+            "mean": -0.016800000000000002,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -3299,9 +3489,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.0192
+            "mean": -0.0192,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -3416,6 +3608,7 @@
         "entry_spread_below_fees_plus_ticks": 95,
         "entry_spread_below_two_fees": 352,
         "no_snapshot_within_horizon": 125,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 5,
@@ -3442,6 +3635,8 @@
           "n_filled_legs": 6
         }
       },
+      "median_entry_spread": 0.86,
+      "median_ttc_hours_entry": 17.752997323055556,
       "n_distinct_entry_timestamps": 11,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=3 < 10 (L41 floor)"
@@ -3452,86 +3647,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.02327731092436976,
-              0.06217054263565891
+              -0.024248366013071905,
+              0.06226086956521737
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.02443181818181817
+            "mean": 0.02443181818181817,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.029052287581699348,
-              0.05573076923076925
+              -0.029750000000000013,
+              0.055948275862068984
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.018522727272727278
+            "mean": 0.018522727272727278,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0346825396825397,
+              -0.03532051282051283,
               0.049452554744525555
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.01261363636363636
+            "mean": 0.01261363636363636,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04008333333333333,
-              0.043115384615384625
+              -0.0411842105263158,
+              0.04316568047337279
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.006704545454545452
+            "mean": 0.006704545454545452,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04615384615384618,
-              0.03683982683982682
+              -0.046796875000000016,
+              0.036933333333333304
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.0007954545454545253
+            "mean": 0.0007954545454545253,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.05144736842105265,
-              0.030606060606060616
+              -0.052530487804878075,
+              0.030575396825396835
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": -0.005113636363636371
+            "mean": -0.005113636363636371,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.05714285714285715,
+              -0.05827272727272728,
               0.024411764705882338
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.011022727272727286
+            "mean": -0.011022727272727286,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.069009900990099,
-              0.012191235059760948
+              -0.06942857142857145,
+              0.012163265306122438
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.022840909090909103
+            "mean": -0.022840909090909103,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0806611570247934,
-              0.00016666666666665696
+              -0.08114093959731544,
+              0.00022471910112358302
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.03465909090909093
+            "mean": -0.03465909090909093,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -3643,6 +3848,7 @@
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 304,
         "no_snapshot_within_horizon": 123,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 0,
@@ -3669,6 +3875,8 @@
           "n_filled_legs": 197
         }
       },
+      "median_entry_spread": 0.030000000000000027,
+      "median_ttc_hours_entry": 23.616630729444445,
       "n_distinct_entry_timestamps": 63,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.024248366013071905 not > 0"
@@ -3679,86 +3887,96 @@
         "ladder": [
           {
             "ci95": [
-              0.023699999999999992,
-              0.15223880597014924
+              0.0235,
+              0.14732394366197182
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.06949999999999999
+            "mean": 0.06949999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.019473684210526303,
-              0.14812499999999998
+              0.01935897435897435,
+              0.14229411764705882
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.06464999999999999
+            "mean": 0.06464999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.015522388059701487,
-              0.14294117647058824
+              0.01547169811320754,
+              0.13749999999999998
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.059799999999999985
+            "mean": 0.059799999999999985,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.01104651162790697,
-              0.1388333333333333
+              0.011028368794326223,
+              0.1327464788732394
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.05494999999999997
+            "mean": 0.05494999999999997,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.006736111111111095,
-              0.13382978723404254
+              0.006610169491525408,
+              0.12788461538461537
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.05009999999999999
+            "mean": 0.05009999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0022448979591836583,
-              0.12863013698630135
+              0.0021238938053097164,
+              0.12261904761904759
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.045249999999999985
+            "mean": 0.045249999999999985,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.002040816326530627,
-              0.1236619718309859
+              -0.0022794117647058918,
+              0.11722222222222219
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.04039999999999999
+            "mean": 0.04039999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.011756756756756774,
-              0.114
+              -0.011769230769230778,
+              0.10702702702702703
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.03069999999999999
+            "mean": 0.03069999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0221167883211679,
-              0.10310344827586204
+              -0.02200000000000001,
+              0.09666666666666665
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.020999999999999987
+            "mean": 0.020999999999999987,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -3871,6 +4089,7 @@
         "entry_spread_below_fees_plus_ticks": 76,
         "entry_spread_below_two_fees": 304,
         "no_snapshot_within_horizon": 123,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 1,
@@ -3897,6 +4116,8 @@
           "n_filled_legs": 96
         }
       },
+      "median_entry_spread": 0.07,
+      "median_ttc_hours_entry": 23.651388161666667,
       "n_distinct_entry_timestamps": 47,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -3907,86 +4128,96 @@
         "ladder": [
           {
             "ci95": [
-              0.0017073170731707198,
-              0.14238095238095236
+              -5.742532885992189e-18,
+              0.14099999999999996
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.05792682926829267
+            "mean": 0.05792682926829267,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0014788732394366258,
-              0.13741935483870968
+              -0.0035714285714285835,
+              0.13596774193548386
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.05353658536585366
+            "mean": 0.05353658536585366,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.005151515151515162,
-              0.13266666666666663
+              -0.007325581395348841,
+              0.13158730158730159
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.04914634146341463
+            "mean": 0.04914634146341463,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.008369565217391328,
-              0.12749999999999992
+              -0.01068181818181819,
+              0.1268333333333333
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.04475609756097559
+            "mean": 0.04475609756097559,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.012272727272727286,
-              0.12233333333333332
+              -0.014489795918367368,
+              0.12199999999999996
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.04036585365853657
+            "mean": 0.04036585365853657,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.016573033707865177,
-              0.1179807692307692
+              -0.01818840579710146,
+              0.11720338983050847
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.035975609756097544
+            "mean": 0.035975609756097544,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.020980392156862773,
-              0.11439024390243899
+              -0.02205882352941179,
+              0.1123076923076923
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.031585365853658516
+            "mean": 0.031585365853658516,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.02983050847457628,
-              0.1039285714285714
+              -0.030731707317073188,
+              0.10399999999999995
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.022804878048780473
+            "mean": 0.022804878048780473,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.038928571428571444,
-              0.09499999999999996
+              -0.03948717948717951,
+              0.09509803921568626
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.014024390243902422
+            "mean": 0.014024390243902422,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -4099,6 +4330,7 @@
         "entry_spread_below_fees_plus_ticks": 94,
         "entry_spread_below_two_fees": 304,
         "no_snapshot_within_horizon": 123,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 2,
@@ -4125,6 +4357,8 @@
           "n_filled_legs": 72
         }
       },
+      "median_entry_spread": 0.1,
+      "median_ttc_hours_entry": 23.709616410277782,
       "n_distinct_entry_timestamps": 36,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -5.742532885992189e-18 not > 0"
@@ -4135,86 +4369,96 @@
         "ladder": [
           {
             "ci95": [
-              0.006909090909090897,
-              0.18055555555555555
+              0.006603773584905659,
+              0.17705882352941174
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.06640625
+            "mean": 0.06640625,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.003958333333333328,
-              0.17411764705882352
+              0.0039166666666666594,
+              0.17119047619047617
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.06187499999999999
+            "mean": 0.06187499999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0017073170731707252,
-              0.16764705882352945
+              0.0016666666666666607,
+              0.1657142857142857
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.05734375
+            "mean": 0.05734375,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.000583333333333344,
-              0.1611764705882353
+              -0.001158536585365862,
+              0.1602380952380952
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.052812499999999984
+            "mean": 0.052812499999999984,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0036111111111111144,
-              0.15476190476190474
+              -0.003611111111111136,
+              0.1547058823529411
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.04828124999999999
+            "mean": 0.04828124999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.006333333333333351,
-              0.14942307692307694
+              -0.006772151898734185,
+              0.14823529411764702
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.04374999999999999
+            "mean": 0.04374999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.01000000000000001,
-              0.1452941176470588
+              -0.010000000000000009,
+              0.14346153846153845
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.03921874999999999
+            "mean": 0.03921874999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.018048780487804884,
-              0.13388888888888886
+              -0.017454545454545466,
+              0.1329411764705882
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.030156249999999985
+            "mean": 0.030156249999999985,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.025614035087719304,
-              0.12346153846153846
+              -0.0256140350877193,
+              0.1222222222222222
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.021093749999999994
+            "mean": 0.021093749999999994,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -4329,6 +4573,7 @@
         "entry_spread_below_fees_plus_ticks": 112,
         "entry_spread_below_two_fees": 304,
         "no_snapshot_within_horizon": 123,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 3,
@@ -4355,6 +4600,8 @@
           "n_filled_legs": 58
         }
       },
+      "median_entry_spread": 0.205,
+      "median_ttc_hours_entry": 23.73860745375,
       "n_distinct_entry_timestamps": 25,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=7 < 10 (L41 floor)"
@@ -4370,7 +4617,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.06018181818181818
+            "mean": 0.06018181818181818,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -4379,7 +4627,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.055818181818181815
+            "mean": 0.055818181818181815,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -4388,7 +4637,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.05145454545454545
+            "mean": 0.05145454545454545,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -4397,7 +4647,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.04709090909090908
+            "mean": 0.04709090909090908,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -4406,25 +4657,28 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.04272727272727272
+            "mean": 0.04272727272727272,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.007833333333333331,
+              -0.007771084337349398,
               0.13766666666666666
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.03836363636363636
+            "mean": 0.03836363636363636,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.010666666666666661,
+              -0.010000000000000012,
               0.13266666666666665
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.03399999999999999
+            "mean": 0.03399999999999999,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -4433,7 +4687,8 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.025272727272727263
+            "mean": 0.025272727272727263,
+            "n_boot": 10000
           },
           {
             "ci95": [
@@ -4442,9 +4697,11 @@
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.016545454545454537
+            "mean": 0.016545454545454537,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -4559,6 +4816,7 @@
         "entry_spread_below_fees_plus_ticks": 121,
         "entry_spread_below_two_fees": 304,
         "no_snapshot_within_horizon": 123,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 5,
@@ -4585,6 +4843,8 @@
           "n_filled_legs": 48
         }
       },
+      "median_entry_spread": 0.27999999999999997,
+      "median_ttc_hours_entry": 23.73888816166667,
       "n_distinct_entry_timestamps": 24,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=5 < 10 (L41 floor)"
@@ -4595,86 +4855,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.011527377521613836,
-              0.08683246073298426
+              -0.010478468899521535,
+              0.08594827586206896
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.03067961165048542
+            "mean": 0.03067961165048542,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.01766323024054983,
-              0.07919354838709677
+              -0.016789473684210528,
+              0.07863496932515338
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.023964401294498377
+            "mean": 0.023964401294498377,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.02366197183098592,
-              0.0718548387096774
+              -0.023032581453634092,
+              0.07134259259259258
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.01724919093851132
+            "mean": 0.01724919093851132,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.029969696969696983,
-              0.06428571428571427
+              -0.029316628701594537,
+              0.06386986301369861
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.010533980582524262
+            "mean": 0.010533980582524262,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03634146341463416,
-              0.05637614678899082
+              -0.03533582089552239,
+              0.05627659574468086
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.0038187702265372065
+            "mean": 0.0038187702265372065,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.042109634551495016,
-              0.049380952380952366
+              -0.041666666666666664,
+              0.048809523809523796
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": -0.00289644012944984
+            "mean": -0.00289644012944984,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04876811594202899,
-              0.041979166666666665
+              -0.04786096256684493,
+              0.04138036809815952
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": -0.009611650485436902
+            "mean": -0.009611650485436902,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.06138957816377172,
-              0.0270242214532872
+              -0.06059190031152649,
+              0.026488888888888888
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.023042071197411
+            "mean": -0.023042071197411,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.07422459893048126,
-              0.012912621359223301
+              -0.07342679127725855,
+              0.01208333333333333
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.03647249190938512
+            "mean": -0.03647249190938512,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -4786,6 +5056,7 @@
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 261,
         "no_snapshot_within_horizon": 33,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 0,
@@ -4812,6 +5083,8 @@
           "n_filled_legs": 406
         }
       },
+      "median_entry_spread": 0.03999999999999998,
+      "median_ttc_hours_entry": 35.612724675277775,
       "n_distinct_entry_timestamps": 67,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.010478468899521535 not > 0"
@@ -4822,86 +5095,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.0209056603773585,
-              0.10636363636363634
+              -0.02120879120879121,
+              0.10739130434782605
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.040047846889952124
+            "mean": 0.040047846889952124,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.026489361702127654,
-              0.09912322274881516
+              -0.026525423728813557,
+              0.09969325153374232
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.03363636363636364
+            "mean": 0.03363636363636364,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03175531914893618,
-              0.09171779141104291
+              -0.03199335548172759,
+              0.09217777777777778
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.02722488038277511
+            "mean": 0.02722488038277511,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03743362831858408,
-              0.08438202247191011
+              -0.037649006622516565,
+              0.08458149779735682
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.02081339712918659
+            "mean": 0.02081339712918659,
+            "n_boot": 10000
           },
           {
             "ci95": [
               -0.04314655172413794,
-              0.07693181818181817
+              0.07723300970873787
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.014401913875598074
+            "mean": 0.014401913875598074,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.048625429553264626,
-              0.06941588785046729
+              -0.04874316939890713,
+              0.06983606557377048
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.007990430622009553
+            "mean": 0.007990430622009553,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.05418103448275864,
-              0.06245283018867925
+              -0.0545217391304348,
+              0.06259493670886077
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.0015789473684210435
+            "mean": 0.0015789473684210435,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.06599999999999999,
-              0.0472680412371134
+              -0.06614457831325303,
+              0.047732793522267204
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.011244019138755983
+            "mean": -0.011244019138755983,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0778490566037736,
-              0.0334156378600823
+              -0.0779375,
+              0.033631578947368415
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.024066985645933025
+            "mean": -0.024066985645933025,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -5013,6 +5296,7 @@
         "entry_spread_below_fees_plus_ticks": 100,
         "entry_spread_below_two_fees": 261,
         "no_snapshot_within_horizon": 33,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 1,
@@ -5039,6 +5323,8 @@
           "n_filled_legs": 268
         }
       },
+      "median_entry_spread": 0.06,
+      "median_ttc_hours_entry": 35.616961259722224,
       "n_distinct_entry_timestamps": 57,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.02120879120879121 not > 0"
@@ -5049,86 +5335,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.008674033149171275,
-              0.11506329113924048
+              -0.007799999999999994,
+              0.11488188976377951
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.050606060606060585
+            "mean": 0.050606060606060585,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.014208144796380103,
-              0.10765873015873016
+              -0.012960526315789483,
+              0.10746875
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.04439393939393938
+            "mean": 0.04439393939393938,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.01968586387434557,
-              0.10006451612903226
+              -0.018079268292682946,
+              0.09988764044943822
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.03818181818181818
+            "mean": 0.03818181818181818,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.02455497382198953,
-              0.0925296442687747
+              -0.023636363636363646,
+              0.0925874125874126
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.03196969696969696
+            "mean": 0.03196969696969696,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.030221238938053126,
-              0.0853968253968254
+              -0.02874172185430466,
+              0.08526315789473685
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.025757575757575743
+            "mean": 0.025757575757575743,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.035309734513274356,
-              0.07836787564766838
+              -0.034132420091324216,
+              0.07793103448275863
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.019545454545454536
+            "mean": 0.019545454545454536,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04056603773584908,
-              0.07103626943005184
+              -0.039677419354838726,
+              0.07055555555555558
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.013333333333333324
+            "mean": 0.013333333333333324,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0518238993710692,
-              0.056266666666666666
+              -0.05072368421052634,
+              0.05573426573426573
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.0009090909090908994
+            "mean": 0.0009090909090908994,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.06293269230769231,
-              0.042090909090909095
+              -0.06175182481751825,
+              0.04151515151515152
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.011515151515151523
+            "mean": -0.011515151515151523,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -5241,6 +5537,7 @@
         "entry_spread_below_fees_plus_ticks": 144,
         "entry_spread_below_two_fees": 261,
         "no_snapshot_within_horizon": 33,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 2,
@@ -5267,6 +5564,8 @@
           "n_filled_legs": 205
         }
       },
+      "median_entry_spread": 0.07,
+      "median_ttc_hours_entry": 35.615255059166664,
       "n_distinct_entry_timestamps": 43,
       "verdict": "DEAD-by-CI",
       "verdict_reason": "strategy-level 95% CI lower bound -0.007799999999999994 not > 0"
@@ -5277,86 +5576,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.02834782608695653,
-              0.11248322147650998
+              -0.02789156626506025,
+              0.11207407407407403
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.04358208955223879
+            "mean": 0.04358208955223879,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03329411764705884,
-              0.10491869918699187
+              -0.033042168674698814,
+              0.103986013986014
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.037313432835820885
+            "mean": 0.037313432835820885,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.038217054263565906,
-              0.09712499999999999
+              -0.03805555555555557,
+              0.09591666666666666
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.031044776119402973
+            "mean": 0.031044776119402973,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.043203883495145624,
-              0.08926991150442476
+              -0.04297169811320755,
+              0.08821621621621618
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.024776119402985065
+            "mean": 0.024776119402985065,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.048494623655914,
-              0.08131782945736436
+              -0.0481818181818182,
+              0.08041379310344828
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.01850746268656716
+            "mean": 0.01850746268656716,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.053725490196078446,
-              0.07329999999999999
+              -0.053517241379310354,
+              0.07302030456852791
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.012238805970149246
+            "mean": 0.012238805970149246,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.05950000000000001,
-              0.0659124087591241
+              -0.058906250000000014,
+              0.06533742331288345
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.005970149253731337
+            "mean": 0.005970149253731337,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0708139534883721,
-              0.05031999999999999
+              -0.07013605442176872,
+              0.05000000000000001
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.00656716417910449
+            "mean": -0.00656716417910449,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.08192660550458719,
-              0.03473118279569892
+              -0.08141104294478528,
+              0.034755244755244746
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.019104477611940302
+            "mean": -0.019104477611940302,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -5471,6 +5780,7 @@
         "entry_spread_below_fees_plus_ticks": 175,
         "entry_spread_below_two_fees": 261,
         "no_snapshot_within_horizon": 33,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 3,
@@ -5497,6 +5807,8 @@
           "n_filled_legs": 168
         }
       },
+      "median_entry_spread": 0.09999999999999998,
+      "median_ttc_hours_entry": 35.61316561694444,
       "n_distinct_entry_timestamps": 36,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=9 < 10 (L41 floor)"
@@ -5507,86 +5819,96 @@
         "ladder": [
           {
             "ci95": [
-              -0.051379310344827595,
-              0.11777777777777773
+              -0.05140350877192983,
+              0.11769230769230764
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.054693877551020384
+            "mean": 0.054693877551020384,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.055967741935483865,
-              0.10960317460317458
+              -0.056136363636363644,
+              0.10941747572815536
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.04841836734693877
+            "mean": 0.04841836734693877,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.061612903225806454,
-              0.1012162162162162
+              -0.06113207547169812,
+              0.10135922330097087
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.042142857142857135
+            "mean": 0.042142857142857135,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.06666666666666668,
-              0.0931862745098039
+              -0.06587301587301589,
+              0.09320987654320986
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.035867346938775496
+            "mean": 0.035867346938775496,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0711864406779661,
-              0.0850793650793651
+              -0.07050000000000002,
+              0.08521276595744683
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.029591836734693875
+            "mean": 0.029591836734693875,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.07607843137254904,
-              0.07738938053097344
+              -0.07582089552238809,
+              0.07713953488372094
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.023316326530612237
+            "mean": 0.023316326530612237,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.08205479452054795,
-              0.06975206611570249
+              -0.0812857142857143,
+              0.06945205479452057
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.017040816326530612
+            "mean": 0.017040816326530612,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.09316455696202532,
-              0.05414141414141416
+              -0.09222222222222222,
+              0.05381818181818183
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.0044897959183673435
+            "mean": 0.0044897959183673435,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.10619047619047617,
-              0.03854304635761589
+              -0.10465517241379309,
+              0.03843537414965986
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.008061224489795921
+            "mean": -0.008061224489795921,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -5701,6 +6023,7 @@
         "entry_spread_below_fees_plus_ticks": 211,
         "entry_spread_below_two_fees": 261,
         "no_snapshot_within_horizon": 33,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 5,
@@ -5727,6 +6050,8 @@
           "n_filled_legs": 123
         }
       },
+      "median_entry_spread": 0.16999999999999998,
+      "median_ttc_hours_entry": 35.5911557775,
       "n_distinct_entry_timestamps": 28,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=9 < 10 (L41 floor)"
@@ -5737,86 +6062,96 @@
         "ladder": [
           {
             "ci95": [
-              0.01333333333333333,
-              0.10680898876404486
+              0.01342541436464088,
+              0.10473933649289095
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.048715083798882675
+            "mean": 0.048715083798882675,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.007051282051282048,
-              0.09954545454545453
+              0.007292161520190018,
+              0.0975592417061611
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.042081005586592175
+            "mean": 0.042081005586592175,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0009470752089136438,
-              0.09251685393258426
+              0.00121527777777777,
+              0.09017142857142856
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.03544692737430168
+            "mean": 0.03544692737430168,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0050204918032787016,
-              0.08541297935103244
+              -0.0048648648648648785,
+              0.08292372881355929
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.028812849162011153
+            "mean": 0.028812849162011153,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.011137931034482771,
-              0.07843657817109144
+              -0.011013333333333347,
+              0.07546341463414634
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.022178770949720664
+            "mean": 0.022178770949720664,
+            "n_boot": 10000
           },
           {
             "ci95": [
               -0.017404214559386986,
-              0.07142405063291138
+              0.06820621468926552
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.01554469273743016
+            "mean": 0.01554469273743016,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.023678160919540232,
-              0.06389743589743589
+              -0.023625000000000014,
+              0.061176470588235284
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.008910614525139662
+            "mean": 0.008910614525139662,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.036338461538461556,
-              0.049842271293375366
+              -0.036140939597315444,
+              0.046567164179104455
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": -0.00435754189944135
+            "mean": -0.00435754189944135,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04916356877323421,
-              0.03434027777777778
+              -0.04897506925207757,
+              0.03210256410256409
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": -0.017625698324022353
+            "mean": -0.017625698324022353,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -5928,6 +6263,7 @@
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 232,
         "no_snapshot_within_horizon": 13,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 0,
@@ -5954,6 +6290,8 @@
           "n_filled_legs": 465
         }
       },
+      "median_entry_spread": 0.059999999999999956,
+      "median_ttc_hours_entry": 47.26530892805555,
       "n_distinct_entry_timestamps": 52,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -5964,86 +6302,96 @@
         "ladder": [
           {
             "ci95": [
-              0.022727272727272724,
-              0.13217543859649117
+              0.02325077399380805,
+              0.13132352941176462
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.06733096085409251
+            "mean": 0.06733096085409251,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.017022292993630568,
-              0.12475352112676054
+              0.01754295532646048,
+              0.12395220588235292
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.060960854092526676
+            "mean": 0.060960854092526676,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.011286407766990282,
-              0.11744479495268138
+              0.011610942249240114,
+              0.11646739130434784
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.05459074733096085
+            "mean": 0.05459074733096085,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.00545999999999999,
-              0.10996323529411763
+              0.005982758620689649,
+              0.10906565656565655
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.048220640569395
+            "mean": 0.048220640569395,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0005281690140845112,
-              0.10254826254826255
+              5.0890585241722626e-05,
+              0.10161764705882353
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.041850533807829174
+            "mean": 0.041850533807829174,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.006210762331838578,
-              0.09518382352941177
+              -0.005940766550522657,
+              0.0943859649122807
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.035480427046263335
+            "mean": 0.035480427046263335,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.012030848329048856,
-              0.08803088803088804
+              -0.01175324675324676,
+              0.08703862660944206
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.029110320284697497
+            "mean": 0.029110320284697497,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.02402877697841728,
-              0.07344827586206894
+              -0.023690140845070432,
+              0.07235294117647058
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.01637010676156583
+            "mean": 0.01637010676156583,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03632458233890215,
-              0.05870662460567823
+              -0.035650969529085884,
+              0.057993079584775065
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.0036298932384341573
+            "mean": 0.0036298932384341573,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -6155,6 +6503,7 @@
         "entry_spread_below_fees_plus_ticks": 77,
         "entry_spread_below_two_fees": 232,
         "no_snapshot_within_horizon": 13,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 1,
@@ -6181,6 +6530,8 @@
           "n_filled_legs": 356
         }
       },
+      "median_entry_spread": 0.06999999999999998,
+      "median_ttc_hours_entry": 47.57550414805555,
       "n_distinct_entry_timestamps": 46,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -6191,86 +6542,96 @@
         "ladder": [
           {
             "ci95": [
-              0.02287272727272727,
-              0.16076271186440674
+              0.022122641509433955,
+              0.15987903225806446
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.07823770491803278
+            "mean": 0.07823770491803278,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.01766666666666666,
-              0.15324200913242006
+              0.016727019498607245,
+              0.15217391304347827
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.07206967213114751
+            "mean": 0.07206967213114751,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.012121212121212113,
-              0.14565217391304344
+              0.011547987616099063,
+              0.14517985611510792
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.06590163934426228
+            "mean": 0.06590163934426228,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.00658227848101265,
-              0.13835227272727268
+              0.006215686274509799,
+              0.13774074074074072
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.05973360655737704
+            "mean": 0.05973360655737704,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0010526315789473593,
-              0.13050632911392404
+              0.0009689922480620056,
+              0.13021582733812948
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.0535655737704918
+            "mean": 0.0535655737704918,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.00421370967741937,
-              0.12273381294964028
+              -0.004356435643564372,
+              0.12255707762557078
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.04739754098360655
+            "mean": 0.04739754098360655,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.009852941176470599,
+              -0.010028818443804053,
               0.11525179856115107
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.04122950819672129
+            "mean": 0.04122950819672129,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.021102362204724428,
-              0.1003864734299517
+              -0.021094339622641525,
+              0.10042452830188678
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.028893442622950804
+            "mean": 0.028893442622950804,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0318543046357616,
-              0.08567251461988304
+              -0.03215753424657535,
+              0.08584905660377358
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.016557377049180314
+            "mean": 0.016557377049180314,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -6382,6 +6743,7 @@
         "entry_spread_below_fees_plus_ticks": 114,
         "entry_spread_below_two_fees": 232,
         "no_snapshot_within_horizon": 13,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 2,
@@ -6408,6 +6770,8 @@
           "n_filled_legs": 299
         }
       },
+      "median_entry_spread": 0.07000000000000003,
+      "median_ttc_hours_entry": 47.576062845833334,
       "n_distinct_entry_timestamps": 39,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -6418,86 +6782,96 @@
         "ladder": [
           {
             "ci95": [
-              0.018465116279069767,
-              0.1593859649122807
+              0.018610038610038623,
+              0.15919354838709668
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.07586538461538458
+            "mean": 0.07586538461538458,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.013354700854700849,
-              0.1517307692307692
+              0.013446969696969692,
+              0.15165714285714282
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.06978365384615383
+            "mean": 0.06978365384615383,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.008458498023715401,
-              0.1442857142857143
+              0.008221343873517776,
+              0.14419354838709678
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.06370192307692307
+            "mean": 0.06370192307692307,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.003288888888888877,
-              0.13691542288557212
+              0.003069306930693059,
+              0.13661392405063288
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.05762019230769229
+            "mean": 0.05762019230769229,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0019512195121951295,
-              0.12919354838709673
+              -0.00222222222222223,
+              0.12907142857142856
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.05153846153846153
+            "mean": 0.05153846153846153,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.007265625000000013,
-              0.1214390243902439
+              -0.007489626556016613,
+              0.12136075949367087
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.04545673076923076
+            "mean": 0.04545673076923076,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.01265116279069768,
-              0.11373417721518989
+              -0.01284552845528456,
+              0.11372262773722631
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.039375
+            "mean": 0.039375,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.023127572016460908,
-              0.09848101265822784
+              -0.023381818181818188,
+              0.09851612903225805
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.027211538461538454
+            "mean": 0.027211538461538454,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03412162162162163,
-              0.08401869158878505
+              -0.0343603133159269,
+              0.08344262295081968
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.015048076923076923
+            "mean": 0.015048076923076923,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -6610,6 +6984,7 @@
         "entry_spread_below_fees_plus_ticks": 150,
         "entry_spread_below_two_fees": 232,
         "no_snapshot_within_horizon": 13,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 3,
@@ -6636,6 +7011,8 @@
           "n_filled_legs": 251
         }
       },
+      "median_entry_spread": 0.08999999999999997,
+      "median_ttc_hours_entry": 47.57342880416667,
       "n_distinct_entry_timestamps": 34,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -6646,86 +7023,96 @@
         "ladder": [
           {
             "ci95": [
-              0.028074074074074074,
-              0.16706185567010304
+              0.02794117647058824,
+              0.1671491228070175
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.09509933774834434
+            "mean": 0.09509933774834434,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.024292452830188677,
-              0.1593041237113402
+              0.024360902255639093,
+              0.15942708333333333
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.08933774834437085
+            "mean": 0.08933774834437085,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.02051851851851851,
-              0.15154639175257734
+              0.020526315789473677,
+              0.15174603174603177
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.08357615894039735
+            "mean": 0.08357615894039735,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.016682242990654194,
-              0.14374999999999993
+              0.016893939393939388,
+              0.14386266094420597
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.07781456953642382
+            "mean": 0.07781456953642382,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.012719999999999995,
-              0.1357142857142857
+              0.012888888888888887,
+              0.13610738255033553
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.07205298013245033
+            "mean": 0.07205298013245033,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.008897435897435888,
-              0.1278523489932886
+              0.009183673469387746,
+              0.128475935828877
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.06629139072847681
+            "mean": 0.06629139072847681,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0049468085106382925,
-              0.12036290322580644
+              0.005146198830409348,
+              0.12103626943005182
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.060529801324503314
+            "mean": 0.060529801324503314,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0034161490683229864,
-              0.10524193548387097
+              -0.002960000000000007,
+              0.1062096774193548
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.049006622516556284
+            "mean": 0.049006622516556284,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.012014925373134339,
-              0.09040935672514619
+              -0.011590909090909101,
+              0.0908994708994709
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.03748344370860926
+            "mean": 0.03748344370860926,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -6840,6 +7227,7 @@
         "entry_spread_below_fees_plus_ticks": 207,
         "entry_spread_below_two_fees": 232,
         "no_snapshot_within_horizon": 13,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 5,
@@ -6866,6 +7254,8 @@
           "n_filled_legs": 173
         }
       },
+      "median_entry_spread": 0.24,
+      "median_ttc_hours_entry": 42.94678424916667,
       "n_distinct_entry_timestamps": 27,
       "verdict": "DEAD-by-adequacy",
       "verdict_reason": "n_units_series=9 < 10 (L41 floor)"
@@ -6876,86 +7266,96 @@
         "ladder": [
           {
             "ci95": [
-              0.019047619047619046,
-              0.16303167420814477
+              0.019981060606060606,
+              0.1587158469945355
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.0768321513002364
+            "mean": 0.0768321513002364,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.012740740740740742,
-              0.1557049608355091
+              0.013587127158555727,
+              0.15138814016172503
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.07010638297872339
+            "mean": 0.07010638297872339,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.006344827586206892,
-              0.1486684073107049
+              0.007227036395147312,
+              0.1437577002053388
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.06338061465721039
+            "mean": 0.06338061465721039,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.00010956175298805139,
-              0.14126623376623376
+              0.0007902735562309963,
+              0.13669270833333327
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.05665484633569739
+            "mean": 0.05665484633569739,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.00643426294820718,
-              0.13372460496614
+              -0.005625000000000015,
+              0.12954446854663773
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.04992907801418439
+            "mean": 0.04992907801418439,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.012845528455284567,
-              0.12627177700348424
+              -0.011911314984709495,
+              0.12279094827586202
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.04320330969267137
+            "mean": 0.04320330969267137,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.019268292682926833,
-              0.11891252955082746
+              -0.0181851851851852,
+              0.11541176470588234
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.03647754137115839
+            "mean": 0.03647754137115839,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.03201535508637237,
-              0.10391780821917808
+              -0.030914893617021287,
+              0.10107142857142858
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.023026004728132387
+            "mean": 0.023026004728132387,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.04486772486772487,
-              0.09029154518950434
+              -0.0437190082644628,
+              0.08696428571428569
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.009574468085106378
+            "mean": 0.009574468085106378,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -7067,6 +7467,7 @@
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 180,
         "no_snapshot_within_horizon": 0,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 0,
@@ -7093,6 +7494,8 @@
           "n_filled_legs": 557
         }
       },
+      "median_entry_spread": 0.06,
+      "median_ttc_hours_entry": 49.65097102166667,
       "n_distinct_entry_timestamps": 44,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -7103,86 +7506,96 @@
         "ladder": [
           {
             "ci95": [
-              0.03112676056338027,
-              0.1817066666666667
+              0.03186666666666667,
+              0.17871934604904632
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.09523943661971832
+            "mean": 0.09523943661971832,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0247945205479452,
-              0.17494666666666667
+              0.02590579710144927,
+              0.17163793103448277
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.08869014084507042
+            "mean": 0.08869014084507042,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.018657074340527578,
-              0.16818666666666668
+              0.019867986798679863,
+              0.16456204379562042
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.08214084507042252
+            "mean": 0.08214084507042252,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.012731092436974777,
-              0.16120743034055726
+              0.01378378378378377,
+              0.15727027027027024
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.07559154929577465
+            "mean": 0.07559154929577465,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.006709265175718846,
-              0.15378082191780823
+              0.007848101265822782,
+              0.15017241379310342
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.06904225352112675
+            "mean": 0.06904225352112675,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.000548780487804867,
-              0.14626843657817104
+              0.0017510548523206602,
+              0.14300225733634306
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.06249295774647885
+            "mean": 0.06249295774647885,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.005671641791044789,
-              0.13882191780821915
+              -0.004120879120879135,
+              0.13609053497942383
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.05594366197183096
+            "mean": 0.05594366197183096,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.01768518518518519,
-              0.12473684210526316
+              -0.01643382352941176,
+              0.12230452674897122
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.042845070422535214
+            "mean": 0.042845070422535214,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.029913419913419923,
-              0.11026666666666665
+              -0.02876,
+              0.10844357976653693
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.02974647887323942
+            "mean": 0.02974647887323942,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -7294,6 +7707,7 @@
         "entry_spread_below_fees_plus_ticks": 68,
         "entry_spread_below_two_fees": 180,
         "no_snapshot_within_horizon": 0,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 1,
@@ -7320,6 +7734,8 @@
           "n_filled_legs": 461
         }
       },
+      "median_entry_spread": 0.07,
+      "median_ttc_hours_entry": 50.175389437499994,
       "n_distinct_entry_timestamps": 43,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -7330,86 +7746,96 @@
         "ladder": [
           {
             "ci95": [
-              0.0367405063291139,
-              0.18456869009584664
+              0.035714285714285705,
+              0.18508532423208193
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.10377358490566038
+            "mean": 0.10377358490566038,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0313551401869159,
-              0.17756965944272446
+              0.030150214592274675,
+              0.178552036199095
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.09745283018867924
+            "mean": 0.09745283018867924,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.025710900473933644,
-              0.17052132701421802
+              0.02446745562130177,
+              0.17164596273291924
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.09113207547169812
+            "mean": 0.09113207547169812,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.020099999999999982,
-              0.16367374005305035
+              0.01918644067796608,
+              0.1646643109540636
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.08481132075471698
+            "mean": 0.08481132075471698,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.014663677130044838,
-              0.1566770186335404
+              0.013551401869158866,
+              0.15746701846965697
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.07849056603773585
+            "mean": 0.07849056603773585,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.009107142857142843,
-              0.1499242424242424
+              0.007973977695167271,
+              0.1505501618122977
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.07216981132075469
+            "mean": 0.07216981132075469,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.003322475570032558,
-              0.14269129287598944
+              0.00240259740259739,
+              0.14383838383838385
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.06584905660377358
+            "mean": 0.06584905660377358,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.008273615635179156,
-              0.12961661341853037
+              -0.00887096774193549,
+              0.1302463054187192
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.053207547169811326
+            "mean": 0.053207547169811326,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.01974468085106384,
-              0.11588089330024809
+              -0.020068259385665536,
+              0.11624390243902438
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.04056603773584904
+            "mean": 0.04056603773584904,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -7521,6 +7947,7 @@
         "entry_spread_below_fees_plus_ticks": 105,
         "entry_spread_below_two_fees": 180,
         "no_snapshot_within_horizon": 0,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 2,
@@ -7547,6 +7974,8 @@
           "n_filled_legs": 398
         }
       },
+      "median_entry_spread": 0.07,
+      "median_ttc_hours_entry": 52.419304355,
       "n_distinct_entry_timestamps": 41,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -7557,86 +7986,96 @@
         "ladder": [
           {
             "ci95": [
-              0.03330960854092526,
-              0.2032183908045977
+              0.033687315634218284,
+              0.20272727272727267
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.1155925925925926
+            "mean": 0.1155925925925926,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0283411214953271,
-              0.19605363984674326
+              0.02857777777777777,
+              0.1958050847457627
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.1094074074074074
+            "mean": 0.1094074074074074,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.02342342342342342,
-              0.1888888888888889
+              0.023555555555555552,
+              0.18885593220338984
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.10322222222222222
+            "mean": 0.10322222222222222,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.01869658119658119,
-              0.1815870307167235
+              0.0186200716845878,
+              0.18172413793103442
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.09703703703703702
+            "mean": 0.09703703703703702,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.013096085409252658,
-              0.17455938697318005
+              0.013192488262910787,
+              0.17456204379562043
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.09085185185185184
+            "mean": 0.09085185185185184,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.007463768115942014,
-              0.16743386243386235
+              0.008016528925619817,
+              0.16747175141242931
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.08466666666666664
+            "mean": 0.08466666666666664,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0027547169811320666,
-              0.16102439024390242
+              0.002873134328358199,
+              0.16068702290076337
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.07848148148148147
+            "mean": 0.07848148148148147,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.008069306930693071,
-              0.14761702127659576
+              -0.007625899280575541,
+              0.14682481751824816
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.06611111111111113
+            "mean": 0.06611111111111113,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.018779069767441862,
-              0.13397058823529406
+              -0.018548387096774192,
+              0.13326271186440675
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.05374074074074072
+            "mean": 0.05374074074074072,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -7749,6 +8188,7 @@
         "entry_spread_below_fees_plus_ticks": 153,
         "entry_spread_below_two_fees": 180,
         "no_snapshot_within_horizon": 0,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 3,
@@ -7775,6 +8215,8 @@
           "n_filled_legs": 330
         }
       },
+      "median_entry_spread": 0.08000000000000002,
+      "median_ttc_hours_entry": 58.76424983861111,
       "n_distinct_entry_timestamps": 38,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -7785,86 +8227,96 @@
         "ladder": [
           {
             "ci95": [
-              0.04253731343283582,
-              0.2327325581395349
+              0.040879999999999986,
+              0.23370748299319727
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.0,
-            "mean": 0.15120603015075376
+            "mean": 0.15120603015075376,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.03823529411764705,
-              0.22535123966942142
+              0.037028301886792445,
+              0.22661363636363632
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.005,
-            "mean": 0.1453517587939698
+            "mean": 0.1453517587939698,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.0344943820224719,
-              0.21776978417266188
+              0.03309278350515464,
+              0.21918674698795185
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.01,
-            "mean": 0.13949748743718593
+            "mean": 0.13949748743718593,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.03029126213592232,
-              0.21081661891117476
+              0.028975409836065575,
+              0.21212598425196846
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.015,
-            "mean": 0.133643216080402
+            "mean": 0.133643216080402,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.026,
-              0.20375
+              0.02481981981981982,
+              0.20452830188679244
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.02,
-            "mean": 0.1277889447236181
+            "mean": 0.1277889447236181,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.02203333333333333,
-              0.1967881944444444
+              0.02064285714285713,
+              0.19757377049180322
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.025,
-            "mean": 0.12193467336683413
+            "mean": 0.12193467336683413,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.017475728155339796,
-              0.18971608832807565
+              0.01635220125786162,
+              0.19081300813008129
             ],
             "clears": true,
             "haircut_per_filled_leg": 0.03,
-            "mean": 0.11608040201005024
+            "mean": 0.11608040201005024,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              0.00840490797546012,
-              0.1754426229508197
+              0.007251461988304084,
+              0.17690355329949242
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.04,
-            "mean": 0.10437185929648243
+            "mean": 0.10437185929648243,
+            "n_boot": 10000
           },
           {
             "ci95": [
-              -0.0009375000000000055,
-              0.16074468085106378
+              -0.001751824817518257,
+              0.16283720930232554
             ],
             "clears": false,
             "haircut_per_filled_leg": 0.05,
-            "mean": 0.09266331658291455
+            "mean": 0.09266331658291455,
+            "n_boot": 10000
           }
         ],
+        "n_boot": 10000,
         "note": "charge that flips the cell to DEAD; compare against the UNMEASURABLE adverse-selection term (L253) \u2014 orderbook_depth has no trade field"
       },
       "analysis": {
@@ -7977,6 +8429,7 @@
         "entry_spread_below_fees_plus_ticks": 224,
         "entry_spread_below_two_fees": 180,
         "no_snapshot_within_horizon": 0,
+        "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
       },
       "gate_extra_ticks": 5,
@@ -8003,6 +8456,8 @@
           "n_filled_legs": 231
         }
       },
+      "median_entry_spread": 0.29,
+      "median_ttc_hours_entry": 50.09815083833334,
       "n_distinct_entry_timestamps": 31,
       "verdict": "ALIVE-CANDIDATE",
       "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
@@ -8039,6 +8494,7 @@
     "note": "Q49's own earliest-pre-close-entry build over the identical tape, for population comparison only"
   },
   "question": "does the S68 both-bid maker capture clear a block-bootstrapped-by-series 95% CI > 0 under a fees-plus-N-ticks gate (L252) and the first-snapshot-with-ttc<=H entry rule (L251)?",
+  "robustness_artifact": "reports/q50_s68_gate_ladder_robustness.json",
   "settlement_stats": {
     "dropped_conflicting": 0,
     "dropped_non_binary": 0,

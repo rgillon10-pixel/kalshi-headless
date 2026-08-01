@@ -67,11 +67,22 @@ loading) is IMPORTED from the Q49 module rather than re-implemented — Q49's co
 verifier-CONFIRMED, and a second copy would be a second thing to get wrong. What is new here is
 only the ENTRY RULE and the GATE.
 
+ROBUSTNESS (added 2026-08-01 after the verifier pass — provenance fix)
+---------------------------------------------------------------------
+The first cut of this probe reported three "attacks that did NOT kill it" (leave-one-series-out,
+longshot-drop, price-offset placebo) as PROSE ONLY: no function, no flag, no artifact. A verifier
+had to re-derive them by hand, and in doing so found the longshot CI had been quoted at an
+undisclosed ``n_boot=4000`` while the headline used 10,000. Both defects are fixed here — the three
+attacks are re-runnable code (``leave_one_series_out``, ``drop_longshot_single_side``,
+``price_offset_placebo``, driven by ``run_robustness``), they run BY DEFAULT, they use the SAME
+``n_boot`` as the headline, and every reported number carries its own ``n_boot`` in the output.
+
 CLI (direct form is load-bearing per L232 — a repo-root conftest.py masks broken cross-script
 imports under pytest, so a green suite does not prove the CLI works)::
 
     python3 scripts/q50_s68_gate_ladder.py
     python3 scripts/q50_s68_gate_ladder.py --gate-ticks 0,1,2,3,5 --horizons 24,6
+    python3 scripts/q50_s68_gate_ladder.py --robustness-only     # the three attacks alone
 """
 from __future__ import annotations
 
@@ -106,6 +117,17 @@ MIN_DISTINCT_ENTRY_TS = 3
 
 ROWS_OUT = REPO_ROOT / "reports" / "q50_s68_gate_ladder_rows.jsonl"
 SUMMARY_OUT = REPO_ROOT / "reports" / "q50_s68_gate_ladder_summary.json"
+ROBUSTNESS_OUT = REPO_ROOT / "reports" / "q50_s68_gate_ladder_robustness.json"
+
+#: The cell the three robustness attacks are run against — the ladder's headline
+#: (H=24h entry, gate = fees + 1 tick), i.e. the ALIVE cell whose artifact status is the
+#: whole question. Overridable on the CLI.
+HEADLINE_HORIZON_H = 24.0
+HEADLINE_GATE_TICKS = 1
+#: A single-side fill at or below this price is the "longshot lottery" leg the drop-attack removes.
+LONGSHOT_MAX_PRICE = 0.30
+#: The placebo rests this far BELOW the entry best bid (negative = worse price, deeper queue).
+PLACEBO_OFFSET = -0.02
 
 
 # --------------------------------------------------------------------------- #
@@ -215,7 +237,7 @@ MARKOUT_HORIZONS_K: Tuple[int, ...] = (0, 1, 5, 10)
 
 
 def adverse_selection_breakeven(trades: Sequence[dict], model: str = PRIMARY_FILL_MODEL,
-                                n_boot: int = 4000,
+                                n_boot: int = 10000,
                                 grid: Sequence[float] = (0.0, 0.005, 0.01, 0.015, 0.02,
                                                          0.025, 0.03, 0.04, 0.05)
                                 ) -> Dict[str, Any]:
@@ -225,7 +247,11 @@ def adverse_selection_breakeven(trades: Sequence[dict], model: str = PRIMARY_FIL
 
     Returns the smallest grid `h` at which the CI no longer clears (>0 AND one tick), plus the
     whole ladder. A small break-even means the verdict is decided by an UNMEASURED term, which
-    is a data-adequacy statement, not an edge."""
+    is a data-adequacy statement, not an edge.
+
+    `n_boot` defaults to the headline's 10,000 and is echoed on every row of the returned
+    ladder — an earlier cut of this module defaulted to 4,000 here while the headline used
+    10,000, which is exactly the silent parameter drift a verifier caught in the finding."""
     from core.bootstrap import block_bootstrap, clears_tick_magnitude
 
     ladder = []
@@ -243,10 +269,10 @@ def adverse_selection_breakeven(trades: Sequence[dict], model: str = PRIMARY_FIL
         clears = (lo is not None and lo > 0.0
                   and clears_tick_magnitude(b["ci95"], tick=PRICE_TICK, min_ticks=1.0))
         ladder.append({"haircut_per_filled_leg": h, "mean": b["mean"], "ci95": b["ci95"],
-                       "clears": clears})
+                       "clears": clears, "n_boot": n_boot})
         if not clears and breakeven is None:
             breakeven = h
-    return {"breakeven_haircut_per_filled_leg": breakeven, "ladder": ladder,
+    return {"breakeven_haircut_per_filled_leg": breakeven, "ladder": ladder, "n_boot": n_boot,
             "note": ("charge that flips the cell to DEAD; compare against the UNMEASURABLE "
                      "adverse-selection term (L253) — orderbook_depth has no trade field")}
 
@@ -277,18 +303,25 @@ def _median_or_none(xs: Sequence[float]) -> Optional[float]:
 # Trade construction (same row schema as Q49 so `analyze_cut` consumes it unchanged)
 # --------------------------------------------------------------------------- #
 def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dict],
-                    horizon_hours: Optional[float], extra_ticks: int) -> Tuple[List[dict],
-                                                                               Dict[str, Any]]:
+                    horizon_hours: Optional[float], extra_ticks: int,
+                    price_offset: float = 0.0) -> Tuple[List[dict], Dict[str, Any]]:
     """One both-sides resting-maker trade per qualifying ticker, entered by the L251 rule and
     admitted by the L252 gate. The fill simulation runs over the snapshots FROM THE ENTRY INDEX
     ONWARD (we cannot observe queue departures before we have rested an order).
 
-    Every simulation/P&L primitive is the Q49 one, unchanged."""
+    Every simulation/P&L primitive is the Q49 one, unchanged.
+
+    `price_offset` (default 0.0 = the real behaviour) shifts BOTH resting prices away from the
+    entry best bid without changing the ADMISSION gate, so the placebo population is the same
+    set of books priced worse. `price_offset=-0.02` is the placebo attack: rest two ticks below
+    the touch, where a genuinely price-priority-aware fill model must almost never fill. A
+    candidate whose offset price is <= 0 is dropped (a zero/negative price is the ABSENCE of an
+    order, never a $0.00 fill — L1/L105) and counted in the funnel."""
     trades: List[dict] = []
     funnel = {"tickers_with_preclose": len(per_ticker), "no_snapshot_within_horizon": 0,
               "entry_missing_quote": 0, "entry_not_two_sided": 0,
               "entry_spread_below_two_fees": 0, "entry_spread_below_fees_plus_ticks": 0,
-              "entry_single_snapshot": 0, "candidates": 0}
+              "entry_single_snapshot": 0, "offset_price_non_positive": 0, "candidates": 0}
     for tk, all_snaps in sorted(per_ticker.items()):
         idx = select_entry_index(all_snaps, horizon_hours)
         if idx is None:
@@ -317,9 +350,14 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
             # which is NOT a fill (L86: never book an unmeasured leg as a free zero)
             funnel["entry_single_snapshot"] += 1
             continue
+
+        p_yes = round(float(yes_bid) + float(price_offset), 10)
+        p_no = round(float(no_bid) + float(price_offset), 10)
+        if p_yes <= 0.0 or p_no <= 0.0:
+            funnel["offset_price_non_positive"] += 1
+            continue
         funnel["candidates"] += 1
 
-        p_yes, p_no = float(yes_bid), float(no_bid)
         yes_ladders = [s["record"].get("yes_bids") for s in snaps]
         no_ladders = [s["record"].get("no_bids") for s in snaps]
         yes_best = [best_bid_of(s["record"].get("yes_bids"),
@@ -387,6 +425,7 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
             "n_snapshots_before_entry": idx,
             "yes_fill_price": p_yes,
             "no_fill_price": p_no,
+            "price_offset": float(price_offset),
             "entry_spread": gate["spread"],
             "required_spread": gate["required_spread"],
             "gate_extra_ticks": int(extra_ticks),
@@ -416,6 +455,262 @@ def distinct_entry_timestamps(trades: Sequence[dict]) -> int:
     """L251 artifact measure: how many DISTINCT capture instants the population's entries sit
     on. 1 means every 'candidate' was rested at the same moment (a tape-start artifact)."""
     return len({t["entry_captured_at"] for t in trades})
+
+
+# --------------------------------------------------------------------------- #
+# The three robustness attacks — RE-RUNNABLE CODE, not prose
+#
+# Provenance note (2026-08-01, post-verifier). These three checks were originally reported in
+# `findings/2026-08-01-q50-s68-tighter-gate-rederivation.md` as prose with no code behind them;
+# a verifier had to re-derive them by hand to confirm they were true, and found the longshot CI
+# had been computed at an undisclosed n_boot=4000 while the headline used 10,000. Per the repo's
+# own trust default ("no claim without a re-runnable script"), they are code now, they default to
+# the SAME n_boot as the headline, and every result dict carries its own `n_boot`.
+#
+# They are ATTACKS THAT FAILED TO KILL THE CELL. None of them is evidence FOR an edge — the cell
+# they are run against is DEAD on OTHER evidence: a flatten-at-cross exit treatment of the
+# unhedged single-side legs leaves every CI>0 cell straddling zero (L256), a zero-information
+# "mid-as-truth" control reproduces the same CI shape and sign (L255), and the L253 blindness
+# caveat bounds all three of these attacks anyway. Published so they are not re-run.
+# --------------------------------------------------------------------------- #
+def strategy_units_by_series(trades: Sequence[dict],
+                             model: str = PRIMARY_FILL_MODEL) -> Dict[str, List[float]]:
+    """The L249-correct bootstrap object, grouped by the L6/L41 unit (GAME-SERIES)."""
+    units: Dict[str, List[float]] = {}
+    for t in trades:
+        units.setdefault(t["series"], []).append(float(t["models"][model]["pnl_strategy_level"]))
+    return units
+
+
+def _boot_row(units: Dict[str, List[float]], n_boot: int) -> Dict[str, Any]:
+    from core.bootstrap import (block_bootstrap, bootstrap_verdict_admissible,
+                                clears_tick_magnitude)
+    b = block_bootstrap(units, n_boot=n_boot)
+    adm = bootstrap_verdict_admissible(units, min_units=MIN_CI_UNITS)
+    lo = b["ci95"][0]
+    return {"mean": b["mean"], "ci95": b["ci95"], "n_units_series": b["n_units"],
+            "n_obs": b["n_obs"], "n_boot": n_boot, "admissible": adm,
+            "ci_lower_positive": lo is not None and lo > 0.0,
+            "clears_tick_magnitude": clears_tick_magnitude(b["ci95"], tick=PRICE_TICK,
+                                                           min_ticks=1.0)}
+
+
+def leave_one_series_out(trades: Sequence[dict], model: str = PRIMARY_FILL_MODEL,
+                         n_boot: int = 10000) -> Dict[str, Any]:
+    """L57's jackknife: drop each GAME-SERIES in turn and re-bootstrap the remaining units.
+
+    A CI carried by a single series is a one-unit result wearing a bootstrap's clothes. Reports
+    every drop, plus how many drops keep the lower bound strictly > 0 (and how many additionally
+    clear the L27 one-tick gate). `n_boot` is echoed on every row."""
+    units = strategy_units_by_series(trades, model)
+    full = _boot_row(units, n_boot)
+    drops: List[Dict[str, Any]] = []
+    for s in sorted(units):
+        remaining = {k: v for k, v in units.items() if k != s}
+        row = _boot_row(remaining, n_boot)
+        row["dropped_series"] = s
+        row["n_obs_dropped"] = len(units[s])
+        drops.append(row)
+    positive = [d for d in drops if d["ci_lower_positive"]]
+    clearing = [d for d in drops if d["ci_lower_positive"] and d["clears_tick_magnitude"]]
+    lows = [d["ci95"][0] for d in drops if d["ci95"][0] is not None]
+    return {
+        "attack": "leave_one_series_out",
+        "n_boot": n_boot,
+        "full_population": full,
+        "n_series_dropped_one_at_a_time": len(drops),
+        "n_drops_ci_lower_positive": len(positive),
+        "n_drops_clearing_tick_gate": len(clearing),
+        "all_drops_keep_ci_positive": len(positive) == len(drops) and bool(drops),
+        "min_ci_lower_over_drops": min(lows) if lows else None,
+        "max_ci_lower_over_drops": max(lows) if lows else None,
+        "drops": drops,
+        "note": ("an attack that FAILED to kill the cell; it is not evidence for an edge — "
+                 "the cell dies to the flatten-at-cross exit treatment (L256) and is "
+                 "reproduced by the zero-information mid-as-truth control (L255)"),
+    }
+
+
+def single_side_fill_price(trade: dict, model: str = PRIMARY_FILL_MODEL) -> Optional[float]:
+    """The price of the UNHEDGED leg for a single-side fill; None for a double fill or a
+    no-fill (which are not single-side positions and are never dropped by the longshot attack)."""
+    cat = trade["models"][model]["fill_category"]
+    if cat == "yes_only":
+        return float(trade["yes_fill_price"])
+    if cat == "no_only":
+        return float(trade["no_fill_price"])
+    return None
+
+
+def drop_longshot_single_side(trades: Sequence[dict], model: str = PRIMARY_FILL_MODEL,
+                              n_boot: int = 10000,
+                              max_price: float = LONGSHOT_MAX_PRICE) -> Dict[str, Any]:
+    """Is the cell just a longshot lottery?  Drop every candidate whose realized fill is an
+    UNHEDGED single-side leg priced at or below `max_price` (cheap tickets whose rare $1 payout
+    is what a tail-driven mean is made of) and re-bootstrap what is left.
+
+    Double fills and no-fills are retained — they are not single-side positions. The dropped
+    UNITS are dropped whole (never zeroed: L86 — zeroing a leg fabricates a free outcome)."""
+    kept, dropped = [], []
+    for t in trades:
+        p = single_side_fill_price(t, model)
+        (dropped if (p is not None and p <= max_price + _EPS) else kept).append(t)
+    return {
+        "attack": "drop_longshot_single_side",
+        "n_boot": n_boot,
+        "max_price_dropped": max_price,
+        "n_trades_in": len(trades),
+        "n_dropped": len(dropped),
+        "n_kept": len(kept),
+        "dropped_mean_pnl": _mean_or_none(
+            [float(t["models"][model]["pnl_strategy_level"]) for t in dropped]),
+        "bootstrap_after_drop": _boot_row(strategy_units_by_series(kept, model), n_boot),
+        "note": ("an attack that FAILED to kill the cell; the retained population is still "
+                 "tail-shaped and still bounded by the unmeasurable adverse-selection term "
+                 "(L253)"),
+    }
+
+
+def price_offset_placebo(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dict],
+                         horizon_hours: Optional[float], extra_ticks: int,
+                         model: str = PRIMARY_FILL_MODEL, n_boot: int = 10000,
+                         offset: float = PLACEBO_OFFSET) -> Dict[str, Any]:
+    """Is the `touch` fill model price-sensitive, or is it a generic churn detector?
+
+    Re-rests the SAME admitted books `offset` away from the entry best bid (default two ticks
+    BELOW it) and re-simulates. A model with real price priority must see leg fill rates
+    collapse; a model that merely counts book churn would not notice. This is a discrimination
+    check on the INSTRUMENT — a collapse is a point in the fill model's favour and says nothing
+    about whether the strategy has an edge."""
+    base, base_funnel = build_trades_at(per_ticker, settlement, horizon_hours, extra_ticks, 0.0)
+    plac, plac_funnel = build_trades_at(per_ticker, settlement, horizon_hours, extra_ticks,
+                                        offset)
+
+    def rates(trades: Sequence[dict]) -> Dict[str, Any]:
+        n = len(trades)
+        return {
+            "n_candidates": n,
+            "yes_leg_fill_rate": (sum(1 for t in trades
+                                      if t["models"][model]["filled_yes"]) / n) if n else None,
+            "no_leg_fill_rate": (sum(1 for t in trades
+                                     if t["models"][model]["filled_no"]) / n) if n else None,
+            "both_fill_rate": (sum(1 for t in trades
+                                   if t["models"][model]["fill_category"] == "both")
+                               / n) if n else None,
+        }
+
+    return {
+        "attack": "price_offset_placebo",
+        "n_boot": n_boot,
+        "offset": offset,
+        "fill_model": model,
+        "baseline": rates(base),
+        "placebo": rates(plac),
+        "placebo_dropped_non_positive_price": plac_funnel["offset_price_non_positive"],
+        "baseline_funnel": base_funnel,
+        "bootstrap_placebo": _boot_row(strategy_units_by_series(plac, model), n_boot),
+        "fill_rate_collapsed": _rates_collapsed(rates(base), rates(plac)),
+        "note": ("a discrimination check on the FILL MODEL, not on the strategy: a collapse "
+                 "shows `touch` respects price priority (L250), nothing more"),
+    }
+
+
+def _rates_collapsed(base: Dict[str, Any], plac: Dict[str, Any],
+                     factor: float = 0.5) -> bool:
+    """True when BOTH leg fill rates fall to below `factor` x their baseline under the placebo
+    price. False (not an exception) when either rate is unmeasurable."""
+    for k in ("yes_leg_fill_rate", "no_leg_fill_rate"):
+        b, p = base.get(k), plac.get(k)
+        if b is None or p is None or b <= 0.0:
+            return False
+        if p >= factor * b:
+            return False
+    return True
+
+
+def _mean_or_none(xs: Sequence[float]) -> Optional[float]:
+    return (sum(xs) / len(xs)) if xs else None
+
+
+def run_robustness(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dict],
+                   horizon_hours: Optional[float] = HEADLINE_HORIZON_H,
+                   extra_ticks: int = HEADLINE_GATE_TICKS,
+                   model: str = PRIMARY_FILL_MODEL, n_boot: int = 10000) -> Dict[str, Any]:
+    """All three attacks against ONE cell, at the SAME `n_boot` as the headline (the defect a
+    verifier caught: the original longshot CI was silently computed at n_boot=4000)."""
+    trades, funnel = build_trades_at(per_ticker, settlement, horizon_hours, extra_ticks, 0.0)
+    return {
+        "cell": {"horizon_hours": horizon_hours, "gate_extra_ticks": extra_ticks,
+                 "fill_model": model, "n_candidates": len(trades),
+                 "n_series": len({t["series"] for t in trades}),
+                 "n_games": len({t["event_ticker"] for t in trades}),
+                 "n_distinct_entry_timestamps": distinct_entry_timestamps(trades),
+                 "median_ttc_hours_entry": _median_or_none(
+                     [float(t["ttc_hours_entry"]) for t in trades]),
+                 "median_entry_spread": _median_or_none(
+                     [float(t["entry_spread"]) for t in trades]),
+                 "funnel": funnel},
+        "n_boot": n_boot,
+        "bootstrap_unit": "game_series (L6/L41)",
+        "price_source_tags": {"fills": "real_bid", "queue_depth": "real_bid",
+                              "settlement": "broker_truth"},
+        "headline": _boot_row(strategy_units_by_series(trades, model), n_boot),
+        "leave_one_series_out": leave_one_series_out(trades, model, n_boot),
+        "drop_longshot_single_side": drop_longshot_single_side(trades, model, n_boot),
+        "price_offset_placebo": price_offset_placebo(per_ticker, settlement, horizon_hours,
+                                                     extra_ticks, model, n_boot),
+        "interpretation": ("ALL THREE ARE ATTACKS THAT FAILED. None is evidence for an edge. "
+                           "The cell is DEAD on other evidence: flatten-at-cross on the "
+                           "unhedged legs leaves the CI straddling zero (L256), a "
+                           "zero-information mid-as-truth control reproduces the same CI shape "
+                           "(L255), the estimate is monotone in the entry horizon and negative "
+                           "in the near-close windows (L254 — a spread-regime difference: the "
+                           "wide-spread population does not exist near close), and the verdict "
+                           "sits inside an adverse-selection term this depth-only tape cannot "
+                           "measure (L253)."),
+    }
+
+
+def print_robustness(rob: Dict[str, Any]) -> None:
+    c = rob["cell"]
+    nb = rob["n_boot"]
+    print("=" * 100)
+    print(f"ROBUSTNESS — attacks against H={c['horizon_hours']} N={c['gate_extra_ticks']} "
+          f"({c['n_candidates']} candidates / {c['n_series']} series / {c['n_games']} games, "
+          f"model={c['fill_model']})")
+    print(f"n_boot = {nb} for EVERY number below (same as the headline — no silent drift)")
+    print("=" * 100)
+    h = rob["headline"]
+    print(f"headline                 : mean {_f(h['mean'])} CI {_ci(h['ci95'])} "
+          f"units={h['n_units_series']} n={h['n_obs']} n_boot={h['n_boot']}")
+    print(f"median entry ttc         : {_f(c['median_ttc_hours_entry'], 2)}h   "
+          f"median entry spread: {_f(c['median_entry_spread'])}")
+    loo = rob["leave_one_series_out"]
+    print(f"leave-one-series-out     : {loo['n_drops_ci_lower_positive']}/"
+          f"{loo['n_series_dropped_one_at_a_time']} drops keep CI lower bound > 0 "
+          f"({loo['n_drops_clearing_tick_gate']} also clear the L27 tick gate); "
+          f"worst lower bound {_f(loo['min_ci_lower_over_drops'])}  n_boot={loo['n_boot']}")
+    for d in loo["drops"]:
+        print(f"    drop {d['dropped_series']:<14} n={d['n_obs_dropped']:>3} -> "
+              f"mean {_f(d['mean'])} CI {_ci(d['ci95'])}")
+    ls = rob["drop_longshot_single_side"]
+    b = ls["bootstrap_after_drop"]
+    print(f"longshot-drop (<= ${ls['max_price_dropped']:.2f} single-side): dropped "
+          f"{ls['n_dropped']}/{ls['n_trades_in']} -> mean {_f(b['mean'])} CI {_ci(b['ci95'])} "
+          f"units={b['n_units_series']} n={b['n_obs']} n_boot={b['n_boot']}")
+    pp = rob["price_offset_placebo"]
+    bl, pl = pp["baseline"], pp["placebo"]
+    print(f"price-offset placebo ({pp['offset']:+.2f}) : leg fill rates "
+          f"yes {_pct(bl['yes_leg_fill_rate'])} -> {_pct(pl['yes_leg_fill_rate'])}, "
+          f"no {_pct(bl['no_leg_fill_rate'])} -> {_pct(pl['no_leg_fill_rate'])}, "
+          f"both {_pct(bl['both_fill_rate'])} -> {_pct(pl['both_fill_rate'])} "
+          f"[collapsed={pp['fill_rate_collapsed']}]")
+    print()
+    print(rob["interpretation"])
+
+
+def _pct(x: Optional[float]) -> str:
+    return "n/a" if x is None else f"{x * 100:.0f}%"
 
 
 # --------------------------------------------------------------------------- #
@@ -449,8 +744,15 @@ def cell_verdict(cell: Dict[str, Any]) -> Tuple[str, str]:
 def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
         gate_ticks: Sequence[int] = DEFAULT_GATE_TICKS,
         horizons: Sequence[Optional[float]] = DEFAULT_HORIZONS_H,
-        model: str = PRIMARY_FILL_MODEL, n_boot: int = 10000) -> Dict[str, Any]:
-    """Load the tape once, then sweep the (N, H) ladder. READ-ONLY."""
+        model: str = PRIMARY_FILL_MODEL, n_boot: int = 10000,
+        robustness: bool = True,
+        robustness_cell: Tuple[Optional[float], int] = (HEADLINE_HORIZON_H,
+                                                        HEADLINE_GATE_TICKS)) -> Dict[str, Any]:
+    """Load the tape once, then sweep the (N, H) ladder. READ-ONLY.
+
+    `robustness=True` (default) additionally runs the three published attacks against
+    `robustness_cell` at the SAME `n_boot`, so a re-run reproduces them from code rather than
+    from the finding's prose."""
     from core.bootstrap import clears_tick_magnitude  # local: keeps module import light
 
     settlement, settle_stats = load_settlements(settlement_glob)
@@ -473,13 +775,22 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
                 "fill_model": model,
                 "funnel": cell_funnel,
                 "n_distinct_entry_timestamps": distinct_entry_timestamps(trades),
+                # the SPREAD REGIME of the cell's own entry books. Load-bearing for L254's
+                # corrected mechanism: the near-close cells sit at ~2 ticks (the Q49 fee
+                # boundary) while every CI>0 cell sits at 6-7 ticks — i.e. the wide-spread
+                # population this ladder is built to find does not exist near close.
+                "median_entry_spread": _median_or_none(
+                    [float(t["entry_spread"]) for t in trades]),
+                "median_ttc_hours_entry": _median_or_none(
+                    [float(t["ttc_hours_entry"]) for t in trades]),
                 "entry_timestamp_artifact_flag": (
                     len(trades) > 0
                     and distinct_entry_timestamps(trades) < MIN_DISTINCT_ENTRY_TS),
                 "clears_tick_magnitude_strategy": clears_tick_magnitude(
                     strat_ci, tick=PRICE_TICK, min_ticks=1.0),
                 "markouts_by_k": aggregate_markouts(trades),
-                "adverse_selection_breakeven": adverse_selection_breakeven(trades, model),
+                "adverse_selection_breakeven": adverse_selection_breakeven(
+                    trades, model, n_boot=n_boot),
                 "analysis": analysis,
             }
             v, why = cell_verdict(cell)
@@ -495,6 +806,8 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
                 all_rows.append(row)
 
     alive = [c for c in cells if c["verdict"] == "ALIVE-CANDIDATE"]
+    rob = (run_robustness(per_ticker, settlement, robustness_cell[0], robustness_cell[1],
+                          model=model, n_boot=n_boot) if robustness else None)
     return {
         "probe": "q50_s68_gate_ladder",
         "question": ("does the S68 both-bid maker capture clear a block-bootstrapped-by-series "
@@ -520,6 +833,7 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
                        "n_distinct_entry_timestamps": distinct_entry_timestamps(q49_trades)},
         "cells": cells,
         "rows": all_rows,
+        "robustness": rob,
         "any_alive_cell": bool(alive),
         "overall_verdict": ("ALIVE-CANDIDATE(S) PRESENT — requires independent verification"
                             if alive else "DEAD across every (N,H) cell"),
@@ -558,7 +872,8 @@ def print_report(rep: Dict[str, Any]) -> None:
           f"{q['n_distinct_entry_timestamps']} distinct entry instant(s)")
     print()
     hdr = (f"{'H':>5} {'N':>2} {'cands':>6} {'ser':>4} {'games':>6} {'entTS':>6} "
-           f"{'both%':>7} {'meanPnL':>9} {'CI95(strategy)':>21} {'adm':>4} {'tick':>5}  verdict")
+           f"{'medSpd':>7} {'both%':>7} {'meanPnL':>9} {'CI95(strategy)':>21} {'adm':>4} "
+           f"{'tick':>5}  verdict")
     print(hdr)
     print("-" * len(hdr))
     for c in rep["cells"]:
@@ -569,6 +884,7 @@ def print_report(rep: Dict[str, Any]) -> None:
         print(f"{str(c['horizon_hours']):>5} {c['gate_extra_ticks']:>2} {a['n_candidates']:>6} "
               f"{a['n_series']:>4} {a['n_games']:>6} "
               f"{str(c['n_distinct_entry_timestamps']) + flag:>6} "
+              f"{_f(c['median_entry_spread'], 3):>7} "
               f"{('n/a' if bf is None else f'{bf * 100:.1f}%'):>7} "
               f"{_f(st['mean']):>9} {_ci(st['ci95']):>21} "
               f"{'Y' if st['admissible']['admissible'] else 'N':>4} "
@@ -593,6 +909,7 @@ def print_report(rep: Dict[str, Any]) -> None:
     print("  CAVEAT: orderbook_depth has NO trade/volume field (L68/L106), so `touch` cannot")
     print("  tell a cancel from a trade — a blind proxy CANNOT exhibit adverse selection, so a")
     print("  non-negative markout here is NOT evidence that adverse selection is absent.")
+    print(f"  (break-even ladder bootstrapped at n_boot={rep['n_boot']}, same as the headline)")
     for c in rep["cells"]:
         if not (c["verdict"] == "ALIVE-CANDIDATE" or (c["gate_extra_ticks"] == 1
                                                       and c["horizon_hours"] == 24.0)):
@@ -604,7 +921,19 @@ def print_report(rep: Dict[str, Any]) -> None:
               + f"  | break-even adverse-selection charge = "
               + (f"{be * 100:.1f}c/filled leg" if be is not None else "never within grid"))
     print()
+    if rep.get("robustness"):
+        print_robustness(rep["robustness"])
+        print()
     print(f"OVERALL: {rep['overall_verdict']}")
+
+
+def _repo_relative(path: str) -> str:
+    """`path` expressed relative to the repo root when it lives inside it, else unchanged — a
+    committed report must not record one machine's absolute filesystem layout."""
+    try:
+        return str(Path(path).resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -619,18 +948,46 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--n-boot", type=int, default=10000)
     ap.add_argument("--rows-out", default=str(ROWS_OUT))
     ap.add_argument("--summary-out", default=str(SUMMARY_OUT))
+    ap.add_argument("--robustness-out", default=str(ROBUSTNESS_OUT))
+    ap.add_argument("--no-robustness", action="store_true",
+                    help="skip the three published attacks (they run by default)")
+    ap.add_argument("--robustness-only", action="store_true",
+                    help="run ONLY the three attacks against the headline cell (no 35-cell "
+                         "ladder) — fast re-verification path")
+    ap.add_argument("--robustness-horizon", type=float, default=HEADLINE_HORIZON_H)
+    ap.add_argument("--robustness-ticks", type=int, default=HEADLINE_GATE_TICKS)
     ap.add_argument("--no-write", action="store_true", help="report only; write no files")
     args = ap.parse_args(argv)
 
     gate_ticks = [int(x) for x in args.gate_ticks.split(",") if x.strip()]
     horizons: List[Optional[float]] = [float(x) for x in args.horizons.split(",") if x.strip()]
+
+    if args.robustness_only:
+        settlement, _ = load_settlements(args.settlement_glob)
+        per_ticker, _ = load_preclose_snapshots(args.depth_glob, settlement)
+        rob = run_robustness(per_ticker, settlement, args.robustness_horizon,
+                             args.robustness_ticks, model=args.fill_model, n_boot=args.n_boot)
+        print_robustness(rob)
+        if not args.no_write:
+            Path(args.robustness_out).parent.mkdir(parents=True, exist_ok=True)
+            with open(args.robustness_out, "w", encoding="utf-8") as f:
+                json.dump(rob, f, indent=2, sort_keys=True, default=str)
+            print(f"\nwrote {args.robustness_out}")
+        return 0
+
     rep = run(depth_glob=args.depth_glob, settlement_glob=args.settlement_glob,
               gate_ticks=gate_ticks, horizons=horizons, model=args.fill_model,
-              n_boot=args.n_boot)
+              n_boot=args.n_boot, robustness=not args.no_robustness,
+              robustness_cell=(args.robustness_horizon, args.robustness_ticks))
     print_report(rep)
 
     if not args.no_write:
         rows = rep.pop("rows")
+        rob = rep.pop("robustness")
+        # repo-RELATIVE when it sits under the repo, so a committed artifact never carries one
+        # machine's absolute paths
+        rep["robustness_artifact"] = (_repo_relative(args.robustness_out)
+                                      if rob is not None else None)
         Path(args.rows_out).parent.mkdir(parents=True, exist_ok=True)
         with open(args.rows_out, "w", encoding="utf-8") as f:
             for r in rows:
@@ -638,6 +995,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         with open(args.summary_out, "w", encoding="utf-8") as f:
             json.dump(rep, f, indent=2, sort_keys=True, default=str)
         print(f"\nwrote {args.rows_out} ({len(rows)} rows) and {args.summary_out}")
+        if rob is not None:
+            with open(args.robustness_out, "w", encoding="utf-8") as f:
+                json.dump(rob, f, indent=2, sort_keys=True, default=str)
+            print(f"wrote {args.robustness_out}")
     return 0
 
 

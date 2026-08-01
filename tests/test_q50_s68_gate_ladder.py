@@ -11,7 +11,12 @@ eye. The load-bearing properties pinned here:
   * the strategy-level P&L includes the unhedged single-side legs on BOTH settlement branches
     (L249 — the only non-degenerate object under a sign-bounding gate),
   * the markout sign convention (NEGATIVE = adverse selection),
-  * the verdict ladder answers data-adequacy BEFORE it answers CI (L53/L43).
+  * the verdict ladder answers data-adequacy BEFORE it answers CI (L53/L43),
+  * the THREE ROBUSTNESS ATTACKS are real code with pinned semantics (leave-one-series-out
+    drops a whole series, the longshot drop removes only UNHEDGED single-side legs and drops
+    units whole rather than zeroing them (L86), the placebo re-rests at a worse price without
+    changing the admission gate), and every reported number carries the n_boot it used — the
+    two provenance defects a verifier found in the first cut of this probe.
 """
 from __future__ import annotations
 
@@ -22,9 +27,10 @@ import pytest
 from scripts.q49_s68_bothside_maker_fillsim import (
     maker_fee, simulate_leg_fill_touch, two_sided_wide_entry)
 from scripts.q50_s68_gate_ladder import (
-    MIN_DISTINCT_ENTRY_TS, adverse_selection_breakeven, book_mid, build_trades_at,
-    cell_verdict, distinct_entry_timestamps, gate_with_ticks, leg_markout,
-    select_entry_index, touch_fill_index)
+    LONGSHOT_MAX_PRICE, MIN_DISTINCT_ENTRY_TS, PLACEBO_OFFSET, adverse_selection_breakeven,
+    book_mid, build_trades_at, cell_verdict, distinct_entry_timestamps, drop_longshot_single_side,
+    gate_with_ticks, leave_one_series_out, leg_markout, price_offset_placebo, run_robustness,
+    select_entry_index, single_side_fill_price, strategy_units_by_series, touch_fill_index)
 
 T0 = datetime(2026, 7, 10, 0, 0, 0, tzinfo=timezone.utc)
 
@@ -259,6 +265,9 @@ def test_breakeven_haircut_is_found_and_charges_two_legs_on_a_double_fill():
     assert res["breakeven_haircut_per_filled_leg"] is not None
     assert res["breakeven_haircut_per_filled_leg"] <= 0.03
     assert [row["haircut_per_filled_leg"] for row in res["ladder"]][0] == 0.0
+    # n_boot disclosure (defect-2 regression): this helper once defaulted to 4000 while the
+    # headline used 10000, silently.
+    assert res["n_boot"] == 400 and all(row["n_boot"] == 400 for row in res["ladder"])
 
 
 def test_breakeven_ladder_is_monotone_non_increasing_in_mean():
@@ -289,3 +298,197 @@ def test_verdict_ladder_ci_and_magnitude_branches():
     assert cell_verdict(_cell(50, 12, [0.0, 0.10], True))[0] == "DEAD-by-CI"
     assert cell_verdict(_cell(50, 12, [0.002, 0.10], False))[0] == "DEAD-by-magnitude"
     assert cell_verdict(_cell(50, 12, [0.02, 0.10], True))[0] == "ALIVE-CANDIDATE"
+
+
+# --------------------------------------------------------------------------- #
+# THE THREE ROBUSTNESS ATTACKS (added 2026-08-01 — the provenance fix).
+#
+# These were prose-only in the first cut of this probe; a verifier had to re-derive them by
+# hand and found the longshot CI had been quoted at an undisclosed n_boot=4000 while the
+# headline used 10,000. The tests below pin BOTH the semantics and the n_boot disclosure.
+# --------------------------------------------------------------------------- #
+def _rt(series, pnl, category, yes_price=0.40, no_price=0.55):
+    """A trade row carrying only what the robustness attacks read."""
+    return {"series": series, "ticker": f"{series}-X", "event_ticker": f"{series}-E",
+            "yes_fill_price": yes_price, "no_fill_price": no_price,
+            "models": {"touch": {"pnl_strategy_level": pnl, "fill_category": category}}}
+
+
+def test_strategy_units_group_by_series_and_keep_every_trade():
+    trades = [_rt("A", 0.1, "both"), _rt("A", -0.2, "neither"), _rt("B", 0.3, "yes_only")]
+    units = strategy_units_by_series(trades)
+    assert units == {"A": [0.1, -0.2], "B": [0.3]}
+
+
+def test_leave_one_series_out_drops_one_whole_series_per_row():
+    trades = ([_rt(f"S{i}", 0.05, "both") for i in range(12)]
+              + [_rt("S0", 0.04, "both"), _rt("S3", -0.02, "neither")])
+    loo = leave_one_series_out(trades, "touch", n_boot=300)
+    assert loo["n_series_dropped_one_at_a_time"] == 12
+    assert [d["dropped_series"] for d in loo["drops"]] == sorted({t["series"] for t in trades})
+    by_series = {d["dropped_series"]: d for d in loo["drops"]}
+    assert by_series["S0"]["n_obs_dropped"] == 2 and by_series["S1"]["n_obs_dropped"] == 1
+    # every drop leaves exactly (n_units - 1) units and (n_obs - dropped) observations
+    for d in loo["drops"]:
+        assert d["n_units_series"] == 11
+        assert d["n_obs"] == len(trades) - d["n_obs_dropped"]
+
+
+def test_leave_one_series_out_detects_a_ci_carried_by_a_single_series():
+    """THE POINT OF THE ATTACK. 12 series are flat-negative and one carries the whole mean;
+    dropping that one must flip the drop's CI, and the summary flag must say so."""
+    trades = [_rt(f"S{i}", -0.01, "both") for i in range(12)] + [_rt("BIG", 5.0, "both")]
+    loo = leave_one_series_out(trades, "touch", n_boot=300)
+    assert loo["full_population"]["mean"] > 0
+    assert loo["all_drops_keep_ci_positive"] is False
+    assert loo["n_drops_ci_lower_positive"] < loo["n_series_dropped_one_at_a_time"]
+    dropped_big = next(d for d in loo["drops"] if d["dropped_series"] == "BIG")
+    assert dropped_big["ci_lower_positive"] is False
+    # and the honest all-positive case still reports all-clear
+    good = leave_one_series_out([_rt(f"S{i}", 0.05, "both") for i in range(12)]
+                                + [_rt("S0", -0.02, "neither")], "touch", n_boot=300)
+    assert good["all_drops_keep_ci_positive"] is True
+
+
+def test_every_robustness_number_discloses_its_n_boot():
+    """DEFECT-2 REGRESSION: the longshot CI was once computed at an undisclosed n_boot=4000
+    while the headline used 10,000. Every bootstrap dict this module emits must echo the
+    n_boot it actually used, and it must be the one the caller asked for."""
+    trades = [_rt(f"S{i}", 0.05, "both") for i in range(12)] + [_rt("S0", -0.02, "neither")]
+    loo = leave_one_series_out(trades, "touch", n_boot=250)
+    assert loo["n_boot"] == 250 and loo["full_population"]["n_boot"] == 250
+    assert all(d["n_boot"] == 250 for d in loo["drops"])
+    ls = drop_longshot_single_side(trades, "touch", n_boot=250)
+    assert ls["n_boot"] == 250 and ls["bootstrap_after_drop"]["n_boot"] == 250
+
+
+def test_longshot_drop_removes_only_cheap_unhedged_single_side_legs():
+    trades = [
+        _rt("A", 0.7, "yes_only", yes_price=0.20),    # cheap unhedged -> dropped
+        _rt("B", -0.6, "no_only", no_price=0.25),     # cheap unhedged -> dropped
+        _rt("C", 0.1, "yes_only", yes_price=0.55),    # not a longshot -> kept
+        _rt("D", 0.02, "both", yes_price=0.20, no_price=0.20),  # hedged -> kept
+        _rt("E", 0.0, "neither", yes_price=0.10, no_price=0.10),  # no fill -> kept
+    ]
+    res = drop_longshot_single_side(trades, "touch", n_boot=200, max_price=0.30)
+    assert res["n_dropped"] == 2 and res["n_kept"] == 3
+    assert res["n_trades_in"] == len(trades)
+    # units are dropped WHOLE, never zeroed (L86): the retained bootstrap sees 3 obs, not 5
+    assert res["bootstrap_after_drop"]["n_obs"] == 3
+
+
+def test_longshot_drop_boundary_is_inclusive_at_the_threshold():
+    at = drop_longshot_single_side([_rt("A", 0.5, "yes_only", yes_price=LONGSHOT_MAX_PRICE)],
+                                   "touch", n_boot=100)
+    above = drop_longshot_single_side(
+        [_rt("A", 0.5, "yes_only", yes_price=LONGSHOT_MAX_PRICE + 0.01)], "touch", n_boot=100)
+    assert at["n_dropped"] == 1 and above["n_dropped"] == 0
+
+
+def test_single_side_fill_price_is_none_for_hedged_and_unfilled_rows():
+    assert single_side_fill_price(_rt("A", 0.1, "yes_only", yes_price=0.22)) == 0.22
+    assert single_side_fill_price(_rt("A", 0.1, "no_only", no_price=0.33)) == 0.33
+    assert single_side_fill_price(_rt("A", 0.1, "both")) is None
+    assert single_side_fill_price(_rt("A", 0.0, "neither")) is None
+
+
+# --- the price-offset placebo ---------------------------------------------- #
+def _placebo_per_ticker(ticker, close):
+    """Depth sits at the touch AND two ticks below it. The touch level drains (a baseline
+    fill); the deeper level never moves and, being below the best bid, could not be hit
+    anyway under price priority."""
+    def rec(touch_size):
+        return {"ticker": ticker, "best_yes_bid": 0.30, "best_no_bid": 0.60,
+                "best_yes_ask": 0.40,
+                "yes_bids": [[0.30, touch_size], [0.28, 500.0]],
+                "no_bids": [[0.60, touch_size], [0.58, 500.0]]}
+    seq = [(20.0, 10.0), (10.0, 0.0), (2.0, 0.0)]
+    return {ticker: [{"record": rec(sz), "captured_at": close - timedelta(hours=ttc),
+                      "close_time": close, "ttc_hours": ttc} for ttc, sz in seq]}
+
+
+def _placebo_settlement(ticker, close):
+    return {ticker: {"result": "yes", "close_time": close.isoformat(),
+                     "event_ticker": "KXTESTGAME-26JUL10AAABBB", "series": "KXTESTGAME",
+                     "price_source_tag": "broker_truth"}}
+
+
+def test_price_offset_placebo_collapses_fill_rates_without_changing_the_gate():
+    close = T0 + timedelta(days=2)
+    tk = "KXTESTGAME-26JUL10AAABBB-AAA"
+    per = _placebo_per_ticker(tk, close)
+    res = price_offset_placebo(per, _placebo_settlement(tk, close), 24.0, 0,
+                               "touch", n_boot=200, offset=PLACEBO_OFFSET)
+    # SAME admitted population — the placebo re-prices, it does not re-gate
+    assert res["baseline"]["n_candidates"] == res["placebo"]["n_candidates"] == 1
+    assert res["baseline"]["yes_leg_fill_rate"] == 1.0
+    assert res["baseline"]["no_leg_fill_rate"] == 1.0
+    assert res["placebo"]["yes_leg_fill_rate"] == 0.0
+    assert res["placebo"]["no_leg_fill_rate"] == 0.0
+    assert res["fill_rate_collapsed"] is True
+    assert res["offset"] == PLACEBO_OFFSET and res["n_boot"] == 200
+
+
+def test_price_offset_placebo_with_zero_offset_reproduces_the_baseline():
+    close = T0 + timedelta(days=2)
+    tk = "KXTESTGAME-26JUL10AAABBB-AAA"
+    res = price_offset_placebo(_placebo_per_ticker(tk, close), _placebo_settlement(tk, close),
+                               24.0, 0, "touch", n_boot=200, offset=0.0)
+    assert res["placebo"] == res["baseline"]
+    assert res["fill_rate_collapsed"] is False, "no collapse when nothing was offset"
+
+
+def test_build_trades_at_offset_shifts_the_resting_price_and_drops_non_positive_ones():
+    close = T0 + timedelta(days=2)
+    tk = "KXTESTGAME-26JUL10AAABBB-AAA"
+    per = _placebo_per_ticker(tk, close)
+    settle = _placebo_settlement(tk, close)
+    base, _ = build_trades_at(per, settle, 24.0, 0, 0.0)
+    off, _ = build_trades_at(per, settle, 24.0, 0, PLACEBO_OFFSET)
+    assert base[0]["yes_fill_price"] == pytest.approx(0.30)
+    assert off[0]["yes_fill_price"] == pytest.approx(0.28)
+    assert off[0]["no_fill_price"] == pytest.approx(0.58)
+    assert base[0]["price_offset"] == 0.0 and off[0]["price_offset"] == PLACEBO_OFFSET
+    # an offset that takes a bid to zero or below is the ABSENCE of an order (L1/L105) —
+    # dropped, never booked as a $0.00 fill
+    deep, funnel = build_trades_at(per, settle, 24.0, 0, -0.30)
+    assert deep == [] and funnel["offset_price_non_positive"] == 1 and funnel["candidates"] == 0
+
+
+def test_repo_relative_never_writes_an_absolute_path_into_a_committed_report():
+    """A committed artifact must not record one machine's filesystem layout."""
+    from scripts.q50_s68_gate_ladder import ROBUSTNESS_OUT, _repo_relative
+    rel = _repo_relative(str(ROBUSTNESS_OUT))
+    assert rel == "reports/q50_s68_gate_ladder_robustness.json"
+    assert not rel.startswith("/")
+    # a path outside the repo is returned unchanged rather than raising
+    assert _repo_relative("/somewhere/else/x.json") == "/somewhere/else/x.json"
+
+
+def test_run_robustness_runs_all_three_attacks_at_one_disclosed_n_boot():
+    close = T0 + timedelta(days=2)
+    tk = "KXTESTGAME-26JUL10AAABBB-AAA"
+    rob = run_robustness(_placebo_per_ticker(tk, close), _placebo_settlement(tk, close),
+                         24.0, 0, "touch", n_boot=150)
+    assert set(rob) >= {"cell", "headline", "leave_one_series_out",
+                        "drop_longshot_single_side", "price_offset_placebo"}
+    assert rob["n_boot"] == 150
+    assert rob["cell"]["median_entry_spread"] == pytest.approx(0.10)
+    assert rob["cell"]["median_ttc_hours_entry"] == pytest.approx(20.0)
+
+    # EVERY nested bootstrap result must disclose the same n_boot (defect-2 regression,
+    # applied to the whole returned object rather than one function at a time).
+    seen = []
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            if "ci95" in obj:
+                seen.append(obj["n_boot"])
+            for v in obj.values():
+                walk(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                walk(v)
+
+    walk(rob)
+    assert seen and set(seen) == {150}

@@ -1,16 +1,29 @@
-# Q50 / S68 — the fees-plus-N-ticks gate re-derivation (L252) — **PROVISIONAL**
+# Q50 / S68 — the fees-plus-N-ticks gate re-derivation (L252) — **VERIFIER-CONFIRMED**
 
 **2026-08-01, research loop (idle run, policy (a): UNENFORCED lesson → executed re-derivation + tests).**
+**Amended 2026-08-01 (same day) after an independent verifier pass — see "Verifier pass" below.**
 
-> **PROVISIONAL — SINGLE-AGENT. NO VERIFIER CONFIRMATION.** No `verifier` dispatch was available in
-> this run's context (the `Task` tool was not enabled), so the two-agent verdict rule could NOT be
-> satisfied. Per LOOP-QUEUE.md step 5 this is therefore committed as PROVISIONAL and **flips
-> nothing**: `kb/strategies/00-index.md` S68 stays `dead ✗`, unchanged. Every number below is
-> re-runnable from one command and is owed an independent re-derivation — see **Q50** in the queue.
+> **STATUS: VERIFIER-CONFIRMED. The PROVISIONAL label is withdrawn.** An independent verifier
+> re-ran the script and re-derived every headline number, and returned **CONFIRMED**: S68 stays
+> `dead ✗` and nothing flips. The verifier additionally found a **STRONGER kill** than the three
+> grounds this document originally gave (a zero-information "mid-as-truth" control and a
+> flatten-at-cross exit treatment — both below), and found two **provenance defects** in what had
+> been committed, now fixed:
+>
+> 1. the three "attacks that did NOT kill it" existed **only as prose**, with no code, no CLI flag
+>    and no artifact behind them — a violation of this repo's own trust default ("no claim without
+>    a re-runnable script"). They are now real code (run by default; `--robustness-only` runs them
+>    alone in ~11s, `--no-robustness` skips them) writing
+>    `reports/q50_s68_gate_ladder_robustness.json`, with 12 new offline tests (42 in the file, was 30);
+> 2. the longshot-drop CI was quoted at an **undisclosed `n_boot=4000`** while the headline used
+>    10,000. Every robustness number is now computed at the headline's `n_boot=10000` and **echoes
+>    the `n_boot` it used** in the printed report, in the JSON, and below.
 
-**Bottom line: S68 is NOT rescued by a tighter gate.** The apparent CI>0 cells are a
-**days-out fillability artifact** — the S29 signature — and are additionally bounded by an
-adverse-selection term that this tape structurally cannot measure. Still **0 proven edges**.
+**Bottom line: S68 is NOT rescued by a tighter gate.** The apparent CI>0 cells are an artifact:
+they die outright under a flatten-at-cross exit and are reproduced by a zero-information control
+(both verifier attacks, below), they exist only at entry horizons where the wide-spread population
+lives and the near-close cells are negative, and they are bounded by an adverse-selection term this
+tape structurally cannot measure. Still **0 proven edges**.
 
 ## Why this run existed
 
@@ -30,7 +43,7 @@ UNENFORCED lessons:
 
 ## What was built
 
-`scripts/q50_s68_gate_ladder.py` (+ `tests/test_q50_s68_gate_ladder.py`, 30 offline tests). Every
+`scripts/q50_s68_gate_ladder.py` (+ `tests/test_q50_s68_gate_ladder.py`, 30 offline tests at first commit, **42 after the post-verifier robustness fix**). Every
 simulation primitive (queue accounting, both fill models, both P&L branches, tape loading) is
 **imported from the Q49 module**, not re-implemented — Q49's code is already verifier-CONFIRMED and a
 second copy would be a second thing to get wrong. What is new is only (a) the entry rule, (b) the
@@ -78,9 +91,15 @@ Every one of the 10 ALIVE cells sits at H >= 24h; nine of them at H >= 48h. The 
 near-close windows — the only ones where a resting maker order is a realistic object — are
 **negative** at the adequately-powered N=0 cut: H=6h **−0.0562** (14 series), H=12h **−0.0397**
 (15 series). An "edge" that grows the further you enter from close and flips negative as you approach
-it is the **S29 DEAD-by-fillability signature**, verbatim: nominal bids on days-out, effectively
-one-sided books that a generous fill-sim still "fills" (L31/L48). S29 died on exactly this pattern on
-exactly this tape family.
+it is not a shape an edge has. This document originally read it as the **S29 DEAD-by-fillability
+signature** (nominal bids on
+days-out, effectively one-sided books that a generous fill-sim still "fills", L31/L48). **The
+verifier confirmed the PATTERN and corrected the MECHANISM** — see "Verifier pass" below and the
+amended L254: the ALIVE cell's median entry ttc is 23.7h with an actually-traded-looking book, and
+the real driver is a spread regime (median entry spread $0.020 = 2 ticks near close vs $0.060-$0.090
+at 9 of the 10 ALIVE cells (the tenth, H=72/N=5, is wider still at $0.290)), i.e. the wide-spread population this ladder hunts does not exist near close.
+The horizon dependence is real either way (matched-ticker control), but the near-close end is a
+data-adequacy residue, not a proven fill failure.
 
 **2. The verdict is decided by a term this tape cannot measure.** Break-even adverse-selection charge
 per filled leg on the ALIVE cells: **0.5c to 4.0c** (H=24/N=1: **2.0c**; H=48/N=0: **0.5c**). Kalshi's
@@ -97,15 +116,71 @@ cannot observe trade direction cannot exhibit adverse selection. The +5.4c at k=
 half-spread of these wide books — a restatement of "we bought at the bid", not a measured informational
 cost. **This is the single most important caveat in this document.**
 
-## Attacks that did NOT kill it (recorded so they are not re-run)
+## Attacks that did NOT kill it (recorded so they are not re-run) — NOW CODE-BACKED
 
-* **Leave-one-series-out (L57)** on H=24/N=1: all 13 drops keep the CI strictly > 0.
-* **Dropping longshot single-side fills** (fill price <= $0.30): mean +0.0525, CI [+0.0131,+0.1410] —
-  still clears. The result is not solely a longshot lottery, though the top-5 contributors are all
-  unhedged `yes_only` legs on `-TIE`/longshot bids (+0.72 to +0.93 each).
-* **Price-offset placebo**: resting 2c below the entry best bid collapses leg fill rates from
-  53%/44% to 2%/9%, so the `touch` model is genuinely price-sensitive and not a generic churn
-  detector. This is a point *in favour* of the fill model's discrimination and is recorded as such.
+**Provenance note.** These three were prose-only in the first cut of this document. They are now
+re-runnable code — `leave_one_series_out`, `drop_longshot_single_side`, `price_offset_placebo`,
+driven by `run_robustness` in `scripts/q50_s68_gate_ladder.py` — which run **by default** and write
+`reports/q50_s68_gate_ladder_robustness.json`. Reproduce in ~11s with:
+
+    python3 scripts/q50_s68_gate_ladder.py --robustness-only
+
+**All three are computed at `n_boot=10000`, the same as the headline**, and each result dict/print
+line carries its own `n_boot` (the earlier +0.0525 CI had been computed at an undisclosed
+`n_boot=4000`; the corrected 10,000-resample CI is below). Headline cell for all three:
+H=24h / N=1 tick, 100 candidates / 13 series / 81 games, `touch`, mean +0.0695 CI [+0.0235,+0.1473].
+
+* **Leave-one-series-out (L57)** on H=24/N=1, `n_boot=10000`: **13/13 drops keep the CI lower bound
+  strictly > 0**, and 13/13 also clear the L27 one-tick gate. Worst drop is KXWNBAGAME
+  (CI [+0.0147,+0.1151]); the largest unit (KXNPBGAME, n=30) leaves CI [+0.0166,+0.1766]. No single
+  series carries the cell.
+* **Dropping longshot single-side fills** (unhedged leg priced <= $0.30), `n_boot=10000`: 19/100
+  candidates dropped (units dropped whole, never zeroed — L86), leaving mean **+0.0525**, CI
+  **[+0.0134,+0.1358]**, 13 series / n=81. *(The originally published CI [+0.0131,+0.1410] was the
+  `n_boot=4000` value; [+0.0134,+0.1358] is the correct 10,000-resample number.)* The result is not
+  solely a longshot lottery, though the top-5 contributors are all unhedged `yes_only` legs on
+  `-TIE`/longshot bids (+0.72 to +0.93 each).
+* **Price-offset placebo** (rest 2c below the entry best bid, same admitted population, gate
+  unchanged): leg fill rates collapse **yes 53% -> 2%, no 44% -> 9%, both 27% -> 1%**, so the
+  `touch` model is genuinely price-sensitive and not a generic churn detector. This is a point *in
+  favour of the fill model's discrimination* — a statement about the instrument, not about the
+  strategy — and is recorded as such.
+
+None of the three is evidence FOR an edge. The two attacks that DO kill the cell are the verifier's,
+below.
+
+## Verifier pass (2026-08-01, independent) — CONFIRMED, and the kill is stronger
+
+The verifier re-ran the script, reproduced the ladder, re-derived the three robustness numbers by
+hand (all three confirmed true), and returned **CONFIRMED: S68 stays `dead ✗`, nothing flips.** It
+then produced two attacks this document had not run, both of which kill the ALIVE cells outright:
+
+1. **Zero-information "mid-as-truth" control (new lesson L255).** Replace the `broker_truth`
+   settlement payout of every unhedged single-side leg with the book's own contemporaneous mid — so
+   the leg carries no directional information at all — and re-bootstrap. The CI comes back the
+   **same shape and sign as the real verdict**. A positive result reproduced by a zero-information
+   control is an arithmetic restatement of `half-spread x fill-rate − fees` on a wide-spread
+   population (true by construction of the entry gate), not a claim that the fills pick winners.
+2. **Flatten-at-cross exit treatment (new lesson L256).** This probe's strategy-level object marks
+   an orphan single-side leg to settlement, which is the most generous possible treatment — a free
+   directional lottery ticket no maker would knowingly keep. Closing the orphan instead by buying
+   the other side at its ask costs, on a mirrored binary book where the two prices sum to exactly
+   $1, precisely both fees (`pnl = −(fee_entry + fee_exit)`). Under that treatment **all 10 ALIVE
+   cells die — every CI straddles zero.** The whole apparent edge lived in the unhedged legs'
+   settlement lottery, consistent with this document's own composition analysis (half the H=24/N=1
+   mean is unhedged single-side exposure).
+
+**Mechanism correction (L254 amended).** The verifier confirmed the monotone-in-H pattern is real —
+a matched-ticker control on the 70 tickers / 14 series present at BOTH H=12 and H=72 still flips,
+CI [−0.1137,−0.0054] -> +0.0151 — but rejected this document's original *"S29-style nominal
+one-sided books days-out"* attribution. The ALIVE cell's median entry ttc is **23.7h** (not
+days-out) and its queue/depth numbers look like an actually-traded book. The real driver is a
+**spread regime**: median entry spread is **$0.020 (2 ticks, exactly the Q49 fee boundary)** at the
+near-close H=6/N=0 and H=12/N=0 cells versus **$0.060-$0.090 (6-9 ticks)** at 9 of the 10 ALIVE cells (the tenth, H=72/N=5, is wider still at $0.290)
+(the ladder now prints per-cell `median_entry_spread`, and it is persisted in the summary JSON).
+**The wide-spread population this ladder exists to find does not exist near close** — H=6/N=1
+admits 25 candidates across 4 series, below the L41 10-series floor. So the near-close end is a
+data-adequacy residue, not a demonstration that the same books fail to fill.
 
 ## Composition of the H=24/N=1 headline (why the mechanism attribution fails)
 
@@ -123,17 +198,20 @@ rule — not a demonstrated edge.
 **S68 remains `dead ✗` (no status change).** What changes is the *scope* of Q49's headline: its
 `DEAD-by-fee` label is now known to be **gate-scoped** — true at the fee-boundary gate Q49 tested, and
 it does not, on its own, extend to the wider-gate population. That wider population is not an edge
-either: it is **DEAD-by-fillability** on the same evidence pattern that killed S29, and what remains
+either: it is **DEAD** — outright under the verifier's flatten-at-cross exit treatment (all 10
+ALIVE cells' CIs straddle zero) and content-free under the mid-as-truth control — and what remains
 after that is **UNRESOLVABLE on current tape** (data-adequacy), pending a trade-bearing feed. The
 `orderbook_delta` WebSocket daemon (Q47, BUILD DONE / ACTIVATION PENDING, Ryan-gated on a working key)
 is exactly the tape that would settle it.
 
-Verdict class: **DEAD-by-fillability + data-adequacy residue. NOT a CI falsification, NOT a
-resurrection.** PROVISIONAL pending verifier.
+Verdict class: **DEAD (flatten-at-cross CI straddles zero on every ALIVE cell) + data-adequacy
+residue at the near-close end. NOT a resurrection.** **VERIFIER-CONFIRMED 2026-08-01** — the
+PROVISIONAL label is withdrawn and the registry is unchanged (`dead ✗`, as it already was).
 
 ## Gates
 
-Taken after the last code edit, immediately before commit (L162).
+**First commit (2026-08-01, PROVISIONAL cut).** Taken after the last code edit, immediately before
+commit (L162).
 
 * `python -m pytest -q` -> **2577 tests, 2577 passed, 0 failed**. This suite emits no trailing summary
   line, so the count is a progress-character census over the completed 100% run (2577 `.`, zero
@@ -141,6 +219,16 @@ Taken after the last code edit, immediately before commit (L162).
   failure character. 30 of those tests are new (`tests/test_q50_s68_gate_ladder.py`).
 * `python scripts/invariants.py --full` -> exit 0, `invariants: all green` (14 pre-existing non-gating
   advisories).
+
+**Second commit (2026-08-01, post-verifier provenance fix).** Re-taken after the last edit of this
+pass (L162).
+
+* `python -m pytest -q` -> **2589 tests collected, all passed, 0 failed** (`--collect-only` census =
+  2589; the run reaches 100% with zero `F`/`E`/`x`/`s` progress characters and exits 0; the suite
+  still emits no trailing summary line). +12 vs. the first commit, all in
+  `tests/test_q50_s68_gate_ladder.py`, which now holds **42**.
+* `python scripts/invariants.py --full` -> exit 0, `invariants: all green` (14 pre-existing
+  non-gating advisories, unchanged).
 
 **One gate defect this probe introduced and fixed in-run:** the first draft compared
 `result == "yes"` with no binary-result guard in the file, which turned L52's *non-gating* advisory
@@ -158,5 +246,7 @@ No synthetic price is used as a fill anywhere in this probe.
 ## Artifacts
 
 `scripts/q50_s68_gate_ladder.py` · `tests/test_q50_s68_gate_ladder.py` ·
-`reports/q50_s68_gate_ladder_summary.json` (35 cells, all diagnostics) ·
-`reports/q50_s68_gate_ladder_rows.jsonl` (4,727 per-candidate rows).
+`reports/q50_s68_gate_ladder_summary.json` (35 cells, all diagnostics, now incl. per-cell
+`median_entry_spread` / `median_ttc_hours_entry`) · `reports/q50_s68_gate_ladder_rows.jsonl`
+(4,727 per-candidate rows) · `reports/q50_s68_gate_ladder_robustness.json` (**new** — the three
+attacks, every number tagged with its `n_boot`).
