@@ -464,3 +464,113 @@ def catastrophic_leg_drop_stress_check(retained_pnls: Sequence[float], n_dropped
         "n_dropped": n_dropped,
         "sign_preserved": sign_preserved,
     }
+
+
+# --------------------------------------------------------------------------- #
+# L251 — entry-instant concentration (the tape-start-artifact descriptor)
+# --------------------------------------------------------------------------- #
+
+# The share of a population's entries sitting on ONE instant at or above which
+# `entry_instant_concentration` sets its `concentrated` flag. 0.5 is a deliberately
+# blunt, DOCUMENTED default, not a derived threshold: at half the population on a
+# single capture pass, a per-unit count (games, series, tickers) has stopped being
+# evidence of temporal breadth. Callers may override it; the value actually used is
+# always echoed back in the result dict so a report can never quietly reinterpret it.
+TAPE_START_CONCENTRATION_SHARE = 0.5
+
+
+def entry_instant_concentration(instants: Sequence, *, unit_labels: Sequence = None,
+                                flag_share: float = TAPE_START_CONCENTRATION_SHARE
+                                ) -> dict:
+    """The L251 precheck: how many DISTINCT moments does a probe's entry population
+    actually sample, and how much of it piles onto the single most-populated instant?
+
+    Q49/S68 (2026-08-01) reported its primary population as "20 candidates, 5 game-series,
+    14 games" — counts that read as breadth. Every one of those 20 entries shared ONE
+    `entry_captured_at` (`2026-07-07T01:23:57.700581+00:00`, the depth tape's first
+    full capture pass), because the probe's entry rule was "earliest capture per ticker,
+    THEN filter to ttc<=24h" rather than "first snapshot with ttc<=H". An "earliest, then
+    filter" rule pulls every ticker whose whole pre-close history begins inside the window
+    back to the tape's own start, so the resulting sample is one snapshot of the market
+    wearing a unit count as a disguise. The verifier caught it by reading the timestamps;
+    this function is the machine-checkable half of that catch.
+
+    What it measures (a DESCRIPTOR, never a verdict): entry counts per distinct instant,
+    the top instant's share, and — when `unit_labels` is supplied (the SAME bootstrap unit
+    the caller will block on, per L6) — how many of those units are represented on that
+    single top instant. `n_units == n_units_on_top_instant` is the exact shape that makes a
+    unit count non-evidence: every block the bootstrap will resample draws from one moment,
+    so the resample carries no temporal independence at all.
+
+    What it CANNOT do, stated so no caller over-reads it: distinguish a tape-start artifact
+    from a genuine, legitimate cluster (an event study around one release instant SHOULD
+    concentrate), and it cannot see the entry RULE that produced the distribution — that
+    half stays protocol (`.claude/agents/edge-prober.md`, L251). It reports the number and
+    names its own threshold; the judgment is the reader's.
+
+    Empty input returns `no_signal=True` with zeroed counts rather than raising or
+    implying a clean population — the repo's no_signal-vs-False discipline: "nothing was
+    measured" is never reported as "nothing is wrong".
+
+    `unit_labels`, when given, must align element-wise with `instants`; a length mismatch
+    raises rather than silently misaligning the two sequences (same posture as
+    `bracket_by_movement`). Ties for the top instant are broken by `str()` order so the
+    result is deterministic across runs and across mixed `str`/`datetime` inputs.
+    """
+    if unit_labels is not None and len(unit_labels) != len(instants):
+        raise ValueError(
+            f"unit_labels and instants must be the same length "
+            f"(got {len(unit_labels)} vs {len(instants)})"
+        )
+    n = len(instants)
+    if n == 0:
+        return {
+            "no_signal": True,
+            "n_entries": 0,
+            "n_distinct_instants": 0,
+            "top_instant": None,
+            "top_instant_count": 0,
+            "max_instant_share": 0.0,
+            "entries_per_distinct_instant": 0.0,
+            "flag_share": flag_share,
+            "concentrated": False,
+            "single_instant": False,
+            "n_units": None if unit_labels is None else 0,
+            "n_units_on_top_instant": None if unit_labels is None else 0,
+            "unit_share_on_top_instant": None if unit_labels is None else 0.0,
+            "n_unit_instant_pairs": None if unit_labels is None else 0,
+        }
+
+    counts: Dict = {}
+    for inst in instants:
+        counts[inst] = counts.get(inst, 0) + 1
+    # deterministic: highest count first, then str() order (never relies on dict order,
+    # and never compares a datetime to a str)
+    top_instant = sorted(counts, key=lambda k: (-counts[k], str(k)))[0]
+    top_count = counts[top_instant]
+
+    out = {
+        "no_signal": False,
+        "n_entries": n,
+        "n_distinct_instants": len(counts),
+        "top_instant": top_instant,
+        "top_instant_count": top_count,
+        "max_instant_share": top_count / n,
+        "entries_per_distinct_instant": n / len(counts),
+        "flag_share": flag_share,
+        "concentrated": (top_count / n) >= flag_share,
+        "single_instant": len(counts) == 1,
+        "n_units": None,
+        "n_units_on_top_instant": None,
+        "unit_share_on_top_instant": None,
+        "n_unit_instant_pairs": None,
+    }
+    if unit_labels is not None:
+        units = set(unit_labels)
+        units_on_top = {u for u, i in zip(unit_labels, instants) if i == top_instant}
+        pairs = {(u, i) for u, i in zip(unit_labels, instants)}
+        out["n_units"] = len(units)
+        out["n_units_on_top_instant"] = len(units_on_top)
+        out["unit_share_on_top_instant"] = (len(units_on_top) / len(units)) if units else 0.0
+        out["n_unit_instant_pairs"] = len(pairs)
+    return out

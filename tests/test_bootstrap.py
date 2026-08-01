@@ -12,6 +12,7 @@ from core.bootstrap import (
     collapse_duration_gated_runs,
     decompose_edge_by_leg_volume,
     disagreement_subset_calibration,
+    entry_instant_concentration,
     floor_pinned_fraction,
     hit_magnitude_decomposition,
 )
@@ -619,3 +620,197 @@ def test_l236_the_three_fomc_residue_subtractions_are_the_SAME_float():
     rep = hit_magnitude_decomposition([0.26 - 0.24 - 0.02, 0.61 - 0.59 - 0.02,
                                        0.62 - 0.60 - 0.02])
     assert rep["n_residue"] == 3 and rep["n_clears_tick"] == 0
+
+
+# ─── entry_instant_concentration (L251) ─────────────────────────────────────
+
+def _fixture_cuts():
+    import json
+    from pathlib import Path
+    p = Path(__file__).parent / "fixtures" / "q49_entry_instants_2026-08-01.json"
+    return json.loads(p.read_text(encoding="utf-8"))["cuts"]
+
+
+def test_entry_instant_concentration_empty_is_no_signal_not_clean():
+    """L155/L185 discipline: "nothing measured" must never read as "nothing wrong"."""
+    r = entry_instant_concentration([])
+    assert r["no_signal"] is True
+    assert r["n_entries"] == 0 and r["n_distinct_instants"] == 0
+    assert r["concentrated"] is False and r["single_instant"] is False
+    assert r["top_instant"] is None
+
+
+def test_entry_instant_concentration_empty_with_unit_labels_keeps_unit_keys_numeric():
+    r = entry_instant_concentration([], unit_labels=[])
+    assert r["no_signal"] is True
+    assert r["n_units"] == 0 and r["n_units_on_top_instant"] == 0
+    assert r["unit_share_on_top_instant"] == 0.0 and r["n_unit_instant_pairs"] == 0
+
+
+def test_entry_instant_concentration_unit_keys_are_none_when_no_labels_given():
+    r = entry_instant_concentration(["a", "b"])
+    assert r["n_units"] is None and r["n_units_on_top_instant"] is None
+    assert r["unit_share_on_top_instant"] is None and r["n_unit_instant_pairs"] is None
+
+
+def test_entry_instant_concentration_single_instant_is_the_q49_shape():
+    r = entry_instant_concentration(["t0"] * 20, unit_labels=list("aabbccddee") * 2)
+    assert r["single_instant"] is True
+    assert r["n_distinct_instants"] == 1
+    assert r["max_instant_share"] == 1.0
+    assert r["concentrated"] is True
+    # the sharp part: every bootstrap unit lives on that one instant, so the unit
+    # count carries no temporal independence whatsoever.
+    assert r["n_units"] == r["n_units_on_top_instant"] == 5
+    assert r["unit_share_on_top_instant"] == 1.0
+    assert r["n_unit_instant_pairs"] == 5
+
+
+def test_entry_instant_concentration_perfectly_spread_population_is_not_flagged():
+    r = entry_instant_concentration([f"t{i}" for i in range(10)])
+    assert r["n_distinct_instants"] == 10
+    assert r["max_instant_share"] == 0.1
+    assert r["entries_per_distinct_instant"] == 1.0
+    assert r["concentrated"] is False and r["single_instant"] is False
+
+
+def test_entry_instant_concentration_flag_is_inclusive_at_the_threshold():
+    """Exactly `flag_share` of the population on one instant DOES flag (>=, not >)."""
+    r = entry_instant_concentration(["a", "a", "b", "c"])
+    assert r["max_instant_share"] == 0.5
+    assert r["concentrated"] is True
+    assert entry_instant_concentration(["a", "a", "b", "c", "d"])["concentrated"] is False
+
+
+def test_entry_instant_concentration_threshold_is_overridable_and_echoed_back():
+    """The threshold used is always reported, so a downstream write-up cannot quietly
+    reinterpret a flag under a different bar than the one that produced it."""
+    inst = ["a", "a", "b", "c"]
+    assert entry_instant_concentration(inst)["flag_share"] == 0.5
+    strict = entry_instant_concentration(inst, flag_share=0.9)
+    assert strict["flag_share"] == 0.9 and strict["concentrated"] is False
+    loose = entry_instant_concentration(inst, flag_share=0.25)
+    assert loose["flag_share"] == 0.25 and loose["concentrated"] is True
+
+
+def test_entry_instant_concentration_top_instant_tie_break_is_deterministic():
+    """Two instants tied on count: `str()` order decides, every run, so a report that
+    quotes `top_instant` reproduces byte-identically."""
+    for _ in range(5):
+        r = entry_instant_concentration(["zzz", "aaa", "zzz", "aaa"])
+        assert r["top_instant"] == "aaa"
+        assert r["top_instant_count"] == 2
+
+
+def test_entry_instant_concentration_accepts_datetimes_without_mixed_type_compare():
+    from datetime import datetime, timezone
+    d0 = datetime(2026, 7, 7, 1, 23, 57, tzinfo=timezone.utc)
+    d1 = datetime(2026, 7, 8, 1, 23, 57, tzinfo=timezone.utc)
+    r = entry_instant_concentration([d0, d0, d1], unit_labels=["u", "v", "u"])
+    assert r["top_instant"] == d0 and r["top_instant_count"] == 2
+    assert r["n_units"] == 2 and r["n_units_on_top_instant"] == 2
+    assert r["n_unit_instant_pairs"] == 3
+
+
+def test_entry_instant_concentration_length_mismatch_raises_not_misaligns():
+    with pytest.raises(ValueError):
+        entry_instant_concentration(["a", "b"], unit_labels=["u"])
+
+
+def test_entry_instant_concentration_unit_pairs_count_distinct_support():
+    """`n_unit_instant_pairs` is the population's real (unit x instant) support — the
+    number a resampled block actually draws from — not the raw row count."""
+    r = entry_instant_concentration(["t0", "t0", "t1"], unit_labels=["u", "u", "u"])
+    assert r["n_entries"] == 3
+    assert r["n_units"] == 1
+    assert r["n_unit_instant_pairs"] == 2
+
+
+def test_entry_instant_concentration_arithmetic_identities_hold():
+    inst = ["a"] * 7 + ["b"] * 2 + ["c"]
+    r = entry_instant_concentration(inst, unit_labels=list("uuuuuuuvvw"))
+    assert r["max_instant_share"] == r["top_instant_count"] / r["n_entries"]
+    assert r["entries_per_distinct_instant"] == r["n_entries"] / r["n_distinct_instants"]
+    assert 0.0 < r["max_instant_share"] <= 1.0
+    assert r["n_units_on_top_instant"] <= r["n_units"]
+    assert r["n_unit_instant_pairs"] >= r["n_units"]
+    assert r["n_unit_instant_pairs"] <= r["n_entries"]
+
+
+def test_entry_instant_concentration_does_not_mutate_its_inputs():
+    inst = ["a", "b", "a"]
+    units = ["u", "v", "u"]
+    entry_instant_concentration(inst, unit_labels=units)
+    assert inst == ["a", "b", "a"] and units == ["u", "v", "u"]
+
+
+# --- acceptance: the real Q49/S68 populations, frozen (L191/L192 discipline) ---
+# Exact counts are pinned against tests/fixtures/q49_entry_instants_2026-08-01.json,
+# NOT against the live tape: `tape/orderbook_depth/` grows every hour, and pinning a
+# statistic to a live-GROWING population is exactly the failure L191/L192 record.
+
+def test_acceptance_q49_primary_population_is_one_single_instant():
+    """L251's motivating case, reproduced from frozen real tape. Q49/S68's PRIMARY
+    `fillable_entry` population read as "20 candidates, 5 game-series, 14 games" — and
+    all 20 entries share ONE capture instant, the depth tape's first full pass."""
+    cuts = _fixture_cuts()
+    d = cuts["fillable_entry"]
+    r = entry_instant_concentration(d["entry_instants"], unit_labels=d["series_units"])
+    assert r["n_entries"] == 20
+    assert r["n_distinct_instants"] == 1
+    assert r["max_instant_share"] == 1.0
+    assert r["single_instant"] is True and r["concentrated"] is True
+    assert r["top_instant"] == "2026-07-07T01:23:57.700581+00:00"
+    assert r["n_units"] == 5 and r["n_units_on_top_instant"] == 5
+    assert r["unit_share_on_top_instant"] == 1.0
+
+
+def test_acceptance_q49_contamination_is_not_confined_to_the_primary_cut():
+    """The number Q49's own finding did NOT report: the SAME tape-start instant is the
+    top instant of ALL FOUR labeled cuts, and carries 54.9% of the 284-candidate
+    `spread_le_10c` population. The verifier's caveat named only the primary cut."""
+    cuts = _fixture_cuts()
+    tape_start = "2026-07-07T01:23:57.700581+00:00"
+    tops = {}
+    for name, d in cuts.items():
+        r = entry_instant_concentration(d["entry_instants"], unit_labels=d["series_units"])
+        tops[name] = (r["top_instant"], round(r["max_instant_share"], 4), r["concentrated"])
+    assert all(t[0] == tape_start for t in tops.values())
+    assert tops["spread_le_10c"][1] == 0.5493 and tops["spread_le_10c"][2] is True
+    assert tops["nearclose_le_24h"][1] == 1.0 and tops["nearclose_le_24h"][2] is True
+
+
+def test_acceptance_the_flag_is_not_a_rubber_stamp_on_real_data():
+    """Honest counterweight to the test above: Q49's widest cut (445 candidates, 18
+    series) sits at 47.19% on the tape-start instant and does NOT trip the 0.5 flag.
+    The descriptor reports a number; it does not label everything an artifact."""
+    cuts = _fixture_cuts()
+    d = cuts["unrestricted"]
+    r = entry_instant_concentration(d["entry_instants"], unit_labels=d["series_units"])
+    assert r["n_entries"] == 445 and r["n_distinct_instants"] == 23
+    assert round(r["max_instant_share"], 4) == 0.4719
+    assert r["concentrated"] is False
+    assert r["n_units"] == 18 and r["n_units_on_top_instant"] == 12
+
+
+def test_acceptance_live_tape_first_depth_instant_is_monotone_not_pinned():
+    """The one LIVE-tree assertion, deliberately monotone (L191): a stranded-tape sweep
+    may still union-append older lines into `dt=2026-07-07.jsonl`, so the day-file's
+    earliest `captured_at` can only move EARLIER, never later. Asserting `<=` keeps the
+    gate honest without binding it to a file that append-only collection can still touch."""
+    import json
+    from pathlib import Path
+    p = Path(__file__).resolve().parent.parent / "tape" / "orderbook_depth" / "dt=2026-07-07.jsonl"
+    if not p.is_file():
+        pytest.skip("tape/orderbook_depth/dt=2026-07-07.jsonl not present in this checkout")
+    earliest = None
+    with p.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            ca = json.loads(line).get("captured_at")
+            if ca and (earliest is None or ca < earliest):
+                earliest = ca
+    assert earliest is not None
+    assert earliest <= "2026-07-07T01:23:57.700581+00:00"
