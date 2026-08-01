@@ -1,5 +1,5 @@
 {
-  "any_alive_cell": true,
+  "any_alive_cell": false,
   "bootstrap_unit": "game_series (L6/L41)",
   "bootstrapped_object": "strategy_level_pnl (double fill = realized capture; single-side fill = unhedged directional position marked to broker_truth settlement; no fill = 0) \u2014 L249",
   "cells": [
@@ -203,6 +203,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 3,
+          "n_units": 14,
+          "reasons": []
+        },
+        "ci95": [
+          -0.034651162790697666,
+          0.00017543859649122822
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.016031746031746025,
+        "n_boot": 10000,
+        "n_obs": 63,
+        "n_single_side_legs": 43,
+        "n_units_series": 14,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 63,
         "entry_missing_quote": 10,
@@ -210,6 +232,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 180,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -242,7 +266,7 @@
       "median_ttc_hours_entry": 5.622298373333333,
       "n_distinct_entry_timestamps": 37,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.14591836734693878 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.14591836734693878 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -446,6 +470,31 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 4,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          -0.020000000000000004,
+          -0.012499999999999978
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.018399999999999993,
+        "n_boot": 10000,
+        "n_obs": 25,
+        "n_single_side_legs": 18,
+        "n_units_series": 4,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 25,
         "entry_missing_quote": 10,
@@ -453,6 +502,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 38,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 180,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -485,7 +536,7 @@
       "median_ttc_hours_entry": 5.760404379444444,
       "n_distinct_entry_timestamps": 13,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=4 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=4 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -690,6 +741,31 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 1,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          -0.01999999999999999,
+          -0.01999999999999999
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.01999999999999999,
+        "n_boot": 10000,
+        "n_obs": 16,
+        "n_single_side_legs": 12,
+        "n_units_series": 1,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 16,
         "entry_missing_quote": 10,
@@ -697,6 +773,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 47,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 180,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -729,7 +807,7 @@
       "median_ttc_hours_entry": 5.688842107222222,
       "n_distinct_entry_timestamps": 6,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=1 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=1 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -934,6 +1012,31 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 1,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          -0.017499999999999984,
+          -0.017499999999999984
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.017499999999999984,
+        "n_boot": 10000,
+        "n_obs": 12,
+        "n_single_side_legs": 8,
+        "n_units_series": 1,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 12,
         "entry_missing_quote": 10,
@@ -941,6 +1044,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 51,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 180,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -973,7 +1078,7 @@
       "median_ttc_hours_entry": 5.688501712638889,
       "n_distinct_entry_timestamps": 5,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=1 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=1 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -1176,6 +1281,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 0,
+          "reasons": [
+            "empty"
+          ]
+        },
+        "ci95": [
+          null,
+          null
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": null,
+        "n_boot": 10000,
+        "n_obs": 0,
+        "n_single_side_legs": 0,
+        "n_units_series": 0,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 0,
         "entry_missing_quote": 10,
@@ -1183,6 +1312,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 63,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 180,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -1215,7 +1346,7 @@
       "median_ttc_hours_entry": null,
       "n_distinct_entry_timestamps": 0,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "empty_population"
+      "verdict_reason": "hold_to_settlement: empty_population [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -1416,6 +1547,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 1,
+          "n_units": 15,
+          "reasons": []
+        },
+        "ci95": [
+          -0.04132075471698114,
+          -0.014339622641509443
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.024078947368421044,
+        "n_boot": 10000,
+        "n_obs": 76,
+        "n_single_side_legs": 46,
+        "n_units_series": 15,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 76,
         "entry_missing_quote": 10,
@@ -1423,6 +1576,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 359,
+        "flatten_no_fill_instant": 2,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 160,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -1455,7 +1610,7 @@
       "median_ttc_hours_entry": 11.61446190388889,
       "n_distinct_entry_timestamps": 38,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.09126582278481013 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.09126582278481013 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -1660,6 +1815,30 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 2,
+          "n_units": 6,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.02352941176470587,
+          -0.007142857142857153
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.016333333333333318,
+        "n_boot": 10000,
+        "n_obs": 30,
+        "n_single_side_legs": 21,
+        "n_units_series": 6,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 30,
         "entry_missing_quote": 10,
@@ -1667,6 +1846,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 46,
         "entry_spread_below_two_fees": 359,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 160,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -1699,7 +1880,7 @@
       "median_ttc_hours_entry": 11.656741913333335,
       "n_distinct_entry_timestamps": 15,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=6 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=6 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -1904,6 +2085,31 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 3,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          -0.035,
+          0.0
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.016956521739130415,
+        "n_boot": 10000,
+        "n_obs": 23,
+        "n_single_side_legs": 17,
+        "n_units_series": 3,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 23,
         "entry_missing_quote": 10,
@@ -1911,6 +2117,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 53,
         "entry_spread_below_two_fees": 359,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 160,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -1943,7 +2151,7 @@
       "median_ttc_hours_entry": 11.7493498875,
       "n_distinct_entry_timestamps": 11,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=3 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=3 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -2147,6 +2355,31 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 2,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          -0.04000000000000001,
+          -0.015263157894736815
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.016499999999999976,
+        "n_boot": 10000,
+        "n_obs": 20,
+        "n_single_side_legs": 15,
+        "n_units_series": 2,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 20,
         "entry_missing_quote": 10,
@@ -2154,6 +2387,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 56,
         "entry_spread_below_two_fees": 359,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 160,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -2186,7 +2421,7 @@
       "median_ttc_hours_entry": 11.749766554166666,
       "n_distinct_entry_timestamps": 9,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=2 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=2 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -2390,6 +2625,31 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 0,
+          "n_units": 1,
+          "reasons": [
+            "below_min_units",
+            "no_opposing_unit"
+          ]
+        },
+        "ci95": [
+          -0.032857142857142814,
+          -0.032857142857142814
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.032857142857142814,
+        "n_boot": 10000,
+        "n_obs": 7,
+        "n_single_side_legs": 4,
+        "n_units_series": 1,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 7,
         "entry_missing_quote": 10,
@@ -2397,6 +2657,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 69,
         "entry_spread_below_two_fees": 359,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 160,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -2429,7 +2691,7 @@
       "median_ttc_hours_entry": 11.749905443055555,
       "n_distinct_entry_timestamps": 4,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=1 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=1 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -2630,6 +2892,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 2,
+          "n_units": 14,
+          "reasons": []
+        },
+        "ci95": [
+          -0.026966292134831454,
+          -0.01054263565891473
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.01783333333333333,
+        "n_boot": 10000,
+        "n_obs": 120,
+        "n_single_side_legs": 58,
+        "n_units_series": 14,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 120,
         "entry_missing_quote": 8,
@@ -2637,6 +2921,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 125,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -2669,7 +2955,7 @@
       "median_ttc_hours_entry": 17.616652107222222,
       "n_distinct_entry_timestamps": 50,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.03820224719101124 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.03820224719101124 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -2871,6 +3157,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 3,
+          "n_units": 11,
+          "reasons": []
+        },
+        "ci95": [
+          -0.02193548387096775,
+          -0.0008695652173912921
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.007659574468085105,
+        "n_boot": 10000,
+        "n_obs": 47,
+        "n_single_side_legs": 17,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 47,
         "entry_missing_quote": 8,
@@ -2878,6 +3186,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 73,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 125,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -2910,7 +3220,7 @@
       "median_ttc_hours_entry": 17.691161192777777,
       "n_distinct_entry_timestamps": 25,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.027377049180327875 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.027377049180327875 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -3114,6 +3424,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 2,
+          "n_units": 7,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.014545454545454523,
+          0.006315789473684234
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.0017647058823529367,
+        "n_boot": 10000,
+        "n_obs": 34,
+        "n_single_side_legs": 8,
+        "n_units_series": 7,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 34,
         "entry_missing_quote": 8,
@@ -3121,6 +3455,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 86,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 125,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -3153,7 +3489,7 @@
       "median_ttc_hours_entry": 17.65664610527778,
       "n_distinct_entry_timestamps": 14,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=7 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=7 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -3357,6 +3693,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 2,
+          "n_units": 5,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.014999999999999953,
+          0.008823529411764728
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": -0.0003333333333333267,
+        "n_boot": 10000,
+        "n_obs": 30,
+        "n_single_side_legs": 6,
+        "n_units_series": 5,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 30,
         "entry_missing_quote": 8,
@@ -3364,6 +3724,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 90,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 125,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -3396,7 +3758,7 @@
       "median_ttc_hours_entry": 17.753998297916667,
       "n_distinct_entry_timestamps": 12,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=5 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=5 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -3600,6 +3962,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 1,
+          "n_units": 3,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.002000000000000001,
+          0.08000000000000007
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.0032,
+        "n_boot": 10000,
+        "n_obs": 25,
+        "n_single_side_legs": 2,
+        "n_units_series": 3,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 25,
         "entry_missing_quote": 8,
@@ -3607,6 +3993,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 95,
         "entry_spread_below_two_fees": 352,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 125,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -3639,7 +4027,7 @@
       "median_ttc_hours_entry": 17.752997323055556,
       "n_distinct_entry_timestamps": 11,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=3 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=3 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -3840,6 +4228,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 9,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          -0.020000000000000007,
+          0.041554404145077724
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.007386363636363636,
+        "n_boot": 10000,
+        "n_obs": 176,
+        "n_single_side_legs": 74,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 176,
         "entry_missing_quote": 2,
@@ -3847,6 +4257,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 304,
+        "flatten_no_fill_instant": 1,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 123,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -3879,7 +4291,7 @@
       "median_ttc_hours_entry": 23.616630729444445,
       "n_distinct_entry_timestamps": 63,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.024248366013071905 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.024248366013071905 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -4081,6 +4493,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 8,
+          "n_units": 13,
+          "reasons": []
+        },
+        "ci95": [
+          -0.01481012658227849,
+          0.06824175824175825
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.026600000000000002,
+        "n_boot": 10000,
+        "n_obs": 100,
+        "n_single_side_legs": 43,
+        "n_units_series": 13,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 100,
         "entry_missing_quote": 2,
@@ -4088,6 +4522,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 76,
         "entry_spread_below_two_fees": 304,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 123,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -4119,8 +4555,8 @@
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 23.651388161666667,
       "n_distinct_entry_timestamps": 47,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-CI",
+      "verdict_reason": "flatten_at_cross: strategy-level 95% CI lower bound -0.01481012658227849 not > 0 [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -4322,6 +4758,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 7,
+          "n_units": 11,
+          "reasons": []
+        },
+        "ci95": [
+          -0.01897435897435898,
+          0.08173913043478259
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.034512195121951215,
+        "n_boot": 10000,
+        "n_obs": 82,
+        "n_single_side_legs": 32,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 82,
         "entry_missing_quote": 2,
@@ -4329,6 +4787,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 94,
         "entry_spread_below_two_fees": 304,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 123,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -4361,7 +4821,7 @@
       "median_ttc_hours_entry": 23.709616410277782,
       "n_distinct_entry_timestamps": 36,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -5.742532885992189e-18 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -5.742532885992189e-18 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -4565,6 +5025,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 5,
+          "n_units": 7,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.017142857142857147,
+          0.10229166666666668
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.04906250000000001,
+        "n_boot": 10000,
+        "n_obs": 64,
+        "n_single_side_legs": 22,
+        "n_units_series": 7,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 64,
         "entry_missing_quote": 2,
@@ -4572,6 +5056,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 112,
         "entry_spread_below_two_fees": 304,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 123,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -4604,7 +5090,7 @@
       "median_ttc_hours_entry": 23.73860745375,
       "n_distinct_entry_timestamps": 25,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=7 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=7 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -4808,6 +5294,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 3,
+          "n_units": 5,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.003953488372093025,
+          0.12202380952380952
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.06163636363636364,
+        "n_boot": 10000,
+        "n_obs": 55,
+        "n_single_side_legs": 16,
+        "n_units_series": 5,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 55,
         "entry_missing_quote": 2,
@@ -4815,6 +5325,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 121,
         "entry_spread_below_two_fees": 304,
+        "flatten_no_fill_instant": 0,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 123,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -4847,7 +5359,7 @@
       "median_ttc_hours_entry": 23.73888816166667,
       "n_distinct_entry_timestamps": 24,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=5 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=5 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -5048,6 +5560,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 11,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          -0.010866141732283464,
+          0.0707638888888889
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.018478964401294495,
+        "n_boot": 10000,
+        "n_obs": 309,
+        "n_single_side_legs": 113,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 309,
         "entry_missing_quote": 2,
@@ -5055,6 +5589,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 261,
+        "flatten_no_fill_instant": 32,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 33,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -5087,7 +5623,7 @@
       "median_ttc_hours_entry": 35.612724675277775,
       "n_distinct_entry_timestamps": 67,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.010478468899521535 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.010478468899521535 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -5288,6 +5824,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 8,
+          "n_units": 15,
+          "reasons": []
+        },
+        "ci95": [
+          -0.006797900262467199,
+          0.09623376623376623
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.03473684210526315,
+        "n_boot": 10000,
+        "n_obs": 209,
+        "n_single_side_legs": 76,
+        "n_units_series": 15,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 209,
         "entry_missing_quote": 2,
@@ -5295,6 +5853,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 100,
         "entry_spread_below_two_fees": 261,
+        "flatten_no_fill_instant": 24,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 33,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -5327,7 +5887,7 @@
       "median_ttc_hours_entry": 35.616961259722224,
       "n_distinct_entry_timestamps": 57,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.02120879120879121 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.02120879120879121 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -5529,6 +6089,28 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 6,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          -0.006259541984732834,
+          0.11146825396825397
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.04612121212121211,
+        "n_boot": 10000,
+        "n_obs": 165,
+        "n_single_side_legs": 59,
+        "n_units_series": 12,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 165,
         "entry_missing_quote": 2,
@@ -5536,6 +6118,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 144,
         "entry_spread_below_two_fees": 261,
+        "flatten_no_fill_instant": 15,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 33,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -5568,7 +6152,7 @@
       "median_ttc_hours_entry": 35.615255059166664,
       "n_distinct_entry_timestamps": 43,
       "verdict": "DEAD-by-CI",
-      "verdict_reason": "strategy-level 95% CI lower bound -0.007799999999999994 not > 0"
+      "verdict_reason": "hold_to_settlement: strategy-level 95% CI lower bound -0.007799999999999994 not > 0 [L256 worse-of-two; hold=DEAD-by-CI flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -5772,6 +6356,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 4,
+          "n_units": 9,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.004736842105263158,
+          0.12947368421052632
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.05858208955223881,
+        "n_boot": 10000,
+        "n_obs": 134,
+        "n_single_side_legs": 44,
+        "n_units_series": 9,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 134,
         "entry_missing_quote": 2,
@@ -5779,6 +6387,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 175,
         "entry_spread_below_two_fees": 261,
+        "flatten_no_fill_instant": 13,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 33,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -5811,7 +6421,7 @@
       "median_ttc_hours_entry": 35.61316561694444,
       "n_distinct_entry_timestamps": 36,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=9 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=9 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -6015,6 +6625,30 @@
       "clears_tick_magnitude_strategy": false,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 3,
+          "n_units": 9,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          -0.002352941176470591,
+          0.14448598130841123
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.08112244897959182,
+        "n_boot": 10000,
+        "n_obs": 98,
+        "n_single_side_legs": 29,
+        "n_units_series": 9,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 98,
         "entry_missing_quote": 2,
@@ -6022,6 +6656,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 211,
         "entry_spread_below_two_fees": 261,
+        "flatten_no_fill_instant": 7,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 33,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -6054,7 +6690,7 @@
       "median_ttc_hours_entry": 35.5911557775,
       "n_distinct_entry_timestamps": 28,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=9 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=9 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -6255,6 +6891,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 8,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          -0.0035635359116022074,
+          0.09035377358490566
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.029301675977653638,
+        "n_boot": 10000,
+        "n_obs": 358,
+        "n_single_side_legs": 139,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 358,
         "entry_missing_quote": 2,
@@ -6262,6 +6920,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 232,
+        "flatten_no_fill_instant": 14,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 13,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -6293,8 +6953,8 @@
       "median_entry_spread": 0.059999999999999956,
       "median_ttc_hours_entry": 47.26530892805555,
       "n_distinct_entry_timestamps": 52,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-CI",
+      "verdict_reason": "flatten_at_cross: strategy-level 95% CI lower bound -0.0035635359116022074 not > 0 [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -6495,6 +7155,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 9,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          0.001005586592178772,
+          0.10748120300751879
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.041779359430604984,
+        "n_boot": 10000,
+        "n_obs": 281,
+        "n_single_side_legs": 110,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 281,
         "entry_missing_quote": 2,
@@ -6502,6 +7184,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 77,
         "entry_spread_below_two_fees": 232,
+        "flatten_no_fill_instant": 11,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 13,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -6533,8 +7217,8 @@
       "median_entry_spread": 0.06999999999999998,
       "median_ttc_hours_entry": 47.57550414805555,
       "n_distinct_entry_timestamps": 46,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-magnitude",
+      "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     },
     {
       "adverse_selection_breakeven": {
@@ -6735,6 +7419,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 6,
+          "n_units": 13,
+          "reasons": []
+        },
+        "ci95": [
+          0.0034470989761092156,
+          0.12294354838709676
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.04950819672131147,
+        "n_boot": 10000,
+        "n_obs": 244,
+        "n_single_side_legs": 95,
+        "n_units_series": 13,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 244,
         "entry_missing_quote": 2,
@@ -6742,6 +7448,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 114,
         "entry_spread_below_two_fees": 232,
+        "flatten_no_fill_instant": 10,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 13,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -6773,8 +7481,8 @@
       "median_entry_spread": 0.07000000000000003,
       "median_ttc_hours_entry": 47.576062845833334,
       "n_distinct_entry_timestamps": 39,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-magnitude",
+      "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     },
     {
       "adverse_selection_breakeven": {
@@ -6976,6 +7684,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 3,
+          "n_units": 11,
+          "reasons": []
+        },
+        "ci95": [
+          0.006000000000000003,
+          0.13676229508196716
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.05903846153846153,
+        "n_boot": 10000,
+        "n_obs": 208,
+        "n_single_side_legs": 79,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 208,
         "entry_missing_quote": 2,
@@ -6983,6 +7713,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 150,
         "entry_spread_below_two_fees": 232,
+        "flatten_no_fill_instant": 8,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 13,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -7014,8 +7746,8 @@
       "median_entry_spread": 0.08999999999999997,
       "median_ttc_hours_entry": 47.57342880416667,
       "n_distinct_entry_timestamps": 34,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-magnitude",
+      "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     },
     {
       "adverse_selection_breakeven": {
@@ -7219,6 +7951,30 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": false,
+          "n_opposing_units": 3,
+          "n_units": 9,
+          "reasons": [
+            "below_min_units"
+          ]
+        },
+        "ci95": [
+          0.008830409356725147,
+          0.15888268156424576
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.08039735099337747,
+        "n_boot": 10000,
+        "n_obs": 151,
+        "n_single_side_legs": 54,
+        "n_units_series": 9,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 151,
         "entry_missing_quote": 2,
@@ -7226,6 +7982,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 207,
         "entry_spread_below_two_fees": 232,
+        "flatten_no_fill_instant": 7,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 13,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -7258,7 +8016,7 @@
       "median_ttc_hours_entry": 42.94678424916667,
       "n_distinct_entry_timestamps": 27,
       "verdict": "DEAD-by-adequacy",
-      "verdict_reason": "n_units_series=9 < 10 (L41 floor)"
+      "verdict_reason": "hold_to_settlement: n_units_series=9 < 10 (L41 floor) [L256 worse-of-two; hold=DEAD-by-adequacy flatten=DEAD-by-adequacy]"
     },
     {
       "adverse_selection_breakeven": {
@@ -7459,6 +8217,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 9,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          -0.0023333333333333305,
+          0.11721804511278196
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.04104018912529551,
+        "n_boot": 10000,
+        "n_obs": 423,
+        "n_single_side_legs": 163,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 423,
         "entry_missing_quote": 2,
@@ -7466,6 +8246,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 0,
         "entry_spread_below_two_fees": 180,
+        "flatten_no_fill_instant": 9,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 0,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -7497,8 +8279,8 @@
       "median_entry_spread": 0.06,
       "median_ttc_hours_entry": 49.65097102166667,
       "n_distinct_entry_timestamps": 44,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-CI",
+      "verdict_reason": "flatten_at_cross: strategy-level 95% CI lower bound -0.0023333333333333305 not > 0 [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-CI]"
     },
     {
       "adverse_selection_breakeven": {
@@ -7699,6 +8481,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 9,
+          "n_units": 17,
+          "reasons": []
+        },
+        "ci95": [
+          0.0006050955414012791,
+          0.13154929577464788
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.05250704225352113,
+        "n_boot": 10000,
+        "n_obs": 355,
+        "n_single_side_legs": 133,
+        "n_units_series": 17,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 355,
         "entry_missing_quote": 2,
@@ -7706,6 +8510,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 68,
         "entry_spread_below_two_fees": 180,
+        "flatten_no_fill_instant": 9,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 0,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -7737,8 +8543,8 @@
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 50.175389437499994,
       "n_distinct_entry_timestamps": 43,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-magnitude",
+      "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     },
     {
       "adverse_selection_breakeven": {
@@ -7939,6 +8745,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 5,
+          "n_units": 12,
+          "reasons": []
+        },
+        "ci95": [
+          0.0022992700729927034,
+          0.1388352272727273
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.0589308176100629,
+        "n_boot": 10000,
+        "n_obs": 318,
+        "n_single_side_legs": 122,
+        "n_units_series": 12,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 318,
         "entry_missing_quote": 2,
@@ -7946,6 +8774,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 105,
         "entry_spread_below_two_fees": 180,
+        "flatten_no_fill_instant": 9,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 0,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -7977,8 +8807,8 @@
       "median_entry_spread": 0.07,
       "median_ttc_hours_entry": 52.419304355,
       "n_distinct_entry_timestamps": 41,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-magnitude",
+      "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     },
     {
       "adverse_selection_breakeven": {
@@ -8180,6 +9010,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 5,
+          "n_units": 11,
+          "reasons": []
+        },
+        "ci95": [
+          0.0026819923371647503,
+          0.152
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.06951851851851855,
+        "n_boot": 10000,
+        "n_obs": 270,
+        "n_single_side_legs": 106,
+        "n_units_series": 11,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 270,
         "entry_missing_quote": 2,
@@ -8187,6 +9039,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 153,
         "entry_spread_below_two_fees": 180,
+        "flatten_no_fill_instant": 8,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 0,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -8218,8 +9072,8 @@
       "median_entry_spread": 0.08000000000000002,
       "median_ttc_hours_entry": 58.76424983861111,
       "n_distinct_entry_timestamps": 38,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-magnitude",
+      "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     },
     {
       "adverse_selection_breakeven": {
@@ -8421,6 +9275,28 @@
       "clears_tick_magnitude_strategy": true,
       "entry_timestamp_artifact_flag": false,
       "fill_model": "touch",
+      "flatten_at_cross": {
+        "admissible": {
+          "admissible": true,
+          "n_opposing_units": 3,
+          "n_units": 10,
+          "reasons": []
+        },
+        "ci95": [
+          0.005808383233532931,
+          0.1753953488372093
+        ],
+        "clears_tick_magnitude": false,
+        "exit_treatment": "flatten_at_cross",
+        "mean": 0.09472361809045227,
+        "n_boot": 10000,
+        "n_obs": 199,
+        "n_single_side_legs": 71,
+        "n_units_series": 10,
+        "n_unmeasurable_single_side": 0,
+        "note": "L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. Unquotable flattens are dropped, never zeroed (L86).",
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)"
+      },
       "funnel": {
         "candidates": 199,
         "entry_missing_quote": 2,
@@ -8428,6 +9304,8 @@
         "entry_single_snapshot": 0,
         "entry_spread_below_fees_plus_ticks": 224,
         "entry_spread_below_two_fees": 180,
+        "flatten_no_fill_instant": 6,
+        "flatten_unquotable_single_side": 0,
         "no_snapshot_within_horizon": 0,
         "offset_price_non_positive": 0,
         "tickers_with_preclose": 605
@@ -8459,21 +9337,22 @@
       "median_entry_spread": 0.29,
       "median_ttc_hours_entry": 50.09815083833334,
       "n_distinct_entry_timestamps": 31,
-      "verdict": "ALIVE-CANDIDATE",
-      "verdict_reason": "admissible strategy-level CI > 0 clearing the tick gate"
+      "verdict": "DEAD-by-magnitude",
+      "verdict_reason": "flatten_at_cross: CI positive but below one fillable tick (L27) [L256 worse-of-two; hold=ALIVE-CANDIDATE flatten=DEAD-by-magnitude]"
     }
   ],
   "double_fill_object_note": "pnl_both_fill is SIGN-BOUNDED BY CONSTRUCTION under this gate (L249) \u2014 reported as a diagnostic, never a verdict",
+  "exit_treatment_note": "EVERY cell is bootstrapped under BOTH exit treatments and its verdict is the WORSE of the two (L256): hold_to_settlement marks an orphan single-side leg to the broker_truth payout (most generous); flatten_at_cross closes it by lifting the other side's real ask (maker fee in, TAKER fee out). A cell that is ALIVE only under hold_to_settlement is not ALIVE.",
   "fill_model_note": "touch is primary (L250); the turnover rule saturates on multi-day holds and is a labeled diagnostic only",
   "join_funnel": {
-    "depth_lines": 368466,
-    "depth_tickers": 95413,
+    "depth_lines": 371428,
+    "depth_tickers": 95901,
     "excluded_series_tickers": 0,
     "joined_tickers": 605,
     "preclose_tickers": 605
   },
   "n_boot": 10000,
-  "overall_verdict": "ALIVE-CANDIDATE(S) PRESENT \u2014 requires independent verification",
+  "overall_verdict": "DEAD across every (N,H) cell",
   "price_source_tags": {
     "fills": "real_bid",
     "queue_depth": "real_bid",

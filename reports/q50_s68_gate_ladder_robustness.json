@@ -9,6 +9,8 @@
       "entry_single_snapshot": 0,
       "entry_spread_below_fees_plus_ticks": 76,
       "entry_spread_below_two_fees": 304,
+      "flatten_no_fill_instant": 0,
+      "flatten_unquotable_single_side": 0,
       "no_snapshot_within_horizon": 123,
       "offset_price_non_positive": 0,
       "tickers_with_preclose": 605
@@ -376,6 +378,8 @@
       "entry_single_snapshot": 0,
       "entry_spread_below_fees_plus_ticks": 76,
       "entry_spread_below_two_fees": 304,
+      "flatten_no_fill_instant": 0,
+      "flatten_unquotable_single_side": 0,
       "no_snapshot_within_horizon": 123,
       "offset_price_non_positive": 0,
       "tickers_with_preclose": 605

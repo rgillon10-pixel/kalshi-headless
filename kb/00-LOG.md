@@ -6,6 +6,108 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~18:5x UTC — IDLE RUN (policy a): L256's flatten-at-cross exit treatment stops being a hand-run verifier memory and becomes code — the kill is confirmed 10/10, its stated mechanism is only right for 3 of them
+
+**Nothing flips. S68 stays `dead ✗`, still 0 proven edges.** This was an idle run: the full Q0-Q50
+scan found zero eligible TODO/IN-PROGRESS items (Q49 and Q50 both closed DEAD earlier today), so
+policy (a) applied — convert one open `UNENFORCED` lesson into an enforcement.
+
+**Which lesson, and why this one.** `invariants._stale_unenforced_scan()` reports 9 genuinely-open
+`UNENFORCED` rows. The pick was **L256** ("a fill-sim that can leave an UNHEDGED SINGLE-SIDE leg must
+report BOTH exit treatments — hold-to-settlement AND flatten-at-cross — and a verdict that survives
+only the generous hold-to-settlement treatment is not a verdict"), because the hole was already
+self-documented in the tree: `scripts/q50_s68_gate_ladder.py` carries a "Provenance note
+(2026-08-01, post-verifier)" explaining that three robustness attacks were promoted from PROSE to
+re-runnable code because "a verifier had to re-derive them by hand" and the repo's trust default is
+"no claim without a re-runnable script" — and then, four lines later, that same comment block
+asserted in prose, with no code behind it, that "a flatten-at-cross exit treatment of the unhedged
+single-side legs leaves every CI>0 cell straddling zero (L256)". The identical defect, one paragraph
+after fixing it. L256's own row flags it too: *"the flattened CIs are not persisted in a committed
+artifact (L165)"*.
+
+**What was built.** In `scripts/q50_s68_gate_ladder.py`: `taker_fee()` (the crossing leg via
+`core.pricing.fee_per_contract` at `TAKER_FEE_RATE` — L5 with its sign flipped, since charging maker
+on both legs would make the HONEST branch look better than it is); `opposite_side_ask(rec, side)`
+(the real `best_no_ask`/`best_yes_ask` read at the leg's own fill instant; None — never a number —
+on an absent, $0.00 or off-scale quote, because a zero ask is the ABSENCE of an offer, L1/L105);
+`flatten_at_cross_pnl(entry, side, ask)` = `(1 − entry − ask) − maker_fee(entry) − taker_fee(ask)`;
+and `flatten_analysis()`, the same object on the same GAME-SERIES unit (L6/L41) at the same `n_boot`
+and the same admissibility gate as the hold branch, publishing `n_unmeasurable_single_side` because
+an unquotable flatten is DROPPED from the bootstrap, never booked at $0.00 (L86). Every trade row now
+carries `pnl_strategy_flatten` / `flatten_price` / `flatten_price_source_tag=real_ask`, and every
+ladder cell carries the branch.
+
+**The operative half is in the verdict.** The kill ladder is factored into `branch_verdict()` and run
+over BOTH treatments; `cell_verdict` returns `max` by `VERDICT_SEVERITY` (ALIVE ranks least severe,
+so the WORSE branch always wins) and **RAISES `KeyError` when `flatten_at_cross` is absent**. Pinning
+the ABSENCE of a generous-branch fallback is the only thing that stops a future refactor from quietly
+restoring the treatment L256 was filed to stop being the headline.
+
+**Measured on committed tape** (full 35-cell ladder, `n_boot=10,000`, seed 42, 54s wall clock;
+`real_bid` fills + `real_bid` queue + **`real_ask` flatten exit** + `broker_truth` settlement):
+
+* **10 cells ALIVE under hold-to-settlement — exactly the ten L256 was written about — and 0 of 10
+  survive flatten-at-cross.** The kill is CONFIRMED; `overall_verdict` is unchanged at "DEAD across
+  every (N,H) cell", and no registry row moves.
+* **The stated mechanism is only right for 3 of the 10.** L256's prose says all ten died "CI
+  straddling zero". True of H=24/N=1 (−0.0148), H=48/N=0 (−0.0036) and H=72/N=0 (−0.0023). The other
+  **seven** keep a flatten CI lower bound that is still POSITIVE but SUB-TICK — +0.0006, +0.0010,
+  +0.0023, +0.0027, +0.0034, +0.0058, +0.0060, i.e. between a sixteenth and two-thirds of one cent —
+  and die on **L27's tick-magnitude gate**, not on a straddle. Flatten alone would not have killed
+  those seven; flatten AND L27 together do. That is exactly the kind of thing a hand-run derivation
+  reported as prose cannot surface, and it is the whole argument for the conversion.
+* **0 of 1,855 orphan legs across the whole ladder were unquotable**, so the flatten branch speaks
+  for the same population as the hold branch here — the coverage caveat is real but empty on this
+  tape.
+* Headline cell for the record (H=24h, gate = fees+1 tick, 100 candidates / 13 series / 81 games):
+  hold-to-settlement **[+0.0235, +0.1473]**, flatten-at-cross **[−0.0148, +0.0682]**.
+
+**Two-agent status, stated plainly.** No `verifier` subagent could be dispatched — the `Task` tool
+was not enabled in this session (the same constraint the 2026-07-31 L221 run recorded). The milestone
+was chosen non-verdict-class for that reason: nothing flips, and the DEAD verdict this reproduces was
+already verifier-CONFIRMED earlier today. Redundancy was supplied instead by a **second independent
+code path** — own series grouping, own block bootstrap, own L41/L27 gates, reading only
+`reports/q50_s68_gate_ladder_rows.jsonl` and never the summary — which reproduced 10/0 and the 3/7
+split exactly, and which also caught one error of MINE in the process (a first pass approximated
+`clears_tick_magnitude` as "CI width >= one tick" instead of "lower bound >= one tick" and therefore
+mis-read the seven sub-tick cells as survivors). The 3/7 refinement is recorded inside L256's
+enforcement cell and flagged as owing a second pair of eyes; nothing depends on it either way.
+
+**Pinned by 13 new test functions / 17 new items** in `tests/test_q50_s68_gate_ladder.py` (59 in the
+file, was 42), including the arithmetic identity computed rather than hardcoded on both sides, the
+maker-in/taker-out fee asymmetry, the sign convention pinned in both directions, unquotable ->
+None-not-zero, `both`/`neither` invariance across the two treatments, the worse-of-two selection, the
+no-fallback `KeyError`, and **two HARD real-tape acceptance tests** — one that re-derives the L254
+headline cell live off committed tape and **asserts non-vacuity FIRST** (if the hold branch ever stops
+being ALIVE the test fails loudly rather than passing for the wrong reason), and one that pins the
+full 10/0 result and the 3/7 mechanism split against the committed summary artifact.
+
+**Not done, deliberately:** L255's sibling (the zero-information "mid-as-truth" control) is still
+`UNENFORCED` and still hand-run — one lesson per idle run. Not promoted to a repo-wide
+`invariants.py` gate either: which probes owe a flatten branch is a per-probe judgment and the
+flatten price is a modelling choice; the assertable half is the narrow per-module absence-of-fallback
+above. The flatten also assumes we lift the observed quote in unlimited size — no slippage, no
+partial fill — which is generous in the honest branch's favour and remains uncharged.
+
+**Step 0b (stranded tape), bounded to branches younger than 48h:** 4 branches swept
+(`tape/hourly-20260731T0103Z`, `-20260731T0956Z`, `-20260801T0657Z`, `-20260801T1005Z`).
+`tape/hourly-20260801T0657Z` carried **393 genuinely-missing lines**, all union-appendable and all
+appended in this commit: `crypto_hourly/dt=2026-08-01` +2, `polymarket_macro_pairs/dt=2026-08-01`
++21, `sports_pairs/dt=2026-08-01` +370. The other three were contained (capture_id-level for the
+oversized `orderbook_depth`/`weather_books` files per the L216 size guard — a real check, reported as
+coarser than a line-level proof, not an all-clear). The 150+ branch pre-2026-07-30 backlog was NOT
+touched: its root-cause diagnosis is reserved for PR #46 (Q17, Ryan-review-only).
+
+**Step 9 (paper):** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (itself `dead ✗`, paper-infra
+only). `scripts/paper_pass.py` was idempotent this run — 0 newly processed, 232 already in ledger,
+0 new ledger lines. `paper: 0 open position(s), 1474 settled contract(s), realized P&L $+27.15, cash
+$+27.15, open notional $0.00`.
+
+See `scripts/q50_s68_gate_ladder.py`, `tests/test_q50_s68_gate_ladder.py`,
+`reports/q50_s68_gate_ladder_summary.json`, `kb/lessons/00-lessons.md` L256.
+
+---
+
 ## 2026-08-01 ~15:5x UTC — research loop IDLE RUN (policy (a)): L251's MEASUREMENT half UNENFORCED → test — and Q49's tape-start artifact was never confined to its primary cut (+ L257)
 
 **Step 0a PASS.** No GitHub API is reachable from this session (`api.github.com` → 403 "GitHub access

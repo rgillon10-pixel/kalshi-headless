@@ -67,6 +67,21 @@ loading) is IMPORTED from the Q49 module rather than re-implemented — Q49's co
 verifier-CONFIRMED, and a second copy would be a second thing to get wrong. What is new here is
 only the ENTRY RULE and the GATE.
 
+EXIT TREATMENT — BOTH BRANCHES, WORSE OF THE TWO (L256; built 2026-08-01)
+-------------------------------------------------------------------------
+Two of the four fill categories (``yes_only``, ``no_only``) leave an UNHEDGED single-side
+position. Marking that orphan to the ``broker_truth`` $0/$1 settlement is the most GENEROUS
+treatment available — a free directional lottery ticket. Every cell is therefore bootstrapped
+twice, over the same object, unit and ``n_boot``:
+
+* ``hold_to_settlement`` — the generous branch (``pnl_strategy_level``);
+* ``flatten_at_cross``  — the orphan is CLOSED by lifting the other side's REAL ask
+  (``flatten_at_cross_pnl``: maker fee on the entry leg, **taker** fee on the crossing exit).
+
+``cell_verdict`` returns the WORSE of the two and RAISES if the flatten branch is absent, so
+the generous branch can never become the headline by omission. On a mirrored book that has not
+moved since the fill, the flatten costs exactly the two fees.
+
 ROBUSTNESS (added 2026-08-01 after the verifier pass — provenance fix)
 ---------------------------------------------------------------------
 The first cut of this probe reported three "attacks that did NOT kill it" (leave-one-series-out,
@@ -98,11 +113,12 @@ from core.io import REPO_ROOT  # noqa: E402
 from scripts.q49_s68_bothside_maker_fillsim import (  # noqa: E402
     DEPTH_GLOB, MIN_CI_UNITS, PRICE_TICK, SETTLEMENT_GLOB, analyze_cut,
     best_bid_of, both_fill_pnl, build_trades, load_preclose_snapshots,
-    load_settlements, maker_fee, queue_ahead_at, simulate_leg_fill,
+    load_settlements, maker_fee, per_series_pnl, queue_ahead_at, simulate_leg_fill,
     simulate_leg_fill_touch, single_side_pnl, touch_departures_between,
     two_sided_wide_entry,
 )
 from core.depth import capturable_depth, lottery_tail_fraction  # noqa: E402
+from core.pricing import TAKER_FEE_RATE, fee_per_contract  # noqa: E402
 from core.settlement import require_binary_result  # noqa: E402
 
 _EPS = 1e-9
@@ -300,6 +316,130 @@ def _median_or_none(xs: Sequence[float]) -> Optional[float]:
 
 
 # --------------------------------------------------------------------------- #
+# EXIT TREATMENT — the L256 flatten-at-cross branch
+#
+# A both-bid maker sim has FOUR fill categories, and two of them (`yes_only`, `no_only`) leave
+# an UNHEDGED single-side position. Q49/Q50 originally marked that orphan to the `broker_truth`
+# $0/$1 settlement, which is the MOST GENEROUS possible treatment: it hands the simulation a
+# free directional lottery ticket that no maker running this strategy would knowingly keep.
+#
+# L256 (2026-08-01, Q50 verifier pass) is the rule that came out of it: **report BOTH exit
+# treatments — hold-to-settlement AND flatten-at-cross — and take the WORSE of the two as the
+# headline.** The verifier applied the flatten treatment BY HAND and every one of Q50's ten
+# CI>0 cells died; because it was hand-run, no committed artifact carried the number (an L165
+# provenance hole, flagged in the lesson row itself). This section is that treatment as
+# re-runnable code, so the claim is reproducible instead of remembered.
+#
+# The honest flatten is a TAKER exit: we hold an unwanted position and cross the spread to be
+# rid of it. Entry keeps the MAKER rate (our bid was lifted), the flatten leg pays the TAKER
+# rate. Charging maker on both would be the L5 error (a 4x fee understatement) with its sign
+# flipped — it would make the honest branch look better than it is.
+# --------------------------------------------------------------------------- #
+def taker_fee(fill_price: float) -> float:
+    """The flat TAKER fee on ONE crossing leg, via the sanctioned `core.pricing` helper at
+    `TAKER_FEE_RATE` (never hand-rolled — L5). Used for the flatten leg only; every entry leg
+    in this probe is a resting maker fill and keeps `maker_fee`."""
+    return fee_per_contract(float(fill_price), rate=TAKER_FEE_RATE)
+
+
+def opposite_side_ask(rec: Optional[Dict[str, Any]], side: str) -> Optional[float]:
+    """The REAL ask we must LIFT to flatten an orphan `side` leg: `best_no_ask` to close a
+    YES position, `best_yes_ask` to close a NO one. Tagged `real_ask` when present.
+
+    Returns None — never a number — when the quote is absent or is 0.0, because a zero ask is
+    the ABSENCE of an offer, not a free contract (L1/L105). A None here makes the flatten
+    UNMEASURABLE for that trade, and `per_series_pnl` then drops the row rather than booking
+    it as a $0.00 exit (L86: never book an unmeasured leg as a free zero)."""
+    if rec is None:
+        return None
+    if side not in ("yes", "no"):
+        raise ValueError(f"side must be 'yes' or 'no' (got {side!r})")
+    raw = rec.get("best_no_ask") if side == "yes" else rec.get("best_yes_ask")
+    if raw is None:
+        return None
+    a = float(raw)
+    if a <= 0.0 or a > 1.0:
+        return None
+    return a
+
+
+def flatten_at_cross_pnl(entry_price: float, side: str,
+                         opposite_ask: Optional[float]) -> Optional[float]:
+    """L256's honest exit for an UNHEDGED single-side leg: instead of riding the orphan to
+    settlement, CLOSE it by buying the other side at its ask. Owning YES *and* NO on the same
+    binary market pays exactly $1 whichever way it settles, so::
+
+        gross = 1.00 - entry_price - opposite_ask
+        pnl   = gross - maker_fee(entry_price) - taker_fee(opposite_ask)
+
+    MAKER on the entry leg (our resting bid was lifted), TAKER on the flatten leg (we cross
+    the spread to get out) — the 4x asymmetry L5 exists to protect.
+
+    THE IDENTITY L256 PREDICTS, and which this function reproduces rather than hardcodes: on a
+    mirrored binary book (`best_no_ask == 1 - best_yes_bid` by collector construction,
+    `collection/normalize.py`) that has not moved since our fill at the touch,
+    `opposite_ask == 1 - entry_price`, so `gross == 0` and the exit costs **precisely the two
+    fees** — a small CERTAIN loss where hold-to-settlement booked a fat lottery. When the book
+    HAS moved the gross is non-zero and signed: it is positive iff the book moved in our
+    favour between resting and flattening, which is the direction a fill proxy blind to trade
+    direction (L253) cannot otherwise see.
+
+    Returns None when `opposite_ask` is None (unquotable => UNMEASURABLE, never 0.0)."""
+    if side not in ("yes", "no"):
+        raise ValueError(f"side must be 'yes' or 'no' (got {side!r})")
+    if opposite_ask is None:
+        return None
+    p = float(entry_price)
+    a = float(opposite_ask)
+    gross = 1.0 - p - a
+    return gross - maker_fee(p) - taker_fee(a)
+
+
+def flatten_analysis(trades: Sequence[dict], model: str = PRIMARY_FILL_MODEL,
+                     n_boot: int = 10000) -> Dict[str, Any]:
+    """The strategy-level bootstrap under the L256 FLATTEN-AT-CROSS exit treatment — same
+    object, same unit (GAME-SERIES, L6/L41), same `n_boot`, same admissibility gate as the
+    hold-to-settlement branch it sits beside. The ONLY difference is how an unhedged
+    single-side leg is closed.
+
+    `both` (already hedged) and `neither` (nothing to close) rows are IDENTICAL across the two
+    treatments by construction; only the orphan legs move.
+
+    `n_unmeasurable_single_side` counts orphans whose flatten quote was absent. Those rows are
+    DROPPED from the bootstrap (L86), which is a coverage limit reported here rather than
+    hidden — a large count means this branch is speaking for a smaller population than the
+    hold-to-settlement branch, and the reader must be told."""
+    from core.bootstrap import (block_bootstrap, bootstrap_verdict_admissible,
+                                clears_tick_magnitude)
+
+    units = per_series_pnl(trades, "pnl_strategy_flatten", model)
+    boot = block_bootstrap(units, n_boot=n_boot)
+    adm = bootstrap_verdict_admissible(units, min_units=MIN_CI_UNITS)
+    n_unmeasurable = sum(
+        1 for t in trades
+        if t["models"][model]["fill_category"] in ("yes_only", "no_only")
+        and t["models"][model].get("pnl_strategy_flatten") is None)
+    n_single = sum(1 for t in trades
+                   if t["models"][model]["fill_category"] in ("yes_only", "no_only"))
+    return {
+        "exit_treatment": "flatten_at_cross",
+        "mean": boot["mean"],
+        "ci95": boot["ci95"],
+        "n_units_series": len(units) if units else 0,
+        "n_obs": sum(len(v) for v in units.values()),
+        "admissible": adm,
+        "clears_tick_magnitude": clears_tick_magnitude(boot["ci95"], tick=PRICE_TICK,
+                                                       min_ticks=1.0),
+        "n_single_side_legs": n_single,
+        "n_unmeasurable_single_side": n_unmeasurable,
+        "n_boot": n_boot,
+        "price_source_tag": "real_ask(flatten)+real_bid(entry)",
+        "note": ("L256: the honest exit for an orphan leg. Entry fee MAKER, flatten fee TAKER. "
+                 "Unquotable flattens are dropped, never zeroed (L86)."),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Trade construction (same row schema as Q49 so `analyze_cut` consumes it unchanged)
 # --------------------------------------------------------------------------- #
 def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dict],
@@ -321,7 +461,9 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
     funnel = {"tickers_with_preclose": len(per_ticker), "no_snapshot_within_horizon": 0,
               "entry_missing_quote": 0, "entry_not_two_sided": 0,
               "entry_spread_below_two_fees": 0, "entry_spread_below_fees_plus_ticks": 0,
-              "entry_single_snapshot": 0, "offset_price_non_positive": 0, "candidates": 0}
+              "entry_single_snapshot": 0, "offset_price_non_positive": 0, "candidates": 0,
+              # L256 flatten-branch coverage, reported not hidden
+              "flatten_unquotable_single_side": 0, "flatten_no_fill_instant": 0}
     for tk, all_snaps in sorted(per_ticker.items()):
         idx = select_entry_index(all_snaps, horizon_hours)
         if idx is None:
@@ -367,6 +509,11 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
         q_yes = queue_ahead_at(yes_ladders[0], p_yes)
         q_no = queue_ahead_at(no_ladders[0], p_no)
 
+        # touch-model fill INSTANTS, needed both by the L253 markout and by the L256
+        # flatten (the flatten quote must be read at the snapshot where the orphan filled)
+        fy_idx = touch_fill_index(yes_ladders, yes_best, p_yes, q_yes)
+        fn_idx = touch_fill_index(no_ladders, no_best, p_no, q_no)
+
         s = settlement[tk]
         # L52: a Kalshi settlement is NOT always binary ('scalar' exists). `load_settlements`
         # already drops non-binary rows, but this probe must not depend on an upstream filter
@@ -392,6 +539,29 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
                 pnl_strategy = single_side_pnl(p_no, "no", result)
             else:
                 category, pnl_both, pnl_strategy = "neither", None, 0.0
+            # ---- L256: the SAME population under the flatten-at-cross exit ----------
+            # `both` is already hedged and `neither` has nothing to close, so those rows are
+            # identical across the two treatments; only an orphan leg moves.
+            flat_price: Optional[float] = None
+            if category in ("both", "neither"):
+                pnl_flatten: Optional[float] = pnl_strategy
+            elif model != PRIMARY_FILL_MODEL:
+                # the `turnover` rule accumulates departures across the WHOLE hold and never
+                # localises a fill instant, so there is no snapshot at which to read a flatten
+                # quote. UNMEASURABLE under that model -- reported, never zeroed (L86). It is
+                # a labeled diagnostic anyway (L250); the verdict rests on `touch`.
+                pnl_flatten = None
+                funnel["flatten_no_fill_instant"] += 1
+            else:
+                orphan_side = "yes" if category == "yes_only" else "no"
+                orphan_price = p_yes if category == "yes_only" else p_no
+                idx_fill = fy_idx if category == "yes_only" else fn_idx
+                flat_rec = (snaps[idx_fill]["record"]
+                            if idx_fill is not None and idx_fill < len(snaps) else None)
+                flat_price = opposite_side_ask(flat_rec, orphan_side)
+                pnl_flatten = flatten_at_cross_pnl(orphan_price, orphan_side, flat_price)
+                if pnl_flatten is None:
+                    funnel["flatten_unquotable_single_side"] += 1
             models[model] = {
                 "filled_yes": fy["filled"], "filled_no": fn["filled"],
                 "departures_yes": fy["cumulative_departures"],
@@ -400,11 +570,13 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
                 "frozen_both_ladders": fy["frozen"] and fn["frozen"],
                 "pnl_both_fill": pnl_both,
                 "pnl_strategy_level": pnl_strategy,
+                # L256 -- the honest exit treatment, reported beside the generous one
+                "pnl_strategy_flatten": pnl_flatten,
+                "flatten_price": flat_price,
+                "flatten_price_source_tag": (None if flat_price is None else "real_ask"),
             }
 
         mids = [book_mid(s2["record"]) for s2 in snaps]
-        fy_idx = touch_fill_index(yes_ladders, yes_best, p_yes, q_yes)
-        fn_idx = touch_fill_index(no_ladders, no_best, p_no, q_no)
         markouts: Dict[str, List[Optional[float]]] = {str(k): [] for k in MARKOUT_HORIZONS_K}
         for k in MARKOUT_HORIZONS_K:
             if fy_idx is not None:
@@ -446,7 +618,8 @@ def build_trades_at(per_ticker: Dict[str, List[dict]], settlement: Dict[str, dic
             # Q49's cut flags kept so a Q50 row is schema-compatible with `cut_trades`
             "fillable_entry_spread": True,
             "fillable_entry_nearclose": (horizon_hours is not None),
-            "price_source_tag": "real_bid(fills)+real_bid(queue)+broker_truth(settlement)",
+            "price_source_tag": ("real_bid(fills)+real_bid(queue)+broker_truth(settlement)"
+                                 "+real_ask(flatten_exit)"),
         })
     return trades, funnel
 
@@ -468,10 +641,13 @@ def distinct_entry_timestamps(trades: Sequence[dict]) -> int:
 # the SAME n_boot as the headline, and every result dict carries its own `n_boot`.
 #
 # They are ATTACKS THAT FAILED TO KILL THE CELL. None of them is evidence FOR an edge — the cell
-# they are run against is DEAD on OTHER evidence: a flatten-at-cross exit treatment of the
-# unhedged single-side legs leaves every CI>0 cell straddling zero (L256), a zero-information
-# "mid-as-truth" control reproduces the same CI shape and sign (L255), and the L253 blindness
-# caveat bounds all three of these attacks anyway. Published so they are not re-run.
+# they are run against is DEAD on OTHER evidence: the flatten-at-cross exit treatment of the
+# unhedged single-side legs (L256 — now `flatten_analysis`/`flatten_at_cross_pnl` in this
+# module, folded into `cell_verdict` as the worse-of-two, no longer the hand-run verifier
+# derivation this comment used to cite), a zero-information "mid-as-truth" control that
+# reproduces the same CI shape and sign (L255 — still verifier-hand-run, NOT code here, and
+# therefore still an open L165 provenance hole), and the L253 blindness caveat bounds all three
+# of these attacks anyway. Published so they are not re-run.
 # --------------------------------------------------------------------------- #
 def strategy_units_by_series(trades: Sequence[dict],
                              model: str = PRIMARY_FILL_MODEL) -> Dict[str, List[float]]:
@@ -716,29 +892,65 @@ def _pct(x: Optional[float]) -> str:
 # --------------------------------------------------------------------------- #
 # Per-cell verdict
 # --------------------------------------------------------------------------- #
-def cell_verdict(cell: Dict[str, Any]) -> Tuple[str, str]:
-    """The kill ladder for ONE (N, H) cell, applied to the L249-correct object (the
-    strategy-level bootstrap). Returns (verdict, reason).
+#: How bad each verdict is. `cell_verdict` takes the MAX over the two exit treatments, so the
+#: WORSE branch always wins (L256). ALIVE is the least severe answer, never a tiebreak winner.
+VERDICT_SEVERITY: Dict[str, int] = {
+    "ALIVE-CANDIDATE": 0,
+    "DEAD-by-magnitude": 1,
+    "DEAD-by-CI": 2,
+    "DEAD-by-adequacy": 3,
+}
+
+
+def branch_verdict(n_candidates: int, strat: Dict[str, Any], clears_tick: bool,
+                   label: str) -> Tuple[str, str]:
+    """The kill ladder applied to ONE exit treatment's strategy-level bootstrap.
 
     Order matters: an empty/thin population is a DATA-ADEQUACY answer and must never be
     dressed up as a CI falsification (L53/L43)."""
-    a = cell["analysis"]
-    n = a["n_candidates"]
-    if n == 0:
-        return "DEAD-by-adequacy", "empty_population"
-    strat = a["bootstrap_strategy_level_diagnostic"]
+    if n_candidates == 0:
+        return "DEAD-by-adequacy", f"{label}: empty_population"
     n_units = strat["n_units_series"]
     if n_units is None or n_units < MIN_CI_UNITS:
-        return "DEAD-by-adequacy", f"n_units_series={n_units} < {MIN_CI_UNITS} (L41 floor)"
+        return ("DEAD-by-adequacy",
+                f"{label}: n_units_series={n_units} < {MIN_CI_UNITS} (L41 floor)")
     if not strat["admissible"]["admissible"]:
         return ("DEAD-by-adequacy",
-                f"bootstrap inadmissible: {','.join(strat['admissible']['reasons'])}")
+                f"{label}: bootstrap inadmissible: {','.join(strat['admissible']['reasons'])}")
     lo = strat["ci95"][0]
     if lo is None or lo <= 0.0:
-        return "DEAD-by-CI", f"strategy-level 95% CI lower bound {lo} not > 0"
-    if not cell["clears_tick_magnitude_strategy"]:
-        return "DEAD-by-magnitude", "CI positive but below one fillable tick (L27)"
-    return "ALIVE-CANDIDATE", "admissible strategy-level CI > 0 clearing the tick gate"
+        return "DEAD-by-CI", f"{label}: strategy-level 95% CI lower bound {lo} not > 0"
+    if not clears_tick:
+        return "DEAD-by-magnitude", f"{label}: CI positive but below one fillable tick (L27)"
+    return "ALIVE-CANDIDATE", f"{label}: admissible strategy-level CI > 0 clearing the tick gate"
+
+
+def cell_verdict(cell: Dict[str, Any]) -> Tuple[str, str]:
+    """The kill ladder for ONE (N, H) cell, applied to the L249-correct object (the
+    strategy-level bootstrap) under BOTH exit treatments, returning the WORSE of the two.
+
+    **L256 is enforced here, in code, not in a comment.** A single-side fill leaves an
+    unhedged position; marking it to `broker_truth` settlement (`hold_to_settlement`) is the
+    most generous possible treatment, and a cell that survives ONLY that branch has not
+    survived anything. The flatten-at-cross branch (`flatten_analysis`) is therefore a
+    REQUIRED key: `cell_verdict` raises rather than quietly falling back to the generous
+    branch, so the honest treatment cannot be dropped by a future refactor without the suite
+    going red. That absence-of-fallback is the assertable half of the lesson."""
+    a = cell["analysis"]
+    n = a["n_candidates"]
+    hold = branch_verdict(n, a["bootstrap_strategy_level_diagnostic"],
+                          cell["clears_tick_magnitude_strategy"], "hold_to_settlement")
+    if "flatten_at_cross" not in cell:
+        raise KeyError(
+            "cell is missing its `flatten_at_cross` branch — L256 requires BOTH exit "
+            "treatments before any verdict is issued; there is no generous-branch fallback")
+    flat_a = cell["flatten_at_cross"]
+    flat = branch_verdict(n, flat_a, flat_a["clears_tick_magnitude"], "flatten_at_cross")
+    worse = max((hold, flat), key=lambda vr: VERDICT_SEVERITY[vr[0]])
+    if hold[0] == flat[0] == "ALIVE-CANDIDATE":
+        return "ALIVE-CANDIDATE", ("BOTH exit treatments admissible, CI > 0, clearing the tick "
+                                   "gate (L256 worse-of-two)")
+    return worse[0], f"{worse[1]} [L256 worse-of-two; hold={hold[0]} flatten={flat[0]}]"
 
 
 def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
@@ -791,6 +1003,8 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
                 "markouts_by_k": aggregate_markouts(trades),
                 "adverse_selection_breakeven": adverse_selection_breakeven(
                     trades, model, n_boot=n_boot),
+                # L256 -- the honest exit treatment. Required by `cell_verdict`.
+                "flatten_at_cross": flatten_analysis(trades, model, n_boot=n_boot),
                 "analysis": analysis,
             }
             v, why = cell_verdict(cell)
@@ -801,6 +1015,10 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
                 row.pop("models", None)
                 row["fill_category"] = t["models"][model]["fill_category"]
                 row["pnl_strategy_level"] = t["models"][model]["pnl_strategy_level"]
+                row["pnl_strategy_flatten"] = t["models"][model]["pnl_strategy_flatten"]
+                row["flatten_price"] = t["models"][model]["flatten_price"]
+                row["flatten_price_source_tag"] = (
+                    t["models"][model]["flatten_price_source_tag"])
                 row["pnl_both_fill"] = t["models"][model]["pnl_both_fill"]
                 row["fill_model"] = model
                 all_rows.append(row)
@@ -816,6 +1034,12 @@ def run(depth_glob: str = DEPTH_GLOB, settlement_glob: str = SETTLEMENT_GLOB,
         "bootstrapped_object": ("strategy_level_pnl (double fill = realized capture; "
                                 "single-side fill = unhedged directional position marked to "
                                 "broker_truth settlement; no fill = 0) — L249"),
+        "exit_treatment_note": ("EVERY cell is bootstrapped under BOTH exit treatments and its "
+                                "verdict is the WORSE of the two (L256): hold_to_settlement "
+                                "marks an orphan single-side leg to the broker_truth payout "
+                                "(most generous); flatten_at_cross closes it by lifting the "
+                                "other side's real ask (maker fee in, TAKER fee out). A cell "
+                                "that is ALIVE only under hold_to_settlement is not ALIVE."),
         "double_fill_object_note": ("pnl_both_fill is SIGN-BOUNDED BY CONSTRUCTION under this "
                                     "gate (L249) — reported as a diagnostic, never a verdict"),
         "fill_model_note": ("touch is primary (L250); the turnover rule saturates on "
@@ -892,6 +1116,26 @@ def print_report(rep: Dict[str, Any]) -> None:
               f"{c['verdict']} ({c['verdict_reason']})")
     print()
     print("* = entries cluster on < 3 distinct capture instants (L251 tape-start artifact)")
+    print()
+    print("EXIT TREATMENT — the generous branch above is NOT the verdict on its own (L256):")
+    print("  hold_to_settlement = an orphan single-side leg rides to the broker_truth $0/$1")
+    print("  payout (a free directional lottery no maker would knowingly keep).")
+    print("  flatten_at_cross   = that orphan is CLOSED by lifting the other side's real ask")
+    print("  (maker fee in, TAKER fee out). On a mirrored book that has not moved, the exit")
+    print("  costs precisely the two fees — a small CERTAIN loss instead of a fat lottery.")
+    print("  Every cell's verdict above is already the WORSE of the two branches.")
+    fh = (f"{'H':>5} {'N':>2} {'CI95(hold-to-settle)':>21} {'CI95(flatten-at-cross)':>23} "
+          f"{'meanHold':>9} {'meanFlat':>9} {'unmeas':>7}  verdict")
+    print(fh)
+    print("-" * len(fh))
+    for c in rep["cells"]:
+        st = c["analysis"]["bootstrap_strategy_level_diagnostic"]
+        fl = c["flatten_at_cross"]
+        print(f"{str(c['horizon_hours']):>5} {c['gate_extra_ticks']:>2} "
+              f"{_ci(st['ci95']):>21} {_ci(fl['ci95']):>23} "
+              f"{_f(st['mean']):>9} {_f(fl['mean']):>9} "
+              f"{str(fl['n_unmeasurable_single_side']) + '/' + str(fl['n_single_side_legs']):>7}"
+              f"  {c['verdict']}")
     print()
     print("DIAGNOSTIC ONLY (L249 — sign-bounded by the gate, carries NO evidentiary weight):")
     for c in rep["cells"]:
