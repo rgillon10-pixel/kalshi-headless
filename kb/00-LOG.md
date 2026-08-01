@@ -6,6 +6,60 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-01 ~10:0x UTC — Q49 / S68 two-agent rule SATISFIED: independent verifier CONFIRMS DEAD (edge), registry flips `idea` → `dead ✗`
+
+Same research-loop run as the entry immediately below, follow-up half. The producer run (below) could not
+dispatch a subagent from its own delegated context and recorded the verdict PROVISIONAL. The orchestrating
+session — which retained `Agent` tool access the delegated `research-lead` context lacked — then dispatched an
+independent `verifier` against branch `probe/q49-s68-two-sided-maker-fillsim` (commit `316168c`).
+
+**Verifier re-ran all 4 cells (2 entry policies × 2 fill models) live off committed tape and reproduced every
+headline number to the digit** — counts, fill rates, both-fill net, per-attempt means, adverse-selection rates.
+It then specifically attacked the doc's own open worries:
+
+- **Circularity (found, corrected):** the adverse-selection table was computed on model B's single-leg fills,
+  and model B's fill *condition* is itself a price move — so the table is model-B-conditioned, not an
+  independent measurement. The price-blind control (model A) shows a materially weaker effect: P(settles YES |
+  YES-only fill) 0.263 vs model B's 0.127 (both vs base 0.418); P(settles NO | NO-only fill) 0.483 vs 0.248
+  (base 0.582). Both tables now appear side by side in the corrected finding.
+- **Entry-policy window confound (tested, refuted as the explanation):** truncating `first`-entry windows to
+  match `late`'s 3-snapshot median (or 1, or 20 snapshots) stays near +$0.015–0.020 — nowhere close to
+  −$0.0923. The `late`/`first` sign flip is a genuine entry-regime effect (4.09¢ vs 18.49¢ mean spread at
+  entry), not a short-window artifact. This resolves the doc's own stated worry *in the kill's favour*.
+- **Bootstrap unit:** a by-GAME secondary (316 units, not 18 series) tightens the binding CI to
+  [−0.1200, −0.0650], still fully below zero.
+- **Temporal consistency:** requiring model B's price-through print to occur at or after the queue-clearing
+  index gives an identical result (not an ordering artifact).
+- **Settlement join:** clean — binary-filtered via `core.settlement.is_binary_result`, no synthetic-price
+  leakage.
+- **Steelman, built and killed:** a lookahead-free clock-based entry (first qualifying snapshot within *H*
+  hours of close, for H ∈ {2,6,12,24,48}) is negative under the price-aware model at every horizon; its one
+  passing cell (+$0.0868 at ≤48h, price-blind model) is a 96.2%-both-fill turnover-proxy artifact of exactly
+  the kind L48 exists to exclude, not a live cell.
+
+**Two write-up corrections, neither reversing the verdict:** unanimity was misreported as "17 of 18 series
+negative" — the true count is **16 strictly negative, 1 exactly \$0.0000 (`KXUSLGAME`, n=2), 1 positive
+(`KXWCGAME`, n=2)**; and median NO-side `queue_ahead` was **705.5**, not 707 (a transcription slip).
+
+**Registry:** `kb/strategies/00-index.md` S68 row flipped **`idea` → `dead ✗`**, with the verifier-confirmation
+clause appended. `findings/2026-08-01-q49-s68-two-sided-maker-fillsim-verdict.md` updated in place: title/status
+line now reads CONFIRMED, the adverse-selection section shows both models side by side, the entry-policy-confound
+section records the resolution, and the verdict section cites the by-game/temporal/steelman corroboration.
+
+**Two lesson candidates filed (UNENFORCED, standing idle-run work for a future run):** (LC-a) a fill model whose
+fill *condition* is itself a price move makes any conditional-settlement statistic computed on its single-leg
+fills definitional, not empirical — report it from a price-blind control or label it model-conditioned;
+(LC-b) a "N of M units negative" unanimity count must separate strictly-negative from exactly-zero units.
+
+No code changed — `scripts/q49_two_sided_maker_fillsim.py` and its 44 tests are untouched; this was a
+docs/registry-only follow-up. Gates re-run fresh after the doc edits: `pytest` → **2,538 passed, 0 failed**
+(unchanged, docs-only diff); `python scripts/invariants.py --full` → exit 0, all green. Still **0 proven edges**
+— S68 joins the graveyard (S6/S13/S14/S19/S21/S23/S24/S28/S29/S34 et al.), same short-the-spread maker factor
+family (Hard-Rule-#6 ρ cap, not diversification). See the corrected `findings/2026-08-01-q49-s68-...md` and
+`kb/strategies/00-index.md`'s S68 row.
+
+---
+
 ## 2026-08-01 ~09:2x UTC — Q49 / S68 two-sided both-bid overround-capture maker fill-sim: **DEAD (edge) — PROVISIONAL**, the both-fill overround is real and unreachable
 
 Research-loop milestone (protocol v3). Steps 0a/0/0b handed over by the orchestrating session: **0a PASS**

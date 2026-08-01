@@ -1,24 +1,37 @@
-# Q49 / S68 — Two-sided both-bid overround-capture maker fill-sim: DEAD (edge) — **PROVISIONAL**
+# Q49 / S68 — Two-sided both-bid overround-capture maker fill-sim: **DEAD (edge) — CONFIRMED**
 
 `2026-08-01` · LOOP-QUEUE.md **Q49** · registry **S68** · probe
 `scripts/q49_two_sided_maker_fillsim.py` · tests `tests/test_q49_two_sided_maker_fillsim.py`
-(44, offline synthetic fixtures — no network, no orders, no auth) · **verifier: NOT RUN —
-the research-loop harness for this run exposed no subagent-dispatch tool, so the two-agent
-verdict rule is UNSATISFIED. The verdict is recorded PROVISIONAL and the S68 registry row is
-NOT flipped.** · every price below carries its source tag.
+(44, offline synthetic fixtures — no network, no orders, no auth) · **verifier: CONFIRMED
+(2026-08-01)**, independent re-derivation on the same committed tape, three text corrections
+applied (below), registry flipped `idea` → `dead ✗` · every price below carries its source tag.
 
 ## Status of this document
 
-Per protocol v3's two-agent verdict rule, a registry flip is never one agent's word alone. This
-run could not dispatch an independent `verifier`. What was done instead, and what it is *not*
-worth: the headline cell was re-derived a second time by **independent code written from the
-tape up** (`/tmp` scratch, not committed) that does not import a single function from the probe
-— it reproduced the counts, the fill rates, the both-fill net, the per-attempt mean and the
-adverse-selection rates **to the digit** (only the bootstrap CI bound moved in the 4th decimal,
-from dict-ordering in the resample draw). That rules out a transcription or indexing bug. It
-does **not** substitute for an adversarial second agent, because the same author chose the
-population, the fill model and the gates in both passes. **S68 therefore stays at `idea` in
-`kb/strategies/00-index.md` until a verifier confirms.**
+Per protocol v3's two-agent verdict rule, a registry flip is never one agent's word alone. The
+producer (this run) could not dispatch a subagent itself and instead re-derived the headline cell
+a second time with independent code written from the tape up (`/tmp` scratch, not committed) that
+imported nothing from the probe — reproducing every count to the digit but not substituting for an
+adversarial second agent, since the same author chose the population, fill model and gates both
+times. A separate `verifier` subagent was then dispatched against this branch and **CONFIRMED** the
+verdict: it re-ran all four cells live off committed tape and reproduced every headline number to
+the digit, then specifically attacked (a) whether "both-fill" is defined circularly with the
+adverse-selection claim, (b) whether the entry-policy window-length confound (median 3 vs 65
+post-entry snapshots) alone explains the `late`/`first` sign flip, (c) the game-series
+bootstrap-unit choice, (d) lookahead/off-by-one risk in the fill simulation, and (e) settlement-join
+correctness — and additionally ran a by-GAME secondary bootstrap, a temporal-consistency fix on
+model B, a window-truncation control, and a lookahead-free clock-based-entry steelman. Every attack
+either reproduced the kill or made it stronger; none rescued a cell. Verifier found three inaccuracies
+in the write-up (corrected in place below, none reverses the verdict) and flagged one real relabeling
+issue (the adverse-selection table was model-B-conditioned and partly circular — also corrected
+below). **Conclusion: registry flips `idea` → `dead ✗`.**
+
+**On (b), the entry-policy confound this doc itself raised:** the verifier tested it directly —
+truncating `first`-entry windows to match `late`'s 3-snapshot median (or 1, or 20) stays near
++\$0.015–0.020, nowhere close to −\$0.0923 — so the `late`/`first` sign flip is a genuine
+**entry-regime** effect (4.09¢ vs 18.49¢ mean spread at entry), not a window-length artifact. This
+resolves the doc's own stated worry in the kill's favour: the −\$0.0923 magnitude is not an artifact
+of a short window.
 
 ## The question and the binding gate
 
@@ -107,7 +120,10 @@ mean yes-spread 4.09¢, mean `yes_bid+no_bid` **0.9591**, **< \$1 for 100.0%** o
 | per-attempt, by GAME (secondary unit) | −\$0.0923 | — | 316 games | — | — |
 
 **The per-attempt CI sits entirely below zero.** This is a falsification, not a straddle.
-17 of 18 series have a negative mean; the single positive series is `KXWCGAME` with n=2.
+**Verifier correction (2026-08-01):** 16 of 18 series are strictly negative; one is exactly
+\$0.0000 (`KXUSLGAME`, n=2) and one is positive (`KXWCGAME`, n=2) — the original "17 of 18
+negative" collapsed a zero-mean unit into the negative count. Unanimity is 16/18, not 17/18;
+this does not change the admissible/fails-tick-gate verdict.
 
 Prices: fills `real_bid`, settlement `broker_truth`.
 
@@ -124,20 +140,26 @@ The both-fill leg pays exactly what the idea-stage arithmetic promised. It is si
 247 single-leg fills at ≈−21¢ against 123 both-fills at +1.15¢. You cannot condition on both
 filling, and the 44% of attempts that half-fill are the ones that decide the strategy.
 
-### The adverse selection, measured
+### The adverse selection, measured — and a circularity caveat (verifier correction, 2026-08-01)
 
-| quantity | value | population base rate | ratio |
+| quantity | model B (binding, fill = price-through) | model A control (fill = queue-clear only, price-blind) | population base rate |
 |---|---|---|---|
-| P(settles YES \| **YES leg only** filled, n=126) | **0.127** | 0.418 | **0.30×** |
-| P(settles NO \| **NO leg only** filled, n=121) | **0.248** | 0.582 | **0.43×** |
+| P(settles YES \| **YES leg only** filled) | **0.127** (n=126, z=−6.63) | 0.263 (n=38, z=−1.94) | 0.418 |
+| P(settles NO \| **NO leg only** filled) | **0.248** (n=121, z=−7.44) | 0.483 (n=29, z=−1.08) | 0.582 |
 
-This is textbook adverse selection and it is severe: the leg that fills alone settles in our
-favour **two to three times less often** than the base rate. The mechanism S68's own registration
-named — *"the side that fills is disproportionately the side about to lose"* — is confirmed
-empirically on real book tape, not assumed.
+Model B's fill CONDITION is itself a price move against us, so this table computed on model B's
+single-leg fills is close to definitional, not an independent measurement — the same population run
+through the price-**blind** control (model A: fill = the queue merely clearing, no requirement the
+touch traded through) shows a far weaker, only marginally-significant effect. The mechanism S68 named
+— *"the side that fills is disproportionately the side about to lose"* — is **consistent with** the
+tape, not independently confirmed by it; label any "2–3× against base" framing as model-B-conditioned,
+not a clean empirical adverse-selection measurement. This does not touch the binding claim, which
+rests on model A's per-attempt P&L failing to clear zero as much as model B's does (see the
+non-circularity check below).
 
-Median `queue_ahead` at entry: **500 contracts (YES side) / 707 (NO side)** — squarely consistent
-with Q24's median-485-ahead binding-risk finding on the same tape family.
+Median `queue_ahead` at entry: **500.0 contracts (YES side) / 705.5 (NO side)** (verifier-recomputed;
+the original write-up's "707" was a transcription slip) — squarely consistent with Q24's
+median-485-ahead binding-risk finding on the same tape family.
 
 ### The entry-policy confound (stated, because it moves the headline)
 
@@ -147,6 +169,11 @@ observation window: **median 3 post-entry snapshots (mean 11.3, p10 = 1)** versu
 essentially one more move, whichever way it goes fills exactly one of our two bids, and that leg
 is by construction the losing one. Part of the −\$0.0923 is therefore *short-horizon* structure,
 not adverse selection alone — a verifier should attack this number on exactly that ground.
+**Verifier update (2026-08-01): tested and resolved.** Truncating `first`-entry windows to the
+`late` cell's own median (3 snapshots), or to 1 or 20 snapshots, stays in the **+\$0.015–0.020**
+range — nowhere near −\$0.0923. Window length alone cannot produce this magnitude; the sign flip
+between `late` (−9.23¢) and `first` (+0.11¢) is a genuine entry-regime effect (4.09¢ vs 18.49¢
+mean spread at entry), not the confound this section worried about.
 
 So the two cells are reported as **co-binding**, not headline-plus-footnote:
 
@@ -180,6 +207,23 @@ a CI straddling zero (both `first`-entry cells and the price-movement-blind `lat
 **L41-degenerate** bootstrap where all 18 series resolve the same way (`first`+A, whose apparent
 +16¢ is exactly the artifact `bootstrap_verdict_admissible` exists to catch — 98.0% both-fill
 under a proxy that lets a cancelled queue count as a fill).
+
+**Verifier additions (2026-08-01), all independently confirming the kill:**
+- **By-GAME secondary bootstrap** on the binding cell (316 games, not 18 series): mean −\$0.0923,
+  CI **[−0.1200, −0.0650]** — tighter than the by-series CI and still fully below zero regardless
+  of which unit is treated as the independent draw.
+- **Temporal-consistency fix**: model B's "traded through" print was required to occur at or after
+  the index where the queue actually cleared (closing a possible order-of-events gap). Result:
+  **identical** (123/126/121/194 counts, −\$0.0923, CI [−0.1311, −0.0423]) — not an artifact of
+  event ordering.
+- **Lookahead-free steelman, tried and killed:** a clock-based entry (first qualifying snapshot
+  within *H* hours of close, decidable in real time unlike `late`) is negative under model B at
+  every horizon tried (2h −0.1376, 6h −0.1242, 12h −0.1152, 24h −0.1096, 48h −0.0262). Exactly one
+  constructed cell passes both gates — ≤48h + model **A** (queue-only, price-blind): +\$0.0868,
+  CI [+0.0233, +0.1994], 524 attempts/17 series — but model A on that identical population still
+  gives −\$0.0262, and the +\$0.0868 reading is 96.2% both-fill on an 11.4¢-mean-spread pre-game
+  book, i.e. a turnover-proxy artifact of exactly the kind L48 exists to rule OUT, not a live cell.
+  No steelman survives.
 
 ### Wide-spread sensitivity — a bigger overround does not rescue it
 
@@ -228,7 +272,9 @@ approximate provenance, not as a citable statistic.
 
 ## Limitations (stated, not hidden)
 
-1. **No independent verifier.** The dispositive limitation. See "Status of this document".
+1. **The adverse-selection table (§ above) is partly circular** when read off model B alone —
+   verifier-flagged and corrected in place; the price-blind (model A) control shows a materially
+   weaker effect. Does not affect the binding per-attempt verdict, which model A fails too.
 2. **The fill model is generous in both directions of the argument.** Cancels ahead of us count
    as advancing us and queue-jumpers are free — this *inflates* fills, which biases toward
    SURVIVE, and the probe still kills. Conversely it is a turnover proxy, so it rules a cell
@@ -246,20 +292,32 @@ approximate provenance, not as a citable statistic.
 
 ## Verdict
 
-**S68 → DEAD (edge), PROVISIONAL pending verifier.** The deterministic both-bid overround is
-real, reproduces on committed tape, and pays exactly what the arithmetic promises when both legs
-fill (+\$0.0115 net at the 2¢ gate). It is not reachable as a strategy: you cannot condition on
-both legs filling, 44% of attempts half-fill, and the half-fills are adversely selected by a
-factor of 2–3× against the base rate. **The verdict rests on the weakest sufficient claim — of
-the four cells run (2 entry policies × 2 fill models), NONE produces a `bootstrap_verdict_admissible`
-CI > 0 that clears `clears_tick_magnitude`.** The fairer full-life cell (`first` + model B, median
-65 post-entry snapshots) is a wash: **+\$0.0011, 95% CI [−0.0533, +0.0797]**, n=564 over 18 series.
-The idea-stage-regime cell (`late` + model B) is outright falsified: **−\$0.0923, 95% CI
-[−0.1311, −0.0423]**, fully below zero, admissible, failing the tick gate — with the honest caveat
-that its 3-snapshot median window contributes to the magnitude. Prices `real_bid` + `broker_truth`. The S68 registration's own
-presumptive outcome — *KILL on adverse selection, the L5 maker fill-wall that took S6/S13/S14/S23*
-— is what the tape says. Same short-the-spread maker factor family as S6/S13/S19/S23
-(Hard-Rule-#6 ρ cap, not diversification).
+**S68 → DEAD (edge), CONFIRMED** (producer + independent `verifier`, two-agent rule satisfied
+2026-08-01; `kb/strategies/00-index.md` flipped `idea` → `dead ✗`). The deterministic both-bid
+overround is real, reproduces on committed tape, and pays exactly what the arithmetic promises
+when both legs fill (+\$0.0115 net at the 2¢ gate). It is not reachable as a strategy: you cannot
+condition on both legs filling, 44% of attempts half-fill, and the half-fills are adversely
+selected (severity precisely measured only under the price-blind control — see the corrected
+adverse-selection section above). **The verdict rests on the weakest sufficient claim — of the
+four cells run (2 entry policies × 2 fill models), NONE produces a `bootstrap_verdict_admissible`
+CI > 0 that clears `clears_tick_magnitude`.** The verifier independently reproduced all four cells
+to the digit, confirmed the binding cell survives a by-GAME secondary bootstrap (CI
+[−0.1200, −0.0650]), a temporal-consistency fix, and a lookahead-free clock-entry steelman (dead at
+every horizon 2h–48h). The fairer full-life cell (`first` + model B, median 65 post-entry
+snapshots) is a wash: **+\$0.0011, 95% CI [−0.0533, +0.0797]**, n=564 over 18 series. The
+idea-stage-regime cell (`late` + model B) is outright falsified: **−\$0.0923, 95% CI
+[−0.1311, −0.0423]**, fully below zero, admissible, failing the tick gate — verifier-confirmed to
+be an entry-regime effect, not a short-window artifact. Prices `real_bid` + `broker_truth`. The S68
+registration's own presumptive outcome — *KILL on adverse selection, the L5 maker fill-wall that
+took S6/S13/S14/S23* — is what the tape says. Same short-the-spread maker factor family as
+S6/S13/S19/S23 (Hard-Rule-#6 ρ cap, not diversification).
+
+**Lesson candidates filed by the verifier** (not yet enforced — standing idle-run work for a future
+run per protocol's UNENFORCED-lesson policy): (LC-a) a fill model whose fill CONDITION is itself a
+price move makes any conditional-settlement statistic computed on its single-leg fills definitional,
+not empirical — report it from a price-blind control model, or label it model-conditioned; (LC-b)
+a "N of M units negative" unanimity count must separate strictly-negative from exactly-zero units
+(this doc's own first draft conflated them, corrected above).
 
 **Still 0 proven edges.**
 
