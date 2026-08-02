@@ -6,6 +6,106 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~19:0x UTC — research loop idle-run (policy (a)): L223 `UNENFORCED` → `test` — the collector-health blind spot where the pipe is healthy and the PAYLOAD is not
+
+**Steps 0a/0/0b.** 0a/0 confirmed by the calling session (no rewind; newest `kb/00-LOG.md` entry
+and newest `tape/*/dt=*` both 2026-08-02, gap 0; the 6 open PRs — #271/#208 retros, #191/#166/#165/#125
+stale — are all Ryan-review-only and none claims an eligible queue item).
+
+**0b sweep — a REAL recovery this run, not a no-op.** `python3 scripts/tape_branch_sweep.py`:
+**223** remote `tape/*` branches line-set-compared against HEAD (never `--is-ancestor`, L160);
+22 fully line-verified contained, 187 contained at capture_id granularity (L216 bulk files),
+54 malformed names date-triaged (L161), **14 not contained** — 13 of which carry nothing
+union-appendable (git conflict markers + prose in `tape/cloud-env-check.md`, refused per L247).
+The 14th, `tape/hourly-20260802T1616Z` (`5acdca0c45be`, committed 16:16:21Z — a whole stranded
+hourly pass), was swept: **2,172 JSONL lines union-appended** into `main`'s day-files —
+`orderbook_depth` +1,294, `weather_books` +543, `sports_pairs` +293, `polymarket_macro_pairs` +21,
+`perp_tape` +17, `crypto_hourly` +2, `hyperliquid_funding` +2. Every appended line was re-parsed as
+JSON before writing (L247) and every one was verified absent from `HEAD`'s version of its own file
+by line-set membership, not by tree hash. Note for future sweeps: the tool flagged this branch in
+TWO separate report blocks — 335 lines across 5 files at line level, and 2 missing capture_ids in the
+2 oversized bulk files — and a reader who greps only one block under-reads the recovery by 1,837
+lines. The bulk files' capture_id count (1 each) is a granularity artifact, not the line count.
+
+**Queue scan.** Full Q0-Q50 re-scan, reading each item's LATEST status (several carry a stale
+`TODO` line ABOVE a later `DONE`, e.g. Q24/Q27): **0 eligible TODO/IN-PROGRESS** — consistent with
+every scan since 07-31. → **IDLE RUN, policy (a)**.
+
+**Why L223 and not the recall report's list.** `stale_unenforced_recall_report()` reports 3 open
+rows (L213/L221/L222), all Ryan-gated or blocked on open PR #165 — the same dead end four prior runs
+hit. But that tool's metric is scoped to rows whose candidate text names a *machine-extractable*
+artifact; **L223 has never appeared in it** because its candidate is prose ("a per-key regression
+check"). The recall report is a floor on open `UNENFORCED` work, not a census — a hand re-read of
+every `**UNENFORCED**`-opening cell found L223 fully open and fully buildable from a cloud run.
+
+**What L223 is about.** `econ_prints`'s `gdp` leg reported one real settlement and then
+`no_settled_events` on every subsequent pass for over three weeks, while `pass_complete: true` held
+the whole time and four sibling series on the SAME lines stayed healthy. Q44's two existing detectors
+(STALE, UNDER-CAPTURE) both measure whether the PIPE is delivering passes; this pipe delivered every
+pass on schedule. The regression lived one level down, inside the payload, in a status vocabulary with
+only two states — a real value, and one null-shaped non-error string that reads identically to "this
+series never had one".
+
+**Built** (`scripts/tape_gap_monitor.py`, read-only, subcommand-only — no existing detector, table,
+alert or exit code touched): `status_regression_by_key()`, `STATUS_KEYED_FAMILIES`, `classify_status()`,
+and CLI `--status-regression FAMILY [--status-regression-days ...] [--status-regression-min-run N]`,
+exiting 0 like its `--window-grid` / `--slot-cadence` / `--leg-idempotence` siblings. It publishes the
+THIRD state L223 demanded, as an exact partition with `partition_ok` asserted: `never_had` /
+`lost_it` / `has_it`, derived by reading the same key's prior tape backward — no new collection, exactly
+as the row said was already possible. Three design points the real tape forced, each with its own test:
+
+1. **A neutral transport status must not split a run.** `fetch_error` is the absence of an
+   observation, not evidence either way. gdp's two 2026-07-29 `fetch_error` rows sit INSIDE its hole;
+   scoring them as real values shatters one 364-pass episode into three short ones and destroys the
+   signal the check exists to raise.
+2. **A recovery must not erase the history.** A key that lost its value and regained it reads
+   `has_it` (its current state is honest) but still publishes the closed episode — otherwise the
+   check goes blind the moment the pipe heals, which is the same "silence reads as healthy" failure
+   one level up. This is now the LIVE case: the gdp leg recovered on 2026-07-31.
+3. **A leading null run is `never_had`, not a regression** — else the check fires on every
+   legitimately-not-yet-settled series.
+
+State is threshold-independent; only the ALERT uses `min_run_passes` (default 3).
+
+**Measured on real committed tape (read-only, no network).** A FROZEN slice (L191) through
+`dt=2026-07-28` reproduces L223's own recorded figure EXACTLY: `gdp` → `lost_it`, alerting, **340**
+consecutive null passes starting `2026-07-06T09:24:18.617462Z`, last real status `settled` at
+`2026-07-05T15:13:39.856930Z` — while `cpi_mom`/`cpi_core_mom`/`cpi_yoy`/`payrolls`, captured by the
+SAME passes in the SAME file, all read `has_it`. That contrast is the whole point: invisible per
+pass, visible only per key. Over the WHOLE committed tape the closed episode measures **364 passes /
+24.03 days**, recovered `2026-07-31T10:05:35.720606Z` with `KXGDP-26JUL30` — so the leg is healthy
+today and the hole is still on the record. The four sibling keys are the zero-episode negative
+control (0 closed episodes, 0 null passes each).
+
+**18 new tests** in `tests/test_tape_gap_monitor.py` (3 of them hard real-tape acceptance tests,
+bounds-not-equalities on anything tape growth can move, per L162). An absent status FIELD is
+`no_signal`, never a fabricated null — a schema change must not read as a 100% regression; an
+unaudited family RAISES rather than being scored clean.
+
+**Scope limits, recorded not hidden.** Only `econ_prints` is registered in `STATUS_KEYED_FAMILIES`:
+every other family's status vocabulary would have to be read and declared first, and guessing which
+of its strings mean "nothing to report" would turn this into a false-positive generator. Not wired
+into `invariants.py --full` (the L210/L213/L222 posture — no standing repo-wide artifact; the check
+runs on demand).
+
+**Verdict class: NONE.** No CI, no P&L, no registry change, no kill decision — S68/S14 unchanged,
+still **0 proven edges**. Two-agent rule N/A for the class (lesson→test conversion, the Q33/Q44/Q45/Q46
+precedent), and recorded rather than glossed: the **Task/Agent tool was UNAVAILABLE this session**, so
+no `verifier` subagent was dispatchable and no worker delegation was possible. In its place every
+real-tape number above was re-derived by a second, independently-written script that imports nothing
+from `tape_gap_monitor` — 340 / 364 / 24.03 days and all four timestamps agree exactly.
+
+**Step 9 (paper).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (S14 `dead ✗` — infra-only).
+`scripts/paper_pass.py` run fresh and idempotent: 0 newly processed (42 deferred(caps), 272
+deferred(coverage), 258 already-in-ledger), **no new ledger lines** —
+`paper: 0 open position(s), 1554 settled contract(s), realized P&L $+27.24, cash $+27.24, open notional $0.00`.
+
+**Gates (fresh, taken after the last code change, L162).** See the "Log of runs" line for the exact
+counts. No network beyond git, no orders, no credentials, nothing outside the paper tier.
+
+Files: `scripts/tape_gap_monitor.py`, `tests/test_tape_gap_monitor.py`,
+`kb/lessons/00-lessons.md` (L223 cell), `LOOP-QUEUE.md` (Q44 status + run log), 7 `tape/*` day-files.
+
 ## 2026-08-02 ~15:2x UTC — research loop idle-run (policy (a)): independent verifier closes L250, `DISPOSES: L250`
 
 **Steps 0a/0/0b.** 0a PASS: `origin/main` HEAD `527917d` (PR #272, this morning's L249 disposal),

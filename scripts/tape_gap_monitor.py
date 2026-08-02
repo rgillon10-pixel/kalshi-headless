@@ -207,7 +207,7 @@ import sys
 from bisect import bisect_left
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from collection import burst_capture as _burst_capture
 
@@ -2154,6 +2154,307 @@ def burst_trigger_liveness(tape_root: Path,
     }
 
 
+# ---------------------------------------------------------------------------
+# L223 — per-key STATUS-REGRESSION detector ("never had it" vs "lost it")
+# ---------------------------------------------------------------------------
+#
+# The failure this exists to catch: a collector leg whose honest-status
+# vocabulary has only TWO states — a real value, and one null-shaped string
+# ("no_settled_events" / "not_built") that is counted as a NON-error and so
+# leaves ``pass_complete: true`` intact. Under that vocabulary a regression is
+# byte-indistinguishable from "this series never had one": ``econ_prints``'s
+# ``gdp`` leg reported one real settlement and then ``no_settled_events`` on
+# every subsequent pass for 24 days while every persisted field read healthy.
+#
+# L223's own words: the vocabulary needs a THIRD state, not two — never-had-this
+# vs used-to-have-it-and-lost-it vs currently-has-it — and the discriminator (the
+# same key's PRIOR tape) is already sitting in committed history, so detecting
+# the second state needs no new collection, only a check that reads backward.
+# That is exactly what this does, read-only, over committed tape.
+#
+# Three design points that are load-bearing, each learned from the real tape:
+#
+# 1. **Neutral (transport) statuses must not split an episode.** ``fetch_error``
+#    is evidence of neither "has it" nor "lost it" — it is the absence of an
+#    observation. gdp's two 2026-07-29 ``fetch_error`` rows sit INSIDE its single
+#    null run; scoring them as real values shatters one 364-pass episode into
+#    three short ones and destroys the very signal the check exists to raise.
+# 2. **A recovery must not erase the history.** A key that lost its value and
+#    later regained it classifies ``has_it`` (its CURRENT state is honest) but
+#    still publishes the closed episode. Otherwise the check goes blind the
+#    moment the pipe recovers, and a 24-day hole becomes retroactively invisible
+#    — the same "silence reads as healthy" failure one level up.
+# 3. **A LEADING null run is not a regression.** Null passes before a key's first
+#    real value are the ``never_had`` state by definition; counting them as an
+#    episode would fire on every legitimately-not-yet-settled series.
+#
+# State is the three-way partition (always computed); the RUN-LENGTH threshold
+# only decides whether a ``lost_it`` key ALERTS. Read-only, no network, and a
+# subcommand-only report — it changes no existing detector, table or exit code.
+
+STATUS_REGRESSION_MIN_RUN_PASSES = 3
+
+# family -> how to read (key, status) off one line, and which status strings are
+# null-shaped vs neutral. A family absent from here is NOT audited: this check
+# refuses to guess which of a family's strings mean "nothing to report", because
+# guessing wrong turns it into a false-positive generator (extract_completeness's
+# "no signal, never a fabricated value" discipline, applied to statuses).
+STATUS_KEYED_FAMILIES: Dict[str, Dict[str, Any]] = {
+    "econ_prints": {
+        "key_path": ("series_key",),
+        "status_path": ("recent_settlement", "status"),
+        "null_statuses": ("no_settled_events", "not_built"),
+        "neutral_statuses": ("fetch_error",),
+        "min_run_passes": STATUS_REGRESSION_MIN_RUN_PASSES,
+        "note": ("L223: recent_settlement.status collapses never-had-a-settlement and "
+                 "lost-the-settlement into one non-error string while pass_complete "
+                 "stays true; collection/econ_prints.py counts it as complete."),
+    },
+}
+
+_MISSING = object()
+
+
+def _dig_path(rec: Any, path: Tuple[str, ...]) -> Any:
+    """Follow a dotted path; return ``_MISSING`` if any hop is absent.
+
+    ``_MISSING`` (key not present at all) is deliberately distinct from a present
+    ``None``: the first is "this family does not carry this field on this line"
+    (no signal — skipped and counted), the second is an explicit null status
+    (null-shaped — a real observation of nothing). Collapsing them would let a
+    schema change read as a 100% regression.
+    """
+    cur = rec
+    for hop in path:
+        if not isinstance(cur, dict) or hop not in cur:
+            return _MISSING
+        cur = cur[hop]
+    return cur
+
+
+def classify_status(value: Any,
+                    null_statuses: Iterable[str],
+                    neutral_statuses: Iterable[str]) -> Optional[str]:
+    """``'real'`` | ``'null'`` | ``'neutral'`` | ``None`` (no signal).
+
+    ``None``/``""`` present in the record is NULL-shaped (an observed nothing).
+    A non-string, non-None value is ``'real'`` only if it is a scalar the venue
+    could have meant as a value; a dict/list is treated as real (a populated
+    payload). ``_MISSING`` is handled by the caller, never here.
+    """
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        if value in tuple(neutral_statuses):
+            return "neutral"
+        if value == "" or value in tuple(null_statuses):
+            return "null"
+        return "real"
+    if isinstance(value, bool):
+        return "real"
+    return "real"
+
+
+def _episode_span_days(start: Optional[str], end: Optional[str]) -> Optional[float]:
+    a, b = _parse_iso(start), _parse_iso(end)
+    if a is None or b is None:
+        return None
+    return round((b - a).total_seconds() / 86400.0, 4)
+
+
+def status_regression_by_key(tape_root: Path,
+                             family: str,
+                             days: Optional[List[str]] = None,
+                             min_run_passes: Optional[int] = None,
+                             config: Optional[Dict[str, Any]] = None
+                             ) -> Dict[str, Any]:
+    """Per-key three-state status audit for FAMILY (L223). Read-only.
+
+    Raises ``ValueError`` for a family with no ``STATUS_KEYED_FAMILIES`` entry and
+    no injected ``config`` — an unaudited family is reported as such by the caller,
+    never silently scored clean.
+
+    Per key: ``state`` in {``never_had``, ``lost_it``, ``has_it``} (an exact
+    partition, asserted by ``partition_ok``), the CURRENT trailing null run, and
+    every CLOSED regression episode (null run bounded by a real value on both
+    sides) with its length in passes and span in days.
+
+    ``alerting_keys`` = ``lost_it`` keys whose current run reaches
+    ``min_run_passes``. Closed episodes never alert — they are the diagnostic that
+    keeps a recovered hole visible.
+    """
+    cfg = dict(config) if config is not None else dict(STATUS_KEYED_FAMILIES.get(family, {}))
+    if not cfg:
+        raise ValueError(
+            f"family {family!r} has no STATUS_KEYED_FAMILIES entry; add one (key_path, "
+            "status_path, null_statuses, neutral_statuses) rather than guessing which "
+            "of its status strings mean 'nothing to report'"
+        )
+    key_path = tuple(cfg["key_path"])
+    status_path = tuple(cfg["status_path"])
+    nulls = tuple(cfg.get("null_statuses", ()))
+    neutrals = tuple(cfg.get("neutral_statuses", ()))
+    threshold = int(min_run_passes if min_run_passes is not None
+                    else cfg.get("min_run_passes", STATUS_REGRESSION_MIN_RUN_PASSES))
+
+    day_filter = set(days) if days else None
+    # key -> [(captured_at, kind, raw_status)] with neutral rows retained for
+    # counting but DROPPED from the run scan (design point 1).
+    per_key: Dict[str, List[Tuple[str, str, Any]]] = {}
+    n_rows = 0
+    n_no_signal = 0
+    n_no_key = 0
+    n_malformed = 0
+    files_read: List[str] = []
+
+    for _d, path in _family_files(tape_root, family):
+        if day_filter is not None and path.stem not in day_filter:
+            continue
+        files_read.append(path.name)
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    n_malformed += 1
+                    continue
+                if not isinstance(rec, dict):
+                    n_malformed += 1
+                    continue
+                n_rows += 1
+                key = _dig_path(rec, key_path)
+                if key is _MISSING or key is None or not isinstance(key, (str, int)):
+                    n_no_key += 1
+                    continue
+                raw = _dig_path(rec, status_path)
+                if raw is _MISSING:
+                    n_no_signal += 1
+                    continue
+                cap_at = rec.get("captured_at")
+                if not isinstance(cap_at, str):
+                    n_no_signal += 1
+                    continue
+                kind = classify_status(raw, nulls, neutrals)
+                if kind is None:
+                    n_no_signal += 1
+                    continue
+                per_key.setdefault(str(key), []).append((cap_at, kind, raw))
+
+    keys_out: Dict[str, Any] = {}
+    counts = {"never_had": 0, "has_it": 0, "lost_it": 0}
+    alerting: List[str] = []
+
+    for key, rows in per_key.items():
+        rows.sort(key=lambda r: r[0])
+        n_neutral = sum(1 for r in rows if r[1] == "neutral")
+        seq = [r for r in rows if r[1] != "neutral"]      # design point 1
+        n_real = sum(1 for r in seq if r[1] == "real")
+        n_null = sum(1 for r in seq if r[1] == "null")
+
+        episodes: List[Dict[str, Any]] = []
+        leading_null = 0
+        current_run: List[Tuple[str, str, Any]] = []
+        prev_real: Optional[Tuple[str, str, Any]] = None
+        i = 0
+        while i < len(seq):
+            if seq[i][1] == "null":
+                j = i
+                while j < len(seq) and seq[j][1] == "null":
+                    j += 1
+                run = seq[i:j]
+                if prev_real is None:
+                    leading_null += len(run)          # design point 3
+                elif j < len(seq):
+                    episodes.append({                 # design point 2
+                        "last_real_before_captured_at": prev_real[0],
+                        "last_real_before_status": prev_real[2],
+                        "start_captured_at": run[0][0],
+                        "end_captured_at": run[-1][0],
+                        "n_passes": len(run),
+                        "span_days": _episode_span_days(run[0][0], run[-1][0]),
+                        "recovered_at": seq[j][0],
+                        "recovered_status": seq[j][2],
+                    })
+                else:
+                    current_run = run
+                i = j
+            else:
+                prev_real = seq[i]
+                i += 1
+
+        if n_real == 0:
+            state = "never_had"
+        elif current_run:
+            state = "lost_it"
+        else:
+            state = "has_it"
+        counts[state] += 1
+
+        run_passes = len(current_run)
+        alerts = state == "lost_it" and run_passes >= threshold
+        if alerts:
+            alerting.append(key)
+
+        keys_out[key] = {
+            "state": state,
+            "alerts": alerts,
+            "n_passes": len(rows),
+            "n_real": n_real,
+            "n_null": n_null,
+            "n_neutral": n_neutral,
+            "first_captured_at": rows[0][0],
+            "last_captured_at": rows[-1][0],
+            "last_real_captured_at": prev_real[0] if prev_real else None,
+            "last_real_status": prev_real[2] if prev_real else None,
+            "current_null_run_passes": run_passes,
+            "current_null_run_started_at": current_run[0][0] if current_run else None,
+            "current_null_run_span_days": (
+                _episode_span_days(current_run[0][0], current_run[-1][0]) if current_run else None
+            ),
+            "leading_null_passes": leading_null,
+            "n_closed_episodes": len(episodes),
+            "longest_closed_episode_passes": max((e["n_passes"] for e in episodes), default=0),
+            "closed_episodes": episodes,
+        }
+
+    n_keys = len(keys_out)
+    partition_ok = (counts["never_had"] + counts["has_it"] + counts["lost_it"]) == n_keys
+    return {
+        "family": family,
+        "key_path": ".".join(key_path),
+        "status_path": ".".join(status_path),
+        "null_statuses": list(nulls),
+        "neutral_statuses": list(neutrals),
+        "min_run_passes": threshold,
+        "note": cfg.get("note"),
+        "days_filter": sorted(day_filter) if day_filter else None,
+        "n_files_read": len(files_read),
+        "n_rows": n_rows,
+        "n_no_signal": n_no_signal,
+        "n_rows_without_key": n_no_key,
+        "n_malformed_lines": n_malformed,
+        "n_keys": n_keys,
+        "n_never_had": counts["never_had"],
+        "n_has_it": counts["has_it"],
+        "n_lost_it": counts["lost_it"],
+        "partition_ok": partition_ok,
+        "n_keys_with_closed_episodes": sum(1 for v in keys_out.values() if v["n_closed_episodes"]),
+        "alerting_keys": sorted(alerting),
+        "verdict": ("REGRESSION_OPEN" if alerting
+                    else "RECOVERED_EPISODES_ON_RECORD"
+                    if any(v["n_closed_episodes"] for v in keys_out.values())
+                    else "CLEAN" if n_keys else "NO_KEYS"),
+        "keys": keys_out,
+    }
+
+
 def _scan_file_max_captured_at(path: Path, now: datetime) -> Optional[datetime]:
     """Newest captured_at <= now in one file (streaming, O(1) extra memory)."""
     newest: Optional[datetime] = None
@@ -2647,6 +2948,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--leg-idempotence-max-days", type=int, default=None,
                     help="keep only the N most RECENT day-files after --leg-idempotence-days "
                          "filtering (default: all).")
+    ap.add_argument("--status-regression", default=None, metavar="FAMILY",
+                    help="print ONLY the L223 per-key status-regression audit for FAMILY "
+                         "(one of STATUS_KEYED_FAMILIES, e.g. econ_prints; read-only, no "
+                         "notify) and exit. Answers 'did any key that USED to report a real "
+                         "status quietly fall back to a null-shaped one' — the third state a "
+                         "two-state honest-status vocabulary cannot express.")
+    ap.add_argument("--status-regression-days", default=None,
+                    help="comma-separated dt= day stems to restrict --status-regression to "
+                         "(e.g. dt=2026-07-05,dt=2026-07-06). Pins a FROZEN slice, per L191. "
+                         "Default: every committed day-file the family has.")
+    ap.add_argument("--status-regression-min-run", type=int, default=None, metavar="N",
+                    help="a `lost_it` key ALERTS only once its CURRENT null run reaches N "
+                         f"passes (default: the family's own min_run_passes, "
+                         f"else {STATUS_REGRESSION_MIN_RUN_PASSES}). The three-state "
+                         "classification itself is threshold-independent.")
     ap.add_argument("--burst-liveness", default=None, metavar="TRIGGER_NAME",
                     help="print ONLY the L227 burst-window liveness audit for TRIGGER_NAME "
                          "(one of BURST_TRIGGER_WINDOWS, e.g. kalshi-burst-fomc-0729; "
@@ -2696,6 +3012,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             out = single_hour_leg_idempotence(Path(args.tape_root), args.leg_idempotence,
                                               args.leg_gate_hour, days=days,
                                               max_days=args.leg_idempotence_max_days)
+        except ValueError as exc:
+            print(f"[tape_gap_monitor] {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+
+    if args.status_regression:
+        days = ([d.strip() for d in args.status_regression_days.split(",") if d.strip()]
+                if args.status_regression_days else None)
+        try:
+            out = status_regression_by_key(Path(args.tape_root), args.status_regression,
+                                           days=days,
+                                           min_run_passes=args.status_regression_min_run)
         except ValueError as exc:
             print(f"[tape_gap_monitor] {exc}", file=sys.stderr)
             return 2
