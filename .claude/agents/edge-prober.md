@@ -120,6 +120,20 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   mistake one abstraction up (a nominal ONE-SIDED quote, not a synthetic
   midpoint); making the restricted population a robustness footnote applied
   AFTER a positive headline is how a dead strategy reads as alive.
+- **L252 — a maker admission gate set to exactly "spread >= sum of round-trip
+  fees" selects the fee wall itself, not an edge; set it at fees-plus-N-ticks
+  instead.** On a mirrored binary book (`best_yes_ask == 1 - best_no_bid`,
+  `collection/normalize.py:35`), a gate of "yes-spread >= two maker fees" is
+  IDENTICAL to "gross capture >= two fees" by construction (L249) — Q49/S68's
+  realistic fillable-entry population cleared that gate and every one of its
+  11 double-fills netted between $0.00 and one cent below a tick, the gate's
+  own boundary, not a sampled range around it. Before reporting ANY
+  wide-spread maker gate's population as informative, widen the admission
+  threshold to fees-plus-N-ticks, re-derive the population size and economics
+  under the TIGHTER gate, and only then treat what survives as evidence — a
+  result sitting exactly on the fee floor is the floor, not a finding. N is a
+  strategy-specific judgment call (state it and why in the write-up); this is
+  house-style guidance, not a checkable static rule.
 - **L251 — write the near-close entry rule as "FIRST snapshot with ttc<=H",
   never "earliest capture, THEN filter to ttc<=H".** The two read identically
   and are not: "earliest, then filter" keeps a ticker whose ENTIRE pre-close
