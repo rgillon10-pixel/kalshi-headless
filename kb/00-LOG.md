@@ -6,6 +6,76 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~14:0x UTC — research loop idle-run (policy (a)): independent verifier closes L249, `DISPOSES: L249`
+
+**Steps 0a/0/0b.** 0a PASS: `origin/main` HEAD `3e61179` (PR #270, this morning's weather-actuals
+backfill), last-merged PR a reachable ancestor, no rewind; newest `kb/00-LOG.md` entry and newest
+committed `tape/*/dt=*` both 2026-08-02, gap 0. Claim-check: 6 open PRs (#271 today's retro,
+#208/#125 older retros, #191/#166/#165 stale mid-July drafts) — all Ryan-review-only, none
+claiming an eligible queue item. 0b: freshest `tape/hourly-*` branch (`hourly-20260802T0102Z`)
+diffed per-family against `HEAD:tape` — 0 lines present in the branch and missing from HEAD, i.e.
+HEAD is already a strict superset; it was fully swept by commit `297c88b` earlier today. No new
+branch landed since. The ~200-branch backlog (Q17) is unchanged; branch deletion remains a broken
+cloud-session permission boundary (documented precedent, not re-litigated here).
+
+**Queue scan.** Full Q0-Q50 re-scan: 0 eligible TODO/IN-PROGRESS, consistent with this morning's
+edge-hunter round #20 (PR #268) and the three idle runs already logged today. -> **IDLE RUN,
+policy (a)**.
+
+**What made this run different from the three (a)/(c) idle runs earlier today: this session's
+harness actually exposes the `Agent` tool with a `verifier` subagent type.** Two of today's
+earlier lesson-conversions (L249, L250) explicitly recorded that they could NOT be formally
+disposed because "no independent verifier subagent was dispatchable in this run's context" — the
+row text asked the next verifier round to re-read the cited artifacts and close it if it concurred.
+Re-scanning `kb/lessons/00-lessons.md` via `scripts.invariants._parse_lesson_rows` /
+`_lesson_disposed_ids` confirmed only **3** rows are genuinely open per the ledger's own
+`**UNENFORCED**`-marker detector (L213 Ryan-action, L221/L222 both explicitly "DO NOT BUILD —
+duplicate of open PR #165" per their own text) — so policy (a)'s BUILD half is exhausted for a
+5th consecutive idle run, but the DISPOSE half (the two-agent verdict rule) was not: L249's row
+is a `test + protocol` tier already built, just never independently confirmed.
+
+Dispatched an independent `verifier` subagent (Agent tool, `subagent_type=verifier`) with the
+exact claim, both cited artifacts, and instructions to re-derive every number from scratch rather
+than trust the row's prose. It checked, independently: (1) `.claude/agents/verifier.md` step 4
+cites L249, states the Q49 mirrored-book gate arithmetic, sits before the fee/data-window attack
+steps — and it verified the underlying identity itself (`collection/normalize.py:35`); (2)
+`.claude/agents/edge-prober.md`'s producer-side L249 bullet matches; (3) `core.bootstrap.
+sign_bounded_objective` (`core/bootstrap.py:597`) has the claimed signature and returns all ten
+named keys; (4) `pytest -k sign_bounded_objective` -> 16 passed, `-k acceptance_l249` -> 4 passed
+(20 total, matching the row's claimed split); (5) loaded the frozen fixture
+`tests/fixtures/q49_pnl_units_2026-08-02.json` fresh and called the function itself — reproduced
+the row's exact numbers for both the double-fill object (`all_zero_support=True`,
+`inadmissibility_is_definitional=True`) and the strategy-level object (`verdict_bearing=True`,
+`inadmissibility_is_definitional=False`) — then went further and re-derived both objects from
+LIVE committed tape via the probe's own loaders, byte-identical to the fixture; (6) `git diff
+8990509~1 8990509 -- core/bootstrap.py` is 147 insertions / 0 deletions, purely additive; (7) full
+`pytest -q` exits 0 (2704 passed) and `invariants.py --full` exits 0, all green. **Verdict:
+CONFIRM.** One non-blocking residual noted (same L59 zero-caller shape as L251/L259):
+`sign_bounded_objective` has no production callers yet, so `scripts/q49_s68_bothside_maker_
+fillsim.py` still prints a bare `no_opposing_unit` kill on a live re-run rather than routing
+through the new discriminator — flagged for a future queue item, not a refutation.
+
+Closed via new row **L264**, `DISPOSES: L249`, terminal tier `test + protocol` (unchanged from
+L249's own row — this pass adds confirmation, not new code). Open `UNENFORCED` rows unchanged at
+**3** (L213/L221/L222) — L249 was never counted in that scoped metric to begin with, since its
+enforcement cell already read `test + protocol` rather than starting with the `**UNENFORCED**`
+marker; the ledger's global `DISPOSES:`-ID set moves 32 -> 33.
+
+**Gates (fresh, post-edit, L162):** `python3 -m pytest -q` -> 2704 collected == 2704 dots, 0 F/E,
+exit 0 (doc-only diff this run — no code changed, so the count carries over exactly);
+`python3 scripts/invariants.py --full` -> exit 0, `invariants: all green`, only pre-existing
+non-gating advisories.
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}`, `scripts/paper_pass.py`
+idempotent, 0 newly processed, no new ledger lines — `paper: 0 open position(s), 1554 settled
+contract(s), realized P&L $+27.24, cash $+27.24, open notional $0.00`.
+
+**Two-agent rule:** satisfied for this run's own action (an independent verifier CONFIRMED L249
+before disposal — exactly the rule this run exists to close out). No network beyond git, no
+orders, no credentials touched. See `LOOP-QUEUE.md` Log of runs, `kb/lessons/00-lessons.md` L264.
+
+---
+
 ## 2026-08-02 ~09:5x UTC — research loop idle-run (policy (c)): `weather_actuals` gap backfill — Q37's settlement-truth join goes 35.3% -> 87.4%
 
 **Steps 0a/0/0b.** 0a/0 done by the calling session and re-checked here: `git pull` fast-forwarded
