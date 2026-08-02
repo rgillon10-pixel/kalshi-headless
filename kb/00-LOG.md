@@ -6,7 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
-## 2026-08-02 ~03:2x UTC — research loop IDLE RUN (policy a): L250's "a saturated fill proxy is not weak evidence, it is no evidence" stops being a verifier's reading and becomes a statistic — the loose turnover rule fills 20/20 where the strict rule fills 11/20
+## 2026-08-02 ~04:15 UTC — kalshi-edge-hunter nightly: S68 verdicts pass adversarial re-check (clean); Q21 round #20 → 0 registered (KILL/KILL/KILL); Q37 prep-verified; 5 stale burst triggers named
+
+**Nothing flips. 0 proven edges, 0 live `idea` candidates.** All three edge-hunter units ran.
+
+**Steps 0a/0/0b.** 0a PASS — newest `kb/00-LOG.md` entry (2026-08-02) matches newest committed
+`tape/*/dt=*` (2026-08-02), gap 0; `origin/main` HEAD `4483da2` with contiguous squash-merge PR
+numbers (#267/#266/#265/#264/#263/#262), no rewind. Claim-check: 5 open PRs (#208/#191/#166/#165/
+#125) all Ryan-review-only and already named by prior runs — none claims an eligible item; not
+re-escalated (anti-tune-out). 0b: the freshest `tape/hourly-*` branch (`20260802T0102Z`) was already
+swept into `main` ~1h earlier (commit 297c88b, 376 lines); 206 remote `tape/hourly-*` branches
+remain uncollected — the standing Q17 growth backlog, unchanged.
+
+**Unit 1 — adversarial review (CLEAN, no issue opened).** Re-checked one load-bearing number per
+last-24h verdict on the two S68 kills (Q49 both-side maker fill-sim `DEAD-by-fee`; Q50 tighter-gate
+re-derivation). (a) Fee: `MAKER_FEE_RATE=0.0175` in `core/pricing.py:112`, `fee_per_contract` rounds
+up to 1¢ near 50¢ — matches the "flat 1¢ maker fee / 2¢ two-sided" both findings use, correctly
+sourced (docs.kalshi.com fee_rounding). (b) The structural identity both findings lean on —
+`best_yes_ask = round(1 − best_no_bid, 4)` — is real (`collection/normalize.py:35`), so the
+gate-guarantees-non-negative-gross argument and the L41-inadmissible-cuts-carry-no-weight reasoning
+both hold. (c) Bootstrap unit = GAME-SERIES (L6/L41), n_units honestly flagged below the 10-floor.
+All three hold → both DEADs are sound; nothing to open.
+
+**Unit 2 — Q21 round #20 → 0 registered (KILL/KILL/KILL).** 0 eligible items (full Q0–Q50 file-shape
+rescan, L25). Proposed S69/S70/S71, each routing around both mapped walls on already-collected tape;
+independent `verifier` attacked all three on committed tape before registration. **S69** (butterfly-
+convexity taker, crypto_hourly): KILL — 0 size fields (S53) + `between` range-ladder makes the
+butterfly no-arb ill-defined (L88) + hollow OTM legs. **S70** (tight-spread ≤3¢ near-certain favorite
+pre-close taker, orderbook_depth ∩ settlement): KILL — population REAL and clears L41 (549 trades /
+311 games / 18 series) but net-of-taker EV straddles zero at every cut (boot-by-game CI
+[−0.0187,+0.0102]); a genuine adequately-powered CI falsification that sharpens the S52/S1 overround
+wall into the tight-spread subset. **S71** (raw-funding-extreme directional taker): KILL — raw HL
+funding un-clamped (differs from S49) but instrument non-fillable (L88, ~200% strip overround),
+extreme decile inseparable (>55% pin the +1.25e-05 cap), hit-rate coin-flip/sign-inconsistent (BTC
+0.464 / ETH 0.571). NO registry change (prose-note precedent). Consumed S69/S70/S71 → next free S72.
+Two lesson candidates deferred to kb-distiller (S70 overround-wall CI-falsification on tight-spread;
+S71 un-clamped ≠ separable). See `findings/2026-08-02-q21-idea-gen-round.md`.
+
+**Unit 3 — probe-prep (VERIFIED-READY, no build needed).** Q37 (weather summer maker-NO) is the only
+item unblocking within ~72h (gate ~19/21 real summer temperature contract-days by file shape, opens
+~08-04). Its probe (`scripts/q37_weather_summer_makerno_probe.py`, 43KB + 27KB tests) is already
+built + offline-tested (07-20) and the gate counter was tightened + preflighted (07-31), so the gated
+run only has to execute. Residual gap is Ryan-side and already documented: the EMOS signal layer is
+structurally unavailable in a cloud checkout (`data/forecast_tape/` gitignored) and the actuals leg is
+sparse (7/16 days), so Q37 will fire baseline-only. Nothing to build.
+
+**Housekeeping.** 5 `kalshi-burst-*` one-shot triggers (cpi-0714, wcsemi1-0714, wcsemi2-0715,
+wcfinal-0719, fomc-0729) all fired their 2026 events and rolled to 2027 `next_run_at` — all named for
+deletion (stale one-shot event-studies, freeing trigger slots). 206 remote `tape/hourly-*` branches
+(Q17 backlog). Gates: `invariants.py --full` exit 0 (all green, pre-existing non-gating advisories
+only); pytest green (2589+ collected, 0 failed).
+
+
 
 **Nothing flips. No registry status changed, no CI entered `kb/`, no kill decision was made; S68
 stays `dead x`, still 0 proven edges.**
