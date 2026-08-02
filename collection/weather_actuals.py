@@ -63,6 +63,11 @@ data is about). Raw-bytes sha256 binds the Kalshi settled pages where applicable
 Run one pass:
     python -m collection.weather_actuals
     python -m collection.weather_actuals --limit 3   # first 3 cities only (offline/dev use)
+
+Recover past days the scheduled leg missed (added 2026-08-02 — see the "gap backfill" section
+below; the scheduled leg is yesterday-only and its holes do NOT self-heal):
+    python -m collection.weather_actuals --target-day 2026-07-18
+    python -m collection.weather_actuals --backfill-missing --since 2026-07-15
 """
 from __future__ import annotations
 
@@ -72,7 +77,7 @@ import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import yaml
 
@@ -404,13 +409,285 @@ def run(min_interval: float = 0.25, http=None, client: Optional[Kalshi] = None,
     return summary
 
 
+# --------------------------------------------------------------------------- #
+# gap backfill (added 2026-08-02) — the scheduled leg is yesterday-only and its holes
+# do NOT self-heal
+# --------------------------------------------------------------------------- #
+# `run()` has accepted `target_day` since v1, but nothing could REACH it: the CLI exposed only
+# `--limit`/`--min-interval`, and `collection.hourly_pass` calls `run()` with no arguments. So
+# every daily pass the scheduler missed became a PERMANENT hole in `tape/weather_actuals/` —
+# `findings/2026-07-31-weather-gate-preflight-audit.md` section (B) measured the damage and named
+# the recovery ("needs an explicit `--target-day` invocation nothing schedules") without being
+# able to invoke it. This section is that invocation.
+#
+# Four deliberate properties:
+#   * ADDITIVE ONLY. `run()`'s default (target = yesterday), its record shape, and the hourly
+#     leg are untouched. A backfilled line is byte-shaped exactly like a scheduled one and needs
+#     no new field: `target_day` — on every record since v1 — already distinguishes it (a
+#     scheduled pass always has `target_day == capture_day - 1`), so this does NOT open L222's
+#     `capture_source` write-path question.
+#   * It REFUSES a day that has not closed (>= today UTC). Settlement truth for an open day does
+#     not exist yet, and a pass that "succeeds" on one writes `unverifiable` actuals plus a
+#     `no_settled_market` join indistinguishable from a genuine absence (L23's empty-!=-drop
+#     failure mode, inverted).
+#   * Per-(day, city) granularity, so a PARTIALLY captured day (2026-07-15 landed 2 of 20 cities)
+#     is completed rather than re-fetched wholesale. Re-fetching whole days would append
+#     byte-redundant lines of exactly the class L221 measures.
+#   * Bounded by `--max-days`, and any day with gaps beyond that bound is reported as DEFERRED,
+#     never dropped silently.
+DEFAULT_BACKFILL_MAX_DAYS = 14
+
+
+def covered_city_days(store: Optional[Path] = None) -> Dict[str, Set[str]]:
+    """`target_day` -> set of cities already on this family's committed tape.
+
+    Keyed on `target_day` (the day the record is ABOUT), never on the `dt=` filename (the day it
+    was CAPTURED) — the two differ for every backfilled line by construction. A line that fails
+    to parse is NOT counted as coverage: the conservative direction, since the only consequence
+    is re-fetching a city-day we may already hold (append-only tape, deduplicable downstream on
+    `(target_day, city)`), whereas the opposite default would silently leave a real gap open."""
+    store = Path(store) if store is not None else TAPE
+    out: Dict[str, Set[str]] = {}
+    if not store.exists():
+        return out
+    for path in sorted(store.glob("dt=*.jsonl")):
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                td, city = rec.get("target_day"), rec.get("city")
+                if td and city:
+                    out.setdefault(td, set()).add(city)
+    return out
+
+
+def missing_city_days(since: date, until: date,
+                      stations: Optional[List[Dict[str, Any]]] = None,
+                      store: Optional[Path] = None,
+                      config_path: Optional[Path] = None) -> List[Tuple[date, List[str]]]:
+    """[(day, [cities with no record for that day])] over the inclusive [since, until] window,
+    oldest first. Days already complete are omitted entirely. The EXPECTED set is the same
+    station list a scheduled pass uses, so "missing" means missing against the leg's own
+    contract, not against an ad-hoc list."""
+    if stations is None:
+        stations = _load_stations(config_path)
+    expected = [s.get("city") for s in stations]
+    covered = covered_city_days(store)
+    out: List[Tuple[date, List[str]]] = []
+    day = since
+    while day <= until:
+        have = covered.get(day.isoformat(), set())
+        gaps = [c for c in expected if c not in have]
+        if gaps:
+            out.append((day, gaps))
+        day += timedelta(days=1)
+    return out
+
+
+def settlement_join_by_day(store: Optional[Path] = None) -> Dict[str, Dict[str, int]]:
+    """`target_day` -> {"n_records", "n_joined"} over this family's committed tape.
+
+    `covered_city_days` answers "does an actuals RECORD exist"; this answers the different
+    question "did that record bring SETTLEMENT TRUTH". The two diverge whenever a pass runs
+    before the exchange has settled the day's ladders — measured on 2026-08-02: the 2026-08-01
+    backfill pass captured 20/20 cities with `broker_truth` actuals and joined **0** settled
+    markets, because the daily temperature ladders had not settled at 09:24Z. Under the
+    coverage reader alone that day is complete forever; under this one it is visibly hollow."""
+    store = Path(store) if store is not None else TAPE
+    out: Dict[str, Dict[str, int]] = {}
+    if not store.exists():
+        return out
+    for path in sorted(store.glob("dt=*.jsonl")):
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                td = rec.get("target_day")
+                if not td:
+                    continue
+                slot = out.setdefault(td, {"n_records": 0, "n_joined": 0})
+                slot["n_records"] += 1
+                sm = rec.get("settled_markets") or {}
+                slot["n_joined"] += int(bool(sm.get("events")))
+    return out
+
+
+def unsettled_days(since: date, until: date,
+                   store: Optional[Path] = None) -> List[str]:
+    """Days inside [since, until] that HAVE actuals records and ZERO settled-market joins.
+
+    These are invisible to `missing_city_days` (their records exist) yet contribute nothing to
+    the settlement-truth join a downstream probe needs. Reported, never auto-refetched: a day
+    with genuinely no listed ladder is a real absence (L23 — empty is not a drop), and blind
+    re-fetching would append byte-redundant lines of the class L221 measures. Deciding which of
+    the two a specific day is stays a human/probe judgment; making it VISIBLE does not."""
+    joins = settlement_join_by_day(store)
+    out: List[str] = []
+    day = since
+    while day <= until:
+        k = day.isoformat()
+        slot = joins.get(k)
+        if slot and slot["n_records"] > 0 and slot["n_joined"] == 0:
+            out.append(k)
+        day += timedelta(days=1)
+    return out
+
+
+def _require_closed_day(day: date, now: Optional[datetime] = None) -> date:
+    """A target day must be strictly in the past (UTC). Raises ValueError otherwise."""
+    today = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).date()
+    if day >= today:
+        raise ValueError(
+            f"target day {day.isoformat()} is not a CLOSED UTC day (today is "
+            f"{today.isoformat()}); settlement truth for it does not exist yet")
+    return day
+
+
+def backfill(since: date, until: Optional[date] = None,
+             max_days: int = DEFAULT_BACKFILL_MAX_DAYS,
+             now: Optional[datetime] = None,
+             min_interval: float = 0.25, http=None, client: Optional[Kalshi] = None,
+             store: Optional[Path] = None,
+             stations: Optional[List[Dict[str, Any]]] = None,
+             city_series: Optional[Dict[str, List[str]]] = None,
+             max_markets: int = MAX_SETTLED_MARKETS,
+             config_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Fill every (closed day, city) gap in [since, until], oldest first, bounded by `max_days`.
+
+    One `run()` pass per day, restricted to that day's MISSING cities. `until` defaults to
+    yesterday UTC; a non-closed `until` (or `since`) raises rather than writing a hole-shaped
+    record. The HTTP/Kalshi clients are built once and shared across days so the politeness
+    throttle spans the whole backfill instead of resetting per day.
+
+    Summary keys: `n_days_with_gaps` / `n_days_attempted` / `n_days_deferred` (gaps beyond
+    `max_days` — reported, never silently dropped) / `n_city_days_expected` / `_captured` /
+    `_dropped` / `n_days_incomplete` / `completeness_ok` (every ATTEMPTED day complete) /
+    `days` (each day's own `run()` summary, verbatim)."""
+    today = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).date()
+    until = until if until is not None else (today - timedelta(days=1))
+    _require_closed_day(since, now=now)
+    _require_closed_day(until, now=now)
+    if stations is None:
+        stations = _load_stations(config_path)
+    by_city = {s.get("city"): s for s in stations}
+
+    gaps = missing_city_days(since, until, stations=stations, store=store,
+                             config_path=config_path)
+    attempted, deferred = gaps[:max_days], gaps[max_days:]
+
+    if attempted:
+        if http is None:
+            from validation._http import Http
+            http = Http(min_interval=min_interval)
+        if client is None:
+            cfg = _load_venue_cfg()
+            client = Kalshi(cfg["api_base"], min_interval=min_interval)
+        if city_series is None:
+            city_series = _load_city_series()
+
+    day_summaries: List[Dict[str, Any]] = []
+    for day, cities in attempted:
+        subset = [by_city[c] for c in cities if c in by_city]
+        summary = run(min_interval=min_interval, http=http, client=client, store=store,
+                      stations=subset, city_series=city_series, target_day=day,
+                      max_markets=max_markets, config_path=config_path)
+        day_summaries.append(summary)
+
+    hollow = unsettled_days(since, until, store=store)
+    n_expected = sum(s["n_expected"] for s in day_summaries)
+    n_captured = sum(s["n_captured"] for s in day_summaries)
+    n_dropped = sum(s["n_dropped"] for s in day_summaries)
+    n_incomplete = sum(0 if s["completeness_ok"] else 1 for s in day_summaries)
+    out = {
+        "mode": "backfill",
+        "since": since.isoformat(),
+        "until": until.isoformat(),
+        "max_days": max_days,
+        "n_days_with_gaps": len(gaps),
+        "n_days_attempted": len(attempted),
+        "n_days_deferred": len(deferred),
+        "deferred_days": [d.isoformat() for d, _c in deferred],
+        "n_city_days_expected": n_expected,
+        "n_city_days_captured": n_captured,
+        "n_city_days_dropped": n_dropped,
+        "n_days_incomplete": n_incomplete,
+        "completeness_ok": n_incomplete == 0,
+        "unsettled_days": hollow,
+        "n_unsettled_days": len(hollow),
+        "days": day_summaries,
+    }
+    print(f"[weather_actuals] backfill {since.isoformat()}..{until.isoformat()}: "
+          f"{len(attempted)}/{len(gaps)} gap-day(s) attempted, {n_captured}/{n_expected} "
+          f"city-day(s) captured, {n_dropped} dropped, {n_incomplete} day(s) incomplete"
+          + (f", {len(deferred)} DEFERRED (--max-days {max_days})" if deferred else ""))
+    if deferred:
+        print(f"[weather_actuals] WARN {len(deferred)} gap-day(s) deferred past --max-days "
+              f"{max_days}: {[d.isoformat() for d, _c in deferred]}", file=sys.stderr)
+    if hollow:
+        print(f"[weather_actuals] WARN {len(hollow)} day(s) have actuals records but ZERO "
+              f"settled-market joins (hollow to the settlement join, invisible to the coverage "
+              f"reader): {hollow}", file=sys.stderr)
+    return out
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(
         description="Daily weather actuals + Kalshi settled-market join (read-only)")
     ap.add_argument("--limit", type=int, default=None, help="cap number of cities this pass")
     ap.add_argument("--min-interval", type=float, default=0.25,
                     help="min seconds between live fetches (politeness)")
+    ap.add_argument("--target-day", default=None, metavar="YYYY-MM-DD",
+                    help="re-target ONE closed past UTC day instead of yesterday (recovery)")
+    ap.add_argument("--backfill-missing", action="store_true",
+                    help="fill every (day, city) gap in [--since, --until]; requires --since")
+    ap.add_argument("--since", default=None, metavar="YYYY-MM-DD",
+                    help="first day of the backfill window (inclusive)")
+    ap.add_argument("--until", default=None, metavar="YYYY-MM-DD",
+                    help="last day of the backfill window (inclusive; default yesterday UTC)")
+    ap.add_argument("--max-days", type=int, default=DEFAULT_BACKFILL_MAX_DAYS,
+                    help=f"cap gap-days attempted in one backfill "
+                         f"(default {DEFAULT_BACKFILL_MAX_DAYS}); the rest are reported DEFERRED")
     args = ap.parse_args(argv)
+
+    if args.backfill_missing and args.target_day:
+        ap.error("--backfill-missing and --target-day are mutually exclusive")
+    if args.since is not None and not args.backfill_missing:
+        ap.error("--since only applies to --backfill-missing")
+    if args.until is not None and not args.backfill_missing:
+        ap.error("--until only applies to --backfill-missing")
+
+    if args.backfill_missing:
+        if not args.since:
+            ap.error("--backfill-missing requires --since YYYY-MM-DD")
+        try:
+            since = date.fromisoformat(args.since)
+            until = date.fromisoformat(args.until) if args.until else None
+            summary = backfill(since=since, until=until, max_days=args.max_days,
+                               min_interval=args.min_interval)
+        except ValueError as exc:
+            print(f"[weather_actuals] REFUSED: {exc}", file=sys.stderr)
+            return 2
+        return 0 if summary["completeness_ok"] else 1
+
+    if args.target_day:
+        try:
+            day = _require_closed_day(date.fromisoformat(args.target_day))
+        except ValueError as exc:
+            print(f"[weather_actuals] REFUSED: {exc}", file=sys.stderr)
+            return 2
+        summary = run(min_interval=args.min_interval, limit=args.limit, target_day=day)
+        return 0 if summary["completeness_ok"] else 1
+
     run(min_interval=args.min_interval, limit=args.limit)
     return 0
 
