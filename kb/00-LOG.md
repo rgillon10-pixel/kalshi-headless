@@ -6,6 +6,127 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~09:5x UTC — research loop idle-run (policy (c)): `weather_actuals` gap backfill — Q37's settlement-truth join goes 35.3% -> 87.4%
+
+**Steps 0a/0/0b.** 0a/0 done by the calling session and re-checked here: `git pull` fast-forwarded
+with no rewind, newest `kb/00-LOG.md` entry (2026-08-02) matches newest committed `tape/*/dt=*`
+(2026-08-02), gap 0; claim-check found the same 4-5 long-standing open PRs (#208 retro,
+#191/#166/#165 stale mid-July drafts), none claiming an eligible queue item. 0b light re-check per
+the standing Q44 result: 216 remote `tape/hourly-*`/`tape/burst-*` branches, freshest is
+`tape/hourly-20260802T0102Z` — already swept into `main` this morning (commit `297c88b`, 376
+lines) and no newer branch has appeared. **0 union-appendable lines.**
+
+**Queue: 0 eligible TODO/IN-PROGRESS** (re-confirmed against this morning's full Q0-Q50 file-shape
+rescan, PR #268; Q37's gate opens ~08-04, not yet) -> **IDLE RUN**.
+
+**Policy (a) is genuinely exhausted, and this is the second run to say so.** Re-derived live via
+`scripts.invariants.stale_unenforced_recall_report()`: 258 rows, 34 `**UNENFORCED**`, 31 formally
+`DISPOSES:`-closed, **3 open — `L213`, `L221`, `L222`** — the identical set the last three runs
+found, and all three residuals are out of a cloud run's lane: L213's is a trigger-prompt change in
+Ryan's own account, L221's named fix is open draft **PR #165**'s `daily_leg_due()` (a duplicate
+build was already written and reverted on 07-31, L246), and L222's is a `capture_source` field on a
+LIVE collector's write path. Policy (b) is also empty: Q37's probe was re-verified execute-ready by
+the edge-hunter this morning. So: **policy (c), one tape family** — and the family chosen was the
+one feeding the only gate that opens inside 72h.
+
+## Milestone: the recovery path the 07-31 pre-flight audit named did not exist
+
+`findings/2026-07-31-weather-gate-preflight-audit.md` section (B) audited `tape/weather_actuals/`
+— Q37's settlement-truth leg — and found it alive but sparse: 7 of 16 possible capture days,
+**229/680 book groups (33.7%) carrying settlement truth**, holes that "do NOT self-heal" because
+`collection/weather_actuals.py` targets `cap_ts.date() - timedelta(days=1)` and "recovery needs an
+explicit `--target-day` invocation nothing schedules."
+
+That last clause was half the story. `run()` has accepted `target_day` since v1, but **nothing
+could reach it**: the CLI exposed only `--limit`/`--min-interval`, and `hourly_pass.py:315` calls
+`run()` with no arguments. The recovery was not un-scheduled — it was **un-callable**, so every
+missed pass was permanent by construction. That is **L261**.
+
+**Built (additive only).** `collection/weather_actuals.py` gains `--target-day YYYY-MM-DD` and
+`--backfill-missing --since/--until/--max-days`, backed by `covered_city_days` (target_day-keyed,
+never `dt=`-filename-keyed — the two differ for every backfilled line by construction),
+`missing_city_days` (per-`(day, city)` gaps against the leg's OWN station list), `_require_closed_day`
+(refuses today/future: settlement truth for an open day does not exist, and a pass that "succeeds"
+on one writes a `no_settled_market` join indistinguishable from a real absence), and `backfill()`
+(one `run()` pass per gap-day restricted to that day's missing cities, shared HTTP/Kalshi clients so
+the politeness throttle spans the whole window, `--max-days` bound with every excess day reported
+DEFERRED rather than dropped). `run()`'s default path, its record shape and the hourly leg are
+untouched, and a test pins the default CLI invocation's kwargs exactly. **No new record field**:
+`target_day` (on every record since v1) already distinguishes a backfilled line from a scheduled one,
+so this does not open L222's `capture_source` write-path question.
+
+**Run, live, read-only, unauthenticated** (IEM CLI + METAR for the truth legs, Kalshi settled markets
+for the join — no credentials, no orders):
+`python3 -m collection.weather_actuals --backfill-missing --since 2026-07-15 --until 2026-08-01`
+-> **11 gap-days attempted / 11 found, 218/218 city-days captured, 0 dropped, 0 incomplete days**,
+~8 minutes wall clock. `git status` confirms the pass only created the new
+`tape/weather_actuals/dt=2026-08-02.jsonl`; not one pre-existing tape file was modified.
+
+**Measured effect on Q37's input** (`python3 scripts/weather_revival_gate_preflight_audit.py
+--as-of 2026-08-02`, and independently re-derived by a second code path importing none of that
+script's helpers — both agree to the digit):
+
+| | before | after |
+|---|---|---|
+| settlement-covered book groups | 268/760 (**0.3526**) | 664/760 (**0.8737**) |
+| settled contract-days | 8 | **17** |
+| `broker_truth` result tickers | 1,608 | 3,984 |
+| join precision groups / tickers | 1.0 / 1.0, 0 orphans | **1.0 / 1.0, 0 orphans** |
+
+The pre-backfill covered set is a strict SUBSET of the post-backfill one — purely additive, nothing
+lost, and the join key structure is untouched (the coverage defect the audit diagnosed was never a
+schema defect, and it still isn't). The 96 residual uncovered groups are **2026-08-01 (40)**,
+**2026-08-02 (40, today — still open, correctly not backfilled)** and 16 scattered
+`(series, contract-day)` pairs across six days where a city's ladder simply did not settle.
+(The `n_book_groups` denominator is 760 here vs the audit's 680 on 07-31 — two more contract-days of
+`weather_books` have landed since; the 33.7% and 35.26% figures are the same measurement on
+different-sized windows.)
+
+**The backfill immediately falsified its own completeness reader — L262.** Its `2026-08-01` pass
+captured 20/20 cities with `broker_truth` actuals and joined **0** settled markets: Kalshi had not
+settled that day's ladders at 09:24Z, and the scheduled leg fires at `WEATHER_ACTUALS_UTC_HOUR=12`,
+~3h later. Under `covered_city_days` that day is complete FOREVER and every future gap-fill skips it.
+Fixed by measuring what the downstream join actually needs: `settlement_join_by_day` /
+`unsettled_days` report per-day `n_records` vs `n_joined`, `backfill()` publishes
+`unsettled_days`/`n_unsettled_days` and WARNs on stderr. Over 07-15..08-01 exactly one day is hollow
+(`['2026-08-01']`). Deliberately NOT auto-refetched — a day with genuinely no listed ladder is a real
+absence (L23) and blind re-fetch appends byte-redundant lines of the L221 class; the residual (no
+`--refetch-unsettled` mode) is recorded, not built.
+
+**And a reader trap worth naming — L263.** Adding 218 good lines dropped
+`single_hour_leg_idempotence(weather_actuals, gate_hour_utc=12)`'s `redundant_line_fraction` from
+**0.29703 (60/202) to 0.142857 (60/420)**. Pure denominator dilution: the numerator is the same 60
+lines from the three double-scheduled days (07-16/07-21/07-31), L221's defect is untouched, and the
+monitor says so correctly — `verdict` stays `OVER_CAPTURE` in both readings. The same call also
+attributed all 11 backfill passes as `n_passes_off_gate_hour` (`n_passes_in_gate_hour=0`, per-day
+`redundant_line_fraction=0.0`), which is the empirical confirmation that `target_day` alone keeps a
+deliberate backfill from masquerading as the L221 defect.
+
+**What this does and does not do for Q37.** It cannot open Q37's gate — that gate counts
+`tape/weather_books/` summer contract-days (19 of 21 as of today, opening ~08-04) and this run added
+none. It raises the POWER of the probe that will fire behind it: 87.4% of the book population now
+carries settlement truth instead of 35.3%. Section (C) of the 07-31 audit is unchanged and still
+binds — `data/forecast_tape/` is gitignored, so `emos_input_available=False` in every cloud checkout
+and Q37 will still fire BASELINE-ONLY. **No verdict, no CI, no P&L, no registry change; verdict class
+DATA-ADEQUACY.**
+
+**Gates (fresh, post-final-code-change per L162).** `python3 -m pytest -o addopts='' -q` -> **2704 passed in 2106.40s, 0 failed**, exit 0 (run AFTER the last edit to `collection/weather_actuals.py` / `tests/test_weather_actuals.py`; +23 tests in that file, 38 there now, was 15). `python3 scripts/invariants.py --full` -> `invariants: all green`, exit 0. The only changes after that pytest run were the ledger/queue/log appends below, re-verified by re-running the ledger-reading suites AFTER them: `tests/test_stale_unenforced_advisory.py tests/test_gen_problems_dashboard.py tests/test_weather_actuals.py` -> 113 passed in 142.49s, and `tests/test_invariants.py` -> 268 passed in 1017.32s. Both exit 0.
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead x, infra-only shadow) —
+`python3 scripts/paper_pass.py` idempotent over the committed tape, 0 newly processed, **no new
+ledger lines**: `paper: 0 open position(s), 1554 settled contract(s), realized P&L $+27.24, cash
+$+27.24, open notional $0.00`. (The tape this run added is `weather_actuals`, which no registered
+shadow reads.)
+
+**Two-agent rule: N/A** — no registry flip, no bootstrap CI, no kill decision; a coverage/
+data-adequacy measurement, the same class the 07-31 pre-flight audit was published under
+single-agent. Recorded for the register: the `Task`/Agent tool was UNAVAILABLE in this session, so no
+`verifier` subagent could have been dispatched had one been required; both headline numbers were
+instead re-derived by a second independent code path (own ticker parser, own summer/temperature
+admission, no import of the audit script) which reproduced 268/664/760, 8->17 days and 0 orphans
+exactly. No credentials touched, no orders, no authenticated endpoint — the live fetches were the
+free IEM/Kalshi public read paths the collector has always used.
+
 ## 2026-08-02 ~06:15 UTC — research loop idle-run: L251 disposed (verifier-CONFIRMED), L252 → protocol
 
 **Steps 0a/0/0b.** 0a PASS — `origin/main` HEAD `40f5fdb` (PR #268), last 5 merged PRs

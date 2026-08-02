@@ -287,3 +287,286 @@ def test_load_city_series_maps_cities_to_kalshi_ladders():
     m = wa._load_city_series()
     assert "New York" in m
     assert all(isinstance(v, list) for v in m.values())
+
+
+# --------------------------------------------------------------------------- #
+# gap backfill (2026-08-02) — the scheduled leg is yesterday-only and its holes do not
+# self-heal; `run()` always accepted `target_day` but nothing could reach it.
+# Fully offline: the same FakeHttp/FakeKalshi fixtures, extended to several days.
+# --------------------------------------------------------------------------- #
+from datetime import datetime, timedelta, timezone   # noqa: E402
+
+import pytest                                        # noqa: E402
+
+_D15, _D16, _D17 = date(2026, 7, 15), date(2026, 7, 16), date(2026, 7, 17)
+_NOW = datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)      # so 07-15..07-17 are all CLOSED
+
+
+def _multiday_http():
+    """CLI + METAR rows for 07-15, 07-16 and 07-17 at both stations."""
+    days = ["2026-07-15", "2026-07-16", "2026-07-17"]
+    return FakeHttp(
+        cli_by_station={
+            "KNYC": [_cli(90.0, 70.0, valid=d) for d in days],
+            "KMDW": [_cli(88.0, 66.0, valid=d) for d in days],
+        },
+        metar_by_station={
+            "NYC": [_metar(90.0, 71.0, day=d) for d in days],
+            "MDW": [_metar(88.0, 66.0, day=d) for d in days],
+        },
+    )
+
+
+def _multiday_kalshi():
+    return FakeKalshi(markets_by_series={
+        "KXHIGHTNYC": [_settled_market(f"KXHIGHTNYC-26JUL{d}-T88",
+                                       f"KXHIGHTNYC-26JUL{d}", "yes", "89")
+                       for d in ("15", "16", "17")],
+        "KXLOWTNYC": [], "KXHIGHCHI": [], "KXLOWTCHI": [],
+    })
+
+
+def _write_tape(tmp_path, records):
+    """Seed the family's tape with pre-existing lines; `dt=` filename is deliberately NOT the
+    target_day, so a coverage reader keyed on the filename would get the wrong answer."""
+    path = tmp_path / "dt=2026-07-18.jsonl"
+    with open(path, "a", encoding="utf-8") as f:
+        for target_day, city in records:
+            f.write(json.dumps({"schema_version": "weather_actuals.v1",
+                                "target_day": target_day, "city": city}) + "\n")
+    return path
+
+
+# ---- coverage reader ------------------------------------------------------- #
+def test_covered_city_days_keys_on_target_day_not_filename(tmp_path):
+    _write_tape(tmp_path, [("2026-07-15", "New York"), ("2026-07-16", "Chicago")])
+    cov = wa.covered_city_days(store=tmp_path)
+    assert cov == {"2026-07-15": {"New York"}, "2026-07-16": {"Chicago"}}
+    assert "2026-07-18" not in cov            # the CAPTURE day is not a coverage key
+
+
+def test_covered_city_days_malformed_line_is_not_coverage(tmp_path):
+    p = _write_tape(tmp_path, [("2026-07-15", "New York")])
+    with open(p, "a", encoding="utf-8") as f:
+        f.write("{not json at all\n")
+        f.write("\n")
+    # conservative direction: an unparsable line can only cause a re-fetch, never hide a gap
+    assert wa.covered_city_days(store=tmp_path) == {"2026-07-15": {"New York"}}
+
+
+def test_covered_city_days_missing_dir_is_empty(tmp_path):
+    assert wa.covered_city_days(store=tmp_path / "nope") == {}
+
+
+# ---- gap enumeration ------------------------------------------------------- #
+def test_missing_city_days_omits_complete_days_and_names_partial_ones(tmp_path):
+    _write_tape(tmp_path, [("2026-07-15", "New York"), ("2026-07-15", "Chicago"),
+                           ("2026-07-16", "New York")])
+    gaps = wa.missing_city_days(_D15, _D17, stations=_STATIONS, store=tmp_path)
+    assert [d for d, _c in gaps] == [_D16, _D17]          # 07-15 complete -> omitted
+    assert dict((d, c) for d, c in gaps)[_D16] == ["Chicago"]     # partial -> only the hole
+    assert dict((d, c) for d, c in gaps)[_D17] == ["New York", "Chicago"]
+
+
+def test_missing_city_days_empty_window_is_empty(tmp_path):
+    assert wa.missing_city_days(_D17, _D15, stations=_STATIONS, store=tmp_path) == []
+
+
+# ---- closed-day guard ------------------------------------------------------ #
+def test_require_closed_day_refuses_today_and_future():
+    for bad in (_NOW.date(), _NOW.date() + timedelta(days=1)):
+        with pytest.raises(ValueError, match="CLOSED"):
+            wa._require_closed_day(bad, now=_NOW)
+    assert wa._require_closed_day(_D17, now=_NOW) == _D17
+
+
+def test_backfill_refuses_a_window_that_is_not_closed(tmp_path):
+    with pytest.raises(ValueError, match="CLOSED"):
+        wa.backfill(since=_D15, until=_NOW.date(), now=_NOW, store=tmp_path,
+                    stations=_STATIONS, city_series=_CITY_SERIES,
+                    http=_multiday_http(), client=_multiday_kalshi())
+
+
+# ---- backfill behaviour ---------------------------------------------------- #
+def test_backfill_fills_only_the_missing_city_days(tmp_path):
+    _write_tape(tmp_path, [("2026-07-15", "New York"), ("2026-07-15", "Chicago"),
+                           ("2026-07-16", "New York")])
+    out = wa.backfill(since=_D15, until=_D17, now=_NOW, store=tmp_path,
+                      stations=_STATIONS, city_series=_CITY_SERIES,
+                      http=_multiday_http(), client=_multiday_kalshi())
+    assert out["mode"] == "backfill"
+    assert out["n_days_with_gaps"] == 2 and out["n_days_attempted"] == 2
+    assert out["n_days_deferred"] == 0 and out["deferred_days"] == []
+    # 07-16 was missing ONE city, 07-17 both -> 3 city-days, not 6
+    assert out["n_city_days_expected"] == 3
+    assert out["n_city_days_captured"] == 3
+    assert out["completeness_ok"] is True
+
+    written = [json.loads(ln) for p in sorted(tmp_path.glob("dt=*.jsonl"))
+               for ln in p.read_text().splitlines() if "capture_id" in ln]
+    got = sorted((r["target_day"], r["city"]) for r in written)
+    assert got == [("2026-07-16", "Chicago"),
+                   ("2026-07-17", "Chicago"), ("2026-07-17", "New York")]
+    assert all(r["schema_version"] == "weather_actuals.v1" for r in written)
+    # a backfilled line is shaped exactly like a scheduled one and needs NO new field:
+    # target_day != capture_day - 1 is what distinguishes it (L222 write-path stays shut)
+    assert all(r["target_day"] < r["captured_at"][:10] for r in written)
+
+
+def test_backfill_is_idempotent_second_pass_finds_no_gaps(tmp_path):
+    first = wa.backfill(since=_D15, until=_D17, now=_NOW, store=tmp_path,
+                        stations=_STATIONS, city_series=_CITY_SERIES,
+                        http=_multiday_http(), client=_multiday_kalshi())
+    assert first["n_city_days_captured"] == 6
+    second = wa.backfill(since=_D15, until=_D17, now=_NOW, store=tmp_path,
+                         stations=_STATIONS, city_series=_CITY_SERIES,
+                         http=_multiday_http(), client=_multiday_kalshi())
+    assert second["n_days_with_gaps"] == 0
+    assert second["n_days_attempted"] == 0
+    assert second["n_city_days_captured"] == 0
+    assert second["completeness_ok"] is True     # nothing to do is complete, not a failure
+
+
+def test_backfill_max_days_defers_the_rest_and_says_so(tmp_path):
+    out = wa.backfill(since=_D15, until=_D17, now=_NOW, max_days=1, store=tmp_path,
+                      stations=_STATIONS, city_series=_CITY_SERIES,
+                      http=_multiday_http(), client=_multiday_kalshi())
+    assert out["n_days_with_gaps"] == 3
+    assert out["n_days_attempted"] == 1
+    assert out["n_days_deferred"] == 2
+    assert out["deferred_days"] == ["2026-07-16", "2026-07-17"]   # oldest-first, none dropped
+    assert {json.loads(ln)["target_day"]
+            for p in tmp_path.glob("dt=*.jsonl")
+            for ln in p.read_text().splitlines()} == {"2026-07-15"}
+
+
+def test_backfill_default_until_is_yesterday(tmp_path):
+    out = wa.backfill(since=_D17, now=_NOW, store=tmp_path,
+                      stations=_STATIONS, city_series=_CITY_SERIES,
+                      http=_multiday_http(), client=_multiday_kalshi())
+    assert out["until"] == "2026-07-17"           # _NOW is 07-18
+
+
+def test_backfill_drop_lowers_completeness_and_is_named(tmp_path):
+    http = _multiday_http()
+    http.fail_cli = {"KMDW"}                      # Chicago's CLI fetch raises on every day
+    out = wa.backfill(since=_D17, until=_D17, now=_NOW, store=tmp_path,
+                      stations=_STATIONS, city_series=_CITY_SERIES,
+                      http=http, client=_multiday_kalshi())
+    assert out["completeness_ok"] is False
+    assert out["n_days_incomplete"] == 1
+    assert out["n_city_days_dropped"] == 1
+    assert out["days"][0]["drops"][0]["city"] == "Chicago"
+
+
+# ---- CLI surface ----------------------------------------------------------- #
+def test_cli_default_path_is_unchanged(monkeypatch):
+    seen = {}
+
+    def _fake_run(**kw):
+        seen.update(kw)
+        return {"completeness_ok": True}
+
+    monkeypatch.setattr(wa, "run", _fake_run)
+    assert wa.main([]) == 0
+    assert "target_day" not in seen               # default stays yesterday-relative
+    assert seen == {"min_interval": 0.25, "limit": None}
+
+
+def test_cli_target_day_is_passed_through_and_gates_exit_code(monkeypatch):
+    seen = {}
+
+    def _fake_run(**kw):
+        seen.update(kw)
+        return {"completeness_ok": False}
+
+    monkeypatch.setattr(wa, "run", _fake_run)
+    assert wa.main(["--target-day", "2026-07-15"]) == 1      # incomplete -> non-zero
+    assert seen["target_day"] == _D15
+
+
+def test_cli_refuses_a_future_target_day(monkeypatch, capsys):
+    monkeypatch.setattr(wa, "run", lambda **kw: pytest.fail("run must not be reached"))
+    future = (datetime.now(timezone.utc).date() + timedelta(days=2)).isoformat()
+    assert wa.main(["--target-day", future]) == 2
+    assert "REFUSED" in capsys.readouterr().err
+
+
+def test_cli_backfill_requires_since_and_rejects_mixed_flags(monkeypatch):
+    monkeypatch.setattr(wa, "backfill", lambda **kw: pytest.fail("backfill must not be reached"))
+    for argv in (["--backfill-missing"],
+                 ["--backfill-missing", "--target-day", "2026-07-15"],
+                 ["--since", "2026-07-15"],
+                 ["--until", "2026-07-15"]):
+        with pytest.raises(SystemExit) as exc:
+            wa.main(argv)
+        assert exc.value.code == 2
+
+
+def test_cli_backfill_passes_window_through(monkeypatch):
+    seen = {}
+
+    def _fake_backfill(**kw):
+        seen.update(kw)
+        return {"completeness_ok": True}
+
+    monkeypatch.setattr(wa, "backfill", _fake_backfill)
+    assert wa.main(["--backfill-missing", "--since", "2026-07-15",
+                    "--until", "2026-07-17", "--max-days", "3"]) == 0
+    assert seen["since"] == _D15 and seen["until"] == _D17 and seen["max_days"] == 3
+
+
+# ---- hollow days: records exist, settlement truth does not ----------------- #
+# Discovered by the 2026-08-02 backfill itself: its 2026-08-01 pass captured 20/20 cities with
+# broker_truth actuals and joined ZERO settled markets (Kalshi had not settled the daily ladders
+# at 09:24Z). `covered_city_days` marks that day complete forever; this reader does not.
+def _tape_line(target_day, city, joined):
+    rec = {"schema_version": "weather_actuals.v1", "target_day": target_day, "city": city,
+           "settled_markets": {"status": "joined" if joined else "no_settled_market",
+                               "events": [{"event_ticker": "KXHIGHTNYC-26JUL15"}] if joined
+                               else []}}
+    return json.dumps(rec)
+
+
+def _write_join_tape(tmp_path, rows):
+    with open(tmp_path / "dt=2026-08-02.jsonl", "a", encoding="utf-8") as f:
+        for target_day, city, joined in rows:
+            f.write(_tape_line(target_day, city, joined) + "\n")
+
+
+def test_settlement_join_by_day_separates_records_from_truth(tmp_path):
+    _write_join_tape(tmp_path, [("2026-07-15", "New York", True),
+                                ("2026-07-15", "Chicago", False),
+                                ("2026-08-01", "New York", False),
+                                ("2026-08-01", "Chicago", False)])
+    joins = wa.settlement_join_by_day(store=tmp_path)
+    assert joins["2026-07-15"] == {"n_records": 2, "n_joined": 1}
+    assert joins["2026-08-01"] == {"n_records": 2, "n_joined": 0}
+
+
+def test_unsettled_days_flags_the_hollow_day_only(tmp_path):
+    _write_join_tape(tmp_path, [("2026-07-15", "New York", True),
+                                ("2026-08-01", "New York", False)])
+    assert wa.unsettled_days(_D15, date(2026, 8, 1), store=tmp_path) == ["2026-08-01"]
+    # a day with no records at all is a `missing_city_days` question, not a hollow-day one
+    assert wa.unsettled_days(date(2026, 7, 10), date(2026, 7, 14), store=tmp_path) == []
+
+
+def test_backfill_reports_hollow_days_it_just_wrote(tmp_path, capsys):
+    # every series empty -> honest no_settled_market for both cities on both days
+    client = FakeKalshi(markets_by_series={s: [] for s in
+                                           ["KXHIGHTNYC", "KXLOWTNYC", "KXHIGHCHI", "KXLOWTCHI"]})
+    out = wa.backfill(since=_D16, until=_D17, now=_NOW, store=tmp_path,
+                      stations=_STATIONS, city_series=_CITY_SERIES,
+                      http=_multiday_http(), client=client)
+    assert out["completeness_ok"] is True          # a genuine absence is not a failure (L23)
+    assert out["n_unsettled_days"] == 2
+    assert out["unsettled_days"] == ["2026-07-16", "2026-07-17"]
+    assert "ZERO settled-market joins" in capsys.readouterr().err
+
+
+def test_backfill_with_settlement_reports_no_hollow_days(tmp_path):
+    out = wa.backfill(since=_D15, until=_D15, now=_NOW, store=tmp_path,
+                      stations=_STATIONS[:1], city_series=_CITY_SERIES,
+                      http=_multiday_http(), client=_multiday_kalshi())
+    assert out["n_unsettled_days"] == 0 and out["unsettled_days"] == []
