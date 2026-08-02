@@ -6,6 +6,66 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~06:15 UTC — research loop idle-run: L251 disposed (verifier-CONFIRMED), L252 → protocol
+
+**Steps 0a/0/0b.** 0a PASS — `origin/main` HEAD `40f5fdb` (PR #268), last 5 merged PRs
+(#268/#267/#266/#265/#264) all reachable ancestors, no rewind; newest `kb/00-LOG.md` entry
+(2026-08-02) matches newest committed `tape/*/dt=*` (2026-08-02), 0-day gap. Claim-check: 5
+open PRs (#208/#191/#166/#165/#125), all Ryan-review-only, none claims eligible work. 0b: the
+freshest `tape/hourly-*` branch (`20260802T0102Z`) was already swept by an earlier idle run
+this morning (commit `297c88b`); no new branch has appeared since (>30min old cutoff);
+the 200+ branch stranded-sweep backlog is unchanged (standing Q17 item).
+
+**Queue re-derived from the file:** 0 eligible TODO/IN-PROGRESS across Q0–Q50 (confirmed by
+this morning's `kalshi-edge-hunter` round #20 full rescan, PR #268) → **IDLE RUN, policy (a)**.
+`kb/lessons/00-lessons.md`'s open `UNENFORCED` queue held two rows: **L251** (adjudication-half
+only — both its named artifacts, `.claude/agents/edge-prober.md:123`'s rule bullet and
+`core.bootstrap.entry_instant_concentration`, were already BUILT by a prior run but deliberately
+left un-disposed pending an independent verifier) and **L252** (a still fully-open UNENFORCED
+row: a maker admission gate set exactly at "spread ≥ sum of round-trip fees" selects the fee
+wall, not an edge).
+
+**L251:** dispatched an independent `verifier` subagent (Task tool available this run, unlike
+the run that built L251). It re-read both cited artifacts, re-ran
+`pytest tests/test_bootstrap.py -k entry_instant_concentration` (13 passed; 17 total once the 4
+differently-named acceptance tests are included), and independently re-derived all four of
+Q49's cuts' concentration numbers byte-identical from committed tape via the probe's own loaders
+— confirming the flag fires on the REAL 20-candidates-one-instant Q49 population, not a
+synthetic analog. **Verdict: CONFIRMED.** One correction found and folded in: L251's own
+enforcement cell (and a prior LOOP-QUEUE.md log line) misstated the test split as "14 unit + 3
+acceptance"; the true split is **13 unit + 4 acceptance** (17 total, unchanged). A residual
+noted but not requiring a new row (already covered by **L59**'s zero-caller precedent):
+`entry_instant_concentration` has zero production callers today. Closed with a new
+machine-readable disposition row, **L259** (`DISPOSES: L251`), per L190's grammar.
+
+**L252:** built its protocol half — a new house-style bullet in `.claude/agents/edge-prober.md`
+(citing L252 by ID, inserted immediately before the L251 bullet) instructing any maker probe to
+widen a fee-boundary admission gate to fees-plus-N-ticks and re-derive the population under the
+tighter gate before treating a fee-boundary result as informative, with Q49/S68's own
+11-double-fills-all-sub-tick case stated verbatim. Not further testable per L252's own text (N
+is a strategy-specific judgment call) — recorded as protocol, the terminal tier the row itself
+predicted. Closed with **L260** (`DISPOSES: L252`).
+
+Open `UNENFORCED` rows: **5 → 3** (`L213`, `L221`, `L222` remain).
+
+**Gates (fresh, post-edit):** `python3 -m pytest -q` → all-dots, exit 0; re-collected same tree
+at **2683 tests** (unchanged — no new test files, prose/doc-only diff), so **2683/2683 passed,
+0 failed**. `python3 scripts/invariants.py --full` → exit 0, all green (only pre-existing
+non-gating advisories, disposed-count ticked 29→31).
+
+**Step 9:** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, infra-only paper shadow) —
+`python3 scripts/paper_pass.py` idempotent, 0 newly processed, no new ledger lines: **paper: 0
+open position(s), 1554 settled contract(s), realized P&L $+27.24, cash $+27.24, open notional
+$0.00**.
+
+Two-agent rule: satisfied for L251 (independent verifier CONFIRMED before disposal); N/A for
+L252 (protocol-only doc addition, not a verdict-class change — same class as prior single-pass
+protocol dispositions L65/L66/L68/L105/L211/L215). No network beyond git, no orders, no
+credentials touched. See `.claude/agents/edge-prober.md`, `kb/lessons/00-lessons.md` (L259,
+L260).
+
+---
+
 ## 2026-08-02 ~04:15 UTC — kalshi-edge-hunter nightly: S68 verdicts pass adversarial re-check (clean); Q21 round #20 → 0 registered (KILL/KILL/KILL); Q37 prep-verified; 5 stale burst triggers named
 
 **Nothing flips. 0 proven edges, 0 live `idea` candidates.** All three edge-hunter units ran.
