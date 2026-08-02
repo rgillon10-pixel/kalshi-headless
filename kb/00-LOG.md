@@ -6,6 +6,101 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~03:2x UTC — research loop IDLE RUN (policy a): L250's "a saturated fill proxy is not weak evidence, it is no evidence" stops being a verifier's reading and becomes a statistic — the loose turnover rule fills 20/20 where the strict rule fills 11/20
+
+**Nothing flips. No registry status changed, no CI entered `kb/`, no kill decision was made; S68
+stays `dead x`, still 0 proven edges.**
+
+**Steps 0a/0/0b.** 0a PASS — `origin/main` = local HEAD `8990509`; no GitHub API from this session
+(`api.github.com` 403, and no MCP GitHub tool was exposed), so merged-PR ancestry was checked via the
+local proxy the protocol allows: main's squash-merge subjects carry contiguous PR numbers
+(#266/#265/#264/#263/#262/#260/#259/#258) with #261 explained on the face of `46bb1ec` as the closed
+duplicate, and the newest `kb/00-LOG.md` entry (2026-08-02) matches the newest committed
+`tape/*/dt=*` (2026-08-02), gap 0 — no rewind. Claim-check: the long-standing open PRs
+(#208/#191/#166/#165/#125) are Ryan-review-only or stale and claim no eligible item; **#191**
+("GATE a dead strategy still paper-shadowing", L153) is worth Ryan's eye precisely because the
+condition it would gate is still TRUE today — `SHADOW_REGISTRY = {s14_ladder_underwriting}` and S14
+is `dead x` per Q34. Independent Q0-Q50 status-line rescan agreed with the last run: **0 eligible
+TODO/IN-PROGRESS** (Q49 and Q50 both DONE/CLOSED 2026-08-01, Q24's later Status line is DONE/DEAD,
+Q32/Q33/Q35-build/Q47 credential-blocked, Q14/Q15 data-blocked, Q36/Q37/Q42/Q43 gate- or
+density-blocked) -> IDLE RUN, policy (a).
+
+**Step 0b sweep.** 216 remote `tape/*` branches, all fetched and line-set-compared against HEAD
+(never `--is-ancestor`, L160), size guard OFF so the bulk families are really checked (L216): 208
+fully contained, 54 malformed names triaged by commit date not name order (L161), **14 carry lines
+missing from HEAD — 13 of them carry NOTHING appendable** (git conflict markers on
+`tape/{anomalies,econ_prints}/dt=2026-07-18.jsonl` and prose lines in the non-JSONL
+`tape/cloud-env-check.md`, correctly REFUSED per L247). The one real branch,
+`tape/hourly-20260802T0102Z` (committed 01:01:53Z, well past the 30-min freshness rule), carried
+**376 genuinely missing JSONL lines**, all union-appended into this run's commit: `sports_pairs`
++353, `polymarket_macro_pairs` +21, `crypto_hourly` +2. Every appended line parsed as a JSON object
+before it was written; all three were new `dt=2026-08-02` day-files on main.
+
+**Why L250.** Of the 5-6 open `UNENFORCED` rows, L213/L221/L222 are half-shut on Ryan-side triggers
+or DO-NOT-BUILD live-collector write paths and L251 awaits an adjudication rather than a build; the
+detector's own strict scan left exactly two genuinely code-buildable rows, **L250** and L252. L250
+was picked as the one that guards the wall every maker strategy in this project has died on (S6,
+S13, S14, S23, S68): the fill model.
+
+**The lesson.** L48 said a *turnover* queue-departure proxy (departures at ANY level >= our resting
+price) rules a population OUT, never IN. L250 is the corollary L48 did not state: over a hold long
+enough for the book to migrate away from a stale resting price, every size reduction above us counts
+as advancing us, the counter runs to tens of thousands against a queue of tens, and the rule fills
+essentially everything — so a HIGH fill rate under it is **no** evidence, in either direction. L250's
+own "not statically assertable" claim is HALF RIGHT and is corrected here (the same self-correction
+L249/L251 recorded): *which* rule is primary is a design choice and stays protocol, but whether the
+loose rule has SATURATED is a plain statistic that Q49 already had all three inputs for and simply
+never compared.
+
+**What was built.** (1) **protocol** — `.claude/agents/edge-prober.md` gains a house-style bullet
+citing L250 by ID with Q49's own numbers verbatim. (2) **test** —
+`core.bootstrap.turnover_rule_saturation(loose_filled, strict_filled, departures=..., queue_ahead=...,
+snapshots_held=...)` + `TURNOVER_SATURATION_RATIO=10.0` / `TURNOVER_SATURATION_FILL_RATE=0.95` /
+`MIN_SNAPSHOTS_FOR_SATURATION=8` / `PRIMARY_FILL_RULE` / `DIAGNOSTIC_FILL_RULE`; it echoes every
+threshold it used, EXCLUDES AND COUNTS zero-queue units rather than reading an undefined ratio as
+infinite, and returns `no_signal=True` on an empty population rather than a clean bill.
+(3) **the operative half the row did not ask for** — `core.bootstrap.headline_fill_rate(report, rule)`
+RAISES on the loose rule ALWAYS (saturated or not; L48's OUT-only direction is unconditional), so a
+fill-rate headline cannot be taken from the turnover proxy through this API; it can only REMOVE a
+headline, never award one. (4) **a real adopter**, so this does not repeat L59's zero-caller residual:
+`scripts/q49_s68_bothside_maker_fillsim.py` computes the report for every labeled cut, prints it
+beside the fill counts, persists it as `turnover_saturation`, and fetches its printed
+headline-eligible rate THROUGH the guard.
+
+**Measured on committed tape**, frozen to `tests/fixtures/q49_turnover_saturation_2026-08-02.json`
+per L191/L192 (`price_source_tag` on every input:
+`real_bid(fills)+real_bid(queue)+broker_truth(settlement)`). `unrestricted` cut, n=445: loose
+`turnover` **97.98%** both-fill vs strict `touch` **42.47%**, median departures/queue_ahead **306.2x**,
+median **66** snapshots held, `saturated=True`. Q49's PRIMARY `fillable_entry` cut, n=20: loose
+**100.00% (20/20, `loose_rule_discriminates=False`)** vs strict **55.00%**, ratio 31.7x. **L250's own
+stated 98%-vs-42% reproduces exactly** — unlike L236/L254, building the test did NOT falsify the row
+it came from. ADDITIVE ONLY: a JSON diff of the same probe run before/after shows exactly one added
+key per cut (8 paths) and every pre-existing field byte-identical apart from `generated_at`.
+
+**Gates (fresh, post-edit).** `python3 -m pytest -o addopts='' -q` -> **2683 passed** in 2256.91s, exit 0;
+`python3 scripts/invariants.py --full` -> `invariants: all green`, exit 0. 16 new tests (13 in
+`tests/test_bootstrap.py` incl. 3 HARD frozen-fixture acceptance tests; 3 adoption tests in
+`tests/test_q49_s68_bothside_maker_fillsim.py`).
+
+**Two-agent rule N/A** for the milestone class (lesson->test conversion, no registry flip, no
+bootstrap CI destined for `kb/`, no kill decision — L104/L110/L118/L126/L127/L137/L208/L213/L236/L249/
+L251 precedent). Recorded for the register: the `Task`/Agent tool was UNAVAILABLE in this session, so
+no `verifier` subagent could have been dispatched even had one been required, and the milestone was
+scoped non-verdict-class partly for that reason. L250's row is therefore NOT formally disposed (L190:
+that marker records an adjudication, and an author's claim about the author's own work does not
+qualify); only its enforcement cell moves, per the L152 own-row-update rule. Open `UNENFORCED` rows:
+**6 -> 5** (`L213, L221, L222, L251, L252`).
+
+**Paper sub-pass** (step 9, paper tier, no network, `SHADOW_REGISTRY = {s14_ladder_underwriting}` —
+`dead x`, infra-only): the swept tape added no new processable event-hour. `paper: 0 open position(s),
+1554 settled contract(s), realized P&L $+27.24, cash $+27.24, open notional $0.00` (entries `real_ask`,
+settlement `broker_truth`); 0 processed, 42 deferred(caps), 272 deferred(coverage), 258
+already-in-ledger — **no new ledger lines**.
+
+See `findings/2026-08-02-l250-turnover-rule-saturation.md`.
+
+---
+
 ## 2026-08-02 ~00:4x UTC — research loop IDLE RUN (policy a): L249's "is the ALIVE branch even reachable?" check stops being a reviewer's private reading of the gate math and becomes a statistic — Q49's kill object was 11 observations pinned to exactly $0.0000
 
 **Nothing flips. No registry status changed, no CI entered `kb/`, no kill decision was made; S68
