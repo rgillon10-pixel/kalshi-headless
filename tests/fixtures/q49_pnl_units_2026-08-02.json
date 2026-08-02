@@ -1,0 +1,66 @@
+{
+  "_provenance": {
+    "generated": "2026-08-02",
+    "producer": "scripts/q49_s68_bothside_maker_fillsim.py (load_settlements -> load_preclose_snapshots -> build_trades -> cut_trades('fillable_entry'))",
+    "fill_model": "touch",
+    "cut": "fillable_entry (PRIMARY, L69)",
+    "lesson": "L249",
+    "price_source_tag": "real_bid(fills)+real_bid(queue)+broker_truth(settlement)",
+    "note": "FROZEN per L191/L192 \u2014 the live tape grows hourly; this fixture is the 2026-08-02 snapshot of the two bootstrap objects L249 contrasts."
+  },
+  "both_fill_pnl_by_series": {
+    "KXBRASILEIROCGAME": [
+      0.0
+    ],
+    "KXKBOGAME": [
+      0.0,
+      0.0
+    ],
+    "KXMLBGAME": [
+      0.0
+    ],
+    "KXUCLGAME": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "KXWNBAGAME": [
+      0.0
+    ]
+  },
+  "strategy_level_pnl_by_series": {
+    "KXBRASILEIROCGAME": [
+      0.0
+    ],
+    "KXKBOGAME": [
+      0.0,
+      0.0
+    ],
+    "KXMLBGAME": [
+      -0.51,
+      0.0
+    ],
+    "KXUCLGAME": [
+      0.0,
+      0.0,
+      0.0,
+      -0.41000000000000003,
+      0.69,
+      0.4,
+      0.0,
+      0.73,
+      0.0,
+      -0.21000000000000002,
+      -0.31,
+      0.0,
+      0.39
+    ],
+    "KXWNBAGAME": [
+      -0.58,
+      0.0
+    ]
+  }
+}

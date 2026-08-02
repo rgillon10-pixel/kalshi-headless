@@ -6,6 +6,86 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~00:4x UTC — research loop IDLE RUN (policy a): L249's "is the ALIVE branch even reachable?" check stops being a reviewer's private reading of the gate math and becomes a statistic — Q49's kill object was 11 observations pinned to exactly $0.0000
+
+**Nothing flips. No registry status changed, no CI entered `kb/`, no kill decision was made; S68
+stays `dead x`, still 0 proven edges.** Fresh Q0-Q50 status-line rescan (every `### Q` mapped to its
+own `Status:` lines) found 0 eligible TODO/IN-PROGRESS items — Q50, the last item, is DONE/CLOSED
+with an independent verifier CONFIRMED as of 2026-08-01, and Q24's later status line is
+DONE/DEAD-by-data-adequacy — so idle-run policy (a). Of the 7 open `UNENFORCED` rows the ledger's own
+detector reports (L213, L221, L222, L249, L250, L251, L252), four are explicitly half-shut (L213's
+remainder is a Ryan-side trigger prompt; L221's and L222's remainders are live-collector write-path
+changes marked DO-NOT-BUILD from a research run; L251 awaits an adjudication, not a build).
+**L249 was picked as the one with the largest gap between what it claimed and what it had.**
+
+**The lesson.** L249 (from Q49/S68's verifier pass) says a bootstrap whose ALIVE branch is
+structurally unreachable is not a test: Q49's entry gate ("yes-spread >= two maker fees"), combined
+with `best_yes_ask == 1 - best_no_bid` by collector construction (`collection/normalize.py`), makes
+every double-fill's gross capture >= the two fees BY ARITHMETIC — so net P&L cannot go negative, no
+resample can produce an opposing-sign cluster, and `bootstrap_verdict_admissible`'s (L41)
+`admissible=False` on that object describes the GATE, not the strategy. "DEAD-by-CI (L41)" there was
+a tautology wearing the costume of evidence.
+
+**What was built.** Both halves the row itself named ("a probe **or a documented reviewer
+checklist**"):
+
+1. **Protocol.** `.claude/agents/verifier.md` gains a new numbered attack step 4 — attack the
+   falsifiability of the bootstrapped OBJECT itself — deliberately placed BEFORE the fee and
+   data-window attacks so it is reached on every verdict, including a kill. `.claude/agents/edge-prober.md`
+   carries the producer-side twin. Both cite L249 by ID and state Q49's own gate arithmetic verbatim.
+2. **Test.** `core.bootstrap.sign_bounded_objective(unit_values, admissibility=...)` +
+   `SIGN_SUPPORT_TOL` / `MIN_OBS_FOR_SIGN_SUPPORT`. The row's own "Not statically assertable" claim is
+   corrected here as HALF RIGHT (the same self-correction L251 recorded): the gate's ALGEBRA cannot be
+   scanned and stays protocol, but the SIGN SUPPORT of the resulting object is a plain statistic and
+   nothing prevented computing it. The discriminator the L41 gate is blind to is
+   `inadmissibility_is_definitional`: `no_opposing_unit` on a one-sided OBSERVATION support can never
+   be repaired by more data under the same gate, whereas `below_min_units` alone is an honest "not
+   measured yet". `observation_level_straddle_only` keeps the middle case (unit means one-sided, raw
+   observations crossing zero) from being mislabelled definitional.
+
+**Measured on the real Q49/S68 objects**, frozen to `tests/fixtures/q49_pnl_units_2026-08-02.json`
+per L191/L192 rather than pinned to the hourly-growing depth tape. Primary cut (`fillable_entry` x
+`touch`, `real_bid` fills / `real_bid` queue / `broker_truth` settlement): the double-fill P&L — the
+object whose inadmissibility was reported as the kill — is **11 observations over 5 series, all
+exactly $0.0000** (min = max = 0.0, `all_zero_support`, `verdict_bearing=False`, admissibility reasons
+`['below_min_units','no_opposing_unit']` -> `inadmissibility_is_definitional=True`). The SAME probe's
+SAME cut's strategy-level P&L, which keeps the unhedged single-side legs, spans **-0.58..+0.73** (4
+positive / 5 negative, `verdict_bearing=True`, reasons `['below_min_units']` only -> definitional
+False) — a positive and a negative control off one tape. A third acceptance test pins why the helper
+had to exist at all: `bootstrap_verdict_admissible` returns `admissible=False, n_units=5` for **both**
+objects, an identical headline for a tautology and a genuine adequacy shortfall.
+
+**Honest limits, in the docstring and pinned by tests.** It sees the SYMPTOM, never the algebra — it
+cannot PROVE a gate bounds the sign, so reading the gate math stays the human step; a one-sided
+support on few observations is flagged `weak_sample` because five coin flips landing the same way is
+unremarkable; and `verdict_bearing=True` is neither a verdict nor admissibility, only "this object
+could have disagreed". Deliberately NOT wired into `invariants.py --full` (L210/L213/L222 posture):
+there is no standing repo-wide artifact to re-scan — the check runs inside a probe, on that probe's
+own bootstrap object. 20 new tests in `tests/test_bootstrap.py` (16 unit + 4 acceptance).
+
+**Two-agent rule N/A** for the milestone class (lesson->test conversion, no registry flip, no bootstrap
+CI destined for `kb/`, no kill decision — L104/L110/L118/L126/L127/L137/L208/L213/L236/L251 precedent).
+Recorded for the register: the Task/Agent tool was UNAVAILABLE in this session, so no `verifier`
+subagent could have been dispatched even had one been required, and the milestone was scoped
+non-verdict-class partly for that reason. L249's row is therefore NOT formally disposed — per L190 that
+marker records an adjudication, and the author's own claim about the author's own work does not
+qualify. Open `UNENFORCED` rows: **7 -> 6** (`L213, L221, L222, L250, L251, L252`).
+
+**Step 0b sweep.** 221 remote `tape/*` branches fetched and line-set-compared against HEAD (never
+`--is-ancestor`, L160). **2,245 genuinely missing JSONL lines union-appended**, every one of them from
+`tape/hourly-20260801T2204Z` (pushed after the previous run's sweep): `orderbook_depth` +1,349,
+`weather_books` +543, `sports_pairs` +311, `polymarket_macro_pairs` +21, `perp_tape` +17,
+`crypto_hourly` +2, `hyperliquid_funding` +2. 8 further not-contained lines were correctly REFUSED —
+6 git conflict markers on `tape/{anomalies,econ_prints}/dt=2026-07-18.jsonl` (L247's exact shape) and 2
+prose lines from `tape/cloud-env-check.md`, which is not JSONL tape at all. Every appended line parsed
+as a JSON object before it was written.
+
+**Paper sub-pass** (step 9, paper tier, no network, `SHADOW_REGISTRY = {s14_ladder_underwriting}` —
+dead `x`, infra-only): the newly swept tape gave it 26 new records to process. `paper: 0 open
+position(s), 1554 settled contract(s), realized P&L $+27.24, cash $+27.24, open notional $0.00`.
+
+---
+
 ## 2026-08-01 ~22:5x UTC — research loop IDLE RUN (policy a): L255's zero-information mid-as-truth control stops being a hand-run verifier memory and becomes code — reproduces the positive CI in 10/10 hold-ALIVE cells
 
 **Nothing flips. Q50 stays DONE/CLOSED, S68 stays `dead ✗`, still 0 proven edges.** Full Q0-Q50

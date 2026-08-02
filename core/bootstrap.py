@@ -574,3 +574,150 @@ def entry_instant_concentration(instants: Sequence, *, unit_labels: Sequence = N
         out["unit_share_on_top_instant"] = (len(units_on_top) / len(units)) if units else 0.0
         out["n_unit_instant_pairs"] = len(pairs)
     return out
+
+
+# --------------------------------------------------------------------------- #
+# L249 — sign-bounded objective (is the bootstrap's ALIVE branch reachable at all?)
+# --------------------------------------------------------------------------- #
+
+# Magnitudes at or below this are treated as exactly zero when counting strict signs.
+# Deliberately far below a 1e-9 sub-tick residue (`SUB_TICK_RESIDUE_FLOOR`): this tolerance
+# exists to absorb float round-trip noise on a value that is algebraically 0.0, NOT to
+# swallow economically small P&L. Echoed back in the result so a caller can never quietly
+# reinterpret it.
+SIGN_SUPPORT_TOL: float = 1e-12
+
+# Below this many observations, "every observation shares one sign" is a plausible accident
+# of a small sample rather than evidence of a bound, so the result carries `weak_sample=True`.
+# A blunt, DOCUMENTED default (five coin flips landing the same way is unremarkable), not a
+# derived threshold; overridable and always echoed.
+MIN_OBS_FOR_SIGN_SUPPORT: int = 5
+
+
+def sign_bounded_objective(unit_values: Dict[str, Sequence[float]], *,
+                            tol: float = SIGN_SUPPORT_TOL,
+                            min_obs: int = MIN_OBS_FOR_SIGN_SUPPORT,
+                            admissibility: dict = None) -> dict:
+    """The L249 precheck: does the object being bootstrapped have a support that could
+    EVER have disagreed with the claim, or does its own entry gate guarantee the sign?
+
+    `bootstrap_verdict_admissible` (L41) asks whether any UNIT MEAN sits on the opposite
+    side of zero. That gate cannot tell two very different failures apart, and Q49/S68
+    (2026-08-01) hit both at once:
+
+      * `below_min_units` — an ADEQUACY statement. More units would fix it. The verdict is
+        "not measured yet".
+      * `no_opposing_unit` on an object whose RAW OBSERVATIONS never cross zero — a
+        DEFINITIONAL statement. Q49's entry gate ("yes-spread >= two maker fees") combined
+        with `best_yes_ask == 1 - best_no_bid` by collector construction
+        (`collection/normalize.py`) makes every double-fill's gross capture >= the two fees
+        BY ARITHMETIC, so net P&L cannot be negative. No resample, and no quantity of
+        additional data collected under the same gate, can ever produce an opposing-sign
+        cluster. Reporting that cut's `admissible=False` as a kill is reporting a property
+        of the gate as if it were news about the strategy.
+
+    This function measures the discriminator the L41 gate is blind to: the sign support of
+    the OBSERVATIONS, not of the unit means. If no observation is strictly positive while
+    another is strictly negative, the bootstrap's opposing branch is structurally
+    unreachable and the cut is a DIAGNOSTIC, never a verdict.
+
+    Pass the `bootstrap_verdict_admissible(...)` dict as `admissibility` and the result also
+    carries `inadmissibility_is_definitional`: True when that gate failed for
+    `no_opposing_unit` AND the support is one-sided (the Q49 both-fill object: reasons
+    `['below_min_units', 'no_opposing_unit']`, all 11 double-fills exactly $0.0000), False
+    when the only complaint was adequacy (the Q49 strategy-level object, which includes the
+    unhedged single-side legs, straddles -0.58..+0.73 and is the cut the verdict must rest
+    on). None when no admissibility dict is supplied.
+
+    Honest limits, stated so no caller over-reads the flag:
+
+      1. It sees the SYMPTOM (a one-sided support), never the algebra. It cannot PROVE an
+         entry gate bounds the sign — reading the gate math stays a human/protocol step
+         (`.claude/agents/edge-prober.md`, `.claude/agents/verifier.md`, L249). What it does
+         is refuse to let that reading be skipped silently.
+      2. A one-sided support can be luck on a small sample; `weak_sample` flags
+         `n_obs < min_obs` for exactly that reason. One-sidedness is a REASON TO CHECK the
+         gate, not a finding on its own.
+      3. `verdict_bearing=True` is NOT a verdict and NOT admissibility — it says only that
+         the object COULD have disagreed. It never replaces `bootstrap_verdict_admissible`
+         or `clears_tick_magnitude`; it explains why one of them failed.
+
+    Empty input returns `no_signal=True` with zeroed counts rather than raising or implying
+    a clean object — the repo's no_signal-vs-False discipline: "nothing was measured" is
+    never reported as "nothing is wrong".
+    """
+    values = [float(v) for seq in unit_values.values() for v in seq]
+    unit_means = {k: sum(v) / len(v) for k, v in unit_values.items() if len(v) > 0}
+    n_obs = len(values)
+    if n_obs == 0:
+        return {
+            "no_signal": True,
+            "n_units": len(unit_means),
+            "n_obs": 0,
+            "n_positive": 0, "n_negative": 0, "n_zero": 0,
+            "one_sided_support": False,
+            "support_sign": None,
+            "all_zero_support": False,
+            "verdict_bearing": False,
+            "unit_means_one_sided": False,
+            "observation_level_straddle_only": False,
+            "weak_sample": True,
+            "min_value": None, "max_value": None,
+            "tol": tol, "min_obs": min_obs,
+            "inadmissibility_is_definitional": None,
+            "reasons": ["empty"],
+        }
+
+    n_pos = sum(1 for v in values if v > tol)
+    n_neg = sum(1 for v in values if v < -tol)
+    n_zero = n_obs - n_pos - n_neg
+    one_sided = not (n_pos > 0 and n_neg > 0)
+    all_zero = (n_pos == 0 and n_neg == 0)
+    if all_zero:
+        support_sign = 0
+    elif n_neg == 0:
+        support_sign = 1
+    elif n_pos == 0:
+        support_sign = -1
+    else:
+        support_sign = None
+
+    mean_pos = sum(1 for m in unit_means.values() if m > tol)
+    mean_neg = sum(1 for m in unit_means.values() if m < -tol)
+    unit_means_one_sided = not (mean_pos > 0 and mean_neg > 0)
+
+    reasons = []
+    if one_sided:
+        reasons.append("one_sided_support")
+    if all_zero:
+        reasons.append("all_zero_support")
+    if n_obs < min_obs:
+        reasons.append("weak_sample")
+
+    definitional = None
+    if admissibility is not None:
+        definitional = bool(
+            admissibility.get("admissible") is False
+            and "no_opposing_unit" in (admissibility.get("reasons") or [])
+            and one_sided
+        )
+
+    return {
+        "no_signal": False,
+        "n_units": len(unit_means),
+        "n_obs": n_obs,
+        "n_positive": n_pos, "n_negative": n_neg, "n_zero": n_zero,
+        "one_sided_support": one_sided,
+        "support_sign": support_sign,
+        "all_zero_support": all_zero,
+        "verdict_bearing": not one_sided,
+        "unit_means_one_sided": unit_means_one_sided,
+        # unit means all point one way but the raw observations DO cross zero: the L41 gate
+        # is then making an adequacy claim, not a definitional one — more units could flip it
+        "observation_level_straddle_only": unit_means_one_sided and not one_sided,
+        "weak_sample": n_obs < min_obs,
+        "min_value": min(values), "max_value": max(values),
+        "tol": tol, "min_obs": min_obs,
+        "inadmissibility_is_definitional": definitional,
+        "reasons": reasons,
+    }

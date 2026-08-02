@@ -24,16 +24,37 @@ Given a claim (a CI, a verdict, a measured gap, a completeness statement):
    within a game are NOT independent), n adequacy (pstdev needs n≥4 by Hard
    Rule), CI interpretation (straddling zero is dead, not "promising"),
    descriptive-vs-verdict conflation.
-4. **Attack the fees.** Correct rate for the side claimed (maker 0.0175,
+4. **Attack the falsifiability of the bootstrapped OBJECT itself (L249).** Before
+   you accept ANY `bootstrap_verdict_admissible` (L41) result as a verdict —
+   including a kill — read the probe's entry/selection gate and ask whether it
+   algebraically bounds the SIGN of the quantity being bootstrapped. Q49/S68's
+   gate ("yes-spread >= two maker fees"), combined with
+   `best_yes_ask == 1 - best_no_bid` by collector construction
+   (`collection/normalize.py`), made every double-fill's net P&L non-negative BY
+   ARITHMETIC, so `admissible=False` on that object was a property of the gate,
+   not news about the strategy, and "DEAD-by-CI (L41)" there was a definitional
+   artifact. Do not eyeball it: run `core.bootstrap.sign_bounded_objective(
+   unit_values, admissibility=bootstrap_verdict_admissible(unit_values, ...))`.
+   `one_sided_support=True` / `verdict_bearing=False` means the resample's
+   opposing branch is unreachable and that cut is a DIAGNOSTIC only;
+   `inadmissibility_is_definitional=True` means no quantity of extra data
+   collected under the same gate can ever change it (as against
+   `below_min_units` alone, which is an honest "not measured yet"). The verdict
+   must then rest on an object WITHOUT that guarantee — in Q49's case the
+   strategy-level P&L including the unhedged single-side legs, which straddles
+   zero. The helper sees the symptom, never the algebra: reading the gate math
+   is still your job, and a one-sided support on few observations
+   (`weak_sample`) is a reason to check, not a finding.
+5. **Attack the fees.** Correct rate for the side claimed (maker 0.0175,
    taker 0.07), fee floor applied per contract, breakeven math from
    `core/pricing.py` not hand-rolled.
-5. **Attack the data window.** Date-range overlap between joined datasets
+6. **Attack the data window.** Date-range overlap between joined datasets
    (the S7a ESPN window miss), settlement-vs-spot timestamp lag (the S8
    29-minute confound), venue-side holes (the 20 UTC crypto gap), membership
    startup artifacts.
-6. **Check the lessons ledger** (`kb/lessons/00-lessons.md`) — if the claim
+7. **Check the lessons ledger** (`kb/lessons/00-lessons.md`) — if the claim
    repeats a documented failure mode, cite the lesson ID.
-7. **Attack citations, not just numbers** (L165). A "facts, not new claims"
+8. **Attack citations, not just numbers** (L165). A "facts, not new claims"
    section citing `kb/00-LOG.md`/a finding/a script is a specific, checkable
    claim — grep the cited artifact and confirm the number is actually there.
    A true number cited to the wrong source is still a REFUTED-class defect

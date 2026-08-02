@@ -15,6 +15,7 @@ from core.bootstrap import (
     entry_instant_concentration,
     floor_pinned_fraction,
     hit_magnitude_decomposition,
+    sign_bounded_objective,
 )
 
 
@@ -814,3 +815,239 @@ def test_acceptance_live_tape_first_depth_instant_is_monotone_not_pinned():
                 earliest = ca
     assert earliest is not None
     assert earliest <= "2026-07-07T01:23:57.700581+00:00"
+
+
+# --------------------------------------------------------------------------- #
+# L249 — sign_bounded_objective: is the bootstrap's opposing branch reachable?
+# --------------------------------------------------------------------------- #
+
+def _l249_fixture():
+    import json
+    from pathlib import Path
+    p = (Path(__file__).resolve().parent / "fixtures"
+         / "q49_pnl_units_2026-08-02.json")
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def test_sign_bounded_objective_empty_is_no_signal_not_a_clean_bill():
+    """Nothing measured is never reported as nothing wrong (the repo's no_signal
+    discipline) — and with no admissibility dict the definitional verdict is None,
+    not False."""
+    r = sign_bounded_objective({})
+    assert r["no_signal"] is True
+    assert r["reasons"] == ["empty"]
+    assert r["verdict_bearing"] is False
+    assert r["one_sided_support"] is False
+    assert r["support_sign"] is None
+    assert r["inadmissibility_is_definitional"] is None
+    assert r["n_obs"] == 0 and r["min_value"] is None and r["max_value"] is None
+
+
+def test_sign_bounded_objective_all_positive_support_is_not_verdict_bearing():
+    r = sign_bounded_objective({"a": [0.1, 0.2], "b": [0.3, 0.4, 0.5]})
+    assert r["one_sided_support"] is True
+    assert r["support_sign"] == 1
+    assert r["all_zero_support"] is False
+    assert r["verdict_bearing"] is False
+    assert "one_sided_support" in r["reasons"]
+
+
+def test_sign_bounded_objective_all_negative_support_is_symmetric():
+    """The check is direction-agnostic: a gate that guarantees a LOSS is just as
+    unfalsifiable as one that guarantees a win."""
+    r = sign_bounded_objective({"a": [-0.1, -0.2], "b": [-0.3, -0.4, -0.5]})
+    assert r["one_sided_support"] is True
+    assert r["support_sign"] == -1
+    assert r["verdict_bearing"] is False
+
+
+def test_sign_bounded_objective_all_zero_support_is_flagged_distinctly():
+    """Q49's exact shape: an object pinned to exactly 0.0 is one-sided AND degenerate,
+    and `support_sign == 0` says so without pretending it is a directional claim."""
+    r = sign_bounded_objective({"a": [0.0, 0.0], "b": [0.0, 0.0, 0.0, 0.0]})
+    assert r["all_zero_support"] is True
+    assert r["support_sign"] == 0
+    assert r["one_sided_support"] is True
+    assert r["verdict_bearing"] is False
+    assert r["reasons"][:2] == ["one_sided_support", "all_zero_support"]
+
+
+def test_sign_bounded_objective_straddling_support_is_verdict_bearing():
+    r = sign_bounded_objective({"a": [0.1, -0.2], "b": [0.3, -0.4, 0.0]})
+    assert r["one_sided_support"] is False
+    assert r["support_sign"] is None
+    assert r["verdict_bearing"] is True
+    assert "one_sided_support" not in r["reasons"]
+
+
+def test_sign_bounded_objective_counts_partition_the_observations():
+    r = sign_bounded_objective({"a": [1.0, -1.0, 0.0], "b": [2.0]})
+    assert r["n_positive"] + r["n_negative"] + r["n_zero"] == r["n_obs"] == 4
+    assert (r["n_positive"], r["n_negative"], r["n_zero"]) == (2, 1, 1)
+    assert r["min_value"] == -1.0 and r["max_value"] == 2.0
+
+
+def test_sign_bounded_objective_tolerance_absorbs_float_noise_not_real_pnl():
+    """A value that is algebraically zero but arrives as 1e-15 must not manufacture a
+    two-sided support; a real sub-cent P&L of 1e-6 must still count as a sign."""
+    noise = sign_bounded_objective({"a": [1e-15, -1e-15, 0.0, 0.0, 0.0]})
+    assert noise["all_zero_support"] is True
+    assert noise["verdict_bearing"] is False
+    real = sign_bounded_objective({"a": [1e-6, -1e-6, 0.0, 0.0, 0.0]})
+    assert real["n_positive"] == 1 and real["n_negative"] == 1
+    assert real["verdict_bearing"] is True
+
+
+def test_sign_bounded_objective_tolerance_is_overridable_and_echoed():
+    vals = {"a": [1e-6, -1e-6, 0.0, 0.0, 0.0]}
+    assert sign_bounded_objective(vals)["tol"] == 1e-12
+    blunt = sign_bounded_objective(vals, tol=1e-3)
+    assert blunt["tol"] == 1e-3
+    assert blunt["all_zero_support"] is True
+
+
+def test_sign_bounded_objective_small_one_sided_sample_is_flagged_weak():
+    """One-sidedness on four observations is an unremarkable accident, not evidence of
+    a bound — the flag says so rather than letting the reader over-read it."""
+    weak = sign_bounded_objective({"a": [0.1, 0.2], "b": [0.3, 0.4]})
+    assert weak["n_obs"] == 4
+    assert weak["weak_sample"] is True
+    assert "weak_sample" in weak["reasons"]
+    strong = sign_bounded_objective({"a": [0.1, 0.2], "b": [0.3, 0.4, 0.5]})
+    assert strong["weak_sample"] is False
+    assert "weak_sample" not in strong["reasons"]
+
+
+def test_sign_bounded_objective_min_obs_is_overridable_and_echoed():
+    vals = {"a": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]}
+    assert sign_bounded_objective(vals)["min_obs"] == 5
+    strict = sign_bounded_objective(vals, min_obs=50)
+    assert strict["min_obs"] == 50 and strict["weak_sample"] is True
+
+
+def test_sign_bounded_objective_separates_adequacy_from_definitional_inadmissibility():
+    """The whole point of L249. Two objects, IDENTICAL `admissible=False` headline:
+    one can never disagree (definitional), the other merely lacks units (adequacy)."""
+    bounded = {f"u{i}": [0.05] for i in range(5)}
+    adm_b = bootstrap_verdict_admissible(bounded, min_units=10)
+    r_b = sign_bounded_objective(bounded, admissibility=adm_b)
+    assert adm_b["admissible"] is False
+    assert "no_opposing_unit" in adm_b["reasons"]
+    assert r_b["inadmissibility_is_definitional"] is True
+
+    adequate = {"u0": [0.05, 0.05], "u1": [-0.05, -0.05], "u2": [0.02, -0.01]}
+    adm_a = bootstrap_verdict_admissible(adequate, min_units=10)
+    r_a = sign_bounded_objective(adequate, admissibility=adm_a)
+    assert adm_a["admissible"] is False
+    assert adm_a["reasons"] == ["below_min_units"]
+    assert r_a["inadmissibility_is_definitional"] is False
+    assert r_a["verdict_bearing"] is True
+
+
+def test_sign_bounded_objective_definitional_is_false_when_the_gate_passed():
+    vals = {f"u{i}": [0.05 if i % 2 else -0.05] for i in range(12)}
+    adm = bootstrap_verdict_admissible(vals, min_units=10)
+    assert adm["admissible"] is True
+    assert sign_bounded_objective(vals, admissibility=adm)[
+        "inadmissibility_is_definitional"] is False
+
+
+def test_sign_bounded_objective_observation_level_straddle_only_is_distinguished():
+    """Every unit MEAN positive while raw observations cross zero is the case the L41
+    gate calls `no_opposing_unit` but which is NOT structurally unfalsifiable — more
+    units genuinely could flip it, so it must not be tagged definitional."""
+    vals = {"a": [0.10, -0.02], "b": [0.20, -0.01], "c": [0.30, -0.05]}
+    r = sign_bounded_objective(vals)
+    assert r["unit_means_one_sided"] is True
+    assert r["one_sided_support"] is False
+    assert r["observation_level_straddle_only"] is True
+    assert r["verdict_bearing"] is True
+
+
+def test_sign_bounded_objective_is_not_a_substitute_for_admissibility():
+    """Documented limit, pinned: `verdict_bearing=True` says only that the object COULD
+    have disagreed — a 2-unit population is verdict-BEARING and still inadmissible."""
+    vals = {"a": [0.5], "b": [-0.5]}
+    r = sign_bounded_objective(vals)
+    assert r["verdict_bearing"] is True
+    assert bootstrap_verdict_admissible(vals, min_units=10)["admissible"] is False
+
+
+def test_sign_bounded_objective_ignores_empty_units_without_crashing():
+    r = sign_bounded_objective({"a": [0.1, 0.2, 0.3, 0.4, 0.5], "empty": []})
+    assert r["n_units"] == 1
+    assert r["n_obs"] == 5
+    assert r["no_signal"] is False
+
+
+def test_sign_bounded_objective_does_not_mutate_its_input():
+    vals = {"a": [0.1, -0.2], "b": [0.3]}
+    before = {k: list(v) for k, v in vals.items()}
+    sign_bounded_objective(vals)
+    assert vals == before
+
+
+# --- acceptance: the real Q49/S68 bootstrap objects, frozen (L191/L192 discipline) ---
+# Both objects come from ONE run of scripts/q49_s68_bothside_maker_fillsim.py over the
+# committed tape on 2026-08-02, frozen to a fixture rather than recomputed against
+# `tape/orderbook_depth/`, which grows every hour.
+
+def test_acceptance_l249_q49_both_fill_object_is_structurally_unfalsifiable():
+    """L249's exhibit, reproduced. Q49/S68's PRIMARY `fillable_entry` double-fill P&L —
+    the object whose `admissible=False` was reported as DEAD-by-CI — has all 11
+    observations pinned to exactly $0.0000, because the entry gate (yes-spread >= two
+    maker fees) plus `best_yes_ask == 1 - best_no_bid` bounds the sign by arithmetic."""
+    d = _l249_fixture()["both_fill_pnl_by_series"]
+    adm = bootstrap_verdict_admissible(d, min_units=10)
+    r = sign_bounded_objective(d, admissibility=adm)
+    assert r["n_units"] == 5 and r["n_obs"] == 11
+    assert (r["n_positive"], r["n_negative"], r["n_zero"]) == (0, 0, 11)
+    assert r["min_value"] == 0.0 and r["max_value"] == 0.0
+    assert r["all_zero_support"] is True
+    assert r["one_sided_support"] is True
+    assert r["verdict_bearing"] is False
+    assert r["weak_sample"] is False
+    assert adm["reasons"] == ["below_min_units", "no_opposing_unit"]
+    assert r["inadmissibility_is_definitional"] is True
+
+
+def test_acceptance_l249_q49_strategy_level_object_is_the_verdict_bearing_one():
+    """The NEGATIVE control, from the SAME probe, SAME cut, SAME tape: the
+    strategy-level P&L that keeps the unhedged single-side legs straddles zero, so its
+    inadmissibility is pure adequacy — this is the object a verdict may rest on."""
+    d = _l249_fixture()["strategy_level_pnl_by_series"]
+    adm = bootstrap_verdict_admissible(d, min_units=10)
+    r = sign_bounded_objective(d, admissibility=adm)
+    assert r["n_units"] == 5 and r["n_obs"] == 20
+    assert r["n_positive"] == 4 and r["n_negative"] == 5
+    assert r["min_value"] == -0.58 and r["max_value"] == 0.73
+    assert r["one_sided_support"] is False
+    assert r["verdict_bearing"] is True
+    assert r["reasons"] == []
+    assert adm["reasons"] == ["below_min_units"]
+    assert r["inadmissibility_is_definitional"] is False
+
+
+def test_acceptance_l249_the_l41_gate_alone_cannot_separate_the_two_objects():
+    """Why this function had to exist. On the real Q49 populations
+    `bootstrap_verdict_admissible` returns admissible=False for BOTH — an identical
+    headline for a definitional artifact and a genuine data-adequacy shortfall. Only
+    the observation-level sign support tells them apart."""
+    f = _l249_fixture()
+    both, strat = f["both_fill_pnl_by_series"], f["strategy_level_pnl_by_series"]
+    adm_both = bootstrap_verdict_admissible(both, min_units=10)
+    adm_strat = bootstrap_verdict_admissible(strat, min_units=10)
+    assert adm_both["admissible"] is adm_strat["admissible"] is False
+    assert adm_both["n_units"] == adm_strat["n_units"] == 5
+    assert (sign_bounded_objective(both, admissibility=adm_both)["verdict_bearing"]
+            is not sign_bounded_objective(strat, admissibility=adm_strat)["verdict_bearing"])
+
+
+def test_acceptance_l249_fixture_carries_its_own_provenance_and_price_tag():
+    """Trust default FALSE: the frozen numbers above are only usable because the fixture
+    names the producer and the price_source_tag they were computed from."""
+    prov = _l249_fixture()["_provenance"]
+    assert prov["lesson"] == "L249"
+    assert "q49_s68_bothside_maker_fillsim.py" in prov["producer"]
+    assert prov["fill_model"] == "touch"
+    assert "broker_truth(settlement)" in prov["price_source_tag"]

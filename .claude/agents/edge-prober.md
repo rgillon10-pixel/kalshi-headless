@@ -138,6 +138,25 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   DESCRIPTOR with a blunt documented 0.5 flag, not a verdict — a genuine
   event-window study SHOULD concentrate; the judgment stays yours, but the
   number goes in the write-up either way.
+- **L249 — before you report ANY L41-inadmissible cut as a verdict, check
+  whether your own entry gate bounds the SIGN of the thing you bootstrapped.**
+  Q49/S68's gate ("yes-spread >= two maker fees") on a mirrored binary book
+  where `best_yes_ask == 1 - best_no_bid` by collector construction
+  (`collection/normalize.py`) makes every double-fill's gross capture >= the two
+  fees BY ARITHMETIC: net P&L cannot go negative, no resample can produce an
+  opposing-sign cluster, and `bootstrap_verdict_admissible`'s `admissible=False`
+  on that object describes the GATE, not the strategy. Reporting it as
+  "DEAD-by-CI (L41)" dresses a tautology as evidence. Measure it, do not
+  eyeball it: `core.bootstrap.sign_bounded_objective(unit_values,
+  admissibility=bootstrap_verdict_admissible(unit_values, ...))` beside every
+  cut. `verdict_bearing=False` (one-sided observation support) means the cut is
+  a DIAGNOSTIC only; `inadmissibility_is_definitional=True` separates "can never
+  disagree" from a plain `below_min_units` "not measured yet". When it fires,
+  move the verdict onto an object without the guarantee — for Q49 that was the
+  strategy-level P&L including the unhedged single-side legs, which genuinely
+  straddles zero. The helper sees the SYMPTOM, never the algebra; reading your
+  own gate math stays your job, and one-sidedness on a `weak_sample` is a
+  prompt to check, not a finding.
 - When a probe's P&L carries a large, low-frequency CATASTROPHIC leg (a binary
   payout on the rare adverse outcome — e.g. a bracket-ladder winner's near-$1
   payout) and some units get DROPPED because that leg's measurability can't be
