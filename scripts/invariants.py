@@ -101,12 +101,29 @@ def _is_inside_root(path: Path) -> bool:
     return str(path).lower().startswith(str(ROOT).lower() + "/")
 
 
+def _excluded_relative_to(root: Path, p: Path) -> bool:
+    """True if `p` sits under an EXCLUDE_DIRS directory *inside* `root`.
+
+    The exclusion MUST be judged on the path RELATIVE to the repo root, never on the absolute
+    path (the 2026-08-02 defect): every autonomous agent run of this repo executes from a git
+    worktree at `.claude/worktrees/agent-*`, whose ABSOLUTE parts contain both `.claude` and
+    `worktrees` — so an absolute-parts test excluded the entire repository and made
+    `scan_tree()` (the Hard-Rule #1/#2/#3 static gate) and every source-scanning advisory
+    silently return 0 issues over 0 files. A vacuous scan reports the same thing as a clean
+    one. Falls back to the absolute test only if `p` is not under `root` at all."""
+    try:
+        rel = p.resolve().relative_to(root.resolve())
+    except Exception:
+        return any(part in EXCLUDE_DIRS for part in p.parts)
+    return any(part in EXCLUDE_DIRS for part in rel.parts)
+
+
 def _iter_source_files(root: Path = ROOT, exts: Tuple[str, ...] = (".py", ".sql")) -> List[Path]:
     out = []
     for p in root.rglob("*"):
         if p.is_dir() or p.suffix not in exts:
             continue
-        if any(part in EXCLUDE_DIRS for part in p.parts):
+        if _excluded_relative_to(root, p):
             continue
         out.append(p)
     return out
@@ -1976,6 +1993,141 @@ def raw_datetime_fromisoformat_warning(sites: List[str]) -> Optional[str]:
     )
 
 
+# ─── scripts/ cross-import sys.path bootstrap advisory (L232 residue: non-gating, offline) ──
+#
+# L232's rule: a file under `scripts/` that imports from the `scripts.` PACKAGE must carry a
+# repo-root `sys.path` bootstrap AHEAD of that import. `pyproject.toml` installs
+# core/collection/validation/analysis as packages but NOT `scripts`, and the repo-root
+# `conftest.py` repairs `sys.path` only under pytest — so a missing bootstrap breaks exactly
+# the `python3 scripts/foo.py` invocation form that kb/, findings/ and LOOP-QUEUE.md cite,
+# while every in-process import test stays green.
+
+# A bootstrap argument whose source segment ENDS in a `"scripts"` string literal inserts the
+# scripts DIRECTORY, which makes `import foo` work but NOT `import scripts.foo` — the
+# `scripts/gen_problems_dashboard.py` shape. It must not count as a bootstrap for this rule.
+_SCRIPTS_DIR_LITERAL_RE = re.compile(r"""["']scripts["']\s*\)*\s*$""")
+
+
+def _imports_scripts_package(node: ast.AST) -> bool:
+    """True if `node` is a REAL import statement pulling in the `scripts` package.
+
+    `ast.ImportFrom(level=0, module='scripts'|'scripts.x')` or `ast.Import` naming
+    `scripts`/`scripts.x`. A relative import (`level > 0`) is a different mechanism and is not
+    flagged. Pure; no filesystem access."""
+    if isinstance(node, ast.ImportFrom):
+        mod = node.module or ""
+        return (node.level or 0) == 0 and (mod == "scripts" or mod.startswith("scripts."))
+    if isinstance(node, ast.Import):
+        return any(a.name == "scripts" or a.name.startswith("scripts.") for a in node.names)
+    return False
+
+
+def _sys_path_bootstrap_linenos(tree: ast.AST, source: str) -> List[int]:
+    """Line numbers of `sys.path.insert(...)` / `sys.path.append(...)` calls that plausibly put
+    the REPO ROOT on `sys.path`. Calls whose inserted path is the `scripts` directory itself are
+    excluded (see `_SCRIPTS_DIR_LITERAL_RE`). Lexical proxy on the argument's source segment —
+    a variable it cannot resolve is accepted permissively (a MISS, not a false alarm)."""
+    out: List[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        if not (isinstance(fn, ast.Attribute) and fn.attr in ("insert", "append")):
+            continue
+        base = fn.value
+        if not (isinstance(base, ast.Attribute) and base.attr == "path"
+                and isinstance(base.value, ast.Name) and base.value.id == "sys"):
+            continue
+        arg = node.args[-1] if node.args else None
+        seg = ""
+        if arg is not None:
+            try:
+                seg = ast.get_source_segment(source, arg) or ""
+            except Exception:
+                seg = ""
+        if seg and _SCRIPTS_DIR_LITERAL_RE.search(seg.strip()):
+            continue
+        out.append(node.lineno)
+    return sorted(out)
+
+
+def _scripts_cross_import_bootstrap_issues(root: Path = ROOT) -> List[str]:
+    """Files under `scripts/` that import the `scripts.` package with no repo-root `sys.path`
+    bootstrap ahead of that import (L232). Returns sorted `scripts/foo.py:LINENO` labels naming
+    the FIRST offending import in each file.
+
+    AST-based on purpose: a line-level regex has a demonstrated false positive on
+    `scripts/q48_s55_fomc_lag_probe.py`, whose module DOCSTRING contains a
+    `from scripts.q48_s55_fomc_lag_probe import ...` usage example. The AST also reaches
+    FUNCTION-LOCAL imports (`scripts/q35_maker_rebate_reframe.py`,
+    `scripts/q39_graveyard_counterfactual_sweep.py`), which a "first import line" heuristic
+    would miss.
+
+    Best-effort/offline: an unreadable file or a SyntaxError skips that file and can never
+    poison the gate."""
+    out: List[str] = []
+    try:
+        scripts_dir = root / "scripts"
+        if not scripts_dir.is_dir():
+            return []
+        for p in sorted(scripts_dir.rglob("*.py")):
+            if _excluded_relative_to(root, p):
+                continue
+            try:
+                source = p.read_text()
+                tree = ast.parse(source)
+            except Exception:
+                continue
+            imports = [n.lineno for n in ast.walk(tree) if _imports_scripts_package(n)]
+            if not imports:
+                continue
+            first = min(imports)
+            boots = _sys_path_bootstrap_linenos(tree, source)
+            if any(b < first for b in boots):
+                continue
+            rel = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
+            out.append(f"{rel}:{first}")
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def scripts_cross_import_bootstrap_warning(sites: List[str]) -> Optional[str]:
+    """Non-gating advisory when a file under `scripts/` imports the `scripts.` package without a
+    repo-root `sys.path` bootstrap ahead of it, else None. Pure.
+
+    States the TESTED shapes and the KNOWN BLIND SPOTS, not the intent: this is a static proxy,
+    and reporting 0 sites is evidence of PRECISION only, never of RECALL (L155)."""
+    if not sites:
+        return None
+    n = len(sites)
+    examples = ", ".join(sites[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} file(s) under `scripts/` import the `scripts.` package with "
+        f"no repo-root `sys.path` bootstrap ahead of the import (e.g. {examples}). "
+        f"`pyproject.toml` does NOT install `scripts` as a package and the repo-root "
+        f"`conftest.py` repairs `sys.path` only under pytest, so `python3 scripts/foo.py` — the "
+        f"invocation form kb/, findings/ and LOOP-QUEUE.md cite — dies with "
+        f"`ModuleNotFoundError: No module named 'scripts'` while every in-process import test "
+        f"stays green (L232). Fix: "
+        f"`sys.path.insert(0, str(Path(__file__).resolve().parents[1]))` above the import, the "
+        f"`scripts/q48_s55_fomc_lag_probe.py` pattern, pinned by a REAL SUBPROCESS test with "
+        f"`PYTHONPATH` scrubbed and cwd outside the repo. "
+        f"COVERAGE (tested shapes): module-level and function-local `from scripts.x import y` / "
+        f"`from scripts import x` / `import scripts.x`; a bootstrap ANYWHERE at a lower line "
+        f"number counts; a bootstrap inserting the `scripts` DIRECTORY (`ROOT / \"scripts\"`) "
+        f"correctly does NOT count; a `from scripts.` inside a docstring or comment is NOT a "
+        f"hit. KNOWN BLIND SPOTS (deliberate, regression-tested as misses): a bootstrap hidden "
+        f"behind a helper call or an imported side-effect module, `sys.path` mutated by "
+        f"`+=`/slice assignment/`extend`, an aliased `from sys import path`, a bootstrap whose "
+        f"inserted path is an unresolvable variable (accepted permissively), a bootstrap that "
+        f"sits at a lower LINE but inside a function that runs after the import, and dynamic "
+        f"`importlib.import_module(\"scripts.x\")`. A 0-site report does NOT mean the tree is "
+        f"clean. Advisory only — does NOT affect the exit code. "
+        f"See kb/lessons/00-lessons.md L232."
+    )
+
+
 _LESSON_ID_ROW_RE = re.compile(r"^\|\s*(L\d+)\s*\|")
 
 
@@ -3384,6 +3536,14 @@ def main() -> int:
         ladder_warning = ladder_size_coercion_warning(_ladder_size_coercion_issues())
         if ladder_warning:
             sys.stderr.write(ladder_warning + "\n")
+        # L232 advisory: a file under scripts/ importing the `scripts.` package with no
+        # repo-root sys.path bootstrap ahead of it — breaks `python3 scripts/foo.py` (the form
+        # kb/ and findings/ cite) while every in-process import test stays green. Non-gating —
+        # stderr only, never flips the exit code.
+        cross_import_warning = scripts_cross_import_bootstrap_warning(
+            _scripts_cross_import_bootstrap_issues())
+        if cross_import_warning:
+            sys.stderr.write(cross_import_warning + "\n")
         # L147 advisory: kb/lessons/00-lessons.md assigning the same lesson ID to more than
         # one row (2026-07-24 incident: L130/L131 each collided). Non-gating — stderr only.
         dup_lesson_warning = duplicate_lesson_id_warning(_duplicate_lesson_id_issues())

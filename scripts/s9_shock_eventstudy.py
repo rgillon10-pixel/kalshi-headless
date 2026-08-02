@@ -32,8 +32,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.io import REPO_ROOT
-from scripts.s9_leadlag_probe import (
+# L232: `scripts` is NOT an installed package (`pyproject.toml` ships core/collection/
+# validation/analysis only) and the repo-root `conftest.py` repairs `sys.path` only under
+# pytest — so without this line the `from scripts...` import below kills the
+# `python3 scripts/<this file>.py` form that kb/, findings/ and LOOP-QUEUE.md cite, while
+# `from core...` keeps resolving and every in-process import test stays green. Same two
+# lines, same reason, as `scripts/s17_leadlag_probe.py` / `scripts/q48_s55_fomc_lag_probe.py`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from core.io import REPO_ROOT  # noqa: E402
+from scripts.s9_leadlag_probe import (  # noqa: E402
     TAPE_DIR,
     Row,
     build_series,

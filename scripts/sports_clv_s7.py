@@ -73,12 +73,25 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.canonical import canonical_json
-from core.io import REPO_ROOT
-from core.pricing import TAKER_FEE_RATE, bracket_sum, normalized_ask, overround
-from core.timeutil import _parse_iso
-from scripts.fee_breakeven import fee_per_contract
-from scripts.sports_history_s7a import TEAM_NAME_ALIASES  # reuse the one alias table
+# L232: `scripts` is NOT an installed package (`pyproject.toml` ships core/collection/
+# validation/analysis only) and the repo-root `conftest.py` repairs `sys.path` only under
+# pytest — so without this line the `from scripts...` import below kills the
+# `python3 scripts/<this file>.py` form that kb/, findings/ and LOOP-QUEUE.md cite, while
+# `from core...` keeps resolving and every in-process import test stays green. Same two
+# lines, same reason, as `scripts/s17_leadlag_probe.py` / `scripts/q48_s55_fomc_lag_probe.py`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from core.canonical import canonical_json  # noqa: E402
+from core.io import REPO_ROOT  # noqa: E402
+from core.pricing import (  # noqa: E402
+    TAKER_FEE_RATE,
+    bracket_sum,
+    normalized_ask,
+    overround,
+)
+from core.timeutil import _parse_iso  # noqa: E402
+from scripts.fee_breakeven import fee_per_contract  # noqa: E402
+from scripts.sports_history_s7a import TEAM_NAME_ALIASES  # noqa: E402  (one alias table)
 
 IN_PATH = REPO_ROOT / "tape" / "sports_history_s7" / "worldcup2026.jsonl"
 STORE = REPO_ROOT / "tape" / "sports_clv_s7"

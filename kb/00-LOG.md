@@ -6,6 +6,117 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~22:5x UTC — research loop idle-run (policy (a)): L232 `UNENFORCED` → `test`, and the static-invariant layer was scanning ZERO files in every worktree run
+
+**Steps 0a/0/0b.** Established by the calling session (HEAD `1f30afc`, no rewind; 6 open PRs
+#271/#208/#191/#166/#165/#125, all Ryan-review-only, none claiming an eligible item; the
+stranded-tape sweep ran outside this worktree and is folded in separately). Queue re-verified
+here rather than taken on faith: the TOPMOST `Status:` line of every item Q0–Q50 is DONE,
+BLOCKED(Ryan/credential), calendar-or-density-gated, or PREPPED-still-gated. The four residual
+`Status: TODO` lines (Q23/Q24/Q27/Q43) are original registration text with a later DONE/GATED
+block above them — Q50's own TODO milestone was closed the same day it was raised
+("independent verifier returned CONFIRMED"). **0 eligible → IDLE RUN, policy (a).**
+
+**Finding the work.** `stale_unenforced_recall_report()` sat at its usual floor —
+`n_open_unenforced=3` (L213/L221/L222), all previously established as Ryan-gated. A hand
+re-read of the ledger found the one it structurally cannot see: **L232**, whose enforcement
+cell OPENS `**test**` and carries `**UNENFORCED** as a repo-wide rule; candidate — a static
+invariant flagging any file under `scripts/` that ...` MID-cell. `_UNENFORCED_MARKER_RE` is
+anchored `^\*\*UNENFORCED\b` and refuses that mixed shape *by design* (its docstring says so,
+citing L168) — right for the L152 advisory's precision, wrong for routing the idle-run queue.
+Same pattern as the 08-01/08-02 runs that hand-found L250 and L223. Recorded as **L268**,
+which also inventories the rest of the mixed-tier backlog so no future run re-derives it:
+only **L168**'s repair half (a `collection/orderbook_depth.py` change — Ryan-gated collector
+lane) and **L123(b)** (widening the exact-hour collector gates — Ryan/VPS-side) remain, plus
+six aspirational `test`-tier trailers (L5/L7/L23/L90/L132/L133) that are honest terminal
+states. The cloud-buildable mixed-tier backlog is now **empty**.
+
+**Unit 1 — L232 built (the thing the row asked for).** `scripts/invariants.py` gains
+`_scripts_cross_import_bootstrap_issues()` / `scripts_cross_import_bootstrap_warning()`, wired
+NON-GATING into `main()`'s `--full` stderr path beside the L47/L138 advisories. AST-based, not
+a line regex, on purpose: `scripts/q48_s55_fomc_lag_probe.py` carries a
+`from scripts.q48_s55_fomc_lag_probe import ...` usage example inside its module DOCSTRING
+(a lexical scan flags it), and the AST also reaches the function-local imports in
+`scripts/q35_maker_rebate_reframe.py` / `scripts/q39_graveyard_counterfactual_sweep.py`. A
+bootstrap that inserts the `scripts` DIRECTORY (`ROOT / "scripts"`, the
+`gen_problems_dashboard.py` shape) correctly does NOT count — it makes `import other` work but
+not `import scripts.other`.
+
+**The blast radius L232 declined to size: 2 live violations.**
+`scripts/s9_shock_eventstudy.py:36` and `scripts/sports_clv_s7.py:80`, both cited BY SCRIPT
+PATH — the broken form — in `kb/00-LOG.md`, `kb/strategies/00-index.md`, `LOOP-QUEUE.md`,
+`findings/2026-07-06-polymarket-leadlag-s9-shock-eventstudy.md` and
+`findings/2026-07-10-sports-clv-s7b.md`. Reproduced dead by real subprocess (PYTHONPATH
+scrubbed, cwd outside the repo): `rc=1`, `ModuleNotFoundError: No module named 'scripts'`;
+after one `sys.path.insert(0, str(Path(__file__).resolve().parents[1]))` each, both are `rc=0`
+on the direct form and still `rc=0` under `-m`. `scripts/s17_leadlag_probe.py` (the L232
+control) stayed `rc=0` throughout.
+
+**Unit 2 — the bigger defect, found while sizing unit 1.** `_iter_source_files` matched
+`EXCLUDE_DIRS` against the **absolute** path parts. This run executes from a git worktree at
+`.claude/worktrees/agent-ade696867b4607807`, whose absolute parts contain BOTH `.claude` and
+`worktrees` — so the filter excluded **the entire repository**. Measured against HEAD's own
+code (`git show HEAD:scripts/invariants.py`, loaded and called with this root):
+`_iter_source_files(...)` → **0** files. Everything keyed on it therefore reported 0 issues
+over 0 files: `scan_tree()` (the GATING Hard-Rule #1/#2/#3 text scan), `_ladder_size_coercion_issues`
+(L47), `_raw_datetime_fromisoformat_sites` (L138), `_handrolled_binary_result_sites` (L52) and
+the L152 stale-candidate matcher's source walk. The exit code is 0 either way — which is the
+whole problem: a green `invariants --full` line quoted from a worktree run was, for the static
+layer, evidence of nothing (L155's "0 issues is precision, not recall", applied to the gate
+itself). Two existing real-tree acceptance tests are not merely vacuous but **unsatisfiable**
+under HEAD in a worktree: `tests/test_invariants.py::test_raw_datetime_fromisoformat_sites_finds_real_sites`
+asserts `>= 28` against a measured 0, and
+`tests/test_settlement_result_advisory.py::test_acceptance_at_least_one_real_unguarded_site_is_found`
+asserts a non-empty list against a measured empty one. Fixed with `_excluded_relative_to`
+(match on the path RELATIVE to the repo root, fall back to the old absolute test only for a
+path outside the root). Scope kept narrow and stated: on a checkout whose own path carries no
+excluded name, old and new behaviour are identical, because in-repo `data/`, `.claude/`,
+`.venv/` stay excluded via the relative parts — pinned by a test. **The gate VERDICT is
+unchanged** (`scan_tree()` still returns 0 issues); only its coverage moves: 215 source files
+now scanned, and the pre-existing L138 (36 sites) and L52 (6 sites) advisories become visible
+again. Recorded as **L266**.
+
+**Tests.** 31 new in `tests/test_scripts_cross_import_bootstrap.py`: 14 frozen-fixture recall
+cases (the detector CAN fire — per L189, and per L192/L207 on a FIXTURE, never bound to the
+live document), 5 silence cases (docstring / comment / relative import / core-only /
+function-local under a bootstrap), 3 documented blind spots regression-tested as misses
+(`sys.path.extend`, dynamic `importlib.import_module`, an unresolvable variable path accepted
+permissively), 4 REAL-SUBPROCESS acceptance tests (both repaired scripts × direct-CLI and `-m`,
+PYTHONPATH deleted, cwd outside the repo — L232's own mandate, since the repo-root
+`conftest.py` masks the breakage under pytest), the live-tree `== []` regression with a
+non-vacuity guard beside it, and 4 pinning the exclusion fix including
+`::test_static_gate_scan_tree_reaches_the_tree` (the Hard-Rule gate must be clean AND
+non-vacuous).
+
+**Two-agent rule.** No `verifier` subagent was dispatchable — the `Task` tool is not enabled in
+this harness, the same constraint Q50's 2026-08-01 run recorded. Redundancy therefore came from
+a SECOND INDEPENDENT code path: a line-regex scan plus a real-subprocess `--help` probe over all
+16 `scripts/` files carrying a `scripts.` import, run BEFORE the AST detector existed, found
+exactly the same 2 offenders it reports. Nothing here is verdict-class (no registry flip, no
+bootstrap CI, no kill decision), so the rule does not bind this milestone — L104/L110/L118/
+L126/L127/L137 precedent for lesson→test tooling.
+
+**Gates (taken after the last code change, L162).** `python3 -m pytest -o addopts='' -q` →
+**2753 passed in 2841.95s, 0 failed**. `python3 scripts/invariants.py --full` → exit **0**,
+all green; the new advisory reports 0 sites, and it was verified to actually FIRE (and to leave
+the exit code at 0) by dropping one deliberate violation into `scripts/` and removing it again.
+
+**Step-9 paper sub-pass.** `SHADOW_REGISTRY` = `{s14_ladder_underwriting}`, non-empty, so
+`python3 scripts/paper_pass.py` ran over committed tape: 0 processed, 42 deferred(caps), 272
+deferred(coverage), 258 already-in-ledger — no ledger write, a no-op (no new tape for the
+shadow). One-liner: `paper: 0 open position(s), 1554 settled contract(s), realized P&L $+27.24,
+cash $+27.24, open notional $0.00`.
+
+**What this run did NOT do.** No strategy work, no registry change (`kb/strategies/00-index.md`
+untouched — still 0 proven edges), no price, no P&L, no CI. Q19's own verdict is unchanged.
+
+Lessons: **L266** (a scan whose root sits under its own exclude list is vacuous, and vacuous
+reads exactly like clean), **L267** (`DISPOSES: L232`), **L268** (a mixed-tier enforcement cell
+has no work queue — left `UNENFORCED` with a named, deliberately-not-built candidate). See
+`LOOP-QUEUE.md` Q19's new status block.
+
+---
+
 ## 2026-08-02 ~19:0x UTC — research loop idle-run (policy (a)): L223 `UNENFORCED` → `test` — the collector-health blind spot where the pipe is healthy and the PAYLOAD is not
 
 **Steps 0a/0/0b.** 0a/0 confirmed by the calling session (no rewind; newest `kb/00-LOG.md` entry
