@@ -6,6 +6,73 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~15:2x UTC — research loop idle-run (policy (a)): independent verifier closes L250, `DISPOSES: L250`
+
+**Steps 0a/0/0b.** 0a PASS: `origin/main` HEAD `527917d` (PR #272, this morning's L249 disposal),
+last-merged PR a reachable ancestor, no rewind; newest `kb/00-LOG.md` entry and newest committed
+`tape/*/dt=*` both 2026-08-02, gap 0. Claim-check: same 6 open PRs (#271 today's retro, #208/#125
+older retros, #191/#166/#165 stale mid-July drafts) — all Ryan-review-only, none claiming an
+eligible queue item. 0b: freshest `tape/hourly-*` branch (`hourly-20260802T0102Z`) re-confirmed a
+strict subset of `HEAD:tape` (0 lines missing per-family), already fully swept by commit `297c88b`
+earlier today; no new branch landed since. The ~200-branch backlog (Q17) is unchanged; branch
+deletion remains a broken cloud-session permission boundary (documented precedent, not
+re-litigated here).
+
+**Queue scan.** Full Q0-Q50 re-scan: 0 eligible TODO/IN-PROGRESS — consistent with every prior scan
+today (edge-hunter round #20, PR #268; four idle runs since). -> **IDLE RUN, policy (a)**.
+
+**Policy (a) BUILD half remains exhausted** (`stale_unenforced_recall_report()`: 3 open rows —
+L213/L221/L222 — all Ryan-gated or blocked on open PR #165's `daily_leg_due()`, unchanged from every
+run today). **The DISPOSE half had one item left:** this morning's run closed L249 but explicitly
+left **L250** open ("Two of today's earlier lesson-conversions (L249, L250) ... could NOT be
+formally disposed"); L250's own row (`test + protocol`, built earlier today) still lacked an
+independent verifier confirmation.
+
+Dispatched an independent `verifier` subagent (Agent tool, `subagent_type=verifier`) with L250's
+exact claim, its cited artifacts, and instructions to be maximally adversarial about the one
+operative claim ("`headline_fill_rate` RAISES on the loose rule always"). **Verdict: CONFIRMED**
+across all seven checks, including a real attack: (1) `.claude/agents/edge-prober.md:155-178` cites
+L250 by ID, states the touch-primary/turnover-diagnostic house style, and states the 97.98%-vs-
+42.47% numbers verbatim; (2) `core.bootstrap.headline_fill_rate` (`core/bootstrap.py:893-925`) has
+exactly one return path — probed against a deliberately unsaturated/discriminating report, five
+unknown-rule spellings, a stripped key, a `no_signal` report, and a non-dict input: every case
+raised (or, for `touch`, correctly returned the strict rate) — no input reached a loose rate; (3)
+`pytest -k "turnover or headline_fill or l250"` -> 13 (`test_bootstrap.py`) + 3
+(`test_q49_s68_bothside_maker_fillsim.py`) = 16, matching the row (a filter omitting `l250`
+undercounts at 10+4 — noted for future re-verifiers); (4) recomputed `turnover_rule_saturation`
+from the frozen fixture's raw arrays (not its stored summary) — every number reproduced exactly
+(unrestricted n=445 loose 97.98%/strict 42.47%/ratio 306.2x/66 median snapshots/`saturated=True`;
+primary cut n=20 loose 100%/strict 55%/ratio 31.7x); (5) a fresh live run over current committed
+tape reproduced the same numbers — 0 drift since the fixture was frozen; (6) diffing the script's
+JSON output against the pre-L250 commit found exactly 8 ADDED `turnover_saturation` keys, 1
+CHANGED (`generated_at`), 0 REMOVED — additive-only confirmed by execution; (7) full `pytest -q`
+2704/2704 passed, `invariants.py --full` exit 0, all green. Two non-blocking notes recorded (not
+defects): `saturated` can rest on two-of-three sub-conditions when `snapshots_held=None` is
+supplied, but this is documented/surfaced and fail-permissive only toward removing a headline, and
+Q49's real caller always supplies snapshot counts; `headline_fill_rate` trusts its caller's dict
+shape rather than re-deriving it, a routing discipline for well-formed callers, not a guard hole.
+
+Closed via new row **L265**, `DISPOSES: L250`, terminal tier `test + protocol` (unchanged from
+L250's own row — this pass adds confirmation, not new code). Open `UNENFORCED` rows unchanged at
+**3** (L213/L221/L222) — L250 was never counted in that scoped metric to begin with, since its
+enforcement cell already read `test + protocol` rather than starting with the `**UNENFORCED**`
+marker; the ledger's global `DISPOSES:`-ID set moves 33 -> 34.
+
+**Gates (fresh, post-edit, L162):** `python3 -m pytest --collect-only -q` -> 2704 collected (sum of
+per-file counts, unchanged — doc-only diff this run, no code touched); the verifier's own full
+`python3 -m pytest -q` this run already exited 0, 2704 passed, 0 failed; `python3 scripts/
+invariants.py --full` -> exit 0, `invariants: all green`, only pre-existing non-gating advisories.
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (`dead ✗` per Q34, paper-infra-only);
+`scripts/paper_pass.py` run fresh this pass: 0 newly processed (42 deferred(caps), 272
+deferred(coverage), 258 already-in-ledger) — `paper: 0 open position(s), 1554 settled contract(s),
+realized P&L $+27.24, cash $+27.24, open notional $0.00`. No new ledger lines. No network beyond
+git, no orders, no credentials. Still **0 proven edges**.
+
+See `kb/lessons/00-lessons.md` L265.
+
+---
+
 ## 2026-08-02 ~14:0x UTC — research loop idle-run (policy (a)): independent verifier closes L249, `DISPOSES: L249`
 
 **Steps 0a/0/0b.** 0a PASS: `origin/main` HEAD `3e61179` (PR #270, this morning's weather-actuals
