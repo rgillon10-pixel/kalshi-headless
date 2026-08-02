@@ -14,8 +14,15 @@ from core.bootstrap import (
     disagreement_subset_calibration,
     entry_instant_concentration,
     floor_pinned_fraction,
+    headline_fill_rate,
     hit_magnitude_decomposition,
     sign_bounded_objective,
+    turnover_rule_saturation,
+    TURNOVER_SATURATION_RATIO,
+    TURNOVER_SATURATION_FILL_RATE,
+    MIN_SNAPSHOTS_FOR_SATURATION,
+    PRIMARY_FILL_RULE,
+    DIAGNOSTIC_FILL_RULE,
 )
 
 
@@ -1050,4 +1057,194 @@ def test_acceptance_l249_fixture_carries_its_own_provenance_and_price_tag():
     assert prov["lesson"] == "L249"
     assert "q49_s68_bothside_maker_fillsim.py" in prov["producer"]
     assert prov["fill_model"] == "touch"
+    assert "broker_truth(settlement)" in prov["price_source_tag"]
+
+
+# --------------------------------------------------------------------------- #
+# L250 — turnover_rule_saturation / headline_fill_rate
+# --------------------------------------------------------------------------- #
+
+def _l250_fixture(cut: str):
+    """The FROZEN 2026-08-02 per-candidate L250 inputs from Q49/S68 (L191/L192: the live
+    depth tape grows hourly, so the acceptance tests bind to a committed snapshot, never to
+    the moving tree)."""
+    import json
+    from pathlib import Path
+    p = (Path(__file__).resolve().parent / "fixtures"
+         / "q49_turnover_saturation_2026-08-02.json")
+    return json.loads(p.read_text(encoding="utf-8"))[cut]
+
+
+def _sat(cut: str):
+    u = _l250_fixture(cut)
+    return turnover_rule_saturation(
+        u["loose_filled"], u["strict_filled"],
+        departures=u["departures"], queue_ahead=u["queue_ahead"],
+        snapshots_held=u["snapshots_held"])
+
+
+def test_turnover_saturation_empty_is_no_signal_not_a_clean_bill():
+    r = turnover_rule_saturation([], [], departures=[], queue_ahead=[])
+    assert r["no_signal"] is True
+    assert r["reasons"] == ["empty"]
+    assert r["saturated"] is False
+    assert r["loose_fill_rate"] is None and r["strict_fill_rate"] is None
+    assert r["loose_rule_direction"] == "none"
+
+
+def test_turnover_saturation_misaligned_inputs_raise_rather_than_silently_zip():
+    with pytest.raises(ValueError):
+        turnover_rule_saturation([True, False], [True], departures=[1.0, 1.0],
+                                 queue_ahead=[1.0, 1.0])
+    with pytest.raises(ValueError):
+        turnover_rule_saturation([True], [True], departures=[1.0, 2.0], queue_ahead=[1.0])
+    with pytest.raises(ValueError):
+        turnover_rule_saturation([True], [True], departures=[1.0], queue_ahead=[1.0],
+                                 snapshots_held=[10, 10])
+
+
+def test_turnover_saturation_flags_the_l250_shape():
+    """Loose rule fills everything, departures swamp the queue, hold is long → saturated,
+    and the loose rule then points NOWHERE (not even the L48 'OUT' reading)."""
+    n = 20
+    r = turnover_rule_saturation(
+        [True] * n, [True] * 8 + [False] * 12,
+        departures=[50000.0] * n, queue_ahead=[50.0] * n,
+        snapshots_held=[60] * n)
+    assert r["saturated"] is True
+    assert r["loose_fill_rate"] == 1.0
+    assert r["strict_fill_rate"] == 0.4
+    assert r["fill_rate_gap"] == pytest.approx(0.6)
+    assert r["median_departure_queue_ratio"] == pytest.approx(1000.0)
+    assert r["long_hold"] is True
+    assert r["loose_rule_discriminates"] is False
+    assert r["loose_rule_direction"] == "none"
+    assert "loose_fill_rate_at_or_above_floor" in r["reasons"]
+    assert "median_departures_swamp_queue" in r["reasons"]
+    assert "loose_rule_has_no_variation" in r["reasons"]
+
+
+def test_turnover_saturation_short_hold_withholds_the_call():
+    """A short window genuinely cannot accumulate book migration — the call is WITHHELD
+    (long_hold False → not saturated), not asserted, and the L48 OUT reading survives."""
+    n = 12
+    r = turnover_rule_saturation(
+        [True] * n, [False] * n,
+        departures=[50000.0] * n, queue_ahead=[50.0] * n,
+        snapshots_held=[2] * n)
+    assert r["long_hold"] is False
+    assert r["saturated"] is False
+    assert r["loose_rule_direction"] == "OUT_only"
+
+
+def test_turnover_saturation_thin_population_is_not_saturated():
+    """A dead-thin population (loose rule barely fills, departures never clear the queue) is
+    exactly the case L48 says the proxy CAN speak to — it must not be labelled saturated."""
+    n = 10
+    r = turnover_rule_saturation(
+        [False] * 9 + [True], [False] * 10,
+        departures=[1.0] * n, queue_ahead=[500.0] * n,
+        snapshots_held=[60] * n)
+    assert r["saturated"] is False
+    assert r["median_departure_queue_ratio"] == pytest.approx(0.002)
+    assert r["frac_units_above_ratio_floor"] == 0.0
+    assert r["loose_rule_direction"] == "OUT_only"
+    assert r["loose_rule_discriminates"] is True
+
+
+def test_turnover_saturation_zero_queue_units_are_excluded_not_infinite():
+    """A front-of-queue rest has an UNDEFINED departures/queue ratio; it is excluded from the
+    median and counted, never silently treated as infinite (saturating) or as zero."""
+    r = turnover_rule_saturation(
+        [True, True, True], [False, False, False],
+        departures=[100.0, 200.0, 300.0], queue_ahead=[0.0, 10.0, 20.0],
+        snapshots_held=[60, 60, 60])
+    assert r["n_units_zero_queue"] == 1
+    assert r["n_units_with_ratio"] == 2
+    assert r["median_departure_queue_ratio"] == pytest.approx(17.5)
+
+
+def test_turnover_saturation_no_snapshots_supplied_rests_on_two_halves():
+    r = turnover_rule_saturation(
+        [True] * 10, [False] * 10,
+        departures=[10000.0] * 10, queue_ahead=[10.0] * 10)
+    assert r["long_hold"] is None
+    assert r["median_snapshots_held"] is None
+    assert r["saturated"] is True
+    assert "no_snapshot_counts_supplied" in r["reasons"]
+
+
+def test_turnover_saturation_echoes_its_own_thresholds():
+    r = turnover_rule_saturation([True], [False], departures=[1.0], queue_ahead=[1.0],
+                                 snapshots_held=[1])
+    assert r["ratio_floor"] == TURNOVER_SATURATION_RATIO
+    assert r["fill_rate_floor"] == TURNOVER_SATURATION_FILL_RATE
+    assert r["min_snapshots"] == MIN_SNAPSHOTS_FOR_SATURATION
+    assert r["loose_rule"] == DIAGNOSTIC_FILL_RULE
+    assert r["strict_rule"] == PRIMARY_FILL_RULE
+
+
+def test_headline_fill_rate_refuses_the_loose_rule_even_when_unsaturated():
+    """The operative half. L48's direction is unconditional: the loose proxy may never carry
+    an affirmative fill-rate headline, saturated or not."""
+    unsat = turnover_rule_saturation(
+        [False] * 9 + [True], [False] * 10,
+        departures=[1.0] * 10, queue_ahead=[500.0] * 10, snapshots_held=[60] * 10)
+    assert unsat["saturated"] is False
+    with pytest.raises(ValueError, match="may not carry a fill-rate headline"):
+        headline_fill_rate(unsat, DIAGNOSTIC_FILL_RULE)
+    assert headline_fill_rate(unsat, PRIMARY_FILL_RULE) == 0.0
+
+
+def test_headline_fill_rate_rejects_unknown_rule_and_no_signal():
+    r = turnover_rule_saturation([True], [True], departures=[1.0], queue_ahead=[1.0])
+    with pytest.raises(ValueError, match="unknown fill rule"):
+        headline_fill_rate(r, "candlestick")
+    empty = turnover_rule_saturation([], [], departures=[], queue_ahead=[])
+    with pytest.raises(ValueError, match="no_signal"):
+        headline_fill_rate(empty, PRIMARY_FILL_RULE)
+    with pytest.raises(TypeError):
+        headline_fill_rate("not a report", PRIMARY_FILL_RULE)
+
+
+# --- HARD acceptance tests over the FROZEN Q49/S68 tape slice (L191) ---------
+
+def test_l250_acceptance_unrestricted_cut_reproduces_the_lesson_numbers():
+    """L250's own stated measurement, machine-checked: on the SAME 445 candidates the loose
+    turnover rule read ~98% both-fill while the strict touch rule read ~42%."""
+    r = _sat("unrestricted")
+    assert r["n_units"] == 445
+    assert r["loose_fill_rate"] == pytest.approx(0.9798, abs=5e-4)
+    assert r["strict_fill_rate"] == pytest.approx(0.4247, abs=5e-4)
+    assert r["fill_rate_gap"] > 0.55
+    assert r["median_departure_queue_ratio"] == pytest.approx(306.2, abs=0.1)
+    assert r["median_snapshots_held"] == 66.0
+    assert r["saturated"] is True
+    assert r["loose_rule_direction"] == "none"
+
+
+def test_l250_acceptance_primary_cut_loose_rule_has_zero_variation():
+    """On Q49's PRIMARY (fillable_entry) population the loose rule fills 20/20 — a statistic
+    with no variation left cannot discriminate anything, which is exactly why the verdict
+    rested on the strict rule's 55%."""
+    r = _sat("fillable_entry")
+    assert r["n_units"] == 20
+    assert r["loose_fill_rate"] == 1.0
+    assert r["strict_fill_rate"] == pytest.approx(0.55)
+    assert r["loose_rule_discriminates"] is False
+    assert r["saturated"] is True
+    assert headline_fill_rate(r, PRIMARY_FILL_RULE) == pytest.approx(0.55)
+    with pytest.raises(ValueError):
+        headline_fill_rate(r, DIAGNOSTIC_FILL_RULE)
+
+
+def test_l250_fixture_carries_its_own_provenance():
+    import json
+    from pathlib import Path
+    p = (Path(__file__).resolve().parent / "fixtures"
+         / "q49_turnover_saturation_2026-08-02.json")
+    prov = json.loads(p.read_text(encoding="utf-8"))["_provenance"]
+    assert prov["lesson"] == "L250"
+    assert "q49_s68_bothside_maker_fillsim.py" in prov["producer"]
+    assert "real_bid" in prov["price_source_tag"]
     assert "broker_truth(settlement)" in prov["price_source_tag"]

@@ -100,7 +100,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.bootstrap import (block_bootstrap, bootstrap_verdict_admissible,  # noqa: E402
                             bracket_by_movement, clears_tick_magnitude,
-                            hit_magnitude_decomposition)
+                            headline_fill_rate, hit_magnitude_decomposition,
+                            turnover_rule_saturation)
 from core.depth import capturable_depth, lottery_tail_fraction  # noqa: E402
 from core.io import REPO_ROOT  # noqa: E402
 from core.pricing import MAKER_FEE_RATE, fee_per_contract  # noqa: E402
@@ -122,6 +123,8 @@ FILLABLE_MAX_TTC_HOURS = 24.0      # L69 fillable-entry: near-close
 # `touch` — see the module docstring's FILL-MODEL note and simulate_leg_fill's caveat.
 FILL_MODELS = ("touch", "turnover")
 PRIMARY_FILL_MODEL = "touch"
+# The loose Q27/S19 rule, kept as a LABELED DIAGNOSTIC only (L48 direction + L250 saturation).
+DIAGNOSTIC_MODEL = "turnover"
 _EPS = 1e-9
 
 
@@ -682,6 +685,20 @@ def analyze_cut(trades: Sequence[dict], model: str = "touch",
         "pnl_strategy_level", model)
     moved_boot = block_bootstrap(moved_units, n_boot=n_boot)
 
+    # L250 — is the LOOSE (`turnover`) rule still measuring anything on this population, or
+    # has it saturated? Computed from the SAME trades under BOTH rules, so the value is
+    # identical across the two fill_model views of one cut (it is a property of the
+    # population, not of the model being reported); carried on both so a reader who lands on
+    # either view sees why the turnover fill rate is a labeled diagnostic and not a headline.
+    l250 = turnover_rule_saturation(
+        [t["models"][DIAGNOSTIC_MODEL]["fill_category"] == "both" for t in trades],
+        [t["models"][PRIMARY_FILL_MODEL]["fill_category"] == "both" for t in trades],
+        departures=[t["models"][DIAGNOSTIC_MODEL]["departures_yes"]
+                    + t["models"][DIAGNOSTIC_MODEL]["departures_no"] for t in trades],
+        queue_ahead=[t["queue_ahead_yes"] + t["queue_ahead_no"] for t in trades],
+        snapshots_held=[t["n_snapshots"] for t in trades],
+    )
+
     return {
         "fill_model": model,
         "n_candidates": n,
@@ -738,6 +755,8 @@ def analyze_cut(trades: Sequence[dict], model: str = "touch",
         # P&L: how many double fills actually clear one fillable tick, vs sit sub-tick (or at
         # a pure float residue)? Sample-size-independent, unlike the CI.
         "net_pnl_magnitude": hit_magnitude_decomposition(both_pnls, tick=PRICE_TICK),
+        # L250 saturation of the loose turnover rule over this population (see above).
+        "turnover_saturation": l250,
         "bootstrap_both_fill_by_series": {
             "mean": boot["mean"], "ci95": boot["ci95"], "n_units_series": boot["n_units"],
             "n_obs_double_fills": boot["n_obs"], "admissible": adm,
@@ -897,6 +916,17 @@ def _print_cut(name: str, c: Dict[str, Any], verdict: Tuple[str, str],
     print(f"    median queue_ahead (real_bid, FLOATS): YES {q['median_queue_ahead_yes']}  "
           f"NO {q['median_queue_ahead_no']}   |   median departures: "
           f"YES {q['median_departures_yes']}  NO {q['median_departures_no']}")
+    sat = c.get("turnover_saturation") or {}
+    if not sat.get("no_signal", True):
+        print(f"    L250 turnover-rule saturation (population property, same under both "
+              f"models): loose `{sat['loose_rule']}` both-fill {_f(sat['loose_fill_rate'], pct=True)} "
+              f"vs strict `{sat['strict_rule']}` {_f(sat['strict_fill_rate'], pct=True)}  |  "
+              f"median departures/queue_ahead = "
+              f"{'n/a' if sat['median_departure_queue_ratio'] is None else format(sat['median_departure_queue_ratio'], '.1f')}x "
+              f"(floor {sat['ratio_floor']:.0f}x)  median snapshots held = "
+              f"{sat['median_snapshots_held']}")
+        print(f"      -> saturated={sat['saturated']}  loose-rule direction="
+              f"{sat['loose_rule_direction']}  reasons={sat['reasons']}")
     print(f"    L67 depth-illusion check — median capturable depth within 5c of our bid: "
           f"YES {q['median_capturable_depth_yes']}  NO {q['median_capturable_depth_no']}  |  "
           f"median lottery-tail frac: YES {_f(q['median_lottery_tail_frac_yes'], pct=True)}  "
@@ -942,6 +972,12 @@ def _print_cut(name: str, c: Dict[str, Any], verdict: Tuple[str, str],
           f"movement-conditioned mean={_f(s['movement_conditioned_mean'])} "
           f"CI={_fmt_ci(s['movement_conditioned_ci95'])} "
           f"n_units={s['movement_conditioned_n_units']} n_obs={s['movement_conditioned_n_obs']}")
+    if not sat.get("no_signal", True):
+        # OPERATIVE (L250): the headline fill rate is fetched through the guard, which REFUSES
+        # the loose rule outright. A future edit that tried to headline `turnover` raises here
+        # rather than printing a saturated 98% as if it were a fill rate.
+        print(f"  HEADLINE-ELIGIBLE FILL RATE (via core.bootstrap.headline_fill_rate, strict "
+              f"rule only): {_f(headline_fill_rate(sat, sat['strict_rule']), pct=True)}")
     print(f"  VERDICT[{name}]: {verdict[0]}")
     print(f"    -> {verdict[1]}")
 

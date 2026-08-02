@@ -480,3 +480,48 @@ def test_analyze_cut_reports_both_models_and_adverse_selection_split():
         # all-positive population -> L41 inadmissible (no opposing cluster possible)
         assert c["bootstrap_both_fill_by_series"]["admissible"]["admissible"] is False
         assert c["bootstrap_strategy_level_diagnostic"]["frac_frozen"] == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# L250 adoption — the saturation report is carried on every cut, under BOTH models,
+# and the loose rule can never become a headline through this script.
+# --------------------------------------------------------------------------- #
+def test_analyze_cut_carries_the_l250_turnover_saturation_report():
+    per_ticker, sett = {}, {}
+    for i, (series, result) in enumerate([("KXKBOGAME", "no"), ("KXNPBGAME", "yes")]):
+        tk = f"{series}-26JUL0{i}A-XXX"
+        snaps, s = _double_fill_ticker(tk, result)
+        per_ticker[tk], sett[tk] = snaps, s
+    trades, _ = q49.build_trades(per_ticker, sett)
+    reports = {}
+    for model in q49.FILL_MODELS:
+        c = q49.analyze_cut(trades, model, n_boot=200)
+        sat = c["turnover_saturation"]
+        assert sat["no_signal"] is False
+        assert sat["n_units"] == len(trades)
+        assert sat["loose_rule"] == q49.DIAGNOSTIC_MODEL
+        assert sat["strict_rule"] == q49.PRIMARY_FILL_MODEL
+        reports[model] = sat
+    # it is a property of the POPULATION, so the two model views must agree exactly
+    assert reports["touch"] == reports["turnover"]
+
+
+def test_q49_diagnostic_model_is_the_loose_rule_and_never_the_primary():
+    assert q49.PRIMARY_FILL_MODEL == "touch"
+    assert q49.DIAGNOSTIC_MODEL == "turnover"
+    assert set(q49.FILL_MODELS) == {q49.PRIMARY_FILL_MODEL, q49.DIAGNOSTIC_MODEL}
+
+
+def test_q49_headline_fill_rate_guard_refuses_the_turnover_rule():
+    """The operative half of L250 reached THROUGH this script's own import, not just in
+    core: asking for the loose rule's fill rate as a headline raises."""
+    per_ticker, sett = {}, {}
+    tk = "KXKBOGAME-26JUL01A-XXX"
+    snaps, s = _double_fill_ticker(tk, "no")
+    per_ticker[tk], sett[tk] = snaps, s
+    trades, _ = q49.build_trades(per_ticker, sett)
+    sat = q49.analyze_cut(trades, "touch", n_boot=50)["turnover_saturation"]
+    with pytest.raises(ValueError):
+        q49.headline_fill_rate(sat, q49.DIAGNOSTIC_MODEL)
+    assert q49.headline_fill_rate(sat, q49.PRIMARY_FILL_MODEL) == pytest.approx(
+        sat["strict_fill_rate"])

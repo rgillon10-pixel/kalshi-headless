@@ -138,6 +138,29 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   DESCRIPTOR with a blunt documented 0.5 flag, not a verdict — a genuine
   event-window study SHOULD concentrate; the judgment stays yours, but the
   number goes in the write-up either way.
+- **L250 — a HIGH fill rate under the loose "turnover" queue-departure rule is
+  not evidence of a fill; over a long hold it is not evidence of anything.**
+  L48 already said a turnover proxy (departures at ANY level at/above your
+  resting price) rules a population OUT, never IN. The corollary L48 did not
+  state: once the hold is long enough for the book to migrate away from your
+  now-stale price, every size reduction anywhere above you counts as advancing
+  you, the counter runs to tens of thousands against a queue of tens, and the
+  rule fills essentially everything — the statistic has no variation left, so
+  it points NOWHERE, not even OUT. Q49/S68 measured it on one tape: the loose
+  rule read 97.98% both-sides-filled on the same 445 candidates where the
+  strict `touch` rule (departures at YOUR OWN price level, and only while you
+  are still at the touch) read 42.47%; on the primary 20-candidate cut the
+  loose rule filled 20/20 (zero variation) against the strict rule's 55%.
+  So: report the price-priority-correct `touch` rule as PRIMARY and the
+  turnover rule as a LABELED DIAGNOSTIC, and MEASURE the saturation rather
+  than asserting it — run `core.bootstrap.turnover_rule_saturation(
+  loose_filled, strict_filled, departures=..., queue_ahead=...,
+  snapshots_held=...)` and print `loose_fill_rate` / `strict_fill_rate` /
+  `median_departure_queue_ratio` / `saturated` beside every cut's fill counts.
+  Route any fill-rate HEADLINE through `core.bootstrap.headline_fill_rate(
+  report, rule)`, which refuses the loose rule outright. Remember the strict
+  rule is itself an upper bound: a depth tape carries no trade field (L68/
+  L106), so a cancel at your price is still counted as a fill.
 - **L249 — before you report ANY L41-inadmissible cut as a verdict, check
   whether your own entry gate bounds the SIGN of the thing you bootstrapped.**
   Q49/S68's gate ("yes-spread >= two maker fees") on a mirrored binary book

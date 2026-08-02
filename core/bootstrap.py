@@ -721,3 +721,210 @@ def sign_bounded_objective(unit_values: Dict[str, Sequence[float]], *,
         "inadmissibility_is_definitional": definitional,
         "reasons": reasons,
     }
+
+
+# --------------------------------------------------------------------------- #
+# L250 — turnover-rule saturation (does a LOOSE fill proxy's high fill rate mean
+#         anything at all, in either direction?)
+# --------------------------------------------------------------------------- #
+
+# Cumulative observed departures at or above this multiple of the queue ahead of us make the
+# loose rule's fill decision a foregone conclusion: whatever our queue position was, the
+# counter cleared it many times over. A DOCUMENTED, blunt threshold (not fitted to data) —
+# Q49's `unrestricted` turnover cut sits ~900x (YES) / ~218x (NO) above it — always echoed
+# back in the result so a caller cannot quietly reinterpret it.
+TURNOVER_SATURATION_RATIO: float = 10.0
+
+# At or above this fill rate the loose rule has essentially no variation left to carry
+# information: it fills nearly everything it is shown.
+TURNOVER_SATURATION_FILL_RATE: float = 0.95
+
+# "A hold window longer than ~a few snapshots" (L250's own wording) made concrete. Below
+# this many snapshots per unit the saturation call is withheld (`long_hold=False`) rather
+# than asserted, because a short window genuinely cannot accumulate migration.
+MIN_SNAPSHOTS_FOR_SATURATION: int = 8
+
+# The only rule allowed to carry a fill-rate HEADLINE (L250 / Q49 precedent). The loose
+# turnover rule is a labeled diagnostic, never the headline.
+PRIMARY_FILL_RULE: str = "touch"
+DIAGNOSTIC_FILL_RULE: str = "turnover"
+
+
+def turnover_rule_saturation(loose_filled: Sequence[bool], strict_filled: Sequence[bool], *,
+                             departures: Sequence[float], queue_ahead: Sequence[float],
+                             snapshots_held: Sequence = None,
+                             ratio_floor: float = TURNOVER_SATURATION_RATIO,
+                             fill_rate_floor: float = TURNOVER_SATURATION_FILL_RATE,
+                             min_snapshots: int = MIN_SNAPSHOTS_FOR_SATURATION) -> dict:
+    """The L250 precheck: over a multi-snapshot hold, does the LOOSE (Q27/S19 "turnover")
+    queue-departure fill rule still measure anything — or has it saturated?
+
+    L48 established that a turnover proxy (departures at ANY level at/above our resting
+    price) can rule a population OUT (too thin to fill), never IN. L250 is the corollary
+    L48 did not state: over a hold long enough for the book to migrate away from a stale
+    resting price, EVERY size reduction anywhere at/above that price is counted as advancing
+    us, so the cumulative counter runs to tens of thousands against a queue of tens and the
+    rule fills essentially everything. At that point a HIGH fill rate is not weak evidence
+    of fillability — it is no evidence in EITHER direction, because the statistic has no
+    variation left. Q49/S68 (2026-08-01) is the measured case: on the same 445 candidates,
+    the loose rule read 97.98% both-sides-filled while the strict `touch` rule (departures at
+    OUR OWN price level, only while we are at the touch) read 42.47%.
+
+    Inputs are per-unit and must align element-wise (one entry per rested order / candidate):
+
+      * `loose_filled` / `strict_filled` — each rule's fill outcome for the SAME unit.
+      * `departures` — cumulative observed departures the loose rule accumulated.
+      * `queue_ahead` — the resting size ahead of us at entry (the counter's target).
+      * `snapshots_held` — optional; snapshots the order was held across. Supplied, it gates
+        the `long_hold` half of the saturation call; omitted, `long_hold` is None and the
+        call rests on the ratio + fill-rate halves alone (stated in `reasons`).
+
+    `saturated` is True only when all supplied halves agree: the loose rule fills at or above
+    `fill_rate_floor`, the MEDIAN departures-to-queue ratio is at or above `ratio_floor`, and
+    (when snapshots are given) the median hold clears `min_snapshots`. A unit whose
+    `queue_ahead` is 0 (front of queue) has an undefined ratio and is excluded from the ratio
+    median rather than treated as infinite or as zero — it is counted in
+    `n_units_zero_queue` so the exclusion is visible.
+
+    What this CANNOT do, stated so no caller over-reads it:
+
+      1. It does not validate the strict rule. `touch` is itself generous — a depth tape with
+         no trade field cannot distinguish a cancel at our price from a fill (L68/L106) — so
+         a low `strict_fill_rate` is still an upper bound, not a measured fill rate.
+      2. `saturated=False` is NOT a license to headline the loose rule. The L48 direction
+         holds unconditionally: a turnover proxy rules a population OUT, never IN. That is
+         why `headline_fill_rate` refuses the loose rule outright on a saturated report and
+         why `loose_rule_direction` never returns "IN".
+      3. Which rule is "primary" for a given probe, and how long a hold is too long, remain
+         per-design judgments (`.claude/agents/edge-prober.md`, L250). This function reports
+         the statistic and names its own thresholds; it does not choose the probe's design.
+
+    Empty input returns `no_signal=True` with zeroed counts rather than raising or implying a
+    clean population — the repo's no_signal-vs-False discipline: "nothing was measured" is
+    never reported as "nothing is wrong".
+    """
+    n = len(loose_filled)
+    for name, seq in (("strict_filled", strict_filled), ("departures", departures),
+                      ("queue_ahead", queue_ahead)):
+        if len(seq) != n:
+            raise ValueError(f"{name} ({len(seq)}) must align with loose_filled ({n})")
+    if snapshots_held is not None and len(snapshots_held) != n:
+        raise ValueError(f"snapshots_held ({len(snapshots_held)}) must align with "
+                         f"loose_filled ({n})")
+
+    if n == 0:
+        return {
+            "no_signal": True,
+            "n_units": 0,
+            "loose_rule": DIAGNOSTIC_FILL_RULE, "strict_rule": PRIMARY_FILL_RULE,
+            "loose_fill_rate": None, "strict_fill_rate": None, "fill_rate_gap": None,
+            "n_units_with_ratio": 0, "n_units_zero_queue": 0,
+            "median_departure_queue_ratio": None, "frac_units_above_ratio_floor": None,
+            "median_snapshots_held": None, "long_hold": None,
+            "loose_rule_discriminates": False, "saturated": False,
+            "loose_rule_direction": "none",
+            "ratio_floor": ratio_floor, "fill_rate_floor": fill_rate_floor,
+            "min_snapshots": min_snapshots,
+            "reasons": ["empty"],
+        }
+
+    n_loose = sum(1 for f in loose_filled if f)
+    n_strict = sum(1 for f in strict_filled if f)
+    loose_rate = n_loose / n
+    strict_rate = n_strict / n
+
+    ratios: List[float] = []
+    n_zero_queue = 0
+    for d, q in zip(departures, queue_ahead):
+        q = float(q)
+        if q <= 0.0:
+            n_zero_queue += 1
+            continue
+        ratios.append(float(d) / q)
+    med_ratio = _median_of(ratios)
+    frac_above = (sum(1 for r in ratios if r >= ratio_floor) / len(ratios)) if ratios else None
+
+    med_snaps = None
+    long_hold = None
+    if snapshots_held is not None:
+        med_snaps = _median_of([float(s) for s in snapshots_held])
+        long_hold = med_snaps is not None and med_snaps >= min_snapshots
+
+    discriminates = 0 < n_loose < n
+
+    reasons: List[str] = []
+    rate_hit = loose_rate >= fill_rate_floor
+    ratio_hit = med_ratio is not None and med_ratio >= ratio_floor
+    if rate_hit:
+        reasons.append("loose_fill_rate_at_or_above_floor")
+    if ratio_hit:
+        reasons.append("median_departures_swamp_queue")
+    if not discriminates:
+        reasons.append("loose_rule_has_no_variation")
+    if snapshots_held is None:
+        reasons.append("no_snapshot_counts_supplied")
+    elif long_hold:
+        reasons.append("long_hold")
+    if not ratios:
+        reasons.append("no_unit_with_a_positive_queue_ahead")
+
+    saturated = bool(rate_hit and ratio_hit and (long_hold is not False))
+
+    return {
+        "no_signal": False,
+        "n_units": n,
+        "loose_rule": DIAGNOSTIC_FILL_RULE, "strict_rule": PRIMARY_FILL_RULE,
+        "loose_fill_rate": loose_rate, "strict_fill_rate": strict_rate,
+        "fill_rate_gap": loose_rate - strict_rate,
+        "n_units_with_ratio": len(ratios), "n_units_zero_queue": n_zero_queue,
+        "median_departure_queue_ratio": med_ratio,
+        "frac_units_above_ratio_floor": frac_above,
+        "median_snapshots_held": med_snaps, "long_hold": long_hold,
+        "loose_rule_discriminates": discriminates,
+        "saturated": saturated,
+        # L48 unconditionally + L250's corollary: a saturated loose rule points NOWHERE.
+        "loose_rule_direction": "none" if saturated else "OUT_only",
+        "ratio_floor": ratio_floor, "fill_rate_floor": fill_rate_floor,
+        "min_snapshots": min_snapshots,
+        "reasons": reasons,
+    }
+
+
+def headline_fill_rate(saturation: dict, rule: str) -> float:
+    """The operative half of L250: return the fill rate a probe may HEADLINE, refusing the
+    loose rule outright.
+
+    A probe that wants to publish a fill-rate headline routes it through here. Asking for the
+    loose (`turnover`) rule raises — always, saturated or not, because L48's "rules a
+    population OUT, never IN" already forbids a loose-proxy fill rate from carrying an
+    affirmative headline, and L250 removes even the OUT reading once the rule has saturated.
+    Asking for the strict (`touch`) rule returns its rate. A `no_signal` report raises rather
+    than returning 0.0 — "nothing was measured" is never a headline.
+
+    This can only REMOVE a headline, never award one: the returned number is still just a
+    fill rate, and a strict-rule fill rate is itself an upper bound (L68/L106 — a depth tape
+    cannot tell a cancel at our price from a fill).
+    """
+    if not isinstance(saturation, dict):
+        raise TypeError("saturation must be the dict returned by turnover_rule_saturation")
+    if saturation.get("no_signal"):
+        raise ValueError("no_signal report carries no headline fill rate (L250)")
+    loose = saturation.get("loose_rule", DIAGNOSTIC_FILL_RULE)
+    strict = saturation.get("strict_rule", PRIMARY_FILL_RULE)
+    if rule == loose:
+        raise ValueError(
+            f"the loose `{loose}` queue-departure rule may not carry a fill-rate headline "
+            f"(L48: it rules a population OUT, never IN; L250: saturated="
+            f"{saturation.get('saturated')} — over a long hold it fills everything and points "
+            f"nowhere). Headline the strict `{strict}` rule and label `{loose}` a diagnostic.")
+    if rule != strict:
+        raise ValueError(f"unknown fill rule {rule!r} (expected {strict!r} or {loose!r})")
+    return float(saturation["strict_fill_rate"])
+
+
+def _median_of(xs: Sequence[float]):
+    vals = sorted(float(x) for x in xs)
+    if not vals:
+        return None
+    m = len(vals) // 2
+    return vals[m] if len(vals) % 2 else (vals[m - 1] + vals[m]) / 2.0
