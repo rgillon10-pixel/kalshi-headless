@@ -2406,3 +2406,269 @@ def test_acceptance_19_l221_settlement_ledger_is_the_zero_redundancy_control():
     assert r["gate_attributable_redundant_line_fraction"] == 0.0
     assert r["max_passes_per_day_excl_burst"] >= 2
     assert r["verdict"] == "OVER_CAPTURE"
+
+
+# --------------------------------------------------------------------------- #
+# L223 — per-key status-regression detector ("never had it" vs "lost it")
+# --------------------------------------------------------------------------- #
+
+_L223_CFG = {
+    "key_path": ("series_key",),
+    "status_path": ("recent_settlement", "status"),
+    "null_statuses": ("no_settled_events", "not_built"),
+    "neutral_statuses": ("fetch_error",),
+    "min_run_passes": 3,
+}
+
+
+def _status_row(cid, captured_at, key, status, *, omit=False):
+    r = {"capture_id": cid, "captured_at": captured_at, "series_key": key}
+    if not omit:
+        r["recent_settlement"] = {"status": status}
+    return r
+
+
+def _status_day(tape_root, day, key, statuses, *, family="econ_prints", omit=False):
+    """One pass per entry; hour index makes captured_at monotone within the day."""
+    recs = []
+    for i, st in enumerate(statuses):
+        recs.append(_status_row(f"{day}T{i:02d}00", f"{day}T{i:02d}:00:00+00:00",
+                                key, st, omit=omit))
+    _write_lines(tape_root, family, day, recs)
+
+
+def test_l223_three_state_partition_is_exact(tmp_path):
+    """never_had / lost_it / has_it is a partition — asserted, not assumed."""
+    _status_day(tmp_path, "2026-07-05", "never", ["no_settled_events"] * 4)
+    _status_day(tmp_path, "2026-07-05", "lost", ["settled", "no_settled_events",
+                                                 "no_settled_events", "no_settled_events"])
+    _status_day(tmp_path, "2026-07-05", "healthy", ["settled"] * 4)
+    r = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    assert r["n_keys"] == 3
+    assert (r["n_never_had"], r["n_lost_it"], r["n_has_it"]) == (1, 1, 1)
+    assert r["n_never_had"] + r["n_lost_it"] + r["n_has_it"] == r["n_keys"]
+    assert r["partition_ok"] is True
+    assert r["keys"]["never"]["state"] == "never_had"
+    assert r["keys"]["lost"]["state"] == "lost_it"
+    assert r["keys"]["healthy"]["state"] == "has_it"
+    assert r["verdict"] == "REGRESSION_OPEN"
+    assert r["alerting_keys"] == ["lost"]
+
+
+def test_l223_leading_null_run_is_never_had_not_a_regression(tmp_path):
+    """Design point 3: nulls BEFORE a key's first real value are not an episode."""
+    _status_day(tmp_path, "2026-07-05", "gdp", ["no_settled_events"] * 5)
+    r = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    g = r["keys"]["gdp"]
+    assert g["state"] == "never_had"
+    assert g["alerts"] is False
+    assert g["leading_null_passes"] == 5
+    assert g["n_closed_episodes"] == 0
+    assert g["current_null_run_passes"] == 0
+
+
+def test_l223_leading_nulls_then_a_real_value_open_no_episode(tmp_path):
+    """A key that starts null and then earns a value is plain `has_it`, 0 episodes."""
+    _status_day(tmp_path, "2026-07-05", "gdp",
+                ["no_settled_events", "no_settled_events", "settled", "settled"])
+    g = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)["keys"]["gdp"]
+    assert g["state"] == "has_it"
+    assert g["leading_null_passes"] == 2
+    assert g["n_closed_episodes"] == 0
+
+
+def test_l223_neutral_status_does_not_split_an_episode(tmp_path):
+    """Design point 1 (the load-bearing one): a transport error is the ABSENCE of an
+    observation. Scoring `fetch_error` as a real value shatters gdp's single 364-pass
+    hole into three short ones and destroys the signal."""
+    _status_day(tmp_path, "2026-07-05", "gdp",
+                ["settled", "no_settled_events", "fetch_error",
+                 "no_settled_events", "no_settled_events", "settled"])
+    g = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)["keys"]["gdp"]
+    assert g["n_neutral"] == 1
+    assert g["n_closed_episodes"] == 1, "fetch_error split the run into separate episodes"
+    ep = g["closed_episodes"][0]
+    assert ep["n_passes"] == 3
+    assert ep["last_real_before_status"] == "settled"
+    assert ep["recovered_status"] == "settled"
+
+
+def test_l223_a_neutral_only_key_claims_nothing(tmp_path):
+    """All-neutral history: no real value ever observed -> never_had, and no alert."""
+    _status_day(tmp_path, "2026-07-05", "gdp", ["fetch_error"] * 4)
+    g = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)["keys"]["gdp"]
+    assert g["state"] == "never_had"
+    assert (g["n_real"], g["n_null"], g["n_neutral"]) == (0, 0, 4)
+    assert g["alerts"] is False
+
+
+def test_l223_recovery_keeps_the_closed_episode_visible(tmp_path):
+    """Design point 2: a recovered key reads `has_it` (its CURRENT state is honest) but
+    the hole stays on the record — otherwise the check goes blind on recovery."""
+    _status_day(tmp_path, "2026-07-05", "gdp",
+                ["settled", "no_settled_events", "no_settled_events",
+                 "no_settled_events", "settled", "settled"])
+    r = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    g = r["keys"]["gdp"]
+    assert g["state"] == "has_it"
+    assert g["alerts"] is False
+    assert g["n_closed_episodes"] == 1
+    assert g["longest_closed_episode_passes"] == 3
+    assert r["verdict"] == "RECOVERED_EPISODES_ON_RECORD"
+    assert r["n_keys_with_closed_episodes"] == 1
+
+
+def test_l223_alert_threshold_is_separate_from_the_state(tmp_path):
+    """The three-state classification is threshold-independent; only the ALERT moves."""
+    _status_day(tmp_path, "2026-07-05", "gdp",
+                ["settled", "no_settled_events", "no_settled_events"])
+    strict = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG,
+                                          min_run_passes=3)["keys"]["gdp"]
+    assert strict["state"] == "lost_it" and strict["alerts"] is False
+    loose = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG,
+                                         min_run_passes=2)["keys"]["gdp"]
+    assert loose["state"] == "lost_it" and loose["alerts"] is True
+    assert loose["current_null_run_passes"] == 2
+
+
+def test_l223_absent_status_field_is_no_signal_never_a_fabricated_null(tmp_path):
+    """A record that does not carry the status path at all yields NO signal — it must not
+    read as a null-shaped status, or a schema change becomes a 100% regression."""
+    _status_day(tmp_path, "2026-07-05", "gdp", [None] * 3, omit=True)
+    r = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    assert r["n_rows"] == 3
+    assert r["n_no_signal"] == 3
+    assert r["n_keys"] == 0
+    assert r["verdict"] == "NO_KEYS"
+
+
+def test_l223_explicit_null_status_is_null_shaped_not_no_signal(tmp_path):
+    """A PRESENT `null` status is an observed nothing — distinct from an absent field."""
+    _status_day(tmp_path, "2026-07-05", "gdp", ["settled", None, None, None])
+    r = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    assert r["n_no_signal"] == 0
+    g = r["keys"]["gdp"]
+    assert g["state"] == "lost_it" and g["current_null_run_passes"] == 3
+
+
+def test_l223_rows_without_a_key_or_timestamp_are_counted_not_assigned(tmp_path):
+    _write_lines(tmp_path, "econ_prints", "2026-07-05", [
+        {"capture_id": "a", "captured_at": "2026-07-05T00:00:00+00:00",
+         "recent_settlement": {"status": "settled"}},          # no series_key
+        {"capture_id": "b", "series_key": "gdp",
+         "recent_settlement": {"status": "settled"}},           # no captured_at
+    ])
+    r = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    assert r["n_rows_without_key"] == 1
+    assert r["n_no_signal"] == 1
+    assert r["n_keys"] == 0
+
+
+def test_l223_malformed_line_is_counted_never_scored(tmp_path):
+    fam = tmp_path / "econ_prints"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-05.jsonl").write_text('{"not json\n', encoding="utf-8")
+    r = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    assert r["n_malformed_lines"] == 1
+    assert r["n_rows"] == 0 and r["n_keys"] == 0
+
+
+def test_l223_unaudited_family_raises_rather_than_scoring_clean(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        tgm.status_regression_by_key(tmp_path, "perp_tape")
+    assert "STATUS_KEYED_FAMILIES" in str(exc.value)
+
+
+def test_l223_econ_prints_is_registered_with_the_documented_vocabulary():
+    cfg = tgm.STATUS_KEYED_FAMILIES["econ_prints"]
+    assert cfg["status_path"] == ("recent_settlement", "status")
+    assert "no_settled_events" in cfg["null_statuses"]
+    assert "fetch_error" in cfg["neutral_statuses"]
+
+
+def test_l223_days_filter_pins_a_frozen_slice(tmp_path):
+    _status_day(tmp_path, "2026-07-05", "gdp", ["settled"])
+    _status_day(tmp_path, "2026-07-06", "gdp", ["no_settled_events"] * 3)
+    full = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG)
+    assert full["keys"]["gdp"]["state"] == "lost_it"
+    frozen = tgm.status_regression_by_key(tmp_path, "econ_prints", config=_L223_CFG,
+                                          days=["dt=2026-07-05"])
+    assert frozen["days_filter"] == ["dt=2026-07-05"]
+    assert frozen["keys"]["gdp"]["state"] == "has_it"
+    assert frozen["n_files_read"] == 1
+
+
+def test_l223_cli_emits_json_and_rejects_an_unaudited_family(tmp_path, capsys):
+    _status_day(tmp_path, "2026-07-05", "gdp", ["settled", "no_settled_events"])
+    rc = tgm.main(["--tape-root", str(tmp_path), "--status-regression", "econ_prints",
+                   "--no-notify"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["family"] == "econ_prints" and payload["partition_ok"] is True
+    rc2 = tgm.main(["--tape-root", str(tmp_path), "--status-regression", "perp_tape"])
+    assert rc2 == 2
+
+
+# --- HARD acceptance over the REAL committed tape ------------------------- #
+
+@_real
+def test_acceptance_20_l223_econ_prints_gdp_frozen_slice_reproduces_the_recorded_regression():
+    """L223's own recorded case, on a FROZEN slice (L191) ending before the recovery:
+    `gdp` reported one real settlement then `no_settled_events` on all **340**
+    subsequent lines 07-06 -> 07-28 while `pass_complete: true` held throughout. The
+    detector must call that `lost_it` and ALERT, while the other four series keys —
+    captured by the same pass, in the same file — stay `has_it`. That contrast is the
+    whole point: the failure is invisible at the pass level and only exists per key."""
+    days = sorted(p.stem for p in (_REAL_TAPE / "econ_prints").glob("dt=*.jsonl")
+                  if p.stem <= "dt=2026-07-28")
+    r = tgm.status_regression_by_key(_REAL_TAPE, "econ_prints", days=days)
+    assert r["verdict"] == "REGRESSION_OPEN"
+    assert r["alerting_keys"] == ["gdp"]
+    assert r["partition_ok"] is True
+    assert (r["n_lost_it"], r["n_has_it"], r["n_never_had"]) == (1, 4, 0)
+    g = r["keys"]["gdp"]
+    assert g["state"] == "lost_it" and g["alerts"] is True
+    assert g["current_null_run_passes"] == 340          # L223's own figure, re-derived
+    assert g["current_null_run_started_at"] == "2026-07-06T09:24:18.617462+00:00"
+    assert g["last_real_captured_at"] == "2026-07-05T15:13:39.856930+00:00"
+    assert g["last_real_status"] == "settled"
+    assert g["current_null_run_span_days"] >= 22.0
+    for other in ("cpi_mom", "cpi_core_mom", "cpi_yoy", "payrolls"):
+        assert r["keys"][other]["state"] == "has_it", other
+
+
+@_real
+def test_acceptance_21_l223_gdp_recovery_does_not_erase_the_hole():
+    """Over the WHOLE committed tape the leg has recovered (KXGDP-26JUL30 settled on
+    2026-07-31), so `gdp` reads `has_it` — but the 364-pass / 24-day hole must remain on
+    the record as a closed episode. A detector that only reports current state would call
+    this family clean and the 24-day outage would be retroactively invisible.
+
+    Bounds, not equalities, on anything tape growth can move (L162)."""
+    r = tgm.status_regression_by_key(_REAL_TAPE, "econ_prints")
+    g = r["keys"]["gdp"]
+    assert g["state"] == "has_it"
+    assert g["alerts"] is False
+    assert g["n_closed_episodes"] >= 1
+    ep = g["closed_episodes"][0]
+    assert ep["last_real_before_captured_at"] == "2026-07-05T15:13:39.856930+00:00"
+    assert ep["start_captured_at"] == "2026-07-06T09:24:18.617462+00:00"
+    assert ep["recovered_at"] == "2026-07-31T10:05:35.720606+00:00"
+    assert ep["n_passes"] >= 364
+    assert ep["span_days"] >= 24.0
+    assert g["n_neutral"] == 2      # the two 2026-07-29 fetch_error rows, INSIDE the run
+    assert r["n_keys_with_closed_episodes"] == 1
+
+
+@_real
+def test_acceptance_22_l223_the_other_econ_series_are_the_negative_control():
+    """The same file, the same passes: four series keys with an unbroken real status and
+    ZERO episodes. If they showed episodes too, the detector would be measuring collector
+    downtime (which `build_report` already covers), not a per-key status regression."""
+    r = tgm.status_regression_by_key(_REAL_TAPE, "econ_prints")
+    for other in ("cpi_mom", "cpi_core_mom", "cpi_yoy", "payrolls"):
+        k = r["keys"][other]
+        assert k["state"] == "has_it", other
+        assert k["n_closed_episodes"] == 0, other
+        assert k["current_null_run_passes"] == 0, other
+        assert k["n_null"] == 0, other
