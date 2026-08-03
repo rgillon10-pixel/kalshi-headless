@@ -499,3 +499,321 @@ def test_acceptance_real_tape_burst_exclusion_moves_the_vps_reading():
     assert stats["n_burst_excluded"] > 0
     assert set(stats["burst_excluded_by_family"]) <= {
         "crypto_hourly", "polymarket_pairs", "polymarket_macro_pairs"}
+
+
+# ─── L272: `alive` must be read from the burst-INCLUSIVE scan ───────────────
+#
+# The defect L269's own fix introduced: `_dead_collector_leg_diagnosis` passed ONE `last_seen`
+# dict — already burst-excluded — into BOTH the `alive` computation and the `silent`/attribution
+# computation. Excluding a burst-covered family's only recent capture could therefore empty
+# `alive`, tripping the pre-existing `if not alive: return None` guard and DISCARDING an
+# advisory the pre-L269 code raised. L269 was supposed to only ever make an outage look LONGER;
+# on this path it made it look like NOTHING.
+#
+# The fix: two readings. `alive` comes from `exclude_burst_windows=False` (liveness is a
+# lower-bound claim and a burst pass IS evidence something ran); `silent` / `dead` /
+# `dead_silence_h` / `ages` / `last_seen` stay on the burst-EXCLUDED reading (L269's duration
+# honesty, untouched). Because the liveness reading is the burst-inclusive one, `alive` is now
+# byte-identical to pre-L269 `alive` — the guard fires exactly as often as it did before L269.
+
+# now sits 30 minutes AFTER the padded fomc window closes (17:25-20:00Z), so a capture inside
+# that window is ~2h old — recent enough to make its leg "alive" on the inclusive reading.
+_L272_NOW = datetime(2026, 7, 29, 20, 30, tzinfo=UTC)
+_L272_BURST_VPS = datetime(2026, 7, 29, 18, 29, 45, tzinfo=UTC)    # inside window, vps bucket
+_L272_BURST_CLOUD = datetime(2026, 7, 29, 18, 53, 10, tzinfo=UTC)  # inside window, cloud bucket
+
+
+def _l272_counterexample(tape_root: pathlib.Path) -> None:
+    """The verifier's counterexample, verbatim in tape form.
+
+    cloud: a burst-covered capture 1.6h ago (its ONLY sub-6h capture) plus a genuine capture
+           14.6h ago — stale but NOT silent, so `silent` stays a strict subset and the
+           `ambiguous` branch does not fire.
+    vps:   a genuine capture 106h ago — unambiguously dead.
+
+    Pre-fix, the burst-excluded reading put cloud at 14.6h, `alive` was empty, and the guard
+    returned None: a 106h outage produced ZERO advisory.
+    """
+    _write_capture(tape_root, _L272_BURST_CLOUD)                                  # burst, 1.6h
+    _write_capture(tape_root, datetime(2026, 7, 29, 5, 53, 10, tzinfo=UTC))       # genuine, 14.6h
+    _write_capture(tape_root, datetime(2026, 7, 25, 10, 23, 5, tzinfo=UTC))       # genuine, 106.1h
+
+
+def _pre_l272_diagnosis(tape_root, now, **kw):
+    """Re-implement the SHIPPED (pre-L272) computation exactly: ONE burst-excluded reading
+    feeding both halves. Keeps the defect demonstrable forever, the same way L269 kept its own
+    defect reproducible via `exclude_burst_windows=False`."""
+    last_seen = inv._collector_leg_last_seen(tape_root, exclude_burst_windows=True, **kw)
+    if not last_seen:
+        return None
+    ages = {}
+    for leg, iso in last_seen.items():
+        dt = inv._parse_capture_ts(iso)
+        ages[leg] = None if dt is None else (now - dt).total_seconds() / 3600.0
+    alive = sorted(l for l, a in ages.items() if a is not None and a < inv.DEAD_LEG_ALIVE_HOURS)
+    silent = [l for l in inv.DEAD_LEG_MONITORED
+              if l not in last_seen
+              or (ages.get(l) is not None and ages[l] >= inv.DEAD_LEG_SILENCE_HOURS)]
+    if not silent:
+        return None
+    if len(silent) == len(inv.DEAD_LEG_MONITORED):
+        return {"status": "ambiguous", "alive": alive, "silent": silent}
+    if not alive:
+        return None
+    return {"status": "dead_leg", "dead": silent[0], "alive": alive, "silent": silent,
+            "dead_silence_h": ages.get(silent[0])}
+
+
+def test_l272_pre_fix_shape_suppressed_the_advisory_entirely(tmp_path):
+    """The defect, pinned: the shipped one-reading computation returns None on this tape."""
+    _l272_counterexample(tmp_path)
+    assert _pre_l272_diagnosis(tmp_path, _L272_NOW) is None, (
+        "if this stops being None the counterexample has rotted and the test below proves nothing")
+
+
+def test_l272_counterexample_no_longer_suppresses_the_advisory(tmp_path):
+    """Same tape, production default: the 106h outage is reported again — with the BURST-HONEST
+    duration, not the burst-contaminated one."""
+    _l272_counterexample(tmp_path)
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L272_NOW)
+    assert diag is not None, "L272: a real 106h outage must not be suppressed into silence"
+    assert diag["status"] == "dead_leg"
+    assert diag["dead"] == "vps"
+    assert diag["alive"] == ["cloud"]
+    assert diag["dead_silence_h"] == pytest.approx(106.115, abs=0.01)
+    assert inv.dead_collector_leg_warning(diag).startswith(
+        "COLLECTOR HEALTH ADVISORY (non-gating): the 'vps' collector leg appears DEAD.")
+
+
+def test_l272_duration_and_attribution_stay_burst_excluded(tmp_path):
+    """L269's half is untouched: only LIVENESS reads the inclusive scan. `last_seen`/`ages` for
+    the cloud leg must still be the genuine 14.6h capture, never the 1.6h burst pass."""
+    _l272_counterexample(tmp_path)
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L272_NOW)
+    assert diag["last_seen"]["cloud"] == "2026-07-29T05:53:10+00:00"
+    assert diag["ages"]["cloud"] == pytest.approx(14.61, abs=0.01)
+    # ...while the liveness reading (and only it) sees the burst pass.
+    assert diag["alive_last_seen"]["cloud"] == _L272_BURST_CLOUD.isoformat()
+    assert diag["alive_ages"]["cloud"] == pytest.approx(1.61, abs=0.01)
+    assert diag["n_burst_excluded"] == 1
+
+
+def test_l272_publishes_which_legs_are_alive_only_via_a_burst(tmp_path):
+    """A difference nobody can see is indistinguishable from no difference (the L269
+    `stats` discipline). The leg whose liveness rests solely on a burst pass is NAMED."""
+    _l272_counterexample(tmp_path)
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L272_NOW)
+    assert diag["alive_only_via_burst"] == ["cloud"]
+    assert diag["alive_from_burst_inclusive_scan"] is True
+    msg = inv.dead_collector_leg_warning(diag)
+    assert "liveness caveat (L272)" in msg
+    assert "cloud" in msg
+
+
+def test_l272_no_burst_contamination_means_no_liveness_caveat(tmp_path):
+    """Negative control: on ordinary tape the two readings agree, `alive_only_via_burst` is
+    empty, and the extra advisory line does NOT appear (no invented caveat)."""
+    now = datetime(2026, 7, 25, 6, 0, tzinfo=UTC)
+    _leg_series(tmp_path, 23, now - timedelta(hours=100), now - timedelta(hours=40))
+    _leg_series(tmp_path, 53, now - timedelta(hours=100), now - timedelta(hours=1))
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=now)
+    assert diag["alive_only_via_burst"] == []
+    assert diag["alive_last_seen"] == diag["last_seen"]
+    assert "liveness caveat" not in inv.dead_collector_leg_warning(diag)
+
+
+def test_l272_second_scan_is_skipped_when_the_exclusion_is_off(tmp_path):
+    """`exclude_burst_windows=False` means both readings are the same reading — pay for ONE
+    scan, not two. (Doubling the I/O of the production path is the cost this fix does pay;
+    doubling it for a caller who asked for the inclusive reading would be pure waste.)"""
+    _l272_counterexample(tmp_path)
+    calls = []
+    real = inv._collector_leg_last_seen
+
+    def counting(*a, **kw):
+        calls.append(kw.get("exclude_burst_windows", True))
+        return real(*a, **kw)
+
+    inv._collector_leg_last_seen = counting
+    try:
+        inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L272_NOW,
+                                          exclude_burst_windows=False)
+        assert calls == [False], calls
+        calls.clear()
+        inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L272_NOW)
+        assert calls == [True, False], calls
+    finally:
+        inv._collector_leg_last_seen = real
+
+
+def test_l272_warning_renders_for_a_diag_without_the_l272_keys():
+    """Back-compat: a diag built before the L272 keys existed renders exactly as it used to."""
+    diag = {"status": "dead_leg", "dead": "vps", "dead_last_seen": "2026-07-22T17:29:49Z",
+            "dead_silence_h": 50.0, "alive": ["cloud"], "lookback_days": 10,
+            "newest_iso": "2026-07-24T19:53:00Z", "newest_age_h": 0.1,
+            "last_seen": {}, "ages": {}}
+    assert "liveness caveat" not in inv.dead_collector_leg_warning(diag)
+
+
+def test_residual_all_captures_burst_excluded_still_returns_none(tmp_path):
+    """KNOWN RESIDUAL, pinned rather than hidden.
+
+    If EVERY capture in the horizon is burst-covered, the burst-excluded reading is empty and
+    the `if not last_seen: return None` guard (a DIFFERENT guard from the one L272 closes)
+    still suppresses an advisory the burst-inclusive reading would raise. Not closed by this
+    fix: doing so requires deciding what "newest capture anywhere in committed hourly tape"
+    means when the only candidate is a burst pass, which is a render-semantics decision that
+    belongs with L273's `degraded`-status work. This test exists so the residual is a recorded,
+    failing-loudly-if-it-changes fact and not a surprise for the next reader."""
+    _write_capture(tmp_path, _L272_BURST_CLOUD)      # cloud, inside the burst window
+    _write_capture(tmp_path, _L272_BURST_VPS)        # vps, inside the burst window
+    assert inv._collector_leg_last_seen(tmp_path) == {}
+    assert inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L272_NOW) is None
+    # the burst-inclusive reading DOES see both legs — this is the advisory being lost
+    incl = inv._collector_leg_last_seen(tmp_path, exclude_burst_windows=False)
+    assert set(incl) == {"vps", "cloud"}
+
+
+# ─── L272 differential fuzz: never fewer advisories than pre-L269 ───────────
+
+_FUZZ_AGES_H = (4, 5, 7, 12, 23, 25, 40, 106)   # straddles ALIVE=6h and SILENCE=24h
+
+
+def _fuzz_tape(tape_root, vps_age_h, cloud_age_h, burst_leg):
+    """Genuine captures for each leg at the requested age (placed at that leg's own
+    minute-of-hour, so `collector_bucket` assigns them correctly), plus optionally ONE capture
+    inside the declared fomc burst window in `burst_leg`'s bucket. Every genuine age in
+    `_FUZZ_AGES_H` is >3.1h, which puts it strictly outside the padded window (17:25-20:00Z),
+    so the fuzz never accidentally excludes a capture it meant to keep."""
+    for age_h, minute in ((vps_age_h, 23), (cloud_age_h, 53)):
+        if age_h is None:
+            continue
+        ts = (_L272_NOW - timedelta(hours=age_h)).replace(minute=minute, second=7, microsecond=0)
+        _write_capture(tape_root, ts)
+    if burst_leg == "vps":
+        _write_capture(tape_root, _L272_BURST_VPS)
+    elif burst_leg == "cloud":
+        _write_capture(tape_root, _L272_BURST_CLOUD)
+
+
+def test_fuzz_post_l272_never_raises_fewer_advisories_than_pre_l269(tmp_path):
+    """THE binding property. Sweeping both legs across the ALIVE(6h)-to-SILENCE(24h) band with
+    and without a burst-covered capture, the post-L272 production path must raise an advisory
+    everywhere the pre-L269 code (`exclude_burst_windows=False`) raised one — never fewer. Also
+    asserts the two things that must NOT regress while doing so: `alive` is byte-identical to
+    the pre-L269 `alive`, and the reported silence is never SHORTER than pre-L269's (L269's
+    "an outage may only look longer" direction)."""
+    n_cases = n_pre_loud = n_pre_fix_suppressed = 0
+    for i, vps_age in enumerate(_FUZZ_AGES_H):
+        for j, cloud_age in enumerate(_FUZZ_AGES_H):
+            for burst_leg in (None, "vps", "cloud"):
+                root = tmp_path / f"c{i}_{j}_{burst_leg}"
+                root.mkdir()
+                _fuzz_tape(root, vps_age, cloud_age, burst_leg)
+                pre = inv._dead_collector_leg_diagnosis(tape_root=root, now=_L272_NOW,
+                                                        exclude_burst_windows=False)
+                post = inv._dead_collector_leg_diagnosis(tape_root=root, now=_L272_NOW)
+                pre_fix = _pre_l272_diagnosis(root, _L272_NOW)
+                n_cases += 1
+                case = (vps_age, cloud_age, burst_leg)
+
+                if pre is not None:
+                    n_pre_loud += 1
+                    assert post is not None, f"L272 regression: advisory suppressed at {case}"
+                if pre is not None and pre_fix is None:
+                    n_pre_fix_suppressed += 1
+
+                if post is not None and pre is not None:
+                    assert post["alive"] == pre["alive"], case
+                    if (post["status"] == "dead_leg" == pre["status"]
+                            and post["dead"] == pre["dead"]):
+                        assert post["dead_silence_h"] >= pre["dead_silence_h"] - 1e-9, (
+                            f"L269 direction violated at {case}")
+
+    # Exact counts: the fixtures are fully synthetic and deterministic (no committed-tape
+    # dependence), so these are equalities, not bounds — a change in any of them means the
+    # sweep's meaning moved and should be re-read, not silently re-baselined.
+    assert n_cases == len(_FUZZ_AGES_H) ** 2 * 3 == 192
+    assert n_pre_loud == 69, n_pre_loud
+    # The fuzz must actually EXERCISE the bug, otherwise the property above is vacuous:
+    # 18 of the 69 cases the pre-L269 code reported were SUPPRESSED to None by the shipped
+    # pre-L272 code. Those 18 are the regression, and all 18 are recovered by the fix.
+    assert n_pre_fix_suppressed == 18, (
+        f"expected 18 pre-L272 suppressions in the sweep, got {n_pre_fix_suppressed} — if this "
+        f"is 0 the fuzz proves nothing")
+
+
+def test_fuzz_exercises_the_bug_in_the_expected_band(tmp_path):
+    """Locate the suppression precisely: it needs a leg alive ONLY via a burst pass whose
+    genuine capture sits in the 6h-24h dead band (stale, not silent), plus the other leg
+    genuinely silent. Outside that band the pre-L272 code was already correct — which is why
+    the bug survived L269's own 10-test suite."""
+    suppressed = []
+    for i, vps_age in enumerate(_FUZZ_AGES_H):
+        for j, cloud_age in enumerate(_FUZZ_AGES_H):
+            for burst_leg in ("vps", "cloud"):
+                root = tmp_path / f"c{i}_{j}_{burst_leg}"
+                root.mkdir()
+                _fuzz_tape(root, vps_age, cloud_age, burst_leg)
+                pre = inv._dead_collector_leg_diagnosis(tape_root=root, now=_L272_NOW,
+                                                        exclude_burst_windows=False)
+                if pre is not None and _pre_l272_diagnosis(root, _L272_NOW) is None:
+                    suppressed.append((vps_age, cloud_age, burst_leg))
+    assert suppressed, "no suppression found — the counterexample has rotted"
+    for vps_age, cloud_age, burst_leg in suppressed:
+        burst_age = cloud_age if burst_leg == "cloud" else vps_age
+        other_age = vps_age if burst_leg == "cloud" else cloud_age
+        assert inv.DEAD_LEG_ALIVE_HOURS <= burst_age < inv.DEAD_LEG_SILENCE_HOURS, (
+            vps_age, cloud_age, burst_leg)
+        assert other_age >= inv.DEAD_LEG_SILENCE_HOURS, (vps_age, cloud_age, burst_leg)
+
+
+# ─── HARD acceptance: the L272 defect on the REAL committed tape, pinned ────
+#
+# Pinned exactly like the L269 acceptance test above and for the same reason (L140): `max_day`
+# caps the scan at CLOSED historical day-files and `now` is injected, so neither wall-clock time
+# nor tape landing after the slice can move it. `datetime.now()` is never called.
+#
+# The slice: at 2026-07-29T23:59Z, capped at dt=2026-07-29, the ONLY sub-6h captures in the
+# whole hourly-dual tape are inside the declared `kalshi-burst-fomc-0729` window (17:40-19:45Z,
+# padded 17:25-20:00Z). So on the burst-EXCLUDED reading nothing at all is "alive" — and the
+# shipped pre-L272 code therefore returned None, printing NOTHING, while the vps leg had been
+# dead since 2026-07-22T17:29:49Z. This is L272's counterexample occurring on real tape, not a
+# constructed one.
+_L272_MAX_DAY = date(2026, 7, 29)
+_L272_REAL_NOW = datetime(2026, 7, 29, 23, 59, tzinfo=UTC)
+
+
+@_real
+def test_acceptance_real_tape_l272_slice_was_suppressed_and_is_now_reported():
+    diag = inv._dead_collector_leg_diagnosis(tape_root=_REAL_TAPE, now=_L272_REAL_NOW,
+                                             max_day=_L272_MAX_DAY)
+    assert diag is not None, "L272: a 174h VPS outage must not be suppressed into silence"
+    assert diag["status"] == "dead_leg"
+    assert diag["dead"] == "vps"
+    assert str(diag["dead_last_seen"]).startswith("2026-07-22T17:29:49"), diag["dead_last_seen"]
+    assert diag["dead_silence_h"] == pytest.approx(174.49, abs=0.05)
+    # every leg that counts as alive here does so ONLY via the fomc burst pass — which is
+    # exactly why the burst-excluded reading had nothing left to call alive
+    assert diag["alive_only_via_burst"] == diag["alive"] == ["cloud", "other", "vps"]
+    assert diag["n_burst_excluded"] > 0
+    msg = inv.dead_collector_leg_warning(diag)
+    assert "'vps' collector leg appears DEAD" in msg
+    assert "liveness caveat (L272)" in msg
+    # the dead leg is never listed as its own survivor, even though it is in `alive`
+    assert "still alive: cloud, other (" in msg
+
+
+@_real
+def test_acceptance_real_tape_l272_slice_the_shipped_code_printed_nothing():
+    """The other half of the acceptance pair: on this SAME real slice the pre-L272 computation
+    (one burst-excluded reading feeding both halves) returns None. Without this, the test above
+    could pass on tape where there was never anything to suppress."""
+    assert _pre_l272_diagnosis(_REAL_TAPE, _L272_REAL_NOW, max_day=_L272_MAX_DAY) is None
+    # ...and it is NOT that the pre-L269 code would have caught it either: the burst-inclusive
+    # reading puts vps at ~5.5h (the burst pass), so pre-L269 called the leg healthy. The outage
+    # is visible ONLY with L269's duration fix AND L272's liveness fix together.
+    pre_l269 = inv._dead_collector_leg_diagnosis(tape_root=_REAL_TAPE, now=_L272_REAL_NOW,
+                                                 max_day=_L272_MAX_DAY,
+                                                 exclude_burst_windows=False)
+    assert pre_l269 is None

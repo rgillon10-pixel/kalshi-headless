@@ -1300,6 +1300,13 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
                                              exclude_burst_windows=exclude_burst_windows,
                                              stats=scan_stats)
         if not last_seen:
+            # RESIDUAL, recorded not hidden (L272): if EVERY capture in the horizon fell
+            # inside a declared burst window, the burst-excluded reading is empty and this
+            # returns None even though the burst-INCLUSIVE reading would have raised. Not
+            # closed here because doing so requires deciding what "newest capture anywhere"
+            # means when the only candidate is a burst pass — a render-semantics call that
+            # belongs with L273's `degraded`-status redesign, not with this fix. Pinned by
+            # test_residual_all_captures_burst_excluded_still_returns_none.
             return None
 
         def _age_h(iso: str) -> Optional[float]:
@@ -1308,12 +1315,41 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
                 return None
             return (now - dt).total_seconds() / 3600.0
 
+        # L272: `alive` must NOT be read off the burst-EXCLUDED scan. Liveness is a
+        # LOWER-BOUND claim -- "something recent exists" -- and a declared burst pass is real
+        # evidence that something ran. Excluding it can empty `alive` and trip the
+        # `if not alive: return None` guard below, so L269's tightening would SUPPRESS an
+        # advisory rather than merely lengthen one (the exact regression L272 names).
+        # Duration and blame (`silent`/`dead`/`dead_silence_h`/`ages`/`last_seen`) stay on the
+        # burst-EXCLUDED reading -- that is L269's actual point and is untouched here.
+        # Because this second reading is taken with exclude_burst_windows=False, `alive` is now
+        # byte-identical to the pre-L269 `alive`, so the guard fires exactly as often as it did
+        # before L269 -- never more. When the caller already asked for the inclusive reading the
+        # two readings are the same object and no second scan is paid for.
+        alive_stats: Dict[str, Any] = {}
+        if exclude_burst_windows:
+            alive_last_seen = _collector_leg_last_seen(tape_root, lookback_days=lookback_days,
+                                                      max_day=max_day,
+                                                      exclude_burst_windows=False,
+                                                      stats=alive_stats)
+        else:
+            alive_last_seen = last_seen
+            alive_stats = dict(scan_stats)
+
         ages = {leg: _age_h(iso) for leg, iso in last_seen.items()}
+        alive_ages = {leg: _age_h(iso) for leg, iso in alive_last_seen.items()}
         newest_leg = max(last_seen, key=lambda k: last_seen[k])
         newest_iso = last_seen[newest_leg]
         newest_age = ages.get(newest_leg)
-        alive = sorted(leg for leg, a in ages.items()
+        alive = sorted(leg for leg, a in alive_ages.items()
                        if a is not None and a < DEAD_LEG_ALIVE_HOURS)
+        # The legs whose liveness rests ONLY on a burst pass -- i.e. alive on the inclusive
+        # reading but not on the burst-excluded one. Empty in the ordinary case; when non-empty
+        # it is exactly the situation L272 was filed about, so it is published and rendered
+        # rather than left as an invisible internal difference.
+        alive_only_via_burst = sorted(
+            leg for leg in alive
+            if ages.get(leg) is None or ages[leg] >= DEAD_LEG_ALIVE_HOURS)
         silent = [leg for leg in DEAD_LEG_MONITORED
                   if leg not in last_seen
                   or (ages.get(leg) is not None and ages[leg] >= DEAD_LEG_SILENCE_HOURS)]
@@ -1333,6 +1369,12 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
             "burst_excluded_by_family": scan_stats.get("burst_excluded_by_family"),
             "burst_table_unavailable": scan_stats.get("burst_table_unavailable"),
             "scan_oldest_day": scan_stats.get("scan_oldest_day"),
+            # L272 provenance: which reading each half of the verdict came from. `alive*` are
+            # from the burst-INCLUSIVE scan; everything else above is burst-EXCLUDED.
+            "alive_last_seen": alive_last_seen,
+            "alive_ages": alive_ages,
+            "alive_from_burst_inclusive_scan": bool(exclude_burst_windows),
+            "alive_only_via_burst": alive_only_via_burst,
         }
         if len(silent) == len(DEAD_LEG_MONITORED):
             base["status"] = "ambiguous"
@@ -1340,6 +1382,10 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
         if not alive:
             # A single scheduled leg is silent but nothing is producing right now either —
             # not the staggered-death signature; stay quiet rather than mis-attribute.
+            # `alive` is the burst-INCLUSIVE reading (L272), so this guard fires exactly when
+            # the pre-L269 code's guard fired — the burst exclusion can no longer widen it.
+            # That the guard EXISTS at all (a fully-dead pipeline reports nothing) is a
+            # separate, pre-existing gap tracked as L273 and deliberately NOT changed here.
             return None
         dead = silent[0]
         base["status"] = "dead_leg"
@@ -1389,6 +1435,15 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
                 f"  - NOTE: the burst-window table could not be read for "
                 f"{', '.join(unavailable)} — those families were counted WITHOUT the "
                 f"exclusion, so this reading may still be optimistic.")
+        only_burst = diag.get("alive_only_via_burst")
+        if only_burst:
+            out.append(
+                f"  - liveness caveat (L272): {', '.join(only_burst)} count(s) as 'still "
+                f"producing' ONLY because of a capture inside a declared burst window — on the "
+                f"burst-excluded reading nothing recent survives for that leg. Liveness is read "
+                f"from the burst-INCLUSIVE scan on purpose (a burst pass IS evidence something "
+                f"ran, and reading it from the excluded scan used to SUPPRESS this whole "
+                f"advisory); the silence durations above remain burst-excluded and honest.")
         oldest = diag.get("scan_oldest_day")
         if oldest:
             out.append(
