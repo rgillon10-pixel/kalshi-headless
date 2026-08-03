@@ -1287,6 +1287,12 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
                       attribution discipline in tape_gap_monitor.py: both-zero stays
                       unattributed), because a whole-pipe outage and two independent deaths are
                       indistinguishable from minute buckets alone.
+      * "degraded"  — (L273) SOME but not all scheduled legs are silent >= DEAD_LEG_SILENCE_HOURS
+                      AND nothing captured within DEAD_LEG_ALIVE_HOURS, so there is no live
+                      survivor to make the silence attributable to one leg. The silent legs are
+                      NAMED with their measured silences, but no leg is accused of being THE
+                      cause and no `dead` key is set. Before L273 this band returned None, which
+                      made the advisory QUIETER the worse overall pipeline health got.
 
     Offline and best-effort throughout; any exception returns None.
     """
@@ -1380,13 +1386,28 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
             base["status"] = "ambiguous"
             return base
         if not alive:
-            # A single scheduled leg is silent but nothing is producing right now either —
-            # not the staggered-death signature; stay quiet rather than mis-attribute.
-            # `alive` is the burst-INCLUSIVE reading (L272), so this guard fires exactly when
-            # the pre-L269 code's guard fired — the burst exclusion can no longer widen it.
-            # That the guard EXISTS at all (a fully-dead pipeline reports nothing) is a
-            # separate, pre-existing gap tracked as L273 and deliberately NOT changed here.
-            return None
+            # L273: some (but not all — the `ambiguous` branch above already returned) scheduled
+            # legs are silent >= DEAD_LEG_SILENCE_HOURS, and NOTHING captured within
+            # DEAD_LEG_ALIVE_HOURS. The staggered-death signature is not established: with no
+            # live survivor there is no proof the pipe/repo/venue are fine, so calling one leg
+            # `dead_leg` would be an accusation the data does not support (the same L118/L120
+            # discipline the `ambiguous` branch obeys).
+            #
+            # Pre-L273 this returned None — and that was backwards. The guard fires MORE often
+            # the WORSE overall pipeline health is (more legs stale, none under 6h), so a broad
+            # slowdown made the advisory quieter than a narrow one. Measured on real tape: at
+            # max_day=2026-08-01 / now=2026-08-02T12:00Z the vps leg had been silent 258.5h and
+            # `--full` printed nothing at all, because the cloud leg had itself drifted to 14.1h
+            # (past ALIVE=6h, short of SILENCE=24h) and so counted as neither survivor nor
+            # corpse.
+            #
+            # The fix keeps the attribution discipline and drops only the silence: emit a THIRD
+            # status that states the measured silences as FACTS and explicitly declines to name
+            # a cause. No `dead` key is set, so no consumer can mistake this for `dead_leg`.
+            # `alive` is the burst-INCLUSIVE reading (L272) and is byte-identical to pre-L269's,
+            # so the burst exclusion still cannot widen this band by itself.
+            base["status"] = "degraded"
+            return base
         dead = silent[0]
         base["status"] = "dead_leg"
         base["dead"] = dead
@@ -1477,6 +1498,33 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
         still = diag.get("alive") or []
         lines.append(f"  - still producing within {DEAD_LEG_ALIVE_HOURS:.0f}h: "
                      + (", ".join(still) if still else "NOTHING (whole pipe looks dark)"))
+        lines += _burst_and_horizon_lines()
+        lines.append("  " + tail)
+        return "\n".join(lines)
+
+    if diag.get("status") == "degraded":
+        # L273. Deliberately NOT the `dead_leg` block: same facts, weaker claim. It names every
+        # silent leg (that part is measurement) and refuses to name a cause (that part would be
+        # inference the data does not support without a live survivor).
+        silent = list(diag.get("silent") or [])          # type: ignore[arg-type]
+        stale = [leg for leg in DEAD_LEG_MONITORED if leg not in silent]
+        lines = [header + "DEGRADED — at least one scheduled collector leg has been silent for "
+                 f">= {DEAD_LEG_SILENCE_HOURS:.0f}h, and NOTHING anywhere in the hourly tape has "
+                 f"captured within {DEAD_LEG_ALIVE_HOURS:.0f}h, so there is no healthy leg left "
+                 f"to prove the rest of the pipeline is fine. The silences below are MEASURED "
+                 f"FACTS; the CAUSE is deliberately NOT attributed — without a live survivor, "
+                 f"one dead leg and a whole-pipeline slowdown look identical from capture "
+                 f"timestamps alone (the same discipline as the AMBIGUOUS case). This is NOT the "
+                 f"'dead leg' verdict and it accuses nobody. Before kb/lessons L273 this "
+                 f"situation printed NOTHING AT ALL, which made a worse outage quieter than a "
+                 f"milder one."]
+        lines += [_leg_line(leg) for leg in silent]
+        for leg in stale:
+            lines.append(_leg_line(leg)
+                         + f"  [stale, but under the {DEAD_LEG_SILENCE_HOURS:.0f}h silence "
+                           f"threshold — not counted as silent]")
+        lines.append(f"  - still producing within {DEAD_LEG_ALIVE_HOURS:.0f}h: NOTHING "
+                     f"(no scheduled leg, and not the ad-hoc 'other' bucket either)")
         lines += _burst_and_horizon_lines()
         lines.append("  " + tail)
         return "\n".join(lines)

@@ -146,14 +146,25 @@ def test_whole_pipe_dark_stays_ambiguous_not_attributed(tmp_path):
     assert "NOTHING (whole pipe looks dark)" in msg
 
 
-def test_one_leg_silent_but_nothing_alive_is_not_attributed(tmp_path):
+def test_one_leg_silent_but_nothing_alive_is_degraded_not_attributed(tmp_path):
     """A single silent leg with NO survivor is not the staggered-death signature (it is the
-    2026-07-09 systemic-outage shape) — stay quiet rather than mis-attribute."""
+    2026-07-09 systemic-outage shape), so it is still NOT attributed — but as of L273 it is no
+    longer SILENT either. This test previously asserted `diag is None`; that assertion pinned
+    the L273 defect (the worse the pipeline's health, the quieter the advisory) as if it were
+    intended behaviour. The attribution half is unchanged and re-asserted below: no `dead` key,
+    no accusation in the prose."""
     now = datetime(2026, 7, 25, 6, 0, tzinfo=UTC)
     _leg_series(tmp_path, 23, now - timedelta(hours=120), now - timedelta(hours=50))
     _leg_series(tmp_path, 53, now - timedelta(hours=120), now - timedelta(hours=12))
     diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=now)
-    assert diag is None
+    assert diag is not None
+    assert diag["status"] == "degraded"
+    assert "dead" not in diag
+    assert diag["silent"] == ["vps"]
+    assert diag["alive"] == []
+    msg = inv.dead_collector_leg_warning(diag)
+    assert "DEGRADED" in msg
+    assert "appears DEAD" not in msg
 
 
 # ─── unit: empty / absent tape ──────────────────────────────────────────────
@@ -703,7 +714,8 @@ def test_fuzz_post_l272_never_raises_fewer_advisories_than_pre_l269(tmp_path):
     asserts the two things that must NOT regress while doing so: `alive` is byte-identical to
     the pre-L269 `alive`, and the reported silence is never SHORTER than pre-L269's (L269's
     "an outage may only look longer" direction)."""
-    n_cases = n_pre_loud = n_pre_fix_suppressed = 0
+    n_cases = n_pre_loud = n_pre_fix_suppressed = n_pre_degraded = 0
+    n_pre_l273_suppressed = 0
     for i, vps_age in enumerate(_FUZZ_AGES_H):
         for j, cloud_age in enumerate(_FUZZ_AGES_H):
             for burst_leg in (None, "vps", "cloud"):
@@ -720,8 +732,22 @@ def test_fuzz_post_l272_never_raises_fewer_advisories_than_pre_l269(tmp_path):
                 if pre is not None:
                     n_pre_loud += 1
                     assert post is not None, f"L272 regression: advisory suppressed at {case}"
+                    # L273 added a THIRD status to this same function, so `pre` (the production
+                    # code with the exclusion switched off) is now loud in a band where the
+                    # pre-L269 code was silent. Counted separately so the ORIGINAL pin below
+                    # keeps its original meaning instead of being silently re-baselined.
+                    if pre["status"] == "degraded":
+                        n_pre_degraded += 1
                 if pre is not None and pre_fix is None:
-                    n_pre_fix_suppressed += 1
+                    # The two suppressions are DIFFERENT bugs and are counted apart, so neither
+                    # number can drift under cover of the other. L272's: `pre` is a full
+                    # `dead_leg` (a live survivor existed) that the shipped one-reading code
+                    # threw away. L273's: `pre` is the new `degraded` status, which the shipped
+                    # code discarded because `alive` was empty.
+                    if pre["status"] == "degraded":
+                        n_pre_l273_suppressed += 1
+                    else:
+                        n_pre_fix_suppressed += 1
 
                 if post is not None and pre is not None:
                     assert post["alive"] == pre["alive"], case
@@ -734,13 +760,23 @@ def test_fuzz_post_l272_never_raises_fewer_advisories_than_pre_l269(tmp_path):
     # dependence), so these are equalities, not bounds — a change in any of them means the
     # sweep's meaning moved and should be re-read, not silently re-baselined.
     assert n_cases == len(_FUZZ_AGES_H) ** 2 * 3 == 192
-    assert n_pre_loud == 69, n_pre_loud
+    # 87 total, of which 18 are L273's new `degraded` status. The 69 is the ORIGINAL pin (the
+    # pre-L269 loud count as it stood before L273 existed) and must not move; 87 - 18 == 69 is
+    # the check that L273 ADDED a status and CHANGED none of the pre-existing ones.
+    assert n_pre_loud == 87, n_pre_loud
+    assert n_pre_degraded == 18, n_pre_degraded
+    assert n_pre_loud - n_pre_degraded == 69, (n_pre_loud, n_pre_degraded)
     # The fuzz must actually EXERCISE the bug, otherwise the property above is vacuous:
     # 18 of the 69 cases the pre-L269 code reported were SUPPRESSED to None by the shipped
     # pre-L272 code. Those 18 are the regression, and all 18 are recovered by the fix.
     assert n_pre_fix_suppressed == 18, (
         f"expected 18 pre-L272 suppressions in the sweep, got {n_pre_fix_suppressed} — if this "
         f"is 0 the fuzz proves nothing")
+    # L273's own band, disjoint from L272's by construction (L272's 18 all have a live survivor
+    # and so are `dead_leg`; L273's 18 have none and so are `degraded`). 18 + 18 == 36 is the
+    # total the single pre-L273 counter used to report as one undifferentiated number.
+    assert n_pre_l273_suppressed == 18, n_pre_l273_suppressed
+    assert n_pre_l273_suppressed == n_pre_degraded
 
 
 def test_fuzz_exercises_the_bug_in_the_expected_band(tmp_path):
@@ -817,3 +853,231 @@ def test_acceptance_real_tape_l272_slice_the_shipped_code_printed_nothing():
                                                  max_day=_L272_MAX_DAY,
                                                  exclude_burst_windows=False)
     assert pre_l269 is None
+
+
+# ─── L273: the blind band — silent legs, no live survivor, and NO advisory ──
+#
+# `_dead_collector_leg_diagnosis` used to `return None` whenever `alive` was empty, even when a
+# leg had been silent well past DEAD_LEG_SILENCE_HOURS. Because `alive` empties out precisely
+# when the WHOLE pipeline slows down, the guard fired more often the worse things got: a broad
+# degradation printed NOTHING while a narrow one printed a full `dead_leg` block. That is
+# backwards for anyone watching a pager.
+#
+# L273's fix keeps the attribution discipline the guard was protecting (with no live survivor
+# there is no proof the pipe/repo/venue are fine, so naming ONE leg as the cause would be an
+# accusation the data does not support) and drops only the silence: a THIRD status, `degraded`,
+# states the measured silences as facts and names no culprit. No `dead` key is set.
+#
+# Scope note (what this does NOT change): `ambiguous` (ALL legs silent) still wins, `dead_leg`
+# (a genuine live survivor) still wins, and "no leg silent at all" still returns None. The
+# negative controls below pin each of those, because a status that fires when it should not is
+# worse than the silence it replaced.
+
+
+def _pre_l273_diagnosis(tape_root, now, **kw):
+    """The SHIPPED pre-L273 computation, frozen: identical to production except that the empty
+    -`alive` band returns None. Keeps the defect demonstrable forever, exactly the way L269 kept
+    its own defect reproducible via `exclude_burst_windows=False` and L272 via
+    `_pre_l272_diagnosis`."""
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tape_root, now=now, **kw)
+    if diag is not None and diag.get("status") == "degraded":
+        return None
+    return diag
+
+
+def _l273_band(tape_root: pathlib.Path, now: datetime) -> None:
+    """The band, in tape form: vps genuinely dead (50h), cloud stale-but-not-silent (12h, i.e.
+    past ALIVE=6h and short of SILENCE=24h). So `silent` is a strict subset of the monitored
+    legs, and NOTHING is under 6h. No burst window is involved — this is the pre-existing gap,
+    not L272's."""
+    _leg_series(tape_root, 23, now - timedelta(hours=120), now - timedelta(hours=50))
+    _leg_series(tape_root, 53, now - timedelta(hours=120), now - timedelta(hours=12))
+
+
+_L273_NOW = datetime(2026, 7, 25, 6, 0, tzinfo=UTC)
+
+
+def test_l273_pre_fix_shape_printed_nothing_at_all(tmp_path):
+    """The defect, pinned: on this tape the shipped pre-L273 computation returns None while a
+    50h outage is in progress. If this stops being None the counterexample has rotted and the
+    test below proves nothing."""
+    _l273_band(tmp_path, _L273_NOW)
+    assert _pre_l273_diagnosis(tmp_path, _L273_NOW) is None
+
+
+def test_l273_band_now_reports_degraded_and_names_every_silent_leg(tmp_path):
+    _l273_band(tmp_path, _L273_NOW)
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW)
+    assert diag is not None, "L273: a 50h outage must not be suppressed into silence"
+    assert diag["status"] == "degraded"
+    assert diag["silent"] == ["vps"]
+    assert diag["alive"] == []
+    # `_leg_series` walks a 3h grid at each leg's own minute-of-hour, so the last capture lands
+    # slightly before the requested age — these are the exact deterministic values, not the
+    # nominal 50h/12h the fixture asks for.
+    assert diag["ages"]["vps"] == pytest.approx(50.61, abs=0.01)
+    assert diag["ages"]["cloud"] == pytest.approx(14.11, abs=0.01)
+    # the cloud leg is the reason this band exists: neither survivor nor corpse
+    assert inv.DEAD_LEG_ALIVE_HOURS <= diag["ages"]["cloud"] < inv.DEAD_LEG_SILENCE_HOURS
+
+
+def test_l273_degraded_never_sets_a_dead_key(tmp_path):
+    """The attribution half of the old guard, preserved. `degraded` must be unmistakable from
+    `dead_leg` to any consumer reading the dict, not merely to a human reading the prose."""
+    _l273_band(tmp_path, _L273_NOW)
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW)
+    assert "dead" not in diag
+    assert "dead_last_seen" not in diag
+    assert "dead_silence_h" not in diag
+
+
+def test_l273_warning_states_the_facts_and_refuses_the_accusation(tmp_path):
+    _l273_band(tmp_path, _L273_NOW)
+    msg = inv.dead_collector_leg_warning(
+        inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW))
+    assert msg is not None
+    assert msg.startswith("COLLECTOR HEALTH ADVISORY (non-gating): DEGRADED — ")
+    # the FACTS: the silent leg is named, with its measured silence
+    assert "  - vps: last seen " in msg
+    assert "(50.6h of silence)" in msg
+    # the REFUSAL: no accusation, no dead-leg verdict, no AMBIGUOUS mislabel
+    assert "accuses nobody" in msg
+    assert "appears DEAD" not in msg
+    # the prose CITES the AMBIGUOUS discipline; it must not RENDER as the AMBIGUOUS verdict
+    assert "(non-gating): AMBIGUOUS" not in msg
+    assert "the same discipline as the AMBIGUOUS case" in msg
+    # ...and it still says it cannot change the exit code
+    assert "does NOT affect the exit code" in msg
+
+
+def test_l273_warning_shows_the_stale_but_not_silent_leg_too(tmp_path):
+    """The cloud leg at 12h is the REASON this band exists (neither survivor nor corpse), so
+    leaving it out of the render would hide the very thing that makes the case ambiguous."""
+    _l273_band(tmp_path, _L273_NOW)
+    msg = inv.dead_collector_leg_warning(
+        inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW))
+    assert "  - cloud: last seen " in msg
+    assert "under the 24h silence threshold — not counted as silent" in msg
+    assert "still producing within 6h: NOTHING" in msg
+
+
+# --- negative controls: the new status must not steal any existing case ---
+
+def test_l273_a_live_survivor_still_yields_dead_leg_not_degraded(tmp_path):
+    """THE over-reach control. With a genuinely alive leg the attribution IS supported, so the
+    stronger `dead_leg` verdict must still win."""
+    _leg_series(tmp_path, 23, _L273_NOW - timedelta(hours=120), _L273_NOW - timedelta(hours=50))
+    _leg_series(tmp_path, 53, _L273_NOW - timedelta(hours=120), _L273_NOW - timedelta(hours=1))
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW)
+    assert diag["status"] == "dead_leg"
+    assert diag["dead"] == "vps"
+
+
+def test_l273_both_legs_silent_still_yields_ambiguous_not_degraded(tmp_path):
+    """`ambiguous` returns BEFORE the empty-`alive` branch, so the both-dead case is untouched:
+    `silent` must be a STRICT subset of DEAD_LEG_MONITORED for `degraded` to be reachable."""
+    _leg_series(tmp_path, 23, _L273_NOW - timedelta(hours=120), _L273_NOW - timedelta(hours=50))
+    _leg_series(tmp_path, 53, _L273_NOW - timedelta(hours=120), _L273_NOW - timedelta(hours=49))
+    diag = inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW)
+    assert diag["status"] == "ambiguous"
+    assert sorted(diag["silent"]) == ["cloud", "vps"]
+
+
+def test_l273_no_silent_leg_still_returns_none_even_when_nothing_is_alive(tmp_path):
+    """A merely SLOW pipeline (both legs stale at 12h, neither past 24h) is not an outage. The
+    `if not silent: return None` guard runs first and `degraded` must not be invented here —
+    otherwise the advisory becomes a permanent-on pager (the L270 alarm-fatigue shape)."""
+    _leg_series(tmp_path, 23, _L273_NOW - timedelta(hours=120), _L273_NOW - timedelta(hours=12))
+    _leg_series(tmp_path, 53, _L273_NOW - timedelta(hours=120), _L273_NOW - timedelta(hours=13))
+    assert inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW) is None
+
+
+def test_l273_healthy_tape_still_returns_none(tmp_path):
+    """Trivial control, stated anyway: a healthy pipeline stays silent."""
+    _leg_series(tmp_path, 23, _L273_NOW - timedelta(hours=72), _L273_NOW - timedelta(hours=1))
+    _leg_series(tmp_path, 53, _L273_NOW - timedelta(hours=72), _L273_NOW - timedelta(hours=2))
+    assert inv._dead_collector_leg_diagnosis(tape_root=tmp_path, now=_L273_NOW) is None
+
+
+def test_l273_warning_renders_for_a_degraded_diag_without_the_optional_keys():
+    """A degraded diag built by a caller/fixture that predates the L269/L272 provenance keys
+    must render without a KeyError and without inventing a number (same contract the L269 and
+    L272 render branches carry)."""
+    msg = inv.dead_collector_leg_warning({
+        "status": "degraded", "silent": ["vps"], "alive": [], "lookback_days": 10,
+        "newest_iso": "2026-07-25T05:53:00Z", "newest_age_h": 12.1,
+        "last_seen": {}, "ages": {},
+    })
+    assert "DEGRADED" in msg
+    assert "NO capture at all in the last 10 day-files" in msg
+    assert "excluded from this reading" not in msg
+    assert "liveness caveat" not in msg
+
+
+def test_l273_degraded_advisory_is_still_non_gating(monkeypatch, capsys):
+    """The whole point of this advisory class: it may never touch the exit code. Pinned for the
+    NEW status specifically, not inferred from the old ones."""
+    _stub_expensive_checks(monkeypatch)
+    monkeypatch.setattr(inv, "_dead_collector_leg_diagnosis", lambda *a, **k: {
+        "status": "degraded", "silent": ["vps"], "alive": [], "lookback_days": 10,
+        "newest_iso": "2026-07-25T05:53:00Z", "newest_age_h": 12.1,
+        "last_seen": {"vps": "2026-07-23T04:23:00Z"}, "ages": {"vps": 50.0},
+    })
+    assert _run_main(monkeypatch) == 0
+    assert "DEGRADED" in capsys.readouterr().err
+
+
+# ─── HARD acceptance: the L273 blind band on the REAL committed tape ────────
+#
+# Pinned exactly like the L269/L272 acceptance tests and for the same reason (L140): `max_day`
+# caps the scan at CLOSED historical day-files and `now` is injected, so neither wall-clock time
+# nor tape landing after the slice can move it. `datetime.now()` is never called.
+#
+# The slice: capped at dt=2026-08-01 and read at 2026-08-02T12:00Z, the vps leg's last honest
+# (burst-excluded) capture is 2026-07-22T17:29:49Z — 258.5h, over TEN DAYS silent — while the
+# cloud leg's last capture is 2026-08-01T21:55:26Z, i.e. 14.1h: past ALIVE=6h, short of
+# SILENCE=24h. So cloud is neither a survivor nor a corpse, `alive` is empty, and the shipped
+# pre-L273 code printed NOTHING about a ten-day outage. This is the L273 band occurring on real
+# committed tape, not a constructed fixture.
+#
+# NOTE on the lesson row's own suggested pin: L273 names 2026-08-03T10:36:00Z as the qualifying
+# instant. That reproduces on the LIVE (unpinned) scan as it stood when the row was written, but
+# NOT at `max_day=2026-08-01`, where the cloud leg is 36.7h old and both legs are therefore
+# silent — that combination lands in `ambiguous`, not this band. The pin below was re-derived
+# against the tape rather than copied, and the whole of 2026-08-02T04:02Z..21:55Z qualifies.
+_L273_MAX_DAY = date(2026, 8, 1)
+_L273_REAL_NOW = datetime(2026, 8, 2, 12, 0, tzinfo=UTC)
+
+
+@_real
+def test_acceptance_real_tape_l273_band_is_now_reported():
+    diag = inv._dead_collector_leg_diagnosis(tape_root=_REAL_TAPE, now=_L273_REAL_NOW,
+                                             max_day=_L273_MAX_DAY)
+    assert diag is not None, "L273: a 258h VPS outage must not be suppressed into silence"
+    assert diag["status"] == "degraded"
+    assert diag["silent"] == ["vps"]
+    assert diag["alive"] == []
+    assert str(diag["last_seen"]["vps"]).startswith("2026-07-22T17:29:49"), diag["last_seen"]
+    assert diag["ages"]["vps"] == pytest.approx(258.50, abs=0.05)
+    # the leg that is neither survivor nor corpse — the reason this band exists at all
+    assert inv.DEAD_LEG_ALIVE_HOURS <= diag["ages"]["cloud"] < inv.DEAD_LEG_SILENCE_HOURS
+    msg = inv.dead_collector_leg_warning(diag)
+    assert "DEGRADED" in msg and "accuses nobody" in msg
+    assert "appears DEAD" not in msg
+
+
+@_real
+def test_acceptance_real_tape_l273_slice_the_shipped_code_printed_nothing():
+    """The other half of the acceptance pair: on this SAME real slice the pre-L273 computation
+    returns None. Without this, the test above could pass on tape where there was never anything
+    to suppress. Both the burst-excluded (production) and burst-inclusive (pre-L269) readings
+    were silent here, so this outage was invisible to EVERY shipped version of the advisory."""
+    assert _pre_l273_diagnosis(_REAL_TAPE, _L273_REAL_NOW, max_day=_L273_MAX_DAY) is None
+    pre_l269 = inv._dead_collector_leg_diagnosis(tape_root=_REAL_TAPE, now=_L273_REAL_NOW,
+                                                 max_day=_L273_MAX_DAY,
+                                                 exclude_burst_windows=False)
+    # pre-L269 also saw a silent vps leg here (the fomc burst pass is 82.5h old at this
+    # instant, itself past the 24h threshold), and it too had no survivor -> also None.
+    assert _pre_l273_diagnosis(_REAL_TAPE, _L273_REAL_NOW, max_day=_L273_MAX_DAY,
+                               exclude_burst_windows=False) is None
+    assert pre_l269 is not None and pre_l269["status"] == "degraded"

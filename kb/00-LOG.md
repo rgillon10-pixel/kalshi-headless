@@ -6,6 +6,117 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~21:5x UTC — research loop (IDLE RUN, policy a): L273 `UNENFORCED` -> `test` — the collector advisory no longer goes SILENT precisely when the pipeline is at its worst
+
+**What happened.** A full Q0-Q50 rescan, reading each item's NEWEST `Status:` line rather than
+first-line-wins (Q24 in particular carries an original `TODO (added ...)` metadata line ABOVE its
+`DONE — VERDICT DEAD by data-adequacy` verdict, and Q32's `PREP DONE` line contains the words
+"still TODO" inside its prose), found **0 eligible TODO/IN-PROGRESS**. Every remaining item is
+DONE / BLOCKED / GATED / RESERVED / ROUND COMPLETE. So: idle run under policy (a) — convert an
+`UNENFORCED` lesson row into code. Target: **L273**, opened by the ~16:0x collision run earlier
+today and explicitly deferred by the ~18:4x L272 run, which named it as the owner of the
+render-semantics question it declined to answer. Built exactly the candidate that row specified.
+
+**The defect.** `_dead_collector_leg_diagnosis` ended with `if not alive: return None` — where
+`alive` is "some leg captured within `DEAD_LEG_ALIVE_HOURS=6h`". The guard was a deliberate
+attribution-safety choice (its own comment: "not the staggered-death signature; stay quiet rather
+than mis-attribute"), and the caution is right: with no live survivor there is no proof the pipe,
+the repo and the venue are fine, so naming ONE leg as the cause is an accusation the timestamps do
+not support. But the *practical* effect is backwards. `alive` empties out precisely when the WHOLE
+pipeline slows down, so the worse overall health got, the MORE likely the advisory printed nothing
+at all: a narrow single-leg death produced a full `dead_leg` block, a broad degradation produced
+silence. Pre-existing (present before L269, unchanged by it) and distinct from **L272**, which is
+about L269's exclusion making this same guard fire in a NEW case rather than about the guard's
+original design.
+
+**The row's own suggested pin did not reproduce — corrected rather than copied.** L273 names
+`2026-08-03T10:36:00Z` with `max_day=2026-08-01` as a qualifying instant. Re-derived against the
+tape before building anything: at that slice the cloud leg is **36.7h** old, so BOTH monitored legs
+are silent and the case lands in `ambiguous`, not in this band. The row's LIVE observation no longer
+reproduces either — with today's 2026-08-03 tape through 16:02Z the unpinned scan returns `dead_leg`,
+cloud being genuinely fresh. The band is live and pinnable at **`max_day=2026-08-01` + injected
+`now=2026-08-02T12:00:00Z`**: vps silent **258.50h** (last honest, burst-excluded capture
+`2026-07-22T17:29:49.498223Z`) while cloud sits at **14.08h** — past ALIVE=6h, short of SILENCE=24h,
+i.e. neither survivor nor corpse. The whole of `2026-08-02T04:02Z..21:55Z` qualifies. That correction
+is recorded in the L273 row itself, not just here.
+
+**The fix.** The guard keeps the discipline and drops only the silence: it now sets
+`base["status"] = "degraded"` and returns the same facts dict, and `dead_collector_leg_warning`
+gained a THIRD render branch. Reachability is narrow by construction rather than by a new condition
+— `if not silent: return None` already runs first (a merely SLOW pipeline where nothing has crossed
+24h is not an outage; making THAT loud would recreate the L270 permanently-on-pager shape), and the
+`ambiguous` branch already returns before it — so `degraded` is reachable only when `silent` is a
+non-empty STRICT subset of `DEAD_LEG_MONITORED` and `alive` (the L272 burst-INCLUSIVE reading) is
+empty. It sets **no `dead` key** at all, so a consumer reading the dict cannot mistake it for
+`dead_leg`; the prose names every silent leg with its measured silence, ALSO names the
+stale-but-under-24h leg that is the entire reason the band exists, states `still producing within
+6h: NOTHING`, and says in words that the cause is deliberately not attributed and that it accuses
+nobody. Still NON-GATING — `--full` exit code unchanged at 0.
+
+**Measured.** REAL-TAPE acceptance PAIR at the corrected pin (both halves, so the test cannot pass
+on a slice that never had anything to suppress): post-fix `degraded` / `silent=['vps']` / `alive=[]`
+/ **258.50h**; the frozen pre-L273 computation returns `None` there, and so does the pre-L269
+burst-INCLUSIVE reading — this ten-day outage was invisible to EVERY shipped version of the advisory.
+Differential fuzz over the 6h-to-24h band x {no burst, burst in vps, burst in cloud} = **192 cases**:
+the pre-L269 loud count is UNCHANGED at **69** (now asserted as `n_pre_loud - n_pre_degraded`, so
+L272's own pin keeps its original meaning instead of being quietly re-baselined) and `degraded` adds
+exactly **18**, disjoint from L272's 18 by construction. Adversarial randomized differential against
+`origin/main`'s `64c1ce2` `scripts/invariants.py`, loaded side-by-side as a second live module —
+**3,000 random tapes**, 35% of captures forced inside the declared fomc window: **74** hit the new
+band, **0** violated any of six safety properties (never quieter than shipped 0/3,000; every
+non-`degraded` verdict byte-identical to shipped, 0 mismatches; `degraded` never fired with a live
+survivor / with ALL legs silent / with no silent leg, 0 each; never carried a `dead` key, 0; never
+failed to render, 0). Complement direction, **4,000** further random tapes: **118/118**
+band-qualifying cases emitted `degraded`, 0 missed. **13 new tests** in
+`tests/test_dead_collector_leg_advisory.py` (43 -> 56) incl. that acceptance pair and four negative
+controls.
+
+**Two existing tests changed — named here rather than quietly.** (1)
+`test_one_leg_silent_but_nothing_alive_is_not_attributed` asserted `diag is None`: it pinned this
+very defect as if it were intended behaviour. It now asserts `degraded` and re-asserts the half it
+was really protecting (no `dead` key, no accusation in the prose), and its name says so. (2) The
+L272 fuzz's `n_pre_fix_suppressed` counter would have absorbed L273's 18 suppressions into L272's 18
+as one undifferentiated 36; it now counts the two bugs apart, so neither number can drift under
+cover of the other.
+
+**What was deliberately NOT closed.** L272's separate `if not last_seen: return None` guard (every
+capture in the horizon burst-covered => empty reading) is untouched. It is a different question —
+what "newest capture anywhere in committed hourly tape" MEANS when the only candidate is a burst
+pass — and `test_residual_all_captures_burst_excluded_still_returns_none` continues to pin it. The
+L269/L270/L271/L272 rows were not edited; only L273's enforcement cell moved (L152 own-row-update
+rule). The L152 stale-recall detector independently corroborates the flip: open leading-marker
+UNENFORCED rows read **3** (was 4 with L273 among them); mixed-tier stays **3** (L168/L270/L271).
+
+**Two-agent rule.** N/A by milestone class and stated: non-gating advisory tooling, no registry
+flip, no bootstrap CI, no kill decision. No `verifier` subagent was dispatchable — this harness
+exposes no Agent/Task tool (the same condition L269's, L272's and L223's own cells record), and for
+the same reason no worker performed the edits; the lead did them directly via the shell. In place of
+a verifier the fix was attacked from scratch against `origin/main`'s shipped file in BOTH directions
+(does it fire when it shouldn't; does it fail to fire when it should), and the band was reproduced
+against that shipped code BEFORE any fix was written. `kb/strategies/00-index.md` untouched — still
+**0 proven edges**.
+
+**Steps 0a/0/0b.** All three were performed by the calling session and re-checked here rather than
+re-run: no rewind (the 5 most recently merged PRs #279/#280/#281/#282/#283 ARE the top 5 commits of
+`origin/main`, HEAD `64c1ce2`; newest `kb/00-LOG.md` entry and newest committed tape file both
+2026-08-03, gap 0); the 6 open PRs (#271/#208/#191/#166/#165/#125) are all long-standing
+Ryan-review-only retro/design docs and none claims a queue item; **step 0b found nothing new** —
+the newest `tape/hourly-*` branch is `tape/hourly-20260803T1607Z`, already swept (2,052 lines) by
+PR #283 one run earlier, with no branch newer than it. The ~208-branch historical backlog (Q17/L38)
+was deliberately not touched.
+
+**Gates (fresh, taken AFTER the last code change, L162):** `python3.11 -m pytest -o addopts='' -q`
+-> ****2825 passed in 2563.65s (42m44s), 0 failed, 0 skipped**, exit 0 (2812 on `origin/main` `64c1ce2` measured fresh in this same sandbox + 13 new, **0 regressions**)**; `python3.11 scripts/invariants.py --full` -> `invariants: all green`, exit 0
+(the live advisory still fires as `dead_leg`, not `degraded` — on today's production tape the cloud
+and other legs are genuinely fresh, so the new branch correctly does NOT fire in production).
+**Step 9 (paper):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead x, infra-only),
+`scripts/paper_pass.py` re-run and still idempotent — 1,573 records loaded, 0 newly processed
+(18 deferred(caps), 272 deferred(coverage), 282 already-in-ledger), no new ledger lines —
+`paper: 0 open position(s), 1617 settled contract(s), realized P&L $+28.86, cash $+28.86, open
+notional $0.00`. No network beyond git, no orders, no credentials, `execution/` untouched. No
+`findings/` entry (lesson-conversion precedent, L269/L270/L272). See
+`kb/lessons/00-lessons.md` (L273).
+
 ## 2026-08-03 ~18:4x UTC — research loop (IDLE RUN, policy a): L272 `UNENFORCED` -> `test` — the burst exclusion can no longer SILENCE the collector advisory it was built to sharpen
 
 **What happened.** A full Q0-Q50 rescan (reading each item's newest `Status:` line, not
