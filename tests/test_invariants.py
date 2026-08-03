@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import re
 import sqlite3
 
 import pytest
@@ -2414,3 +2415,111 @@ def test_acceptance_l221_real_tape_advisory_fires_on_every_registered_leg():
     assert "settlement_ledger (gate hour 10Z)" in joined
     msg = inv.single_hour_leg_idempotence_warning(issues)
     assert "L221" in msg and "does NOT affect the exit code" in msg
+
+
+# ─── L275: a REGISTERED retracted claim must not survive outside a retraction ──────────
+# Provenance: the second independent verifier pass of 2026-08-03. A safety sentence refuted by
+# the first pass was struck from a docstring, a lesson's enforcement cell, kb/00-LOG.md and
+# LOOP-QUEUE.md by the correction round — and ADDED, verbatim, by that SAME diff to a module
+# comment in the test file pinning the function the sentence was a claim about. These tests
+# never spell the retracted sentence out; they read it from the registry, which is the point:
+# there is exactly one home for the wording, and the scan follows it.
+
+def _claim():
+    assert inv.RETRACTED_CLAIMS, "the registry must not be empty while this rule exists"
+    return inv.RETRACTED_CLAIMS[0]
+
+
+def test_retracted_claim_registry_rows_are_well_formed():
+    ids = [c["id"] for c in inv.RETRACTED_CLAIMS]
+    assert len(ids) == len(set(ids)), ids
+    for c in inv.RETRACTED_CLAIMS:
+        for key in ("id", "pattern", "example", "retracted_by", "why"):
+            assert c.get(key), (c.get("id"), key)
+        # The registry cannot rot into a pattern that no longer matches its own example.
+        assert re.search(c["pattern"], c["example"], re.IGNORECASE), c["id"]
+        assert re.fullmatch(r"L\d+", c["retracted_by"]), c["retracted_by"]
+
+
+def _write(root, rel, text):
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+    return p
+
+
+def test_retracted_claim_detector_flags_an_unmarked_occurrence(tmp_path):
+    _write(tmp_path, "kb/notes.md", "we shipped it and the alarm is " + _claim()["example"] + ".")
+    issues = inv._retracted_claim_issues(root=tmp_path)
+    assert issues == [f"kb/notes.md:1: {_claim()['id']}"], issues
+
+
+def test_retracted_claim_detector_accepts_an_explicit_retraction(tmp_path):
+    _write(tmp_path, "kb/notes.md",
+           "RETRACTED 2026-08-03: the claim that it is " + _claim()["example"] + " is false.")
+    assert inv._retracted_claim_issues(root=tmp_path) == []
+
+
+def test_retracted_claim_detector_accepts_the_retracting_lesson_id_as_the_marker(tmp_path):
+    _write(tmp_path, "kb/notes.md",
+           f"per {_claim()['retracted_by']} the old wording (" + _claim()["example"] + ") is dead.")
+    assert inv._retracted_claim_issues(root=tmp_path) == []
+
+
+def test_retracted_claim_marker_must_be_NEAR_the_claim_not_merely_in_the_file(tmp_path):
+    """Proximity is load-bearing: a retraction three sections away does not launder an
+    unqualified assertion sitting on its own in the middle of a document."""
+    far = "RETRACTED elsewhere.\n" + ("filler. " * 200) + _claim()["example"] + "."
+    _write(tmp_path, "kb/notes.md", far)
+    assert inv._retracted_claim_issues(root=tmp_path), "a distant marker must not excuse a hit"
+
+
+def test_retracted_claim_detector_scans_tests_and_scripts_not_only_kb(tmp_path):
+    """THE miss this rule exists for: the surviving copy was in a python COMMENT under tests/,
+    not in kb/ prose. A kb-only scan would have reported the tree clean."""
+    _write(tmp_path, "tests/test_thing.py", "# it is " + _claim()["example"] + "\n")
+    _write(tmp_path, "scripts/thing.py", '"""it is ' + _claim()["example"] + '."""\n')
+    issues = inv._retracted_claim_issues(root=tmp_path)
+    assert sorted(issues) == [f"scripts/thing.py:1: {_claim()['id']}",
+                              f"tests/test_thing.py:1: {_claim()['id']}"], issues
+
+
+def test_retracted_claim_detector_ignores_machine_written_lanes(tmp_path):
+    """tape/ and paper/ are append-only machine output — a match there is not a claim anyone
+    made, and gating on it would be a gate the on-call lane cannot clear."""
+    _write(tmp_path, "tape/x.jsonl", '{"note": "' + _claim()["example"] + '"}\n')
+    _write(tmp_path, "data/x.md", _claim()["example"])
+    assert inv._retracted_claim_issues(root=tmp_path) == []
+
+
+def test_retracted_claim_detector_degrades_to_empty_on_an_absent_root(tmp_path):
+    assert inv._retracted_claim_issues(root=tmp_path / "nope") == []
+
+
+def test_retracted_claim_warning_none_when_clean():
+    assert inv.retracted_claim_warning([]) is None
+
+
+def test_retracted_claim_warning_names_the_hit_and_stays_non_gating_in_wording():
+    msg = inv.retracted_claim_warning([f"kb/notes.md:7: {_claim()['id']}"])
+    assert msg is not None
+    for token in ("kb/notes.md:7", _claim()["id"], _claim()["retracted_by"],
+                  "does NOT affect the exit code", "L275"):
+        assert token in msg, token
+
+
+def test_retracted_claim_advisory_is_wired_non_gating():
+    src = (ROOT / "scripts" / "invariants.py").read_text(encoding="utf-8")
+    i = src.index("retracted_warning = retracted_claim_warning(")
+    assert "sys.stderr.write(retracted_warning" in src[i:i + 300]
+    assert "failures.append(retracted_warning" not in src
+
+
+def test_no_registered_retracted_claim_survives_in_the_real_tree():
+    """THE GATE for L275 (the `--full` stanza is advisory, like every other kb-hygiene rule —
+    the repair is a prose edit, so this is where it bites). Every occurrence of a registered
+    retracted claim in the real tree must sit inside an explicit retraction. If this fails,
+    restate the claim at its true scope or mark the occurrence — do NOT delete the registry row
+    and do NOT widen RETRACTION_PROXIMITY_CHARS."""
+    assert inv._retracted_claim_issues() == [], inv.retracted_claim_warning(
+        inv._retracted_claim_issues())

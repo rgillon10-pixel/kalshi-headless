@@ -1151,16 +1151,62 @@ def _leg_schedule_phrase(leg: str) -> str:
         return "schedule unknown"
 
 
+def _burst_windows_for_family_safe(tgm, family: str) -> List[Tuple]:
+    """Declared, padded burst windows covering `family`, delegated to
+    `tape_gap_monitor._burst_windows_for_family` (which already composes
+    BURST_TRIGGER_WINDOWS + BURST_CAPTURE_KEY_TO_TAPE_FAMILY + BURST_WINDOW_PAD_S — the SAME
+    machinery `slot_cadence_by_time_of_day` uses, L213). Deliberately NOT re-transcribed here:
+    a second copy of the windows table would desync from the first, which is the failure class
+    this whole helper exists to avoid.
+
+    Returns [] on ANY failure (monitor unavailable, function removed, raises). [] means "no
+    window excluded", i.e. the pre-L269 behaviour — the SAFE direction: fewer exclusions can
+    only make a leg look FRESHER, never fabricate an outage."""
+    try:
+        fn = getattr(tgm, "_burst_windows_for_family", None)
+        if fn is None:
+            return []
+        return list(fn(family) or [])
+    except Exception:
+        return []
+
+
 def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
                              lookback_days: int = DEAD_LEG_LOOKBACK_DAYS,
-                             max_day: Optional[date] = None) -> Dict[str, str]:
+                             max_day: Optional[date] = None,
+                             exclude_burst_windows: bool = True) -> Dict[str, str]:
     """Newest `captured_at` per collector leg ("vps"/"cloud"/"other"), scanned from committed
     tape only (no network, no git). Legs are bucketed by minute-of-hour using
     tape_gap_monitor.COLLECTOR_MINUTE_BUCKETS; families are its kind=="hourly-dual" entries.
     `max_day` (optional) restricts the scan to `dt=<date>.jsonl` files on or before that day —
     used by tests to pin a FIXED historical slice so a real-tape assertion can never rot as new
     tape lands. Returns {leg: iso-string}; {} when nothing is readable. Best-effort: any
-    exception yields {} so it can never poison the gate."""
+    exception yields {} so it can never poison the gate.
+
+    `exclude_burst_windows` (default True, the CORRECTED behaviour — L269): a capture whose
+    `captured_at` falls inside a DECLARED, padded burst window FOR THAT FAMILY is skipped. A
+    burst trigger deliberately re-fires the collectors every 60-120s inside its window from
+    whatever machine ran it, so a single burst pass landing in the vps minute-bucket (20-29)
+    resets the whole leg's apparent freshness and masks a real, longer, family-specific death:
+    live on 2026-08-03 the `vps` leg read 110.7h silent from `2026-07-29T18:29:45Z`, which is
+    the `kalshi-burst-fomc-0729` window landing in `crypto_hourly`/`polymarket_macro_pairs`,
+    not a genuine VPS pass. Pass False to reproduce the pre-L269 (contaminated) reading.
+
+    DIRECTION OF BIAS — SCOPE IS THE MEASUREMENT, NOT THE DECISION (L272, do not overstate):
+    excluding captures can only make a leg's `last_seen` OLDER — never newer. That monotonicity
+    is a property of THIS function only. It does NOT by itself imply the advisory gets louder:
+    an independent verifier (2026-08-03) broke the original, stronger claim with a working
+    counterexample — `_dead_collector_leg_diagnosis` contains `if not alive: return None`, and
+    DEAD_LEG_ALIVE_HOURS=6 vs DEAD_LEG_SILENCE_HOURS=24 leaves a 6-24h band in which making a
+    leg look older can drop it OUT of `alive` without putting it INTO `silent`, turning a
+    `dead_leg` advisory into NO advisory at all (it hid a 106.6h outage). The decision-level
+    property is restored not by this docstring but by a guard in the caller: since L272
+    `_dead_collector_leg_diagnosis` computes BOTH readings and uses the burst-INCLUDED one for
+    liveness (`alive`, the `return None` guards) while using the burst-EXCLUDED one for
+    attribution and duration (`silent`, `dead_silence_h`, `newest_iso`). See that function's
+    docstring for the decision-level statement; do not re-assert it here.
+    Every failure path here falls back to NOT excluding, which is the old, quieter measurement
+    and can never manufacture an outage that isn't in the tape."""
     out: Dict[str, str] = {}
     try:
         tgm = _load_tape_gap_monitor()
@@ -1172,6 +1218,8 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
             family_dir = tape_root / family
             if not family_dir.is_dir():
                 continue
+            windows = (_burst_windows_for_family_safe(tgm, family)
+                       if exclude_burst_windows else [])
             days = []
             for p in family_dir.glob("dt=*.jsonl"):
                 if not p.is_file():
@@ -1193,6 +1241,8 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
                     dt = _parse_capture_ts(ts)
                     if dt is None:
                         continue
+                    if any(lo <= dt <= hi for lo, hi in windows):
+                        continue  # declared burst pass, not evidence this leg's cron is alive
                     leg = tgm.collector_bucket(dt)
                     if ts > out.get(leg, ""):
                         out[leg] = ts
@@ -1227,15 +1277,57 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
                       unattributed), because a whole-pipe outage and two independent deaths are
                       indistinguishable from minute buckets alone.
 
+    TWO READINGS, ONE DECISION (L272 — the guard that makes the L269 tightening true at the
+    DECISION level, not merely at the measurement level):
+
+      * LIVENESS — `alive`, and the `return None` guards that depend on it — is computed from
+        the burst-INCLUDED reading. `alive` answers only "did ANYTHING capture recently", i.e.
+        is the tape pipe / repo / venue up; a burst pass is perfectly good evidence that
+        something ran, which is all this set is ever used for.
+      * ATTRIBUTION and DURATION — `silent`, `dead`, `dead_silence_h`, `dead_last_seen`,
+        `newest_iso`, `ages` — use the burst-EXCLUDED reading (L269). A burst pass is NOT
+        evidence that a SPECIFIC leg's cron is alive, so it may never shorten a reported
+        outage or clear a leg of being silent.
+
+    Why the split is load-bearing: with a single (excluded) reading, an independent verifier
+    showed on 2026-08-03 that the L269 exclusion could push the surviving leg out of `alive`
+    without pushing it into `silent` (the 6h/24h band), so `if not alive: return None` fired
+    and a 106.6h vps outage that the PRE-L269 code reported went completely SILENT. With the
+    split, `alive` is computed from readings that are newer-or-equal to the pre-L269 ones, so
+    it is a SUPERSET of the pre-L269 alive set and neither `return None` guard can newly fire;
+    `silent` is computed from readings that are older-or-equal, so it is a SUPERSET of the
+    pre-L269 silent set. Hence, relative to pre-L269 behaviour, this function can only move
+    silence -> advisory, or dead_leg -> ambiguous (outage still reported, NAME withheld per
+    L118/L120), or lengthen a reported outage. It can never go quiet. See
+    tests/test_dead_collector_leg_advisory.py::test_l273_* (the verifier's counterexample is
+    pinned there verbatim).
+
+    SCOPE OF THAT PARAGRAPH: it is about THIS DICT. It does NOT by itself make the RENDERED
+    advisory monotone — `dead_silence_h: None` is a perfectly monotone datum that used to be
+    rendered as the WEAKER string `">{lookback} days"`. A second independent verifier broke the
+    restated claim exactly there on 2026-08-03 (L274). The text-level half of the property is
+    enforced in `dead_collector_leg_warning`, in its own docstring and its own sweep test; do
+    not read this paragraph as covering it.
+
     Offline and best-effort throughout; any exception returns None.
     """
     try:
         from datetime import datetime as _datetime, timezone as _timezone
         if now is None:
             now = _datetime.now(_timezone.utc)
+        # Attribution/duration reading: declared burst passes excluded (L269).
         last_seen = _collector_leg_last_seen(tape_root, lookback_days=lookback_days,
                                              max_day=max_day)
-        if not last_seen:
+        # Liveness reading: burst passes COUNT (L272). Newer-or-equal to `last_seen`, always.
+        # Cost: this doubles the bounded scan (~0.6s -> ~1.2s across all hourly families on the
+        # 2026-08-03 tape) for a once-per-`--full` advisory. Paid deliberately rather than
+        # threading a second dict out of one pass: two obvious calls are far harder to
+        # mis-wire than one function returning two readings, and mis-wiring THIS is what the
+        # verifier's counterexample punished.
+        last_seen_live = _collector_leg_last_seen(tape_root, lookback_days=lookback_days,
+                                                  max_day=max_day,
+                                                  exclude_burst_windows=False)
+        if not last_seen and not last_seen_live:
             return None
 
         def _age_h(iso: str) -> Optional[float]:
@@ -1245,10 +1337,16 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
             return (now - dt).total_seconds() / 3600.0
 
         ages = {leg: _age_h(iso) for leg, iso in last_seen.items()}
-        newest_leg = max(last_seen, key=lambda k: last_seen[k])
-        newest_iso = last_seen[newest_leg]
-        newest_age = ages.get(newest_leg)
-        alive = sorted(leg for leg, a in ages.items()
+        ages_live = {leg: _age_h(iso) for leg, iso in last_seen_live.items()}
+        # `last_seen` can be empty while `last_seen_live` is not (every capture in the window
+        # was a burst pass). Falling back keeps the "newest capture anywhere" line honest
+        # instead of crashing on max(()) or printing None; `silent` below still counts every
+        # monitored leg missing from the EXCLUDED reading, so that case reports, not hides.
+        newest_src = last_seen or last_seen_live
+        newest_leg = max(newest_src, key=lambda k: newest_src[k])
+        newest_iso = newest_src[newest_leg]
+        newest_age = _age_h(newest_iso)
+        alive = sorted(leg for leg, a in ages_live.items()
                        if a is not None and a < DEAD_LEG_ALIVE_HOURS)
         silent = [leg for leg in DEAD_LEG_MONITORED
                   if leg not in last_seen
@@ -1262,6 +1360,8 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
             "silent": silent,
             "last_seen": last_seen,
             "ages": ages,
+            "last_seen_incl_burst": last_seen_live,
+            "ages_incl_burst": ages_live,
             "lookback_days": lookback_days,
         }
         if len(silent) == len(DEAD_LEG_MONITORED):
@@ -1270,6 +1370,12 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
         if not alive:
             # A single scheduled leg is silent but nothing is producing right now either —
             # not the staggered-death signature; stay quiet rather than mis-attribute.
+            # `alive` is the burst-INCLUDED set (L272), so this guard fires only when the tape
+            # shows no capture of ANY kind within DEAD_LEG_ALIVE_HOURS — never merely because
+            # L269 discarded a burst pass. NOTE (L273, pre-existing and NOT introduced by
+            # L269/L272): this is the BLIND BAND — when nothing at all is fresh, a FULLY dead
+            # pipe reports nothing while a HALF dead pipe alarms. Live on 2026-08-03T10:36Z
+            # that is exactly what happened. Widening it is a separate, unenforced repair.
             return None
         dead = silent[0]
         base["status"] = "dead_leg"
@@ -1286,7 +1392,19 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
 
     Written to be quotable verbatim by a run's digest author to a non-programmer: it says which
     leg is dead, when it was last seen, how long it has been silent, and which leg is still
-    alive. It NEVER flips the exit code."""
+    alive. It NEVER flips the exit code.
+
+    RENDERED-TEXT CONTRACT (L274 — the direction-of-bias claim lives HERE too, not only in the
+    diagnosis dict): the string this function returns may never make a WEAKER claim about an
+    outage than the pre-L269 code made from the same tape. A field-level monotonicity proof does
+    NOT give you this for free — a second independent verifier broke the restated claim on
+    2026-08-03 with unmodified production code at the production default `lookback_days=10`:
+    when the L269 exclusion empties the dead leg's scheduled reading, `dead_silence_h` becomes
+    `None`, and the old fallback rendered `>10 days` (=240h) in place of the `447.6h` pre-L269
+    printed — monotone as data, a shorter outage as text. Both branches below therefore fall
+    back to the burst-INCLUDED reading and render it as a lower bound (`>=Nh`) with the instant
+    preserved. Pinned by ::test_l274_rendered_outage_is_never_shorter_than_pre_l269_on_a_sweep
+    (which sweeps TAPE SHAPES, not just `now` — L276)."""
     if not diag:
         return None
     lookback = diag.get("lookback_days")
@@ -1304,6 +1422,13 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
         seen = diag.get("last_seen", {}).get(leg)  # type: ignore[union-attr]
         age = diag.get("ages", {}).get(leg)        # type: ignore[union-attr]
         if seen is None:
+            burst = diag.get("last_seen_incl_burst", {}).get(leg)  # type: ignore[union-attr]
+            if burst is not None:
+                # L272: a burst pass landed in this leg's minute bucket but is not evidence
+                # its cron ran. Say so rather than claiming nothing was written at all.
+                return (f"  - {leg}: NO scheduled capture in the last {lookback} day-files "
+                        f"(its newest tape line, {burst}, falls inside a DECLARED burst "
+                        f"window and is not evidence this leg's cron is alive - L269)")
             return (f"  - {leg}: NO capture at all in the last {lookback} day-files "
                     f"(silent for longer than the lookback window)")
         age_s = f"{age:.1f}h" if isinstance(age, float) else "unknown"
@@ -1326,8 +1451,29 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
 
     dead = diag.get("dead")
     silence = diag.get("dead_silence_h")
-    silence_s = f"{silence:.1f}h" if isinstance(silence, float) else f">{lookback} days"
-    seen_s = diag.get("dead_last_seen") or f"not within the last {lookback} day-files"
+    silence_s = f"{silence:.1f}h" if isinstance(silence, float) else None
+    seen_s = diag.get("dead_last_seen")
+    if seen_s is None or silence_s is None:
+        # L274 (second independent verifier pass, 2026-08-03): when the L269 exclusion empties
+        # THIS leg's scheduled reading, falling straight through to ">{lookback} days" DISCARDS
+        # both the precise duration and the instant that the pre-L269 code printed — i.e. the
+        # tightening RENDERS A SHORTER OUTAGE (`447.6h` -> `>10 days`) even though every
+        # field-level reading only moved older. `dead_silence_h: None` is monotone-safe as DATA
+        # and monotone-UNSAFE as TEXT. Fall back to the burst-INCLUDED reading — which is
+        # exactly what pre-L269 measured — and label it as the LOWER BOUND it is: the excluded
+        # reading is older-or-equal, so the true scheduled silence is `>=` this age.
+        burst_iso = diag.get("last_seen_incl_burst", {}).get(dead)  # type: ignore[union-attr]
+        burst_age = diag.get("ages_incl_burst", {}).get(dead)       # type: ignore[union-attr]
+        if seen_s is None and burst_iso is not None:
+            seen_s = (f"{burst_iso} - but that line falls inside a DECLARED burst window, so it "
+                      f"is NOT evidence this leg's cron ran (L269); it wrote no scheduled "
+                      f"capture at all in the last {lookback} day-files")
+        if silence_s is None and isinstance(burst_age, float):
+            silence_s = f">={burst_age:.1f}h"
+    if silence_s is None:
+        silence_s = f">{lookback} days"
+    if seen_s is None:
+        seen_s = f"not within the last {lookback} day-files"
     alive = [leg for leg in (diag.get("alive") or []) if leg != dead]  # type: ignore[union-attr]
     return "\n".join([
         header + f"the '{dead}' collector leg appears DEAD.",
@@ -2217,6 +2363,111 @@ def duplicate_lesson_id_warning(dupes: List[str]) -> Optional[str]:
         f"load-bearing); do not renumber a row that is only cited under its current ID. "
         f"Advisory only — does NOT affect the exit code. See kb/lessons/00-lessons.md L147."
     )
+
+
+# ─── L275: a RETRACTED claim must not survive outside an explicit retraction ────────────
+#
+# 2026-08-03, second independent verifier pass. A safety sentence was refuted, and the
+# correction round struck it from a docstring, from a lesson's enforcement cell, from
+# kb/00-LOG.md and from LOOP-QUEUE.md — while the SAME diff ADDED it, verbatim, to a module
+# comment in the test file that pins the very function it was a claim about. A reader of that
+# file met the refuted sentence first. The lesson (L275): retracting a NUMBER is a grep for the
+# number; retracting a CLAIM is a grep for the SENTENCE, across the whole diff, every round.
+# This registry makes that grep mechanical instead of a thing a tired agent remembers to do.
+#
+# Scope, honestly: this can only catch a claim someone has REGISTERED here, and only in its
+# registered wording. It is a recurrence guard for known-refuted sentences, NOT a detector of
+# over-claiming in general (that is not lexically decidable — L155's false-precision rule).
+# Adding a row here is the last step of any retraction.
+RETRACTED_CLAIMS: Tuple[Dict[str, str], ...] = (
+    {
+        "id": "burst-exclusion-can-only-get-louder",
+        # The refuted sentence: "the advisory can only get LOUDER, never quieter".
+        "pattern": r"louder,?\s+never\s+quieter",
+        "example": "louder, never quieter",
+        "retracted_by": "L274",
+        "why": ("refuted TWICE on 2026-08-03: at the DECISION level by verifier pass #1 (the "
+                "6-24h DEAD_LEG_ALIVE_HOURS/DEAD_LEG_SILENCE_HOURS gap let `if not alive: "
+                "return None` hide a 106.6h outage - L272) and at the RENDERED-TEXT level by "
+                "verifier pass #2 (`dead_silence_h: None` printed `>10 days` where pre-L269 "
+                "printed `447.6h` - L274). Both closed in code; the SENTENCE stays retracted."),
+    },
+)
+
+# A hit is excused only if an explicit retraction marker sits within this many characters of it
+# (either direction). Wide enough to cover one long lessons-table cell, narrow enough that a
+# retraction three sections away does not launder an unqualified assertion.
+RETRACTION_PROXIMITY_CHARS = 500
+_RETRACTION_MARKER_RE = re.compile(r"RETRACT(?:ED|ION|IONS|S)?\b", re.IGNORECASE)
+# Text lanes a claim can hide in. Deliberately NOT data/tape/paper (machine-written) and not
+# `.git`; deliberately INCLUDING tests/ and scripts/, because that is where this one hid.
+_RETRACTED_CLAIM_GLOBS: Tuple[str, ...] = (
+    "CLAUDE.md", "LOOP-QUEUE.md", "README.md",
+    "kb/**/*.md", "findings/**/*.md", "scripts/*.py", "tests/*.py",
+)
+
+
+def _retracted_claim_issues(root: Path = ROOT) -> List[str]:
+    """Occurrences of a REGISTERED retracted claim (`RETRACTED_CLAIMS`) that are NOT within
+    `RETRACTION_PROXIMITY_CHARS` of an explicit retraction marker (`RETRACT`/`RETRACTED`/... ,
+    case-insensitive) or of the lesson ID that retracted it. Returns `path:line: claim-id`
+    strings, sorted. Best-effort/offline: any read failure is skipped and any exception yields
+    [] so this can never poison the gate."""
+    issues: List[str] = []
+    try:
+        compiled = [(c, re.compile(c["pattern"], re.IGNORECASE)) for c in RETRACTED_CLAIMS]
+        seen: set = set()
+        for pattern in _RETRACTED_CLAIM_GLOBS:
+            for path in sorted(root.glob(pattern)):
+                if not path.is_file() or path in seen:
+                    continue
+                seen.add(path)
+                try:
+                    text = path.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    continue
+                for claim, rx in compiled:
+                    marker = re.compile(
+                        _RETRACTION_MARKER_RE.pattern + r"|\b" + re.escape(claim["retracted_by"])
+                        + r"\b", re.IGNORECASE)
+                    for m in rx.finditer(text):
+                        lo = max(0, m.start() - RETRACTION_PROXIMITY_CHARS)
+                        hi = min(len(text), m.end() + RETRACTION_PROXIMITY_CHARS)
+                        if marker.search(text[lo:hi]):
+                            continue
+                        line = text.count("\n", 0, m.start()) + 1
+                        rel = path.relative_to(root) if path.is_relative_to(root) else path
+                        issues.append(f"{rel}:{line}: {claim['id']}")
+        return sorted(issues)
+    except Exception:
+        return []
+
+
+def retracted_claim_warning(issues: List[str]) -> Optional[str]:
+    """Non-gating advisory naming every surviving unretracted occurrence of a registered
+    retracted claim, else None. Pure. (The GATE for this rule is
+    tests/test_invariants.py::test_no_registered_retracted_claim_survives_in_the_real_tree —
+    prose is repaired by editing kb/, which the code lane may not do, so `--full` stays advisory
+    here exactly like the L152/L205/L157 kb-hygiene stanzas.)"""
+    if not issues:
+        return None
+    by_id: Dict[str, List[str]] = {}
+    for issue in issues:
+        by_id.setdefault(issue.rsplit(": ", 1)[-1], []).append(issue)
+    lines = [f"warning (non-gating): {len(issues)} surviving occurrence(s) of a RETRACTED claim "
+             f"outside any explicit retraction — a refuted sentence that is still asserted "
+             f"somewhere is still being believed somewhere (L275):"]
+    for claim_id, hits in sorted(by_id.items()):
+        claim = next((c for c in RETRACTED_CLAIMS if c["id"] == claim_id), None)
+        lines.append(f"  - {claim_id} (retracted by "
+                     f"{claim['retracted_by'] if claim else '?'}): " + ", ".join(hits[:5])
+                     + (", ..." if len(hits) > 5 else ""))
+        if claim:
+            lines.append(f"      why: {claim['why']}")
+    lines.append("  Fix = restate the claim at its true scope, or mark the occurrence as an "
+                 "explicit RETRACTION. Advisory only — does NOT affect the exit code. "
+                 "See kb/lessons/00-lessons.md L275.")
+    return "\n".join(lines)
 
 
 _BACKTICK_SPAN_RE = re.compile(r"`([^`]+)`")
@@ -3664,6 +3915,19 @@ def main() -> int:
         dup_lesson_warning = duplicate_lesson_id_warning(_duplicate_lesson_id_issues())
         if dup_lesson_warning:
             sys.stderr.write(dup_lesson_warning + "\n")
+        # L275 advisory: a REGISTERED retracted claim still asserted somewhere outside an
+        # explicit retraction (2026-08-03: a refuted safety sentence was struck from five places
+        # and simultaneously ADDED to a sixth by the same diff). Non-gating here for the same
+        # reason as the L152/L205/L157 stanzas — the repair is a prose edit in kb/ — but pinned
+        # as a hard assertion over the real tree in tests/test_invariants.py. Wrapped in
+        # `except BaseException` per the L156 DEFECT-1 lesson.
+        try:
+            retracted_warning = retracted_claim_warning(_retracted_claim_issues())
+            if retracted_warning:
+                sys.stderr.write(retracted_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: retracted-claim advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
         # L152 advisory: an UNENFORCED lesson row whose own named candidate (function,
         # path::symbol, script+CLI flag, or agent-charter house-style bullet) already exists in
         # the tree — a high-precision proxy for a stale marker (the L74/L109/L123 incident).

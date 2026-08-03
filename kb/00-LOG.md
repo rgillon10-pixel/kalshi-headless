@@ -6,6 +6,276 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~09:5x UTC (corrected ~11:2x UTC after verifier pass #1, corrected again ~13:3x UTC after verifier pass #2) — research loop idle-run (policy (a)): L269 `UNENFORCED` -> `test` — a declared BURST pass can no longer stand in for a genuine VPS pass, and the real leg outage is **~2.5x** what the advisory printed (281.1h vs 112.1h at `lookback_days=12`, 2026-08-03T10:36:00Z). **TWO independent verifier passes each REFUTED a version of this build's safety sentence; BOTH holes were closed in CODE** — pass #1 at the DECISION level (a 106.6h outage went silent; L272), pass #2 at the RENDERED-TEXT level (`447.6h` printed as `>10 days`; **L274**) — plus a partial retraction caught (**L275**), an unreachable sweep fixture (**L276**), and a pre-existing blind band filed (L273)
+
+Queue scan first (protocol step 1/3, done by the calling session): **0 eligible TODO/IN-PROGRESS
+across Q0-Q50** (Q37's gate empirically re-measured this run at 20/21 summer contract-days -> still
+CLOSED, opens ~2026-08-04; everything else DONE / cred-BLOCKED / density-gated /
+burst-calendar-gated; Q21 round #21 already fired 04:15Z by the edge-hunter with 0 registrations)
+-> **IDLE RUN**, and per LOOP-QUEUE.md step 3 (v3 idle-run policy) policy **(a)** binds: convert an
+`UNENFORCED` lesson into an invariant/test.
+
+**Target: L269** (recorded ~03:2xZ this morning, diagnosis-only). Its own enforcement cell named
+the candidate verbatim — exclude `BURST_TRIGGER_WINDOWS`-covered captures from
+`_collector_leg_last_seen`'s per-family scan, reusing the window/pad machinery
+`slot_cadence_by_time_of_day` already imports. Built **exactly** that and nothing wider.
+
+**The defect was live at the start of this run.** `python3 scripts/invariants.py --full` printed
+`the 'vps' collector leg appears DEAD ... silent for: 110.7h`, last capture
+`2026-07-29T18:29:45.808389+00:00` — an instant inside the declared `kalshi-burst-fomc-0729` window
+(17:40-19:45Z, padded 17:25-20:00Z) landing in `crypto_hourly`/`polymarket_macro_pairs`, both named
+in that trigger's `burst_keys`. A burst pass, not a genuine VPS pass.
+
+**Built.** `scripts/invariants.py::_burst_windows_for_family_safe(tgm, family)` — a thin delegate to
+`scripts/tape_gap_monitor.py::_burst_windows_for_family`, which already composes
+`BURST_TRIGGER_WINDOWS` + `BURST_CAPTURE_KEY_TO_TAPE_FAMILY` + `BURST_WINDOW_PAD_S` (900s) — plus a
+per-family window filter inside `_collector_leg_last_seen`'s capture scan, behind
+`exclude_burst_windows: bool = True` (default = the corrected behaviour; `False` reproduces the
+pre-L269 reading in the same process, which is what makes every number below a one-command
+derivation). The windows table is deliberately NOT re-transcribed into `invariants.py` — a second
+copy would desync, which is the failure class this fixes — and that delegation is itself
+test-pinned.
+
+**Direction of bias — THIS RUN'S LOAD-BEARING CLAIM WAS REFUTED BY AN INDEPENDENT VERIFIER, AND
+THAT IS THE MOST IMPORTANT THING IN THIS ENTRY.** The build shipped, in the docstring, in L269's
+cell, here, and in LOOP-QUEUE.md, the sentence *"a strict TIGHTENING that can never suppress or
+shorten a real alarm."* A `verifier` subagent attacked it and returned **REFUTED**, with a working
+counterexample built against the then-unmodified production code. Its finding, verbatim:
+`_collector_leg_last_seen` **is** monotone (older-or-equal); **the DIAGNOSIS is not** —
+`_dead_collector_leg_diagnosis` contains `if not alive: return None`, and `DEAD_LEG_ALIVE_HOURS=6`
+vs `DEAD_LEG_SILENCE_HOURS=24` leaves a **6-24h band** in which a leg can drop OUT of `alive`
+WITHOUT entering `silent`, so excluding a burst capture could turn a `dead_leg` advisory into **no
+advisory at all**. Its counterexample **hid a 106.6h outage** (PRE-FIX: `dead_leg dead=vps`;
+POST-FIX: `None`). Honest mitigation **it** measured — quoted as its measurement, NOT re-run by me, since its
+comparison was pre-L269 vs post-L269 and its "louder" criterion is not specified finely enough to
+reproduce the split: over 981 real-tape instants (2026-07-14->08-03, 30-min steps) **quieter=0,
+louder=70, same=911** — structurally reachable, not realized on committed tape. I ran my own,
+differently defined sweep instead (pre-L269 vs post-L272; louder/quieter = whether an advisory
+block is emitted at all; 982 instants, 30-min steps, `2026-07-14T00:00Z`->`2026-08-03T10:36Z`):
+**QUIETER=0, louder=670, same=312**. The two agree on the only load-bearing number — quieter=0 on
+committed tape — and differ on `louder` because they compare different code pairs under different
+criteria. Neither is "the" number without its definition (L162). Why it slipped: my tightening test pinned monotonicity of the
+**MEASUREMENT** while the prose asserted a property of the **DECISION**. That gap is now itself a
+lesson (**L272**).
+
+**The hole is CLOSED IN CODE, not documented away (option 1, the preferred path).**
+`_dead_collector_leg_diagnosis` now computes BOTH readings and splits their roles: the
+burst-INCLUDED reading feeds ONLY liveness (`alive` and the `return None` guards that read it — a
+burst pass is genuine evidence that *something* ran, which is all `alive` is used for), while
+`silent` / `dead` / `dead_silence_h` / `dead_last_seen` / `newest_iso` / `ages` keep the
+burst-EXCLUDED reading (a burst pass is NOT evidence that a SPECIFIC leg's cron is alive). `alive`
+is then a superset of the pre-L269 alive set and `silent` a superset of the pre-L269 silent set, so
+the tightening is now true AT THE DECISION: silence->advisory, `dead_leg`->`ambiguous` (outage
+reported, name withheld per L118/L120), or longer outage — never quiet. **The verifier's
+counterexample now reports the outage** (`dead_leg`, `dead=vps`, `106.6h` — identical to PRE-FIX)
+and is ported into `tests/` verbatim and credited to it, so that exact scenario can never silently
+regress. Every failure path in the measurement still falls back to NOT excluding — the quieter
+behaviour — so a broken import can never manufacture an outage.
+
+**Before/after on the live tree — RE-ANCHORED TO ONE INSTANT.** The first write-up cited the same
+artifact as `446.3h` (a `python -c` function-derived age at 09:41:11Z) here and `446.0h` (a `--full`
+headline at ~09:21Z) in L269's cell: two clocks quoted as one measurement, an L161 drift the
+verifier caught. Both retracted; everything below is a single command at **2026-08-03T10:36:00Z**
+(the verifier's own instant, so the two documents are directly comparable), inlined in L269's cell
+per L162, returning `{10: (112.1, 447.2), 12: (112.1, 281.1)}`: the contaminated `vps` reading is
+`2026-07-29T18:29:45.808389+00:00` = **112.1h**; corrected, it is **447.2h** at the production
+default `lookback_days=10` — but that comes from `polymarket_pairs`, frozen since `dt=2026-07-15`
+(L271) — and **281.1h** at `lookback_days>=12`, from `weather_books`
+`2026-07-22T17:29:49.498223+00:00`, the last genuine VPS cron pass. **So the honest ratio is ~2.5x
+(2.51x), not the ~4x this entry's heading originally claimed**: 4x was the `lookback_days=10` pair,
+i.e. a frozen family's aging quoted as the vps leg's outage — which this same run's L271 already
+says "neither is the outage". No silence duration is quoted anywhere in this entry without its
+`lookback_days` and its instant.
+
+**Second-order effect, MEASURED not assumed** (independently CONFIRMED by the verifier). No
+`dead_leg` -> `ambiguous` flip on this tree: the
+`cloud` leg's newest capture (`2026-08-03T03:56:13.567424+00:00`, 5.7h at 09:41Z; 6.7h at the
+10:36Z instant above — the verifier ruled the 5.4h/5.7h pair a NON-defect, each correct at its own
+instant, but both now carry their instant) sits inside no declared
+window (no trigger is declared after 2026-07-29), so the diagnosis still NAMES `vps` with
+`alive=['cloud','other']`. The flip is possible in principle — if the last ALIVE leg's only fresh
+evidence were itself a burst pass — and would withhold the leg name per L118/L120 while still
+reporting the outage (a `dead_leg` -> `ambiguous` flip specifically; the bare phrase "louder, never
+quieter" that stood here is RETRACTED for the second time in this entry — see the L274 paragraph
+below, where a second verifier showed the RENDERED duration could still degrade).
+
+**Found while building, recorded as L271 (new row, not folded into L269).** After the exclusion,
+the `vps` reading at the production default `lookback_days=10` comes from `tape/polymarket_pairs/`,
+a family whose OWN tape ends `dt=2026-07-15`; at `lookback_days>=12` it is
+`2026-07-22T17:29:49.498223+00:00` (280.2h **as of 2026-08-03T09:41:11Z**, the instant L271's own
+cell stamps; the SAME capture is 281.1h at the 10:36:00Z instant this entry re-anchors everything
+else to — one artifact, two clocks, both labelled, which is the whole point of L161/L162) — the
+`weather_books` capture L269 itself quotes, which
+aged out of the default window because the lookback counts the newest N day-FILES per family, not N
+days (`weather_books`'s 10 newest now span `dt=2026-07-24..dt=2026-08-03`; `dt=2026-07-25` is
+missing). So the headline's bound DIRECTION flipped: pre-fix it was a LOWER bound on the outage
+(a burst pass made the leg look fresh), post-fix it is an UPPER bound (the freshest surviving
+non-burst capture can predate the true last pass by the whole lookback). Both honest, neither is
+"the" number without its `lookback_days` — the L162 shape. L271 is left a CLEAN leading-`UNENFORCED`
+marker (candidate: have the advisory publish its source family + how many families contributed no
+qualifying capture) so the idle-run queue can route it, per L268.
+
+**10 new tests**, all in `tests/test_dead_collector_leg_advisory.py` (the established home of every
+`_collector_leg_last_seen` test — kept with their function rather than split into
+`tests/test_invariants.py`, so a future reader finds the burst case beside the leg cases): the
+burst-covered exclusion, the identical timestamp KEPT for a non-burst-covered family, whole-dict
+equality for a family with no declared window, the padded boundary (derived from the monitor's own
+window, not hand-typed), the direction-of-bias property, two fallback tests, the
+no-second-copy delegation test, and **two FROZEN-slice real-tape acceptance tests** (L191:
+`max_day=2026-08-01`, injected `now=2026-08-01T23:00Z`, explicit `lookback_days=14`) pinning L269's
+own evidence as inequalities — pre-fix reading starts `2026-07-29T18:29`, fixed reading
+`<= 2026-07-22T17:29:49.498224+00:00` and strictly older, the contaminated instant inside the
+declared padded FOMC window and the honest one inside NO declared window of any hourly-dual family,
+and `dead_silence_h >= 2.5x` the pre-fix silence (L269's 2.6x claim as a FLOOR) with the leg still
+named.
+
+**+8 tests from the correction round (18 total for this build; the file now collects 39).** Five port the
+verifier's counterexample and the liveness/attribution split, credited to it
+(`::test_l272_verifier_counterexample_still_reports_the_outage`,
+`::test_l272_counterexample_decision_matches_the_pre_l269_decision`,
+`::test_l272_liveness_reads_burst_included_attribution_reads_burst_excluded`,
+`::test_l272_a_burst_only_leg_is_still_counted_silent_not_cleared`,
+`::test_l272_empty_excluded_reading_does_not_crash_or_go_silent`); the sixth,
+`::test_l272_diagnosis_is_never_quieter_than_pre_l269_on_a_sweep`, sweeps 60 instants across the
+whole 6-24h band and asserts `pre-advisory => post-advisory` AND non-decreasing `dead_silence_h` —
+the DECISION-level assert the measurement-level test structurally could not make. The over-broad
+docstring on `::test_burst_exclusion_can_only_make_a_leg_look_older_L269` is corrected in place to
+state what it does and does not establish. Two further tests pin **L273** (below) as a KNOWN,
+UNFIXED hole rather than as endorsed behaviour.
+
+**Second verifier finding, filed as L273 — a real operational hole, PRE-EXISTING and NOT caused by
+this build.** `_dead_collector_leg_diagnosis` reports NOTHING when no leg is fresh within
+`DEAD_LEG_ALIVE_HOURS=6`: the `dead_leg` branch is gated on `if not alive: return None` and the
+`ambiguous` branch needs EVERY leg silent `>= 24h`, so a survivor sitting between the thresholds is
+neither accuser nor survivor and the advisory goes dark. A **fully** dead pipe is silent while a
+**half** dead pipe alarms. Live at 10:36Z: `--full` printed no collector advisory at all because
+`cloud` was 6.7h > 6.0h — while the `vps` leg was ~447h/~281h dead. **A 447h-dead VPS leg is
+currently invisible.** The verifier confirmed, and I re-confirmed after building the L272 guard,
+that both the pre-L269 and post-L272 modules return `None` at that instant, so neither L269 nor the
+correction caused it. Filed `UNENFORCED` with a well-posed candidate (a third `stale_survivor`
+status that reports the outage while withholding attribution — the L118/L120 rule forbids naming a
+culprit, it never required saying nothing at all), deliberately NOT built this round: changing what
+a non-gating advisory prints is a separate semantic decision, and widening scope mid-correction is
+the failure this build was otherwise careful to avoid.
+
+**Bookkeeping.** No queue item's verdict changed and **no `LOOP-QUEUE.md` item Status line was
+touched** — L269/L271/L272/L273 are lessons-ledger rows, not queue items (the 2026-08-02 L223 run
+prepended to Q44 only because L223 was about that item's own script). `kb/strategies/00-index.md`
+NOT modified: this is a tooling build — no registry flip, no bootstrap CI, no kill decision, no
+P&L. **The two-agent verdict rule was originally written up here as "N/A"; that was the framing the
+verifier corrected.** A tooling build with a load-bearing SAFETY claim is exactly a place a second
+agent earns its keep: it CONFIRMED claims 1/2/4/6/7 by independent re-derivation (its own regex
+scan matched the fixed function byte-for-byte at every lookback; it showed the four never-burst-
+covered families wrote ZERO vps-bucket captures on 07-29, so the exclusion discards no genuine cron
+pass; no invariant relaxed; diff additive-only; ledger discipline byte-verified) and REFUTED the
+one claim that mattered most. **A run whose claim is corrected by the second agent is a SUCCESS of
+the protocol, not a failure of it** — the alternative was shipping a monotonicity claim that a
+6-24h threshold gap falsifies. Open `UNENFORCED` rows **4 -> 5**, composition
+`L213/L221/L222/L269` -> `L213/L221/L222/L271/L273`; flagged rows **2 -> 3** (`L221/L222/L273`) and
+mixed-tier unchanged at 2 (`L168`, `L270`) — all from `stale_unenforced_recall_report()`, run
+before and after against `git show HEAD:kb/lessons/00-lessons.md`. The new L273 flag is a KNOWN
+false positive of L152's documented name-match class (the row NAMES a test that pins the hole, not
+one that closes it); L273's own cell carries an explicit do-not-flip-on-a-name-match warning. No
+findings/ doc: the measured result is the ledger rows themselves.
+
+**SECOND INDEPENDENT VERIFIER PASS (~12:2xZ) — the fix HELD, the RESTATED SENTENCE DID NOT.**
+A second `verifier` agent attacked the corrected tree. It CONFIRMED the pass-#1 hole is genuinely
+closed: pass #1's own counterexample now REPORTS the 106.6h outage, and an 8,000-case differential
+fuzz (pre-L269 vs the corrected tree, random tapes over burst-covered and non-covered families,
+random `now`, `lookback_days` in {1,2,3,5,10,20}) found **0 lost advisories, 0 shortened
+`dead_silence_h`, 0 cleared silent legs, 0 `alive` differences**. It also independently confirmed
+the corrected numbers, the L273 honesty marking, the test honesty (all 6 new L272 tests fail
+pre-correction on BEHAVIOUR, 0 signature failures), that no invariant was relaxed, and that the
+gate citation is L162-compliant. **Then it broke the restated safety sentence one level up, with
+UNMODIFIED production code, at the PRODUCTION default `lookback_days=10`:** the burst-explanation
+branch had been wired only into the `ambiguous` renderer, so when the L269 exclusion emptied the
+DEAD leg's scheduled reading, `dead_silence_h` went `None` and `dead_collector_leg_warning` fell
+through to `f">{lookback} days"` — discarding the duration AND the instant:
+
+```
+PRE-L269 : - last capture written by it: 2026-07-15T20:23:00+00:00
+           - silent for: 447.6h (threshold: 24h)
+PRE-L274 : - last capture written by it: not within the last 10 day-files
+           - silent for: >10 days (threshold: 24h)      <-- 240h < 447.6h
+```
+
+A strictly TIGHTER measurement rendering a **207.6h SHORTER** outage, with every field-level
+invariant still holding. `dead_silence_h: None` is monotone-safe as DATA and monotone-unsafe as
+TEXT. **Closed in CODE, again, not in prose (L274).** The `dead_leg` branch now does what
+`_leg_line` already did for `ambiguous`: it falls back to `last_seen_incl_burst`/`ages_incl_burst`,
+keeps the instant with its burst caveat, and renders the duration as the lower bound it actually is
+(`>=447.6h`, never `>10 days`). Sound because the excluded reading is older-or-equal, so the true
+scheduled silence is `>=` the printed number — and never weaker than pre-L269, which printed that
+same number without the bound. Verified on the verifier's own repro: it now prints
+`2026-07-15T20:23:00+00:00 - but that line falls inside a DECLARED burst window ...` and
+`silent for: >=447.6h`.
+
+**Two more rows from the same pass, both closed in code. L275 — a retraction is not done until you
+grep the retracted SENTENCE, not the retracted number.** This round had grepped its retracted
+NUMBERS (`446.3h`/`446.0h`/`~4x`) diligently and never grepped its retracted CLAIM: the same diff
+that struck "louder, never quieter" from the docstring, from L269's cell, from L272, from this LOG
+and from `LOOP-QUEUE.md` simultaneously ADDED it, verbatim, to a module comment in
+`tests/test_dead_collector_leg_advisory.py`, ~20 lines above the docstring it had just corrected. A
+reader met the refuted sentence first. That comment is now an explicit RETRACTION block, and the
+grep is mechanical: `scripts/invariants.py::RETRACTED_CLAIMS` + `_retracted_claim_issues()` scan
+`CLAUDE.md`, `LOOP-QUEUE.md`, `README.md`, `kb/**/*.md`, `findings/**/*.md`, `scripts/*.py` and
+`tests/*.py` for registered refuted sentences with no retraction marker within 500 characters;
+`tests/test_invariants.py::test_no_registered_retracted_claim_survives_in_the_real_tree` is the
+gate. **The new assert fired on existing text on its first run, and the text was wrong, not the
+assert** — it returned exactly `['kb/lessons/00-lessons.md:288: burst-exclusion-can-only-get-louder']`
+(L269's own enforcement cell, still asserting the sentence unqualified), which now carries an inline
+retraction marker; the same command now returns `[]`. **L276 — a decision-level sweep test is only
+as strong as the shapes its fixture can reach.**
+`tests/test_dead_collector_leg_advisory.py::test_l272_diagnosis_is_never_quieter_than_pre_l269_on_a_sweep`
+asserted the right property over 60 instants and passed, but its tape put the dead
+leg's capture outside every declared window, so `dead_silence_h` was never `None` and the one branch
+where the property fails was UNREACHABLE from its own fixture. The replacement sweeps 4 tape SHAPES
+x 60 instants, asserts on `dead_collector_leg_warning()`'s RENDERED output, and carries a
+first-class reachability assert (`reached_none == 60`) so it fails loudly if a future edit narrows
+it back into decoration. The L272 sweep is kept and scoped, never weakened.
+
+**Two refutations, both closed in code, is the protocol working.** Pass #1 REFUTED the
+decision-level claim -> fixed in code (L272). Pass #2 CONFIRMED that fix and REFUTED the RESTATED
+sentence at the rendered-text level -> fixed in code (L274), plus two process rows (L275, L276).
+Neither refutation was answered by narrowing a docstring; each one cost ~3 lines of production code
+and bought a test that fails on the pre-fix tree for a BEHAVIOURAL reason. The uncomfortable part is
+worth writing plainly: the SAME over-claiming failure L272 exists to record was committed again, in
+the same round, in the round's own correction — which is precisely why the enforcement gradient
+("invariants over memory") is the rule and why L275's registry now does the grep that a careful
+human had already failed to do twice.
+
+**Gates (fresh, re-run after the LAST code change of the FINAL correction round, L162):**
+`python3 -m pytest -q` -> **2811 collected, 0 failed** (exit 0; command: `python3 -m pytest -q`,
+`addopts = "-q"` in `pyproject.toml`, started 2026-08-03T13:35:44Z on the post-final-code-change
+tree and run to completion by the research lead. Derivation, not a quote from a summary line:
+`2811` is the exact per-file `--collect-only` sum on that identical tree (arithmetic below) and
+`0 failed` is the process exit code 0, which for pytest implies zero failed and zero errored —
+stated as collected/failed, NOT as a floor. The count moved 2797 -> 2811 because this final
+correction round added tests (2 L274 + 12 L275) AFTER the earlier reading, which is exactly the
+L162 drift the fresh-gate-line rule exists to prevent, so it is stated rather than overwritten);
+`python3 scripts/invariants.py --full` -> **exit 0, `invariants: all green`**, completed
+2026-08-03T13:34:02Z (pre-existing non-gating advisories only; the new L275 retracted-claim stanza
+prints NOTHING, i.e. `_retracted_claim_issues()` -> `[]`). Test-count arithmetic, all from
+`python3 -m pytest -q --collect-only` on this tree at 2026-08-03T13:3xZ: **2811 collected**
+(2797 at the end of the previous correction round + 2 new L274 tests + 12 new L275 tests);
+`tests/test_dead_collector_leg_advisory.py: 41` (39 + 2) and `tests/test_invariants.py: 290`
+(278 + 12). Ledger bookkeeping is UNCHANGED by this round because all three new rows are `test`,
+not `UNENFORCED`: `stale_unenforced_recall_report()` (command: `python3 -c "import importlib.util
+as u;s=u.spec_from_file_location('i','scripts/invariants.py');i=u.module_from_spec(s);
+s.loader.exec_module(i);print(i.stale_unenforced_recall_report())"`, run 2026-08-03T13:4xZ) ->
+`n_open_unenforced=5 ('L213','L221','L222','L271','L273')`, `n_flagged=3 ('L221','L222','L273')`,
+`n_mixed_tier_unenforced=2 ('L168','L270')`, `n_rows=274` — same 5/3/2 as the previous round. The
+earlier "now reads 446.3h" line here was true only at ~09:41Z and is retracted, as are the
+446.3h/446.0h pair and the bare "louder, never quieter" phrasing. `280.4h` (a number from the
+FIRST verifier's write-up) appears nowhere in this tree; the second verifier independently
+re-derived **281.1h at 2026-08-03T10:36:00Z** (`lookback_days>=12`), which is what this entry
+quotes. See `kb/lessons/00-lessons.md` L269 (corrected enforcement cell + retraction marker), L271,
+**L272** (decision-level refutation and guard), **L273** (the blind band), **L274** (the
+rendered-text refutation and guard), **L275** (retract by SENTENCE; the new registry + scan) and
+**L276** (sweep the tape SHAPE, and assert reachability).
+
+---
+
 ## 2026-08-03 ~06:1x UTC — research loop idle-run (policy (c)): `universe_sweep`'s completeness_ok is structurally saturated — the VPS pager fires on a known fact, not a new failure
 
 Queue re-checked first (per protocol step 1/3): full Q0-Q50 file-shape rescan found 0 eligible
