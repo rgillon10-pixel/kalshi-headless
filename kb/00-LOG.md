@@ -162,6 +162,95 @@ still-runnable pre-fix cut.
 Still **0 proven edges**; `kb/strategies/00-index.md` untouched; no price, fill or P&L asserted.
 See `findings/2026-08-03-l269-burst-exclusion-enforcement.md`, `kb/lessons/00-lessons.md` L269/L271.
 
+## 2026-08-03 ~16:0x UTC — research loop idle-run (policy (b)): Q37's self-activation gate counts the WRONG UNIT — 20 gate-days buy 15 bootstrap units, and the deficit travels with the fire date
+
+Queue re-checked first against live Status lines, not a summary (protocol step 1/3): 0 eligible
+TODO/IN-PROGRESS across Q0-Q50 — cred/auth-BLOCKED (Q14/Q15/Q32/Q33/Q35-build/Q47), calendar-gated
+(Q19/Q48 already fired; **Q37 re-run live this run: 20 of 21 summer contract-days, gate still shut**),
+density-inadequate (Q36/Q42/Q43, VPS leg dead 11+ days per L269) -> **IDLE RUN.** Policy order:
+(a) exhausted and re-spent by the ~01:4x firing, (c) spent by the ~06:1x firing, (d) spent by the
+~04:15 edge-hunter's Q21 round #21 — so took **(b): prep the NEXT time-gated item**, which is Q37,
+opening tomorrow.
+
+**Step 0b was NOT a no-op this run.** `scripts/tape_branch_sweep.py` (the L160/L216/L247-correct
+sweeper — never `--is-ancestor`) found `tape/hourly-20260803T0705Z` carrying genuinely stranded
+tape: **21,877 lines union-appended across 8 families** (universe_sweep 20,000, orderbook_depth
+1,214, weather_books 351, sports_pairs 270, polymarket_macro_pairs 21, perp_tape 17, crypto_hourly 2,
+hyperliquid_funding 2), line-level dedupe, append-only, no existing line rewritten. Post-sweep the
+sweeper reports **13** branches with missing lines, ALL of them carrying no union-appendable tape
+(conflict markers / non-JSONL, L247) — i.e. zero genuinely strandable tape remains outstanding.
+
+**The finding.** The 2026-07-31 pre-flight audit caught Q37's gate counting the wrong ROWS (phantom
+non-temperature series; fixed by tightening). This run asked the next question down — does it count
+the wrong UNIT? It does. The gate opens on >=21 SUMMER contract-days PRESENT IN `tape/weather_books/`;
+`bootstrap_cut` block-resamples a different unit — a contract-day yielding >=1 FILLED,
+SETTLEMENT-MEASURABLE trade in the L69 PRIMARY population. Measured on committed tape (post-sweep):
+**20 gate-days -> 15 bootstrap units, 75% yield, deficit 5**, and the deficit is three distinct
+things, not one:
+
+* **`incomplete_book` 1** — 2026-07-15, 40/40 groups dropped: the first tape day has no book at the
+  strictly-causal T = close-24h. Structural; a past day cannot heal.
+* **`zero_fill` 1** — 2026-07-25, 40/40 booked, 40/40 settled, 154 settlement-measurable rows and
+  **0 touches**. A real fill-rate fact about the strategy, NOT a coverage defect, and it must not be
+  reported as one. (Per-day fill counts are wildly dispersed anyway: 65 on 07-18 vs 5 on 07-23.)
+* **`settlement_lag` 3** — 2026-08-01/02/03, `n_groups_settled=0`: the exchange has not settled them
+  (the L262 lag), so every row is correctly DROPPED as unmeasurable (L86). **This is the load-bearing
+  part**: it is always the NEWEST gate-days, so it travels with the fire date. Waiting a week moves
+  both numbers by 7 and closes none of the gap.
+
+Consequence for tomorrow (~2026-08-04): Q37 crosses a **21**-day gate carrying **~15-16** bootstrap
+units against `MIN_CI_UNITS = 10` (L41) — it clears the admissibility floor by 5 units, not by 11,
+and the unit count, not the gate count, is the honest sample size to quote next to whatever CI comes
+out. Generalizes past Q37: any calendar-day gate sitting in front of a settlement-dependent bootstrap
+carries the same lag-shaped bias. Recorded as **L274**.
+
+**Second finding (L275): L32's frozen/movement dual cut is a STRUCTURAL no-op under this fill model.**
+2,758 rows: touched **674**, frozen **379**, touched-AND-frozen **0**, `filled_optimistic` 674 ==
+`filled_movement` 674 — identical, not approximately. It cannot be otherwise: `frozen` means the
+`(yes_bid, yes_ask, no_bid, no_ask)` tuple never changed, so every later NO ask equals the entry NO
+ask, so a touch would require `no_ask <= no_bid` — a crossed quote real Kalshi books do not show. The
+movement condition is implied by the fill condition. This changes no number the probe reports
+(`OPTIMISTIC_FILL=True` already blocks graduation) — it changes how the report must be READ:
+`_verdict()` calls the movement-conditioned cut "the honest fill cut", but here it is the optimistic
+cut wearing a second label, so two cuts printed side by side are ONE number and must not be read as
+corroborating each other. A genuine L32 dual cut needs a movement test independent of the fill test.
+
+**Built (additive only; gate, population, fill model, fee and CI untouched, INSUFFICIENT-DATA branch
+byte-for-byte unchanged).** `bootstrap_unit_ledger()` / `gate_vs_units_summary()` /
+`dual_cut_degeneracy()` in `scripts/q37_weather_summer_makerno_probe.py`, printed in its ANALYSIS
+branch so tomorrow's fire cannot quote 21 without 15 beside it and cannot print the two cuts without
+the degeneracy warning; plus new read-only `scripts/q37_bootstrap_unit_preflight.py`, which
+force-builds the population for COUNTING ONLY (labeled diagnostic — it can never emit a CI or a
+verdict) and calls the probe's functions rather than re-deriving them (L36), so the pre-flight cannot
+drift from the probe it checks. `degenerate` is MEASURED, never assumed: a fixture with one
+frozen-and-touched row flips it to False, pinned by a test. 11 new tests (33 in
+`tests/test_q37_weather_summer_makerno_probe.py`, was 22), including a real-tape MONOTONE acceptance
+pin (L191: `units >= 15`, `units < gate_days`, `settlement_lag >= 1`, `touched_and_frozen == 0` —
+bounds a new tape day cannot break, never an equality).
+
+**Not done, deliberately.** No bootstrap was run and no CI computed — that is what keeps this outside
+verdict class. The gate was not opened, moved or relaxed (Q37 stays 20/21). The `settlement_lag`
+deficit was not "fixed": the honest options are to wait for settlement or invoke
+`collection/weather_actuals.py --backfill-missing` nearer the fire, both scheduling calls rather than
+research calls. No registry change, no P&L, no kill decision — **two-agent rule N/A** (prep /
+data-adequacy class, the L104/L110/L118/L126/L127/L137 precedent); no `verifier` subagent was
+dispatchable in this run's harness, stated rather than glossed.
+
+**Step 9 (paper sub-pass) RAN** — `SHADOW_REGISTRY` is non-empty (`s14_ladder_underwriting`).
+`python scripts/paper_pass.py` over committed tape: 0 processed, 18 deferred(caps), 272
+deferred(coverage), 282 already-in-ledger -> **no new ledger lines** (the backlog is caps/coverage
+bound, the honest outcome this pass's docstring predicts). `daily_summary()` = `paper: 0 open
+position(s), 1617 settled contract(s), realized P&L $+28.86, cash $+28.86, open notional $0.00`;
+ledger tags are `real_bid` + `broker_truth` with `fill_model=maker_candle_through` — no synthetic
+price was ever filled against.
+
+**Gates (fresh, taken after the last code change — L162):** `pytest -o addopts='' -q` -> **2790
+passed, 0 failed** (was 2779, +11 new tests, 0 regressions); `python3 scripts/invariants.py --full`
+-> **exit 0, all green** (pre-existing non-gating advisories only — L208 window-grid, L210
+capture_id collisions, L138/L152/L157/L205/L52 lexical advisories; none introduced by this diff).
+See `findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md`, `kb/lessons/00-lessons.md` L274/L275.
+
+---
 ## 2026-08-03 ~06:1x UTC — research loop idle-run (policy (c)): `universe_sweep`'s completeness_ok is structurally saturated — the VPS pager fires on a known fact, not a new failure
 
 Queue re-checked first (per protocol step 1/3): full Q0-Q50 file-shape rescan found 0 eligible

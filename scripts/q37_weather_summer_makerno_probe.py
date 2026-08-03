@@ -650,6 +650,130 @@ def movement_dual_cut(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # orchestration (gated)
 # --------------------------------------------------------------------------- #
+
+# --------------------------------------------------------------------------- #
+# gate-day vs bootstrap-unit accounting (added 2026-08-03, research loop idle-run policy (b)
+# pre-flight -- `findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md`, lessons L274/L275)
+#
+# The self-activation gate above counts SUMMER CONTRACT-DAYS PRESENT IN `tape/weather_books/`.
+# The block bootstrap below resamples a DIFFERENT unit: a contract-day that yields at least one
+# FILLED, SETTLEMENT-MEASURABLE primary trade. Those two quantities are not the same number and
+# the gap does not close by waiting -- three disjoint causes remove days from the second without
+# touching the first (all three measured on committed tape 2026-08-03):
+#   * `incomplete_book` -- the tape's first day has no book at T = close - DECISION_LEAD_HOURS for
+#     any group, so every group is dropped (2026-07-15: 40/40). Structural, never self-heals.
+#   * zero-fill -- a fully-booked, fully-settled day where no bracket's NO ask ever touched our
+#     resting price (2026-07-25: 154 measurable rows, 0 touches). A real fill-rate fact.
+#   * settlement lag -- the newest contract-days carry NO settled result yet (L262), so every
+#     row is settlement-unmeasurable and correctly DROPPED (L86). This window TRAVELS with the
+#     fire date: whenever the probe runs, its most recent ~3 gate-days contribute 0 units.
+# Reporting the gate count alone would therefore overstate the bootstrap's real n. These two
+# functions make the difference explicit in the probe's own output; NEITHER changes the gate,
+# the population, the fill model, the fee, or the CI -- they only count what is already there.
+# --------------------------------------------------------------------------- #
+def bootstrap_unit_ledger(rows: Sequence[Dict[str, Any]],
+                          groups: Dict[Tuple[str, date], Any],
+                          results: Dict[str, str]) -> List[Dict[str, Any]]:
+    """Per-contract-day accounting of what survives into the block bootstrap, and why not.
+
+    One row per summer contract-day present in `groups` (the gate's own population), carrying the
+    group/row/measurable/primary/filled counts and `contributes_unit` -- True exactly when that day
+    supplies >=1 filled, settlement-measurable PRIMARY trade, i.e. exactly the day that
+    `bootstrap_cut` would resample. `deficit_reason` is None for a contributing day."""
+    by_day: Dict[str, Dict[str, Any]] = {}
+    for (series, cday) in groups:
+        d = cday.isoformat()
+        rec = by_day.setdefault(d, {"contract_day": d, "n_groups": 0, "n_groups_settled": 0,
+                                    "n_rows": 0, "n_measurable": 0, "n_primary": 0,
+                                    "n_primary_measurable": 0, "n_filled": 0})
+        rec["n_groups"] += 1
+        if any(tk in results for tk in groups[(series, cday)]):
+            rec["n_groups_settled"] += 1
+    for r in rows:
+        rec = by_day.get(r["contract_day"])
+        if rec is None:
+            continue
+        rec["n_rows"] += 1
+        meas = bool(r.get("settlement_measurable"))
+        prim = bool(r.get("fillable_entry"))
+        if meas:
+            rec["n_measurable"] += 1
+        if prim:
+            rec["n_primary"] += 1
+            if meas:
+                rec["n_primary_measurable"] += 1
+                if r.get("filled_movement"):
+                    rec["n_filled"] += 1
+    out: List[Dict[str, Any]] = []
+    for d in sorted(by_day):
+        rec = by_day[d]
+        rec["contributes_unit"] = rec["n_filled"] > 0
+        if rec["contributes_unit"]:
+            rec["deficit_reason"] = None
+        elif rec["n_rows"] == 0:
+            rec["deficit_reason"] = "incomplete_book"
+        elif rec["n_groups_settled"] == 0:
+            rec["deficit_reason"] = "settlement_lag"
+        elif rec["n_primary_measurable"] == 0:
+            rec["deficit_reason"] = "no_measurable_primary"
+        else:
+            rec["deficit_reason"] = "zero_fill"
+        out.append(rec)
+    return out
+
+
+def gate_vs_units_summary(ledger: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """Collapse `bootstrap_unit_ledger` into the headline gate-vs-unit comparison.
+
+    `min_ci_units` is repeated here so a reader sees the admissibility floor (L41) next to the
+    real unit count rather than having to know it -- a 21-day gate that yields 15 units sits far
+    closer to the floor than the gate number suggests."""
+    n_gate_days = len(ledger)
+    units = [r["contract_day"] for r in ledger if r["contributes_unit"]]
+    reasons: Dict[str, int] = {}
+    for r in ledger:
+        if not r["contributes_unit"]:
+            reasons[r["deficit_reason"]] = reasons.get(r["deficit_reason"], 0) + 1
+    return {
+        "n_gate_days": n_gate_days,
+        "n_bootstrap_units": len(units),
+        "unit_deficit": n_gate_days - len(units),
+        "unit_yield": (len(units) / n_gate_days) if n_gate_days else None,
+        "deficit_by_reason": reasons,
+        "unit_days": units,
+        "min_ci_units": MIN_CI_UNITS,
+        "clears_min_ci_units": len(units) >= MIN_CI_UNITS,
+    }
+
+
+def dual_cut_degeneracy(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """Is L32's movement-conditioned cut actually discriminating anything here?
+
+    `frozen` means the (yes_bid, yes_ask, no_bid, no_ask) tuple never changed across the holding
+    window; `touched` means some later snapshot's best NO ask fell to our resting NO bid. On a
+    frozen book every later snapshot's NO ask EQUALS the entry NO ask, so `touched` would require
+    `no_ask <= no_bid` -- a crossed book, which real Kalshi books never quote. So
+    `filled_movement == filled_optimistic` BY CONSTRUCTION under this fill model, and the two cuts
+    the report prints side by side can never disagree. This is not a defect in the numbers
+    (`OPTIMISTIC_FILL` already blocks graduation) -- it is a warning against reading two identical
+    cuts as mutual corroboration. `degenerate` is measured, never assumed."""
+    n_touched = sum(1 for r in rows if r.get("touched"))
+    n_frozen = sum(1 for r in rows if r.get("frozen"))
+    n_both = sum(1 for r in rows if r.get("touched") and r.get("frozen"))
+    n_opt = sum(1 for r in rows if r.get("filled_optimistic"))
+    n_mov = sum(1 for r in rows if r.get("filled_movement"))
+    return {
+        "n_rows": len(rows),
+        "n_touched": n_touched,
+        "n_frozen": n_frozen,
+        "n_touched_and_frozen": n_both,
+        "n_filled_optimistic": n_opt,
+        "n_filled_movement": n_mov,
+        "cuts_identical": n_opt == n_mov,
+        "degenerate": n_both == 0 and n_opt == n_mov,
+    }
+
+
 def run_probe(books_glob: str = BOOKS_GLOB, actuals_glob: str = ACTUALS_GLOB,
               forecast_dir: str = FORECAST_DIR, *, days_required: int = SUMMER_DAYS_REQUIRED,
               n_boot: int = 10000, cities_yaml: Path = CITIES_YAML) -> Dict[str, Any]:
@@ -718,6 +842,11 @@ def run_probe(books_glob: str = BOOKS_GLOB, actuals_glob: str = ACTUALS_GLOB,
         # DIAGNOSTIC ONLY (L69): unrestricted entry — never the headline
         "diagnostic_unrestricted_entry": _pop(all_rows),
     }
+    # gate-day vs bootstrap-unit accounting (does NOT alter any population, CI, or verdict)
+    ledger = bootstrap_unit_ledger(all_rows, groups, results)
+    report["bootstrap_unit_ledger"] = ledger
+    report["gate_vs_units"] = gate_vs_units_summary(ledger)
+    report["dual_cut_degeneracy"] = dual_cut_degeneracy(all_rows)
     report["verdict"] = _verdict(report)
     return report
 
@@ -798,6 +927,26 @@ def print_report(rep: Dict[str, Any]) -> None:
         print(f"    dual-cut (L32): filled_optimistic={dc['n_filled_optimistic']}  "
               f"frac_frozen={dc['frac_frozen']:.3f}  "
               f"movement_conditioned_n={dc['n_movement_conditioned']}")
+
+    gvu = rep.get("gate_vs_units")
+    if gvu:
+        print(f"\nGATE-DAY vs BOOTSTRAP-UNIT (L274): gate_days={gvu['n_gate_days']}  "
+              f"bootstrap_units={gvu['n_bootstrap_units']}  deficit={gvu['unit_deficit']}  "
+              f"yield={_pct(gvu['unit_yield'])}  min_ci_units={gvu['min_ci_units']}  "
+              f"clears_floor={gvu['clears_min_ci_units']}")
+        print(f"    deficit_by_reason={gvu['deficit_by_reason']}")
+        print("    the gate counts BOOK-tape contract-days; the bootstrap resamples SETTLED+FILLED "
+              "contract-days -- the trailing settlement-lag window travels with the fire date")
+    dcd = rep.get("dual_cut_degeneracy")
+    if dcd:
+        print(f"\nL32 DUAL-CUT DEGENERACY (L275): touched={dcd['n_touched']}  "
+              f"frozen={dcd['n_frozen']}  touched_AND_frozen={dcd['n_touched_and_frozen']}  "
+              f"optimistic={dcd['n_filled_optimistic']}  movement={dcd['n_filled_movement']}  "
+              f"degenerate={dcd['degenerate']}")
+        if dcd["degenerate"]:
+            print("    -> the movement-conditioned cut is IDENTICAL to the optimistic cut by "
+                  "construction (a frozen book cannot be touched without a crossed quote): the two "
+                  "cuts printed above are ONE number, not two agreeing ones")
 
     print(f"\nVERDICT: {rep['verdict']}")
     if rep["verdict"] == "OPTIMISTIC_FILL_BLOCKS_GRADUATION":
