@@ -1526,6 +1526,48 @@ def capped_pagination_span_warning(issues: List[Dict[str, object]]) -> Optional[
     return "\n".join(lines)
 
 
+def _completeness_cap_saturation_issues(tape_root: Path = ROOT / "tape"
+                                        ) -> List[Dict[str, object]]:
+    """One issue dict per registered family whose measured at-cap fraction clears the
+    saturation alert threshold, computed from committed tape only -- read-only, no network.
+    Best-effort: any exception yields [], so it can never poison the gate."""
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None or not tape_root.is_dir():
+            return []
+        issues: List[Dict[str, object]] = []
+        for family in sorted(getattr(tgm, "COMPLETENESS_CAP_FAMILIES", {})):
+            cov = tgm.completeness_cap_saturation(tape_root, family)
+            if not cov or not cov.get("saturated"):
+                continue
+            issues.append(cov)
+        return issues
+    except Exception:
+        return []
+
+
+def completeness_cap_saturation_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """A non-gating advisory naming any bounded-collector family whose committed
+    `completeness_ok` signal is STRUCTURALLY saturated -- (nearly) every real pass hits the
+    collector's own page cap, so `hourly_pass`'s completeness AND (and the VPS pager it
+    drives) fires on a permanent, already-known cap-vs-universe fact rather than a new
+    failure (L270). Pure. NEVER flips the exit code. See kb/lessons/00-lessons.md L270."""
+    if not issues:
+        return None
+    lines = [f"warning (non-gating): {len(issues)} bounded-collector family(ies) have a "
+             f"STRUCTURALLY SATURATED completeness_ok signal -- hourly_pass's completeness "
+             f"AND (and the VPS pager it drives) fires on a permanent cap-vs-universe fact, "
+             f"not a new failure (L270):"]
+    for issue in issues:
+        lines.append(f"  - {issue['family']}: {issue['n_at_cap']}/{issue['n_captures']} "
+                     f"committed captures ({float(issue['fraction_at_cap']):.0%}) sit "
+                     f"EXACTLY at the collector's own cap ({issue['cap']} rows/pass)")
+    lines.append("  Computed from committed tape only via "
+                 "scripts/tape_gap_monitor.py::completeness_cap_saturation. Advisory only "
+                 "-- does NOT affect the exit code. See kb/lessons/00-lessons.md L270.")
+    return "\n".join(lines)
+
+
 # ─── Expected-window-grid coverage advisory (L208: non-gating) ─────────────────
 #
 # L208: a per-window density statistic built only from windows that produced >=1 observation
@@ -3541,6 +3583,22 @@ def main() -> int:
         except BaseException:
             sys.stderr.write("note: capped-pagination span advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
+        # L270 advisory: a bounded-collector family (universe_sweep/settlement_ledger) whose
+        # committed captures sit AT the collector's own page cap on (nearly) every pass, so
+        # its own completeness_ok is structurally False and hourly_pass's AND fires the VPS
+        # pager on a permanent, already-known fact rather than a new failure. Non-gating --
+        # raising a cap or re-scoping hourly_pass's AND is a design call for Ryan, not
+        # something a cloud run can repair mid-loop. Wrapped in `except BaseException` for
+        # the same reason as the stanza above: a raise in the FORMATTER or a non-str return
+        # must not turn a non-gating advisory into a gate (the L156 DEFECT-1 lesson).
+        try:
+            cap_saturation_warning = completeness_cap_saturation_warning(
+                _completeness_cap_saturation_issues())
+            if cap_saturation_warning:
+                sys.stderr.write(cap_saturation_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: completeness-cap saturation advisory could not be "
+                             "computed (non-gating; exit code unaffected)\n")
         # L210 advisory: a `capture_id` shared by two DISTINCT collector invocations (a
         # one-shot backfill landing in the same wall-clock second as a scheduled pass), so
         # the same logical item appears twice under one id and any consumer grouping by that

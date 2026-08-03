@@ -783,6 +783,105 @@ def capped_pagination_span_coverage(tape_root: Path,
     }
 
 
+# ─── Completeness-cap saturation detector (L270: non-gating, offline-safe) ─────
+#
+# L270: a bounded-collector leg whose `completeness_ok` is derived from `cursor_exhausted`
+# (`collection/universe_sweep.py:224` `completeness_ok = cursor_exhausted and n_parse_errors
+# == 0`) reports FALSE on every pass whose own page cap sits below the population it
+# enumerates -- a property of the cap vs. the universe size, not a per-pass failure.
+# `collection/hourly_pass.py:587` ANDs every leg's own `completeness_ok` into one pass-level
+# signal and `collection/hourly_pass.py:635` exits 1 on any False; `ops/vps/kalshi-headless-
+# hourly.sh:86-87` fires a `Priority:high` phone notification on that nonzero exit. When a
+# leg's `completeness_ok` is STRUCTURALLY False on (nearly) 100% of real passes -- the cap is
+# permanently below the universe, by design -- the pager fires for a standing, already-known
+# fact, indistinguishable in both the exit code and the notification text from a genuine new
+# outage. Measured on committed tape 2026-08-03: `universe_sweep` (`MAX_CALLS=20 *
+# PAGE_LIMIT=1000` = 20,000 rows/pass, `collection/universe_sweep.py:74-75`) sits AT its cap
+# on 35/35 committed captures.
+#
+# `settlement_ledger` carries the same shape (see the `CAPPED_PAGINATION_FAMILIES` provenance
+# comment above -- `MAX_SETTLED_MARKETS=5000`) but is NOT always at cap in practice (800/1.26h,
+# 4200/3.83h, 5000/3.25h observed) -- honestly MEASURED per family, never assumed from the cap
+# alone.
+#
+# NON-GATING: whether a bounded collector's cap should be raised, or whether `hourly_pass`'s
+# AND should carve known-saturated legs onto a separate axis, is Ryan's design call -- the
+# exact question `kb/00-LOG.md` raised for `settlement_ledger` on 2026-07-17 and left open,
+# not something a cloud run can decide or repair mid-loop. Same posture as every other
+# tape-shape advisory in this module.
+#
+# Single source of truth: `COMPLETENESS_CAP_FAMILIES` and the computation live here, imported
+# into scripts/invariants.py via the existing `_load_tape_gap_monitor` path (the L100
+# duplication trap), never re-declared there.
+
+COMPLETENESS_CAP_FAMILIES: Dict[str, Dict[str, Any]] = {
+    "universe_sweep": {"cap": 20000, "min_captures_for_verdict": 3},
+    "settlement_ledger": {"cap": 5000, "min_captures_for_verdict": 3},
+}
+
+# Only flag a family whose measured at-cap fraction clears this threshold -- a family that
+# occasionally, not structurally, reaches its cap is a capacity/adequacy question (L185's
+# territory), not a saturated-signal one.
+COMPLETENESS_CAP_SATURATION_ALERT_FRACTION = 0.90
+
+
+def completeness_cap_saturation(tape_root: Path, family: str) -> Optional[Dict[str, Any]]:
+    """Fraction of ``family``'s committed captures whose line count sits EXACTLY at the
+    collector's own page cap (L270) -- computed from committed tape only, no network.
+
+    Returns ``None`` for a family not registered in ``COMPLETENESS_CAP_FAMILIES`` (no claim
+    about a shape this function wasn't told the family has, same refusal as
+    ``capped_pagination_span_coverage``) and for a family with fewer than
+    ``min_captures_for_verdict`` distinct ``capture_id``s (adequacy floor -- a thin sample
+    cannot support a saturation verdict either way).
+    """
+    cfg = COMPLETENESS_CAP_FAMILIES.get(family)
+    if cfg is None:
+        return None
+    cap = int(cfg["cap"])
+    min_captures = int(cfg["min_captures_for_verdict"])
+
+    by_capture: Dict[str, int] = {}
+    for _d, path in _family_files(tape_root, family):
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                cid = rec.get("capture_id")
+                if not isinstance(cid, str) or not cid:
+                    # No capture_id => no pass to attribute the row to. Skipped honestly
+                    # rather than lumped into a synthetic bucket.
+                    continue
+                by_capture[cid] = by_capture.get(cid, 0) + 1
+
+    n_captures = len(by_capture)
+    if n_captures < min_captures:
+        return None
+
+    n_at_cap = sum(1 for n in by_capture.values() if n == cap)
+    fraction = n_at_cap / n_captures
+
+    return {
+        "family": family,
+        "cap": cap,
+        "n_captures": n_captures,
+        "n_at_cap": n_at_cap,
+        "fraction_at_cap": round(fraction, 4),
+        "saturated": fraction >= COMPLETENESS_CAP_SATURATION_ALERT_FRACTION,
+    }
+
+
 # ─── Expected-window-grid coverage detector (L208: non-gating, offline-safe) ────
 #
 # L208: a per-window density statistic computed only over windows that produced >=1

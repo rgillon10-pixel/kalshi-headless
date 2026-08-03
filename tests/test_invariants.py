@@ -1594,6 +1594,129 @@ def test_acceptance_l185_settlement_ledger_real_tape_advisory_fires():
     assert "20260717T122238Z" not in msg
 
 
+# ── L270: completeness-cap saturation — a leg whose completeness_ok is always False ──
+#
+
+def _write_capped_family(tape_root, family, day, cid, n_rows):
+    import json as _json
+    fam = tape_root / family
+    fam.mkdir(parents=True, exist_ok=True)
+    with open(fam / f"dt={day}.jsonl", "a", encoding="utf-8") as f:
+        for _ in range(n_rows):
+            f.write(_json.dumps({"capture_id": cid, "captured_at":
+                                 f"{day}T00:00:00+00:00"}) + "\n")
+
+
+def test_completeness_cap_saturation_issues_missing_tape_root_is_empty_L270(tmp_path):
+    assert inv._completeness_cap_saturation_issues(tmp_path / "nope") == []
+
+
+def test_completeness_cap_saturation_issues_below_threshold_is_no_issue_L270(tmp_path):
+    for i, day in enumerate(["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23"]):
+        n = 5000 if i == 0 else 300
+        _write_capped_family(tmp_path, "settlement_ledger", day, f"c{i}", n)
+    assert inv._completeness_cap_saturation_issues(tmp_path) == []
+
+
+def test_completeness_cap_saturation_issues_finds_saturated_family_L270(tmp_path):
+    for i, day in enumerate(["2026-07-20", "2026-07-21", "2026-07-22"]):
+        _write_capped_family(tmp_path, "universe_sweep", day, f"c{i}", 20000)
+    issues = inv._completeness_cap_saturation_issues(tmp_path)
+    assert len(issues) == 1
+    assert issues[0]["family"] == "universe_sweep"
+    assert issues[0]["n_at_cap"] == 3
+    assert issues[0]["fraction_at_cap"] == 1.0
+
+
+def test_completeness_cap_saturation_warning_none_when_empty_L270():
+    assert inv.completeness_cap_saturation_warning([]) is None
+
+
+def test_completeness_cap_saturation_warning_message_content_L270(tmp_path):
+    for i, day in enumerate(["2026-07-20", "2026-07-21", "2026-07-22"]):
+        _write_capped_family(tmp_path, "universe_sweep", day, f"c{i}", 20000)
+    msg = inv.completeness_cap_saturation_warning(
+        inv._completeness_cap_saturation_issues(tmp_path))
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "universe_sweep" in msg
+    assert "3/3" in msg
+    assert "20000" in msg
+    assert "L270" in msg
+
+
+def test_completeness_cap_saturation_warning_never_gates_exit_code_L270(monkeypatch, capsys):
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_completeness_cap_saturation_advisory_is_wired_to_stderr_L270(monkeypatch, capsys):
+    monkeypatch.setattr(
+        inv, "_completeness_cap_saturation_issues",
+        lambda *a, **kw: [{"family": "fake_family", "cap": 200, "n_captures": 3,
+                           "n_at_cap": 3, "fraction_at_cap": 1.0, "saturated": True}],
+    )
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "STRUCTURALLY SATURATED" in captured.err
+    assert "fake_family" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_completeness_cap_saturation_advisory_raise_cannot_flip_exit_code_L270(
+        monkeypatch, capsys):
+    """The L156 DEFECT-1 posture: even if the ISSUES COLLECTOR or the FORMATTER raises,
+    the stanza's `except BaseException` guard keeps the advisory non-gating."""
+    def _boom(*a, **kw):
+        raise RuntimeError("detector exploded")
+
+    monkeypatch.setattr(inv, "_completeness_cap_saturation_issues", _boom)
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "completeness-cap saturation advisory could not be computed" in captured.err
+    assert "invariants: all green" in captured.out
+
+    monkeypatch.setattr(inv, "_completeness_cap_saturation_issues", lambda *a, **kw: [{"x": 1}])
+    monkeypatch.setattr(inv, "completeness_cap_saturation_warning", lambda issues: 12345)
+    assert inv.main() == 0
+
+
+def test_acceptance_l270_universe_sweep_real_tape_advisory_fires():
+    """HARD acceptance against the real committed tape: every committed
+    `universe_sweep` capture sits exactly at its 20,000-row page cap, so the
+    advisory fires and names it."""
+    fam = ROOT / "tape" / "universe_sweep"
+    if not fam.is_dir():
+        pytest.skip("committed tape/universe_sweep/ not present")
+    issues = inv._completeness_cap_saturation_issues()
+    matches = [i for i in issues if i["family"] == "universe_sweep"]
+    assert len(matches) == 1, issues
+    issue = matches[0]
+    assert issue["cap"] == 20000
+    assert issue["fraction_at_cap"] == 1.0
+    msg = inv.completeness_cap_saturation_warning(issues)
+    assert "universe_sweep" in msg
+
+
+def test_acceptance_l270_settlement_ledger_real_tape_not_flagged():
+    """settlement_ledger shares the bounded-cap SHAPE but is measured, not assumed,
+    to sit below the saturation threshold on real tape — must not appear in the
+    advisory's issue list."""
+    fam = ROOT / "tape" / "settlement_ledger"
+    if not fam.is_dir():
+        pytest.skip("committed tape/settlement_ledger/ not present")
+    issues = inv._completeness_cap_saturation_issues()
+    families = {i["family"] for i in issues}
+    assert "settlement_ledger" not in families, issues
+
+
 # ── L205: dangling pytest node-id citations in kb/ / findings/ / LOOP-QUEUE.md ──
 #
 # A ledger row cites a test by node id AS ITS ENFORCEMENT EVIDENCE. The lane that owns tests

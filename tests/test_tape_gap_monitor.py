@@ -1141,6 +1141,101 @@ def test_acceptance_12_l185_settlement_ledger_real_tape_span_vs_cadence():
         assert rec["coverage_ceiling_fraction"] == rec["span_ratio"]
 
 
+# ─── L270: completeness-cap saturation ──────────────────────────────────────────
+#
+
+def _capped_capture(tape_root, family, day, cid, n_rows):
+    _write_lines(tape_root, family, day,
+                 [_pass(cid, f"{day}T00:00:00+00:00") for _ in range(n_rows)])
+
+
+def test_completeness_cap_saturation_unregistered_family_returns_none_L270(tmp_path):
+    _hourly_day(tmp_path, "crypto_hourly", "2026-07-15", [10])
+    assert tgm.completeness_cap_saturation(tmp_path, "crypto_hourly") is None
+
+
+def test_completeness_cap_saturation_below_min_captures_returns_none_L270(tmp_path):
+    """An adequacy floor, not a verdict either way: 2 captures is below
+    `min_captures_for_verdict=3`, so no claim is made even though both sit at cap."""
+    _capped_capture(tmp_path, "universe_sweep", "2026-07-20", "c1", 20000)
+    _capped_capture(tmp_path, "universe_sweep", "2026-07-21", "c2", 20000)
+    assert tgm.completeness_cap_saturation(tmp_path, "universe_sweep") is None
+
+
+def test_completeness_cap_saturation_all_at_cap_is_flagged_L270(tmp_path):
+    """The exact L270 shape: every committed capture sits at the collector's own
+    page cap — the completeness_ok signal this drives is permanently False."""
+    for i, day in enumerate(["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23"]):
+        _capped_capture(tmp_path, "universe_sweep", day, f"c{i}", 20000)
+    cov = tgm.completeness_cap_saturation(tmp_path, "universe_sweep")
+    assert cov["family"] == "universe_sweep"
+    assert cov["cap"] == 20000
+    assert cov["n_captures"] == 4
+    assert cov["n_at_cap"] == 4
+    assert cov["fraction_at_cap"] == 1.0
+    assert cov["saturated"] is True
+
+
+def test_completeness_cap_saturation_below_threshold_is_not_flagged_L270(tmp_path):
+    """A family that only OCCASIONALLY reaches its cap is a capacity/adequacy
+    question (L185's territory), not a saturated-signal one — must stay
+    unflagged, the asymmetry that proves this measures the STRUCTURAL rate."""
+    _capped_capture(tmp_path, "settlement_ledger", "2026-07-20", "c0", 5000)
+    _capped_capture(tmp_path, "settlement_ledger", "2026-07-21", "c1", 800)
+    _capped_capture(tmp_path, "settlement_ledger", "2026-07-22", "c2", 4200)
+    _capped_capture(tmp_path, "settlement_ledger", "2026-07-23", "c3", 300)
+    cov = tgm.completeness_cap_saturation(tmp_path, "settlement_ledger")
+    assert cov["n_captures"] == 4
+    assert cov["n_at_cap"] == 1
+    assert cov["fraction_at_cap"] == 0.25
+    assert cov["saturated"] is False
+
+
+def test_completeness_cap_saturation_no_capture_id_is_unattributable_L270(tmp_path):
+    """A row with no capture_id cannot be attributed to a pass — skipped honestly,
+    never lumped into a synthetic bucket (mirrors capped_pagination_span_coverage)."""
+    fam = tmp_path / "universe_sweep"
+    fam.mkdir(parents=True, exist_ok=True)
+    with open(fam / "dt=2026-07-20.jsonl", "a", encoding="utf-8") as f:
+        for _ in range(20000):
+            f.write(json.dumps({"ticker": "KX-A"}) + "\n")
+        f.write("{not json\n")
+    for i, day in enumerate(["2026-07-21", "2026-07-22", "2026-07-23"]):
+        _capped_capture(tmp_path, "universe_sweep", day, f"c{i}", 20000)
+    cov = tgm.completeness_cap_saturation(tmp_path, "universe_sweep")
+    # Only the 3 attributable captures count; the capture_id-less file contributes nothing.
+    assert cov["n_captures"] == 3
+    assert cov["n_at_cap"] == 3
+    assert cov["saturated"] is True
+
+
+@_real
+def test_acceptance_l270_universe_sweep_real_tape_is_saturated():
+    """HARD acceptance, real committed tape: every committed `universe_sweep` capture
+    sits exactly at MAX_CALLS(20) * PAGE_LIMIT(1000) — the completeness_ok signal
+    this drives is structurally, not incidentally, always False."""
+    cov = tgm.completeness_cap_saturation(_REAL_TAPE, "universe_sweep")
+    assert cov is not None
+    assert cov["cap"] == 20000
+    assert cov["n_captures"] >= 30
+    assert cov["n_at_cap"] == cov["n_captures"]
+    assert cov["fraction_at_cap"] == 1.0
+    assert cov["saturated"] is True
+
+
+@_real
+def test_acceptance_l270_settlement_ledger_real_tape_is_not_saturated():
+    """settlement_ledger carries the same bounded-cap SHAPE but is measured, not
+    assumed, to be below the saturation threshold on real tape (only 1 of 4
+    committed captures reaches its cap) — the asymmetry against universe_sweep."""
+    cov = tgm.completeness_cap_saturation(_REAL_TAPE, "settlement_ledger")
+    assert cov is not None
+    assert cov["cap"] == 5000
+    assert cov["n_captures"] == 4
+    assert cov["fraction_at_cap"] < tgm.COMPLETENESS_CAP_SATURATION_ALERT_FRACTION
+    assert cov["saturated"] is False
+
+
 # ─── L210: `capture_id` is a pass LABEL, not a unique join key ──────────────────
 #
 # Hard assertions live over FIXTURES (the L201/L207 move); the one real-tree test below
