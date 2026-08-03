@@ -6,6 +6,74 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~03:2x UTC — research loop idle-run (policy (c)): VPS collector's true outage is 273.9h, not the 104.7h the advisory reports — a burst-window contamination blind spot
+
+Queue re-checked first (per protocol step 1/3): every Q0-Q50 status line reads DONE / BLOCKED /
+gated / RESERVED / density-inadequate — **0 eligible TODO/IN-PROGRESS items**, so this is an
+IDLE RUN. Checked idle-run policy (a) first (convert an UNENFORCED lesson): **L268's own text
+(2026-08-02) already confirmed the cloud-buildable mixed-tier backlog is empty** and explicitly
+said a future run should not re-derive it by hand — so (a) is genuinely exhausted, not merely
+unchecked. Moved to policy (c): a data-quality deep-dive on the VPS collector-health family.
+
+**What was found.** `scripts/invariants.py --full`'s non-gating advisory currently reads "the
+'vps' collector leg appears DEAD ... silent for: 104.7h" (last capture `2026-07-29T18:29:45Z`).
+Independently re-derived the newest VPS-minute-bucket (`captured_at` minute 20-29) capture per
+family, reading every committed `tape/<family>/dt=*.jsonl` line directly rather than trusting
+the aggregate reading:
+
+- `orderbook_depth` / `perp_tape` / `sports_pairs` / `weather_books`: newest VPS-bucket capture
+  is **still `2026-07-22T17:2x:xxZ`** — unchanged since the 2026-07-25/07-27 findings. Silence
+  **~273.9h (11.4 days)** as of this run.
+- `crypto_hourly` / `polymarket_macro_pairs`: newest VPS-bucket capture is
+  `2026-07-29T18:29:xxZ` — but that timestamp falls squarely inside the declared
+  `kalshi-burst-fomc-0729` trigger window (`17:40:00Z`-`19:45:00Z` that day), and both families
+  are explicitly named by that trigger's `burst_keys` (`fed`→`polymarket_macro_pairs`,
+  `crypto`→`crypto_hourly`, via `BURST_CAPTURE_KEY_TO_TAPE_FAMILY`). This is the FOMC burst
+  capture landing in the VPS minute-bucket by coincidence, not a genuine VPS pass.
+- `settlement_ledger` (VPS-sole-writer, no cloud fallback at its 10Z gate hour): **~280.7h
+  (11.7 days) fully stale**, confirmed independently via `tape_gap_monitor.py --no-notify --json`.
+
+**Root cause.** `_collector_leg_last_seen`/`_dead_collector_leg_diagnosis` in
+`scripts/invariants.py` (the function backing the `--full` advisory) computes the "vps" leg's
+last-seen timestamp as the MAX `captured_at` across every `hourly-dual` family, with no
+burst-window exclusion. `slot_cadence_by_time_of_day` (L213) already excuses declared
+`BURST_TRIGGER_WINDOWS` for exactly this reason; this function never got the equivalent fix, so
+a burst pass landing in the VPS bucket for ANY covered family resets the whole leg's apparent
+freshness and can mask a real, longer, family-specific death indefinitely.
+
+**What this means.** The VPS `:23` leg never actually recovered after the 07-25/07-27 "second
+death" reports — it has been continuously dead for 11+ days, and this is now the longest
+outage on record for this project (prior max reported: 102.9h). Worse, it went completely
+unreported between 07-27 and this run: no `kb/00-LOG.md` entry mentions VPS in that 6-day gap,
+because every run's `invariants.py --full` read the contaminated 104.7h-class number and (being
+non-gating and easy to skim past) nobody's hand-check caught the discrepancy until this run
+diffed it against a fresh per-family scan. No registry flip, no CI, no P&L, no kill decision —
+data-quality finding only; two-agent rule N/A (same posture as L156/L168/L172/L185/L213/L221/
+L222). New lesson **L269** (`UNENFORCED`) records the fix candidate (exclude burst-window
+captures from the per-family scan, reusing the same machinery L213 already imports) — not built
+this run, diagnosis-only per idle-run policy (c) scope.
+
+Full detail: `findings/2026-08-03-vps-collector-true-outage-273h-burst-contamination-blind-spot.md`.
+Queue bookkeeping: `LOOP-QUEUE.md` Q44 gets a new status-update paragraph (verdict unchanged,
+still DONE/EXTENDED).
+
+**Step 0b sweep:** `scripts/tape_branch_sweep.py` run over all 223 remote `tape/*` branches
+(fetch included): 54 malformed names, 22 fully contained + verified, 188 contained via
+capture_id-level check, 13 carry "missing" content and ALL 13 are unappendable (git conflict
+markers in `tape/cloud-env-check.md` or non-JSONL, per L247 — do NOT sweep). **0 lines
+union-appended this run** — nothing genuinely stranded, consistent with Q17/L38's standing
+"not a real problem" finding.
+
+**Step 9 (paper):** `execution.strategy_api.SHADOW_REGISTRY` is non-empty
+(`s14_ladder_underwriting`). `scripts/paper_pass.py` ran over committed tape: **0 processed**
+(282 already-in-ledger, 18 deferred(caps), 272 deferred(coverage)) — no new fills this pass, so
+no new ledger lines to commit. Cumulative paper state: **0 open position(s), 1,617 settled
+contract(s), realized P&L $+28.86, cash $+28.86, open notional $0.00.**
+
+**Gates** (taken after this diff's last change, per L162's fresh-gate-line rule): `pytest -q`
+**2762 passed, 0 failed**; `python3 scripts/invariants.py --full` **exit 0, all green**
+(docs + lessons + queue only, no source file touched — no test-outcome change from this diff).
+
 ## 2026-08-02 ~20:1x ET — research loop idle-run (policy (a)): L268 `UNENFORCED` → `test`, precision correction found along the way
 
 **Steps 0a/0/0b.** Fresh `git fetch origin main`: no rewind (LOG and newest tape both current,
