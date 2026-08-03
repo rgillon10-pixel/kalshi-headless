@@ -202,9 +202,9 @@ Consequence for tomorrow (~2026-08-04): Q37 crosses a **21**-day gate carrying *
 units against `MIN_CI_UNITS = 10` (L41) — it clears the admissibility floor by 5 units, not by 11,
 and the unit count, not the gate count, is the honest sample size to quote next to whatever CI comes
 out. Generalizes past Q37: any calendar-day gate sitting in front of a settlement-dependent bootstrap
-carries the same lag-shaped bias. Recorded as **L271**.
+carries the same lag-shaped bias. Recorded as **L274**.
 
-**Second finding (L272): L32's frozen/movement dual cut is a STRUCTURAL no-op under this fill model.**
+**Second finding (L275): L32's frozen/movement dual cut is a STRUCTURAL no-op under this fill model.**
 2,758 rows: touched **674**, frozen **379**, touched-AND-frozen **0**, `filled_optimistic` 674 ==
 `filled_movement` 674 — identical, not approximately. It cannot be otherwise: `frozen` means the
 `(yes_bid, yes_ask, no_bid, no_ask)` tuple never changed, so every later NO ask equals the entry NO
@@ -248,7 +248,7 @@ price was ever filled against.
 passed, 0 failed** (was 2779, +11 new tests, 0 regressions); `python3 scripts/invariants.py --full`
 -> **exit 0, all green** (pre-existing non-gating advisories only — L208 window-grid, L210
 capture_id collisions, L138/L152/L157/L205/L52 lexical advisories; none introduced by this diff).
-See `findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md`, `kb/lessons/00-lessons.md` L271/L272.
+See `findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md`, `kb/lessons/00-lessons.md` L274/L275.
 
 ---
 ## 2026-08-03 ~06:1x UTC — research loop idle-run (policy (c)): `universe_sweep`'s completeness_ok is structurally saturated — the VPS pager fires on a known fact, not a new failure

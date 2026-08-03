@@ -653,7 +653,7 @@ def movement_dual_cut(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
 
 # --------------------------------------------------------------------------- #
 # gate-day vs bootstrap-unit accounting (added 2026-08-03, research loop idle-run policy (b)
-# pre-flight -- `findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md`, lessons L271/L272)
+# pre-flight -- `findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md`, lessons L274/L275)
 #
 # The self-activation gate above counts SUMMER CONTRACT-DAYS PRESENT IN `tape/weather_books/`.
 # The block bootstrap below resamples a DIFFERENT unit: a contract-day that yields at least one
@@ -930,7 +930,7 @@ def print_report(rep: Dict[str, Any]) -> None:
 
     gvu = rep.get("gate_vs_units")
     if gvu:
-        print(f"\nGATE-DAY vs BOOTSTRAP-UNIT (L271): gate_days={gvu['n_gate_days']}  "
+        print(f"\nGATE-DAY vs BOOTSTRAP-UNIT (L274): gate_days={gvu['n_gate_days']}  "
               f"bootstrap_units={gvu['n_bootstrap_units']}  deficit={gvu['unit_deficit']}  "
               f"yield={_pct(gvu['unit_yield'])}  min_ci_units={gvu['min_ci_units']}  "
               f"clears_floor={gvu['clears_min_ci_units']}")
@@ -939,7 +939,7 @@ def print_report(rep: Dict[str, Any]) -> None:
               "contract-days -- the trailing settlement-lag window travels with the fire date")
     dcd = rep.get("dual_cut_degeneracy")
     if dcd:
-        print(f"\nL32 DUAL-CUT DEGENERACY (L272): touched={dcd['n_touched']}  "
+        print(f"\nL32 DUAL-CUT DEGENERACY (L275): touched={dcd['n_touched']}  "
               f"frozen={dcd['n_frozen']}  touched_AND_frozen={dcd['n_touched_and_frozen']}  "
               f"optimistic={dcd['n_filled_optimistic']}  movement={dcd['n_filled_movement']}  "
               f"degenerate={dcd['degenerate']}")

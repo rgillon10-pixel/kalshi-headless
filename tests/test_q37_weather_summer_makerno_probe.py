@@ -492,7 +492,7 @@ def test_real_weather_books_tape_carries_no_phantom_gate_days():
 
 # --------------------------------------------------------------------------- #
 # gate-day vs bootstrap-unit accounting (added 2026-08-03, research loop idle-run policy (b);
-# findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md, lessons L271/L272)
+# findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md, lessons L274/L275)
 # --------------------------------------------------------------------------- #
 def _ledger_row(day, **kw):
     """One synthetic trade row as `bootstrap_unit_ledger` reads it."""
@@ -603,7 +603,7 @@ def test_dual_cut_degeneracy_flags_identical_cuts():
 
 
 def test_frozen_book_can_never_be_touched_in_simulate_group():
-    """The structural claim behind L272, exercised through the REAL `simulate_group`: a book whose
+    """The structural claim behind L275, exercised through the REAL `simulate_group`: a book whose
     quotes never move cannot produce a touch, because a touch would require no_ask <= no_bid."""
     def _frozen_snaps(ticker, ybid, yask, nbid, nask):
         return [{
@@ -649,5 +649,5 @@ def test_real_tape_gate_yield_is_bounded_and_monotone():
     assert g["n_bootstrap_units"] < g["n_gate_days"]
     assert g["deficit_by_reason"].get("settlement_lag", 0) >= 1
     d = dual_cut_degeneracy(rows)
-    assert d["n_touched_and_frozen"] == 0           # L272, on every committed row
+    assert d["n_touched_and_frozen"] == 0           # L275, on every committed row
     assert d["degenerate"] is True

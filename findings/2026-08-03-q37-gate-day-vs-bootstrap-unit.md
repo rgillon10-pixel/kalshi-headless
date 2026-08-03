@@ -5,7 +5,7 @@
   kill decision.** Two-agent verdict rule does not apply (and no `verifier` subagent was
   dispatchable in this run's harness — stated, not glossed).
 - **Re-run:** `python3 scripts/q37_bootstrap_unit_preflight.py`
-- **Lessons produced:** `kb/lessons/00-lessons.md` **L271**, **L272**
+- **Lessons produced:** `kb/lessons/00-lessons.md` **L274**, **L275**
 - **Status of Q37 itself:** UNCHANGED — still GATED (20 of 21 summer contract-days as of today;
   earliest honest open ~2026-08-04). Nothing here opens, closes, or relaxes the gate.
 
@@ -94,7 +94,7 @@ therefore implied by the fill condition and adds zero discriminating power.
 This changes no number the probe reports (`OPTIMISTIC_FILL = True` already blocks graduation). It
 changes how the report must be **read**: `_verdict()` describes the movement-conditioned cut as
 "the honest fill cut", but here it is the optimistic cut wearing a second label. A genuine L32
-dual cut needs a movement test independent of the fill test. Recorded as **L272**; the probe now
+dual cut needs a movement test independent of the fill test. Recorded as **L275**; the probe now
 prints an explicit warning line whenever the degeneracy is measured (measured — a fixture with one
 frozen-and-touched row flips the flag to False, and a test pins that).
 
