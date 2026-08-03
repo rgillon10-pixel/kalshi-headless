@@ -40,7 +40,7 @@ import subprocess
 import sys
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Callable, Dict, List, NamedTuple, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1151,17 +1151,59 @@ def _leg_schedule_phrase(leg: str) -> str:
         return "schedule unknown"
 
 
+# L269 (2026-08-03): a declared burst trigger deliberately re-fires the collectors every
+# 60-120s inside its window, and those passes carry whatever minute-of-hour they happen to land
+# on. A single FOMC-burst pass at :29 therefore read as a live "vps" pass and reset the whole
+# leg's apparent freshness — `--full` announced "silent for: 104.7h" from
+# 2026-07-29T18:29:45Z (the kalshi-burst-fomc-0729 window, families crypto_hourly /
+# polymarket_macro_pairs) while the families NO declared trigger covers put the honest last
+# vps-bucket capture at 2026-07-22T17:29:49Z, ~273.9h — a 2.6x understatement of a real outage.
+# The exclusion below is the same blind-spot fix L213 already gave `slot_cadence_by_time_of_day`,
+# and it reuses tape_gap_monitor's ONE copy of the window table + pad rather than a second one.
+def _family_burst_windows(tgm, family: str) -> Optional[List[Tuple[object, object]]]:
+    """Declared, PADDED burst windows during which `family` is deliberately re-captured, read
+    from `tape_gap_monitor._burst_windows_for_family` (the single home of BURST_TRIGGER_WINDOWS
+    and BURST_WINDOW_PAD_S — never re-listed here, same discipline as COLLECTOR_MINUTE_BUCKETS).
+
+    Returns ``None`` — a DISTINCT "exclusion table unavailable", never an empty list — when the
+    helper is missing or raises. The caller then degrades to the OLD count-everything behaviour:
+    a missing exclusion table must leave the advisory slightly optimistic, never blank it."""
+    try:
+        fn = getattr(tgm, "_burst_windows_for_family", None)
+        if fn is None:
+            return None
+        return list(fn(family))
+    except Exception:
+        return None
+
+
 def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
                              lookback_days: int = DEAD_LEG_LOOKBACK_DAYS,
-                             max_day: Optional[date] = None) -> Dict[str, str]:
+                             max_day: Optional[date] = None,
+                             exclude_burst_windows: bool = True,
+                             stats: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
     """Newest `captured_at` per collector leg ("vps"/"cloud"/"other"), scanned from committed
     tape only (no network, no git). Legs are bucketed by minute-of-hour using
     tape_gap_monitor.COLLECTOR_MINUTE_BUCKETS; families are its kind=="hourly-dual" entries.
     `max_day` (optional) restricts the scan to `dt=<date>.jsonl` files on or before that day —
     used by tests to pin a FIXED historical slice so a real-tape assertion can never rot as new
     tape lands. Returns {leg: iso-string}; {} when nothing is readable. Best-effort: any
-    exception yields {} so it can never poison the gate."""
+    exception yields {} so it can never poison the gate.
+
+    `exclude_burst_windows` (default True, L269) drops captures that fall inside a DECLARED,
+    padded burst-trigger window FOR THAT FAMILY — per-family, never global wall-clock, so a
+    capture in a family no trigger covers still counts at the same instant. A burst pass is
+    sanctioned re-collection, not a scheduled cron pass, and letting one stand in for a
+    scheduled pass understates a real outage (measured 2.6x). Pass False to reproduce the
+    pre-L269 reading. `stats` (optional out-dict, mutated in place) reports the exclusion so it
+    is visible rather than silent: `n_burst_excluded`, `burst_excluded_by_family`,
+    `scan_oldest_day` (the oldest day-file actually read — see L271: the horizon is newest-N
+    day-FILES *per family*, i.e. ragged, so the aggregate max can be OLDER than the leg's true
+    last capture), and `burst_table_unavailable` (families that degraded)."""
     out: Dict[str, str] = {}
+    excluded: Dict[str, int] = {}
+    degraded: List[str] = []
+    oldest_day: Optional[date] = None
     try:
         tgm = _load_tape_gap_monitor()
         if tgm is None or not tape_root.is_dir():
@@ -1172,6 +1214,11 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
             family_dir = tape_root / family
             if not family_dir.is_dir():
                 continue
+            windows = None
+            if exclude_burst_windows:
+                windows = _family_burst_windows(tgm, family)
+                if windows is None:
+                    degraded.append(family)
             days = []
             for p in family_dir.glob("dt=*.jsonl"):
                 if not p.is_file():
@@ -1183,7 +1230,9 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
                 if max_day is not None and d > max_day:
                     continue
                 days.append((d, p))
-            for _, path in sorted(days)[-lookback_days:]:
+            for day, path in sorted(days)[-lookback_days:]:
+                if oldest_day is None or day < oldest_day:
+                    oldest_day = day
                 try:
                     blob = path.read_bytes()
                 except Exception:
@@ -1193,12 +1242,22 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
                     dt = _parse_capture_ts(ts)
                     if dt is None:
                         continue
+                    if windows and any(lo <= dt <= hi for lo, hi in windows):
+                        excluded[family] = excluded.get(family, 0) + 1
+                        continue
                     leg = tgm.collector_bucket(dt)
                     if ts > out.get(leg, ""):
                         out[leg] = ts
         return out
     except Exception:
         return {}
+    finally:
+        if stats is not None:
+            stats["exclude_burst_windows"] = bool(exclude_burst_windows)
+            stats["burst_excluded_by_family"] = dict(excluded)
+            stats["n_burst_excluded"] = sum(excluded.values())
+            stats["scan_oldest_day"] = oldest_day.isoformat() if oldest_day else None
+            stats["burst_table_unavailable"] = sorted(degraded)
 
 
 def _parse_capture_ts(ts: str):
@@ -1214,7 +1273,9 @@ def _parse_capture_ts(ts: str):
 def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
                                   now=None,
                                   lookback_days: int = DEAD_LEG_LOOKBACK_DAYS,
-                                  max_day: Optional[date] = None) -> Optional[Dict[str, object]]:
+                                  max_day: Optional[date] = None,
+                                  exclude_burst_windows: bool = True,
+                                  ) -> Optional[Dict[str, object]]:
     """Diagnose an apparently-dead collector leg from committed tape (L117/L129). Returns None
     when there is nothing to say (no readable tape, or every scheduled leg captured within
     DEAD_LEG_SILENCE_HOURS). Otherwise a facts dict with `status` in:
@@ -1233,8 +1294,11 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
         from datetime import datetime as _datetime, timezone as _timezone
         if now is None:
             now = _datetime.now(_timezone.utc)
+        scan_stats: Dict[str, Any] = {}
         last_seen = _collector_leg_last_seen(tape_root, lookback_days=lookback_days,
-                                             max_day=max_day)
+                                             max_day=max_day,
+                                             exclude_burst_windows=exclude_burst_windows,
+                                             stats=scan_stats)
         if not last_seen:
             return None
 
@@ -1263,6 +1327,12 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
             "last_seen": last_seen,
             "ages": ages,
             "lookback_days": lookback_days,
+            # L269 provenance: what the reading EXCLUDED and how far back it could see.
+            "exclude_burst_windows": scan_stats.get("exclude_burst_windows"),
+            "n_burst_excluded": scan_stats.get("n_burst_excluded"),
+            "burst_excluded_by_family": scan_stats.get("burst_excluded_by_family"),
+            "burst_table_unavailable": scan_stats.get("burst_table_unavailable"),
+            "scan_oldest_day": scan_stats.get("scan_oldest_day"),
         }
         if len(silent) == len(DEAD_LEG_MONITORED):
             base["status"] = "ambiguous"
@@ -1300,6 +1370,37 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
             f"code — a dead VPS cron cannot be fixed from a cloud run. Fix = restart the cron on "
             f"the machine that owns it. See kb/lessons/00-lessons.md L117/L129.")
 
+    def _burst_and_horizon_lines() -> List[str]:
+        """L269 provenance lines. Kept OPTIONAL — a diag dict built before these keys existed
+        (or by a test fixture) renders exactly as it used to, no KeyError, no invented number."""
+        out: List[str] = []
+        n = diag.get("n_burst_excluded")
+        if diag.get("exclude_burst_windows") and isinstance(n, int):
+            by_fam = diag.get("burst_excluded_by_family") or {}
+            fams = ", ".join(sorted(by_fam)) if isinstance(by_fam, dict) and by_fam else "none"
+            out.append(
+                f"  - excluded from this reading: {n} capture(s) written inside a DECLARED "
+                f"burst-trigger window (families: {fams}). A burst is sanctioned extra "
+                f"collection, not a scheduled pass; counting one as a scheduled pass used to "
+                f"make a dead leg look days fresher than it was (see kb/lessons L269).")
+        unavailable = diag.get("burst_table_unavailable")
+        if unavailable:
+            out.append(
+                f"  - NOTE: the burst-window table could not be read for "
+                f"{', '.join(unavailable)} — those families were counted WITHOUT the "
+                f"exclusion, so this reading may still be optimistic.")
+        oldest = diag.get("scan_oldest_day")
+        if oldest:
+            out.append(
+                f"  - horizon caveat: the scan reads the newest {lookback} DAY-FILES PER "
+                f"FAMILY, which is a ragged window, not {lookback} calendar days — a family "
+                f"that writes a file most days reaches back ~{lookback} days, a sparse one "
+                f"reaches back much further (oldest day read here: {oldest}). So this "
+                f"last-capture date is the newest non-burst capture VISIBLE IN THAT WINDOW and "
+                f"can be OLDER than the leg's true last capture; treat the exact date as "
+                f"indicative and the 'is it dead' verdict as the reliable part.")
+        return out
+
     def _leg_line(leg: str) -> str:
         seen = diag.get("last_seen", {}).get(leg)  # type: ignore[union-attr]
         age = diag.get("ages", {}).get(leg)        # type: ignore[union-attr]
@@ -1321,6 +1422,7 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
         still = diag.get("alive") or []
         lines.append(f"  - still producing within {DEAD_LEG_ALIVE_HOURS:.0f}h: "
                      + (", ".join(still) if still else "NOTHING (whole pipe looks dark)"))
+        lines += _burst_and_horizon_lines()
         lines.append("  " + tail)
         return "\n".join(lines)
 
@@ -1337,6 +1439,7 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
         f"  - still alive: {', '.join(alive) if alive else 'none'} "
         f"(captured within the last {DEAD_LEG_ALIVE_HOURS:.0f}h), so the tape keeps growing and "
         f"nothing else looks broken — which is exactly why this outage stays invisible.",
+    ] + _burst_and_horizon_lines() + [
         "  " + tail,
     ])
 

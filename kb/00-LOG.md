@@ -6,6 +6,104 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~12:4x UTC — research loop IDLE RUN (policy (a)): L269 UNENFORCED -> test — a declared burst pass can no longer stand in for a scheduled VPS pass, and the advisory's silence figure was over-stating for a second, separate reason (L271)
+
+**Queue re-checked first (protocol steps 1/3).** Full Q0-Q50 rescan by the newest-dated Status
+line per item (NOT first-line-wins — Q24 and Q27 each carry a DONE verdict under an older TODO
+line and are correctly ineligible; the other bare `Status: TODO` greps are historical lines
+inside items whose leading status is DONE/BLOCKED/GATED). **0 eligible TODO/IN-PROGRESS** ->
+**IDLE RUN.** Idle-run policy order taken honestly: **(a) was NOT exhausted this time.** L269 was
+opened *earlier today* by the ~03:2x run as `UNENFORCED` with a fully specified, fully offline,
+cloud-buildable candidate, and that run explicitly declined to build it ("Not built this run —
+idle-run policy (c), diagnosis-only scope"). That is the top of the idle-run order, so (b)/(c)/(d)
+were not reached. Deliberately no overlap with today's other three runs (Q21 round #21 + Q37 prep
+by the edge-hunter; the 273.9h VPS diagnosis; the `universe_sweep` cap-saturation deep-dive).
+
+**Milestone: L269's own named candidate, built exactly as written, no redesign.**
+`scripts/invariants.py` gained `_family_burst_windows(tgm, family)` — which reads the padded
+windows from `tape_gap_monitor._burst_windows_for_family`, i.e. the single existing home of
+`BURST_TRIGGER_WINDOWS` + `BURST_WINDOW_PAD_S` (900s), no second copy — and
+`_collector_leg_last_seen(..., exclude_burst_windows=True, stats=None)` now drops any capture
+falling inside a declared padded window **for that family**. Per-family, never global wall-clock:
+the identical instant in a family no trigger covers still counts, and that negative control is a
+test, because the over-reaching version of this fix would have been just as wrong as the defect.
+`exclude_burst_windows=False` reproduces the pre-L269 reading exactly, so the defect stays
+demonstrable rather than becoming folklore. Degradation goes toward the OLD behaviour, never
+toward silence: an unreadable window table counts that family unexcluded and names it in
+`stats['burst_table_unavailable']` — a blanked advisory is precisely how an outage goes unnoticed.
+The diagnosis dict publishes `n_burst_excluded` / `burst_excluded_by_family` /
+`burst_table_unavailable` / `scan_oldest_day`; `dead_collector_leg_warning` gained two OPTIONAL
+provenance lines (a pre-L269-shaped diag renders byte-identically to before). The advisory stays
+**NON-GATING** — `--full` exit code unchanged at 0, `test_advisory_is_non_gating` still pins it.
+
+**Measured on committed tape, `now = 2026-08-03T12:45:00Z`** (source: committed `captured_at`
+timestamps only — no price, no fill, no P&L, so no `price_source_tag` applies):
+
+| scan | leg | exclusion OFF (pre-L269) | exclusion ON |
+|---|---|---|---|
+| live (`max_day=None`) | `vps` | `2026-07-29T18:29:45.808389Z` = **114.3h** | `2026-07-15T19:23:54.847425Z` = **449.4h** |
+| live | `cloud` | `2026-08-03T06:56:06.724517Z` = 5.8h | unchanged |
+| pinned `max_day=2026-08-01` | `vps` | `2026-07-29T18:29:45.808389Z` = 114.3h | `2026-07-22T17:29:49.498223Z` = **283.3h** |
+
+82 captures excluded (crypto_hourly 24 / polymarket_pairs 35 / polymarket_macro_pairs 23). Only
+the `vps` reading moves. The pinned slice **reproduces the ~03:2x run's honest `2026-07-22T17:29:49Z`
+value to the second, via an independent code path** — that reproduction is the redundancy this
+run has instead of a verifier.
+
+**Second, separate finding (new — L271).** With the burst contamination removed, the LIVE reading
+is `2026-07-15` (449.4h), not the true `2026-07-22` (283.3h). Cause is unrelated to L269:
+`DEAD_LEG_LOOKBACK_DAYS=10` bounds I/O by **day-FILES per family**, a *ragged* horizon rather than
+10 calendar days. Dense families' 07-22 file has already dropped out of their own 10-file window;
+a sparse family (`polymarket_pairs`) still has its 07-15 file in-window, so the aggregate MAX lands
+on the older genuine capture. So the reported last-capture date can be OLDER than the truth and the
+silence figure can **over**-state — the opposite direction from L269, in the same function, found
+only because L269's fix exposed it. Counter-intuitive detail worth keeping: a DEEPER lookback
+returns a NEWER last-seen (max over a superset), so "scan further back to check" reads backwards.
+Disclosed in the advisory (a plain-English "horizon caveat" line + `scan_oldest_day`, both
+test-pinned) rather than repaired: the honest repair is a per-family CALENDAR cutoff, whose cost is
+the unbounded I/O the file-count bound was explicitly chosen to prevent — a design call, not a
+mid-loop patch. Candidate recorded verbatim in L271 so it never needs re-deriving.
+
+**Tests:** 10 new in `tests/test_dead_collector_leg_advisory.py` (31 in file) — the defect itself,
+the per-family negative control, the 900s pad boundary (17:24Z out / 17:26Z in), exclusion-is-visible,
+degradation-to-old-behaviour, `_family_burst_windows` returning None on a raising helper, a
+one-home-for-the-table source assert, back-compat rendering both with and without the L269 keys, and
+a HARD real-tape acceptance test pinned at `max_day=2026-08-01` with no `datetime.now()` call (L140
+anti-time-bomb) asserting `on < off` — "the fix must make the outage look LONGER, never shorter."
+
+**Step 0b (stranded-tape sweep).** `tape/hourly-20260803T0705Z` carried genuinely stranded tape:
+**21,877 lines union-appended** (universe_sweep 20,000 / orderbook_depth 1,214 / weather_books 351 /
+sports_pairs 270 / polymarket_macro_pairs 21 / perp_tape 17 / crypto_hourly 2 / hyperliquid_funding 2),
+all from the 06Z-07Z pass (1,507 at 06Z, 20,370 at 07Z), 0 JSON parse failures, append-only with
+line-level dedupe, no existing line rewritten or reordered. The four next-newest branches
+(`20260802T1616Z`, `20260802T0102Z`, `20260801T2204Z`, `20260801T1005Z`) are strict subsets of `main`
+— 0 missing lines each. Backlog hygiene (Q17): **218 branches** (208 `hourly-*` + 10 `burst-*`),
+oldest `burst-20260714T120659Z`, only 6 dated on/after 2026-08-01 — i.e. this is a July debt, not new
+accumulation, and it is not reconcilable inside one milestone. No branch deleted (the swept branch's
+PR must merge first).
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (non-empty).
+`scripts/paper_pass.py` replay over committed tape: 1,571 records loaded, **0 newly processed**
+(idempotent — 282 already in ledger, 18 deferred(caps), 272 deferred(coverage)), **0 new ledger
+lines**. `daily_summary()`: `paper: 0 open position(s), 1617 settled contract(s), realized P&L
+$+28.86, cash $+28.86, open notional $0.00`. Fills remain `real_bid`/`maker_candle_through`,
+settlements `broker_truth`; zero synthetic fills. Paper is evidence, never a verdict — S14 stays
+`dead x`.
+
+**Honest caveat.** The advisory did NOT print during this run's `--full` gate pass, for a pre-existing reason unrelated to L269: naming a dead leg requires a SURVIVOR capturing within `DEAD_LEG_ALIVE_HOURS=6`, and the newest cloud capture (`2026-08-03T06:56:06Z`) was ~7.1h old at gate time, so the "one leg silent but nothing producing either" branch correctly stayed quiet rather than mis-attributing a possible whole-pipe outage. Every number above is therefore stated at the FUNCTION level with an injected `now` — which is what the new tests pin — not scraped from a stderr block that did not render (quoting it would have been an L165-class citation error).
+
+**Gates (fresh, after the last code change — L162).** `pytest -q`: **2,789 passed / 0 failed / 0 skipped, exit 0** (was 2,779 before this diff, +10 new; count taken AFTER the last code change, L162). `invariants.py --full`: exit 0, `invariants: all green` (15 standing non-gating advisories, unchanged in kind; the L152 advisory now reads `n_open_unenforced=3` [L213/L221/L222] and mixed-tier [L168/L270/**L271**] — L269 correctly gone).
+
+**Two-agent rule: N/A by milestone class, and stated rather than assumed.** No registry flip, no
+bootstrap CI into `kb/`, no kill decision — this is tooling/measurement over committed tape. The
+Agent/`Task` tool was UNAVAILABLE in this session, so no independent `verifier` was dispatchable;
+the milestone was chosen non-verdict-class *for that reason* (same posture as the 2026-08-01 ~04:xx
+and ~22:5x runs). Redundancy comes from the independent-code-path reproduction above plus the
+still-runnable pre-fix cut.
+
+Still **0 proven edges**; `kb/strategies/00-index.md` untouched; no price, fill or P&L asserted.
+See `findings/2026-08-03-l269-burst-exclusion-enforcement.md`, `kb/lessons/00-lessons.md` L269/L271.
+
 ## 2026-08-03 ~06:1x UTC — research loop idle-run (policy (c)): `universe_sweep`'s completeness_ok is structurally saturated — the VPS pager fires on a known fact, not a new failure
 
 Queue re-checked first (per protocol step 1/3): full Q0-Q50 file-shape rescan found 0 eligible

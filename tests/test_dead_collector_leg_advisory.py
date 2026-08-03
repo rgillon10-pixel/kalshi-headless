@@ -344,3 +344,158 @@ def test_acceptance_real_tape_slice_is_stable_under_future_tape():
     b = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_SLICE_MAX_DAY)
     assert b["vps"] == a["dead_last_seen"]
     assert b["cloud"] > b["vps"]
+
+
+# ─── L269: declared burst-window captures must not stand in for a scheduled pass ──
+#
+# The defect: a burst trigger deliberately re-fires the collectors every 60-120s inside its
+# window, and one of those passes landed at minute :29 — inside the `vps` minute bucket — for
+# `crypto_hourly` / `polymarket_macro_pairs` during `kalshi-burst-fomc-0729`. The aggregate
+# MAX over families then read that burst pass as a live VPS pass and announced "silent for:
+# 104.7h" while the families no trigger covers put the true last vps-bucket capture ~2.6x
+# further back. Same blind spot L213 already closed for `slot_cadence_by_time_of_day`.
+
+_FOMC_BURST_INSIDE = datetime(2026, 7, 29, 18, 29, 45, tzinfo=UTC)   # inside 17:40-19:45Z
+_BURST_COVERED_FAMILY = "crypto_hourly"        # in kalshi-burst-fomc-0729's burst_keys
+_NOT_BURST_COVERED_FAMILY = "orderbook_depth"  # covered by NO declared trigger
+
+
+def _older_genuine_vps(tape_root: pathlib.Path, family: str) -> datetime:
+    """A vps-bucket capture well before any declared burst window — the honest reading."""
+    ts = datetime(2026, 7, 22, 17, 29, 49, tzinfo=UTC)
+    _write_capture(tape_root, ts, family=family)
+    return ts
+
+
+def test_burst_window_capture_is_excluded_for_a_burst_covered_family(tmp_path):
+    honest = _older_genuine_vps(tmp_path, _BURST_COVERED_FAMILY)
+    _write_capture(tmp_path, _FOMC_BURST_INSIDE, family=_BURST_COVERED_FAMILY)
+
+    on = inv._collector_leg_last_seen(tmp_path)
+    assert on["vps"] == honest.isoformat(), "the burst pass must not stand in for a vps pass"
+
+    off = inv._collector_leg_last_seen(tmp_path, exclude_burst_windows=False)
+    assert off["vps"] == _FOMC_BURST_INSIDE.isoformat(), "pre-L269 reading must be reproducible"
+    assert off["vps"] > on["vps"]
+
+
+def test_same_instant_counts_for_a_family_no_declared_trigger_covers(tmp_path):
+    """Per-FAMILY, never global wall-clock: the identical timestamp in a family outside the
+    trigger's burst_keys is a genuine scheduled pass and must still count."""
+    _older_genuine_vps(tmp_path, _NOT_BURST_COVERED_FAMILY)
+    _write_capture(tmp_path, _FOMC_BURST_INSIDE, family=_NOT_BURST_COVERED_FAMILY)
+    seen = inv._collector_leg_last_seen(tmp_path)
+    assert seen["vps"] == _FOMC_BURST_INSIDE.isoformat()
+
+
+def test_burst_pad_boundary_is_respected(tmp_path):
+    """BURST_WINDOW_PAD_S (900s) absorbs trigger jitter: 17:26 is inside the padded window
+    (17:25-20:00), 17:24 is outside it. Both are vps-bucket minutes on the same day."""
+    outside = datetime(2026, 7, 29, 17, 24, 0, tzinfo=UTC)
+    inside = datetime(2026, 7, 29, 17, 26, 0, tzinfo=UTC)
+    _write_capture(tmp_path, outside, family=_BURST_COVERED_FAMILY)
+    _write_capture(tmp_path, inside, family=_BURST_COVERED_FAMILY)
+    seen = inv._collector_leg_last_seen(tmp_path)
+    assert seen["vps"] == outside.isoformat()
+    assert inv._collector_leg_last_seen(
+        tmp_path, exclude_burst_windows=False)["vps"] == inside.isoformat()
+
+
+def test_exclusion_is_reported_not_silent(tmp_path):
+    """An exclusion nobody can see is indistinguishable from missing data — the stats out-dict
+    names the count, the families, and the scan horizon."""
+    _older_genuine_vps(tmp_path, _BURST_COVERED_FAMILY)
+    _write_capture(tmp_path, _FOMC_BURST_INSIDE, family=_BURST_COVERED_FAMILY)
+    stats: dict = {}
+    inv._collector_leg_last_seen(tmp_path, stats=stats)
+    assert stats["exclude_burst_windows"] is True
+    assert stats["n_burst_excluded"] == 1
+    assert stats["burst_excluded_by_family"] == {_BURST_COVERED_FAMILY: 1}
+    assert stats["burst_table_unavailable"] == []
+    assert stats["scan_oldest_day"] == "2026-07-22"
+
+
+def test_missing_burst_table_degrades_to_old_behaviour_not_to_nothing(monkeypatch, tmp_path):
+    """A missing/broken exclusion table must leave the advisory slightly OPTIMISTIC (the old
+    reading), never blank it — a blanked advisory is how an outage goes unnoticed."""
+    _older_genuine_vps(tmp_path, _BURST_COVERED_FAMILY)
+    _write_capture(tmp_path, _FOMC_BURST_INSIDE, family=_BURST_COVERED_FAMILY)
+    monkeypatch.setattr(inv, "_family_burst_windows", lambda *a, **k: None)
+    stats: dict = {}
+    seen = inv._collector_leg_last_seen(tmp_path, stats=stats)
+    assert seen["vps"] == _FOMC_BURST_INSIDE.isoformat()   # old behaviour, not {}
+    assert _BURST_COVERED_FAMILY in stats["burst_table_unavailable"]
+
+
+def test_family_burst_windows_returns_none_when_the_helper_raises():
+    class _Boom:
+        @staticmethod
+        def _burst_windows_for_family(_family):
+            raise RuntimeError("table unreadable")
+
+    assert inv._family_burst_windows(_Boom, "crypto_hourly") is None
+    assert inv._family_burst_windows(object(), "crypto_hourly") is None
+
+
+def test_burst_windows_table_has_exactly_one_home():
+    """`BURST_TRIGGER_WINDOWS` / `BURST_WINDOW_PAD_S` live in scripts/tape_gap_monitor.py and
+    are imported, never re-declared here — a second copy would desync on any trigger edit."""
+    src = (ROOT / "scripts" / "invariants.py").read_text(encoding="utf-8")
+    assert "BURST_TRIGGER_WINDOWS: Dict" not in src
+    assert "BURST_WINDOW_PAD_S =" not in src
+    assert "_burst_windows_for_family" in src
+
+
+def test_warning_renders_for_a_diag_without_the_l269_keys():
+    """Back-compat: a diag dict built before the L269 keys existed renders exactly as before —
+    no KeyError, and no fabricated exclusion count."""
+    diag = {"status": "dead_leg", "dead": "vps", "dead_last_seen": "2026-07-22T17:29:49Z",
+            "dead_silence_h": 50.0, "alive": ["cloud"], "lookback_days": 10,
+            "newest_iso": "2026-07-24T19:53:00Z", "newest_age_h": 0.1,
+            "last_seen": {}, "ages": {}}
+    msg = inv.dead_collector_leg_warning(diag)
+    assert "excluded from this reading" not in msg
+    assert "horizon caveat" not in msg
+
+
+def test_warning_names_the_exclusion_when_present():
+    diag = {"status": "dead_leg", "dead": "vps", "dead_last_seen": "2026-07-22T17:29:49Z",
+            "dead_silence_h": 273.9, "alive": ["cloud"], "lookback_days": 10,
+            "newest_iso": "2026-08-03T03:56:13Z", "newest_age_h": 0.1,
+            "last_seen": {}, "ages": {},
+            "exclude_burst_windows": True, "n_burst_excluded": 82,
+            "burst_excluded_by_family": {"crypto_hourly": 24, "polymarket_macro_pairs": 23,
+                                         "polymarket_pairs": 35},
+            "burst_table_unavailable": [], "scan_oldest_day": "2026-07-05"}
+    msg = inv.dead_collector_leg_warning(diag)
+    assert "82 capture(s) written inside a DECLARED burst-trigger window" in msg
+    assert "crypto_hourly" in msg and "polymarket_macro_pairs" in msg
+    assert "L269" in msg
+    assert "horizon caveat" in msg
+    assert "2026-07-05" in msg
+
+
+# ─── HARD acceptance: the L269 defect on the REAL committed tape, pinned ────
+#
+# Pinned exactly like the slice above so it cannot rot: `max_day=2026-08-01` caps the scan at
+# CLOSED historical day-files, so neither new tape nor wall-clock time can move it. Ground
+# truth (findings/2026-08-03-vps-collector-true-outage-273h-burst-contamination-blind-spot.md):
+# WITHOUT the exclusion the vps reading is the kalshi-burst-fomc-0729 pass at
+# 2026-07-29T18:29:45Z; WITH it, the honest last vps-bucket capture is 2026-07-22T17:29:49Z.
+_L269_MAX_DAY = date(2026, 8, 1)
+
+
+@_real
+def test_acceptance_real_tape_burst_exclusion_moves_the_vps_reading():
+    off = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_L269_MAX_DAY,
+                                       exclude_burst_windows=False)
+    stats: dict = {}
+    on = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_L269_MAX_DAY, stats=stats)
+    assert off["vps"].startswith("2026-07-29T18:29:45"), off["vps"]
+    assert on["vps"].startswith("2026-07-22T17:29:49"), on["vps"]
+    assert on["vps"] < off["vps"], "the fix must make the outage look LONGER, never shorter"
+    # the cloud leg is not burst-contaminated in this slice and must be untouched
+    assert on["cloud"] == off["cloud"]
+    assert stats["n_burst_excluded"] > 0
+    assert set(stats["burst_excluded_by_family"]) <= {
+        "crypto_hourly", "polymarket_pairs", "polymarket_macro_pairs"}
