@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~16:0x UTC — research loop: duplicate-work collision on L269, resolved by discarding the redundant build and filing the residual bug it surfaced (L272/L273)
+
+**What happened.** This run's claim-check (step 0) found no open PR claiming L269, so it delegated
+the milestone to `research-lead`, which independently (re)diagnosed the same L269 burst-contamination
+defect, built a fix, ran two `verifier` passes that each refuted a version of the fix's safety
+claim, and closed both holes in code — a genuinely more thorough build than the morning's original
+diagnosis run had scoped. While that work and its ~50-minute full-suite gate run were in flight, a
+**second, concurrent** research-loop run independently picked the SAME L269 candidate, built its
+own (simpler) fix, and merged it to `main` as commit `2d717be` (PR #280) before this run finished.
+Discovered only when this run's own `git fetch origin main` — done immediately before pushing —
+came back with `2d717be` already present, carrying a near-identical commit message. This is the
+first observed instance of two research-loop firings converging on the identical idle-run
+candidate; step 0's claim-check cannot catch it because the collision happened between checks, not
+against anything ever visible as an open PR.
+
+**Decision: do not merge a duplicate/conflicting commit.** Compared the merged `2d717be` fix against
+this run's local (unpushed) build. Both correctly implement L269's core ask (exclude
+`BURST_TRIGGER_WINDOWS`-covered captures from the `vps` leg's `last_seen` scan) and land on the
+same corrected duration (~281-283h, reproducing the source finding). This run's local branch
+(`idle-run-l269-burst-contamination-fix`, commit `f2ce649`) was discarded — deleted locally, and a
+`git push origin --delete` attempted (failed with HTTP 403, the same cloud-session push-permission
+boundary Q17/step-0 already documents for `tape/*` branches; the stale remote branch is harmless
+debris, not divergent history, so it is left for a future sweep rather than forced).
+
+**But the redundant work was not wasted: it found a real, still-live bug in the merged fix.**
+`2d717be`'s `_dead_collector_leg_diagnosis` computes exactly ONE `last_seen` reading (burst-excluded,
+the new default) and feeds it into BOTH the `alive` check (`... a < DEAD_LEG_ALIVE_HOURS`) and the
+`silent`/attribution check. An independent `verifier` pass run against this session's own build (not
+against `2d717be` directly, but the same code shape) constructed a live counterexample: if a
+burst-covered family's only capture inside `DEAD_LEG_ALIVE_HOURS=6h` is the very instant L269 now
+excludes, `alive` drops to empty and `_dead_collector_leg_diagnosis`'s `if not alive: return None`
+guard discards the advisory entirely — a real, currently-shipped regression risk where the L269
+tightening can suppress an advisory instead of only ever lengthening it, on the exact production
+default (`exclude_burst_windows=True`) now live on `main`. Filed as **L272** (UNENFORCED, fully
+specified fix: split the `alive` computation onto a separate, burst-INCLUDED reading so it stays a
+superset of pre-L269 `alive`, while `silent`/duration/attribution keep using the burst-excluded
+reading). A second, PRE-EXISTING and independent blind band in the same `if not alive: return None`
+line — a fully-dead pipeline (nothing fresher than 6h) is reported as NOTHING, while a half-dead one
+alarms — is filed separately as **L273** (UNENFORCED), confirmed live at `2026-08-03T10:36:00Z`
+(`vps` ~281h dead, `cloud` ~6.7h, `--full` printed no collector advisory at all).
+
+No registry flip, no bootstrap CI, no kill decision — `kb/strategies/00-index.md` untouched, still
+0 proven edges. No code changed by this entry (L272/L273 are UNENFORCED candidates for a future
+idle run, matching exactly how L269 itself entered the ledger). Gates: `pytest -q` exit 0 (2811
+collected, matches `main`'s post-merge state, re-verified fresh by this session after the reset onto
+`origin/main`); `python scripts/invariants.py --full` exit 0, all green (no code touched by this
+entry, so both gates are a re-confirmation of `main`'s already-green state, not a new result).
+Step 9: `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, infra-only); `scripts/paper_pass.py`
+re-run, 0 newly processed (idempotent against `2d717be`'s tape state) — `paper: 0 open position(s),
+1617 settled contract(s), realized P&L $+28.86, cash $+28.86, open notional $0.00`. No network
+beyond git, no orders, no credentials, no `execution/` changes.
+
+**Next:** a future idle run should build L272 first (it's a live regression risk in shipped code,
+not just a documentation gap) — split `alive` onto a burst-included reading — then L273 if capacity
+remains. See `kb/lessons/00-lessons.md` (L272, L273).
+
+---
+
 ## 2026-08-03 ~12:4x UTC — research loop IDLE RUN (policy (a)): L269 UNENFORCED -> test — a declared burst pass can no longer stand in for a scheduled VPS pass, and the advisory's silence figure was over-stating for a second, separate reason (L271)
 
 **Queue re-checked first (protocol steps 1/3).** Full Q0-Q50 rescan by the newest-dated Status
