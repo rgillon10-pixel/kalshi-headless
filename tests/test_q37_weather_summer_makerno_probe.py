@@ -19,12 +19,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.pricing import MAKER_FEE_RATE, fee_per_contract
 from scripts.q37_weather_summer_makerno_probe import (
     BOOKS_GLOB,
+    MIN_CI_UNITS,
     LONGSHOT_MAX,
     SUMMER_DAYS_REQUIRED,
     SUMMER_END,
     SUMMER_START,
     bootstrap_cut,
+    bootstrap_unit_ledger,
     build_emos_filter,
+    dual_cut_degeneracy,
+    gate_vs_units_summary,
     group_snapshots,
     is_summer,
     is_temperature_series,
@@ -484,3 +488,166 @@ def test_real_weather_books_tape_carries_no_phantom_gate_days():
         assert SUMMER_START <= s["contract_day"] <= SUMMER_END, s["ticker"]
     for d in summer_contract_days(snaps):
         assert SUMMER_START <= d <= SUMMER_END, d
+
+
+# --------------------------------------------------------------------------- #
+# gate-day vs bootstrap-unit accounting (added 2026-08-03, research loop idle-run policy (b);
+# findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md, lessons L271/L272)
+# --------------------------------------------------------------------------- #
+def _ledger_row(day, **kw):
+    """One synthetic trade row as `bootstrap_unit_ledger` reads it."""
+    base = {"contract_day": day, "settlement_measurable": True, "fillable_entry": True,
+            "filled_movement": False, "filled_optimistic": False, "touched": False,
+            "frozen": False}
+    base.update(kw)
+    return base
+
+
+def test_bootstrap_unit_ledger_marks_a_contributing_day():
+    groups = {("KXHIGHAUS", date(2026, 7, 20)): {"KXHIGHAUS-26JUL20-B1": []}}
+    results = {"KXHIGHAUS-26JUL20-B1": "no"}
+    rows = [_ledger_row("2026-07-20", filled_movement=True, filled_optimistic=True)]
+    led = bootstrap_unit_ledger(rows, groups, results)
+    assert len(led) == 1
+    r = led[0]
+    assert r["contributes_unit"] is True
+    assert r["deficit_reason"] is None
+    assert r["n_groups"] == 1 and r["n_groups_settled"] == 1
+    assert r["n_filled"] == 1 and r["n_primary_measurable"] == 1
+
+
+def test_bootstrap_unit_ledger_settlement_lag_reason():
+    """A day whose groups carry NO settled result at all is `settlement_lag`, not `zero_fill` —
+    the distinction matters because only one of the two can self-heal."""
+    groups = {("KXHIGHAUS", date(2026, 8, 2)): {"KXHIGHAUS-26AUG02-B1": []}}
+    rows = [_ledger_row("2026-08-02", settlement_measurable=False)]
+    led = bootstrap_unit_ledger(rows, groups, results={})
+    assert led[0]["contributes_unit"] is False
+    assert led[0]["deficit_reason"] == "settlement_lag"
+    assert led[0]["n_groups_settled"] == 0
+
+
+def test_bootstrap_unit_ledger_zero_fill_reason():
+    """Fully booked AND fully settled, but nothing ever touched: a real fill-rate fact, and it
+    must NOT be reported as a coverage/lag problem."""
+    groups = {("KXHIGHAUS", date(2026, 7, 25)): {"KXHIGHAUS-26JUL25-B1": []}}
+    results = {"KXHIGHAUS-26JUL25-B1": "no"}
+    rows = [_ledger_row("2026-07-25", filled_movement=False)]
+    led = bootstrap_unit_ledger(rows, groups, results)
+    assert led[0]["deficit_reason"] == "zero_fill"
+
+
+def test_bootstrap_unit_ledger_incomplete_book_reason():
+    """A gate-day whose every group was dropped before producing a row (no book at T)."""
+    groups = {("KXHIGHAUS", date(2026, 7, 15)): {"KXHIGHAUS-26JUL15-B1": []}}
+    results = {"KXHIGHAUS-26JUL15-B1": "no"}
+    led = bootstrap_unit_ledger([], groups, results)
+    assert led[0]["n_rows"] == 0
+    assert led[0]["deficit_reason"] == "incomplete_book"
+
+
+def test_bootstrap_unit_ledger_ignores_non_primary_fills():
+    """A filled, measurable trade that is NOT fillable-entry cannot buy a bootstrap unit — the
+    PRIMARY population (L69) is what `bootstrap_cut` resamples."""
+    groups = {("KXHIGHAUS", date(2026, 7, 20)): {"KXHIGHAUS-26JUL20-B1": []}}
+    results = {"KXHIGHAUS-26JUL20-B1": "no"}
+    rows = [_ledger_row("2026-07-20", fillable_entry=False, filled_movement=True)]
+    led = bootstrap_unit_ledger(rows, groups, results)
+    assert led[0]["n_primary"] == 0
+    assert led[0]["contributes_unit"] is False
+
+
+def test_gate_vs_units_summary_counts_and_floor():
+    led = [
+        {"contract_day": "2026-07-16", "contributes_unit": True, "deficit_reason": None},
+        {"contract_day": "2026-07-17", "contributes_unit": False, "deficit_reason": "zero_fill"},
+        {"contract_day": "2026-07-18", "contributes_unit": False,
+         "deficit_reason": "settlement_lag"},
+        {"contract_day": "2026-07-19", "contributes_unit": False,
+         "deficit_reason": "settlement_lag"},
+    ]
+    g = gate_vs_units_summary(led)
+    assert g["n_gate_days"] == 4
+    assert g["n_bootstrap_units"] == 1
+    assert g["unit_deficit"] == 3
+    assert abs(g["unit_yield"] - 0.25) < 1e-12
+    assert g["deficit_by_reason"] == {"zero_fill": 1, "settlement_lag": 2}
+    assert g["min_ci_units"] == MIN_CI_UNITS
+    assert g["clears_min_ci_units"] is False        # 1 unit is far under the L41 floor
+
+
+def test_gate_vs_units_summary_empty_ledger_reports_none_not_zero():
+    g = gate_vs_units_summary([])
+    assert g["n_gate_days"] == 0 and g["n_bootstrap_units"] == 0
+    assert g["unit_yield"] is None                  # never a fake 0.0 or a divide-by-zero
+
+
+def test_dual_cut_degeneracy_is_measured_not_assumed():
+    """`degenerate` must be FALSE the moment a single frozen-and-touched row exists — the claim is
+    an empirical one about this fill model, and a fixture that violates it must break the flag."""
+    rows = [{"touched": True, "frozen": True, "filled_optimistic": True, "filled_movement": False}]
+    d = dual_cut_degeneracy(rows)
+    assert d["n_touched_and_frozen"] == 1
+    assert d["cuts_identical"] is False
+    assert d["degenerate"] is False
+
+
+def test_dual_cut_degeneracy_flags_identical_cuts():
+    rows = [{"touched": True, "frozen": False, "filled_optimistic": True, "filled_movement": True},
+            {"touched": False, "frozen": True, "filled_optimistic": False,
+             "filled_movement": False}]
+    d = dual_cut_degeneracy(rows)
+    assert d["n_touched_and_frozen"] == 0
+    assert d["n_filled_optimistic"] == d["n_filled_movement"] == 1
+    assert d["degenerate"] is True
+
+
+def test_frozen_book_can_never_be_touched_in_simulate_group():
+    """The structural claim behind L272, exercised through the REAL `simulate_group`: a book whose
+    quotes never move cannot produce a touch, because a touch would require no_ask <= no_bid."""
+    def _frozen_snaps(ticker, ybid, yask, nbid, nask):
+        return [{
+            "ticker": ticker, "series": "KXHIGHAUS", "contract_day": date(2026, 7, 16),
+            "captured_at": T_DECISION + timedelta(hours=i), "close_time": CLOSE,
+            "best_yes_bid": ybid, "best_yes_ask": yask,
+            "best_no_bid": nbid, "best_no_ask": nask,
+            "yes_bids": [], "no_bids": [[nbid, 10.0]],
+        } for i in range(4)]
+
+    # two-member ladder so bracket_sum normalizes the 5c wing to a real longshot (Hard Rule #3)
+    by_ticker = {
+        "KXHIGHAUS-26JUL16-T99": _frozen_snaps("KXHIGHAUS-26JUL16-T99", 0.02, 0.05, 0.93, 0.98),
+        "KXHIGHAUS-26JUL16-T80": _frozen_snaps("KXHIGHAUS-26JUL16-T80", 0.92, 0.95, 0.03, 0.08),
+    }
+    rows, reason = simulate_group("KXHIGHAUS", date(2026, 7, 16), by_ticker,
+                                  {"KXHIGHAUS-26JUL16-T99": "no", "KXHIGHAUS-26JUL16-T80": "yes"})
+    assert reason == "ok" and len(rows) == 1
+    assert rows[0]["frozen"] is True
+    assert rows[0]["touched"] is False
+    assert rows[0]["filled_optimistic"] == rows[0]["filled_movement"] is False
+
+
+def test_real_tape_gate_yield_is_bounded_and_monotone():
+    """L191 acceptance pin on the COMMITTED tape: bounds, never an exact equality that a new day of
+    tape would break. Measured 2026-08-03: 20 gate-days -> 15 bootstrap units, deficit 5
+    (incomplete_book 1 / zero_fill 1 / settlement_lag 3)."""
+    snaps = load_daily_snapshots()
+    if not snaps:                                   # tape absent in a stripped checkout
+        return
+    groups = group_snapshots(snaps)
+    results, _ = load_settlement()
+    rows = []
+    for (series, cday), by_ticker in groups.items():
+        r, _reason = simulate_group(series, cday, by_ticker, results)
+        rows.extend(r)
+    led = bootstrap_unit_ledger(rows, groups, results)
+    g = gate_vs_units_summary(led)
+    assert g["n_gate_days"] >= 20                   # tape only grows (append-only)
+    assert g["n_bootstrap_units"] >= 15
+    # the deficit is structural: the newest gate-days are ALWAYS settlement-lagged, so units can
+    # never equal gate-days on live tape.
+    assert g["n_bootstrap_units"] < g["n_gate_days"]
+    assert g["deficit_by_reason"].get("settlement_lag", 0) >= 1
+    d = dual_cut_degeneracy(rows)
+    assert d["n_touched_and_frozen"] == 0           # L272, on every committed row
+    assert d["degenerate"] is True
