@@ -483,6 +483,125 @@ def test_warning_carries_the_recall_sentence():
     assert "L152" in msg
 
 
+# ─── mixed-tier UNENFORCED (L268: mid-cell bold token, not the leading marker) ─────
+
+def test_mixed_tier_unenforced_finds_the_l168_shape(tmp_path):
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-26 | some lesson | src | "
+        "**test (detection) + UNENFORCED (repair)** -- detection built, repair is "
+        "Ryan-gated | \n"
+    )
+    rows = inv._parse_lesson_rows(lessons)
+    assert inv._mixed_tier_unenforced_ids(rows, set()) == ("L1",)
+
+
+def test_mixed_tier_unenforced_excludes_leading_marker_rows(tmp_path):
+    # Already counted by `n_open_unenforced` via `_UNENFORCED_MARKER_RE` -- must not
+    # ALSO appear here, this field is additive, never a re-count (L213/L221/L222 shape).
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-30 | some lesson | src | "
+        "**UNENFORCED (Ryan action) + test (BUILT)** -- half built, half flagged | \n"
+    )
+    rows = inv._parse_lesson_rows(lessons)
+    assert inv._mixed_tier_unenforced_ids(rows, set()) == ()
+
+
+def test_mixed_tier_unenforced_excludes_disposed_rows(tmp_path):
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-26 | some lesson | src | "
+        "**test (detection) + UNENFORCED (repair)** -- superseded | \n"
+        "| L2 | 2026-07-27 | disposer | src | "
+        "**test** -- DISPOSES: L1, fully replaced | \n"
+    )
+    rows = inv._parse_lesson_rows(lessons)
+    disposed = inv._lesson_disposed_ids(rows)
+    assert disposed == {"L1"}
+    assert inv._mixed_tier_unenforced_ids(rows, disposed) == ()
+
+
+def test_mixed_tier_unenforced_ignores_backtick_wrapped_word(tmp_path):
+    # L123's real shape: `UNENFORCED` inside a code span is a prose reference to the marker
+    # GRAMMAR, not a live marker on this row.
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-21 | some lesson | src | "
+        "**candidate (a) BUILT; candidate (b) still UNBUILT (stale `UNENFORCED` marker "
+        "corrected by the kb-distiller)** -- (a) built, (b) unbuilt | \n"
+    )
+    rows = inv._parse_lesson_rows(lessons)
+    assert inv._mixed_tier_unenforced_ids(rows, set()) == ()
+
+
+def test_mixed_tier_unenforced_ignores_prose_mention_outside_bold_span(tmp_path):
+    # L5/L7/L23/L90/L132/L133's real shape: the row's tier IS single (`**test**`), and
+    # "UNENFORCED" only appears afterward as unbolded prose describing an aspirational,
+    # terminal generalization -- not a queued task.
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | some lesson | src | "
+        "**test** -- pinned in tests/test_foo.py; UNENFORCED as a general invariant | \n"
+    )
+    rows = inv._parse_lesson_rows(lessons)
+    assert inv._mixed_tier_unenforced_ids(rows, set()) == ()
+
+
+def test_mixed_tier_unenforced_ignores_retrospective_marker_narration(tmp_path):
+    # L47/L52's real shape: a row that WAS UNENFORCED and is now fully resolved narrates its
+    # own history inside its (now single-tier) opening bold span -- "the earlier UNENFORCED
+    # marker" is not a live second tier. This is the false-positive class that bolding alone
+    # (without the "marker" exclusion) did not filter -- measured 22 hits on the real ledger
+    # before this exclusion was added, correcting to the true 1 (L168).
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-25 | some lesson | src | "
+        "**helper + test (supersedes the earlier UNENFORCED marker per L152's own-row-"
+        "update rule)** -- three layers, all built this pass | \n"
+    )
+    rows = inv._parse_lesson_rows(lessons)
+    assert inv._mixed_tier_unenforced_ids(rows, set()) == ()
+
+
+def test_mixed_tier_unenforced_only_scans_the_first_bold_span(tmp_path):
+    # A row whose OPENING tier marker is clean single-tier, but a LATER bold span in the
+    # same cell happens to bold the word UNENFORCED for unrelated reasons, must not count --
+    # the ledger's own convention is that the row's tier lives in the opening span only.
+    lessons = tmp_path / "00-lessons.md"
+    lessons.write_text(
+        "| L1 | 2026-07-01 | some lesson | src | "
+        "**test** -- see also **a genuinely UNENFORCED sibling row** for context | \n"
+    )
+    rows = inv._parse_lesson_rows(lessons)
+    assert inv._mixed_tier_unenforced_ids(rows, set()) == ()
+
+
+def test_stale_unenforced_recall_report_mixed_tier_live_tree_is_l168_only():
+    # Structure + the one known true positive, over the LIVE ledger. Per this file's own
+    # FROZEN-vs-LIVE discipline (module docstring), this asserts only what must hold for any
+    # legitimate future append: the field is well-typed, disjoint from the leading-marker
+    # rows, and (since this is the sole real-world shape the ledger has had since 2026-07-26,
+    # and future rows converting L168 would DISPOSE it, never silently drop it) still names
+    # L168 as of this run.
+    rep = inv.stale_unenforced_recall_report()
+    assert isinstance(rep.n_mixed_tier_unenforced, int) and rep.n_mixed_tier_unenforced >= 0
+    assert isinstance(rep.mixed_tier_unenforced_ids, tuple)
+    assert not (set(rep.mixed_tier_unenforced_ids) & set(rep.open_unenforced_ids))
+    assert "L168" in rep.mixed_tier_unenforced_ids
+
+
+def test_stale_recall_sentence_reports_mixed_tier_separately():
+    rep = inv._EMPTY_STALE_RECALL._replace(
+        n_open_unenforced=1, n_mixed_tier_unenforced=1, mixed_tier_unenforced_ids=("L168",),
+    )
+    sentence = inv._stale_recall_sentence(rep)
+    assert "L268" in sentence
+    assert "not merged into the counts above" in sentence
+    assert "1 row(s) bold UNENFORCED mid-cell" in sentence
+    assert "L168" in sentence
+
+
 def test_zero_issue_scan_with_partial_recall_still_speaks():
     """The heart of the defect: 0 issues + incomplete extraction must NOT read as clean."""
     rep = inv.StaleUnenforcedRecallReport(

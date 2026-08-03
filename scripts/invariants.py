@@ -2208,6 +2208,48 @@ _DISPOSES_ID_RE = re.compile(r"L\d+")
 # half is real. A bare unbolded `UNENFORCED ...` is likewise NOT the marker.
 _UNENFORCED_MARKER_RE = re.compile(r"^\*\*UNENFORCED\b")
 
+# L268 (2026-08-02): a row whose enforcement cell OPENS with a built tier but carries a
+# bolded UNENFORCED token MID-CELL (the L168 shape: `**test (detection) + UNENFORCED
+# (repair)**`) is invisible to `_UNENFORCED_MARKER_RE` -- the standing work queue is indexed
+# by the cell's FIRST WORD only. `_BOLD_SPAN_RE` finds the FIRST `**...**` span only (the
+# ledger's own tier-marker convention: every row's enforcement cell opens with one) -- scanning
+# every bold span in the cell was tried first and measured 22 false positives on the real
+# ledger, because a row that HAD an UNENFORCED marker and was later fully resolved routinely
+# says so in its own (now single-tier) opening span, e.g. L47/L52's
+# "**helper + test ... supersedes the earlier UNENFORCED marker per L152's own-row-update
+# rule**" -- a closed row narrating its own history, not an open mixed-tier task. The word
+# must be literally bold, not merely mentioned in prose after the bold span closes (L5/L7/L23/
+# L90/L132/L133's `**test** ... UNENFORCED as a general invariant` shape is an honest terminal
+# state, not a queued task), not inside a nested code span within the bold text (L123's
+# `` `UNENFORCED` `` is a prose reference to the marker grammar itself, not a live marker), and
+# not immediately followed by the word "marker" (the L47/L52 "the earlier UNENFORCED marker"
+# retrospective-narration shape, the one false-positive class bolding alone did not filter).
+_BOLD_SPAN_RE = re.compile(r"\*\*(.+?)\*\*", re.S)
+_UNENFORCED_BOLD_WORD_RE = re.compile(r"\bUNENFORCED\b(?!\s+marker\b)")
+
+
+def _mixed_tier_unenforced_ids(
+    rows: List[Tuple[str, str, str]], disposed: Set[str]
+) -> Tuple[str, ...]:
+    """Lesson IDs (L268) whose ENFORCEMENT cell's FIRST bold span bolds the word UNENFORCED
+    somewhere other than as the leading marker -- see `_BOLD_SPAN_RE`'s docstring comment above
+    for the exact shape this catches and the false-positive shapes it deliberately excludes.
+    Excludes any row already caught by `_UNENFORCED_MARKER_RE` (those are counted by
+    `n_open_unenforced` already -- this field is additive, never a re-count) and any formally
+    `DISPOSES:`-disposed id. Order follows the rows as parsed. Pure; never raises (a malformed
+    or missing span is just not a match)."""
+    ids: List[str] = []
+    for lid, _lesson_text, enforcement in rows:
+        if lid in disposed or _UNENFORCED_MARKER_RE.match(enforcement):
+            continue
+        m = _BOLD_SPAN_RE.search(enforcement)
+        if m is None:
+            continue
+        span = _BACKTICK_SPAN_RE.sub("", m.group(1))
+        if _UNENFORCED_BOLD_WORD_RE.search(span):
+            ids.append(lid)
+    return tuple(ids)
+
 
 def _split_lesson_row(line: str) -> List[str]:
     """Split one markdown table row on its CELL delimiters only.
@@ -2448,6 +2490,14 @@ class StaleUnenforcedRecallReport(NamedTuple):
     by_matcher: Tuple[Tuple[str, int], ...]     # (matcher, number of ROWS flagged by it)
     flagged_ids: Tuple[str, ...]
     open_unenforced_ids: Tuple[str, ...]
+    # L268 (2026-08-02): a SECOND, separately-labelled count -- rows whose enforcement cell
+    # bolds UNENFORCED mid-cell rather than as the leading marker (`_mixed_tier_unenforced_ids`).
+    # Reported ALONGSIDE the fields above, never merged into them: the leading-marker regex's
+    # precision is load-bearing for the L152 advisory and must not be loosened. Defaulted so
+    # every existing direct construction of this NamedTuple (tests, `_EMPTY_STALE_RECALL`)
+    # stays valid unchanged.
+    n_mixed_tier_unenforced: int = 0
+    mixed_tier_unenforced_ids: Tuple[str, ...] = ()
 
 
 _EMPTY_STALE_RECALL = StaleUnenforcedRecallReport(
@@ -2510,6 +2560,8 @@ def _stale_unenforced_scan(
             if row_hit:
                 flagged_ids.append(lesson_id)
 
+        mixed_tier_ids = _mixed_tier_unenforced_ids(rows, disposed)
+
         report = StaleUnenforcedRecallReport(
             n_rows=len(rows),
             n_unenforced=len(unenforced),
@@ -2520,6 +2572,8 @@ def _stale_unenforced_scan(
             by_matcher=tuple((m, len(matcher_rows.get(m, set()))) for m in STALE_MATCHERS),
             flagged_ids=tuple(flagged_ids),
             open_unenforced_ids=tuple(lid for lid, _enf in open_rows),
+            n_mixed_tier_unenforced=len(mixed_tier_ids),
+            mixed_tier_unenforced_ids=mixed_tier_ids,
         )
         return issues, report
     except Exception:
@@ -2615,12 +2669,15 @@ def stale_unenforced_recall_report(
 def _stale_recall_sentence(recall: StaleUnenforcedRecallReport) -> str:
     """One-line honest coverage statement for the advisory text. Pure."""
     by = ", ".join(f"{m}={n}" for m, n in recall.by_matcher)
+    mixed_ids = ", ".join(recall.mixed_tier_unenforced_ids) if recall.mixed_tier_unenforced_ids else "none"
     return (
         f"Extraction reached {recall.n_with_extractable_candidate} of "
         f"{recall.n_open_unenforced} open UNENFORCED row(s) "
         f"({recall.n_disposed} formally disposed via `DISPOSES:`); flagged "
         f"{recall.n_flagged} row(s) [{by}]. The rest name no machine-checkable artifact, so a "
-        f"0-issue report is a COVERAGE limit of this detector, NOT evidence of a clean queue."
+        f"0-issue report is a COVERAGE limit of this detector, NOT evidence of a clean queue. "
+        f"Separately (L268, not merged into the counts above): {recall.n_mixed_tier_unenforced} "
+        f"row(s) bold UNENFORCED mid-cell rather than as the leading marker [{mixed_ids}]."
     )
 
 

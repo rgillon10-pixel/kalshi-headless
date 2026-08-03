@@ -6,6 +6,68 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-02 ~20:1x ET — research loop idle-run (policy (a)): L268 `UNENFORCED` → `test`, precision correction found along the way
+
+**Steps 0a/0/0b.** Fresh `git fetch origin main`: no rewind (LOG and newest tape both current,
+gap 0); same handful of open PRs (#271/#208/#191/#166/#165/#125), all Ryan-review-only per the
+prior run's own characterization, none claiming eligible work. Queue re-verified: the TOPMOST
+`Status:` line of every item Q0–Q50 is DONE / BLOCKED / calendar-or-density-gated — 0 eligible
+TODO/IN-PROGRESS → IDLE RUN. Policy (a): the prior run's own row, **L268**, left itself
+`**UNENFORCED**` with a named, well-scoped candidate ("a SECOND, separately-labelled count in
+`StaleUnenforcedRecallReport` … for rows whose enforcement cell contains a bolded `UNENFORCED`
+token that is NOT the leading marker") — a fully offline, cloud-buildable widening the prior
+run explicitly deferred rather than built same-pass. Took it.
+
+**Built.** `scripts/invariants.py::StaleUnenforcedRecallReport` gained two defaulted fields,
+`n_mixed_tier_unenforced` + `mixed_tier_unenforced_ids`, populated by a new
+`_mixed_tier_unenforced_ids()`. **Precision required a correction beyond the row's own spec:**
+a first pass matching every bold span in an enforcement cell for the word UNENFORCED measured
+**22** hits on the real ledger, not the ~1–3 the row's own hand inventory implied. Inspecting
+them: every extra hit was a row that WAS `**UNENFORCED**` and is now fully resolved, narrating
+that history inside its own now-single-tier opening span — e.g. L47/L52's "**helper + test …
+supersedes the earlier UNENFORCED marker per L152's own-row-update rule**". That is a closed
+row's memory of its own past, not an open mixed-tier task. Fixed two ways: (1) scan ONLY the
+enforcement cell's FIRST bold span (the ledger's own tier-marker convention — a row's status
+lives in its opening span, not any later one); (2) exclude a match immediately followed by the
+word "marker" (the retrospective-narration shape (1) alone didn't filter). Also strips backtick
+spans before matching (L123's `` `UNENFORCED` `` is a prose citation of the marker grammar
+itself, never a live marker) and skips rows already caught by the leading-marker regex or
+formally `DISPOSES:`-disposed, so this field is strictly additive to the existing
+`n_open_unenforced` count, never a re-count. Run live against the real ledger: **1** row,
+`('L168',)` — exactly L268's own hand inventory, once the false positives are corrected out.
+`_stale_recall_sentence()` now appends "Separately (L268, not merged into the counts above):
+N row(s) …" to the advisory text, in both the zero-issue and nonzero-issue paths.
+
+**Tests.** 9 new cases in `tests/test_stale_unenforced_advisory.py` (all `tmp_path`-synthetic
+except one live-tree structural check, per this file's own FROZEN-vs-LIVE discipline): the
+true-positive L168 shape; each false-positive shape excluded on its own (already-leading-marker,
+`DISPOSES:`-disposed, backtick-wrapped word, plain prose after the bold span closes, the L47/L52
+retrospective-marker-narration shape, a second bold span later in the cell); a live-tree test
+asserting the field is well-typed, disjoint from `open_unenforced_ids`, and still names L168;
+and a sentence-formatting test. No registry flip, no bootstrap CI, no kill decision — S14/S68
+unchanged, still 0 proven edges; two-agent rule N/A (lesson→test conversion, same class as the
+L223/L232/Q33/Q44/Q45/Q46 precedent).
+
+**Bookkeeping.** L268's enforcement cell moved `**UNENFORCED**` → `**test (BUILT …)**`, lesson
+TEXT preserved verbatim, per the L152 own-row-update rule. No `LOOP-QUEUE.md` numbered-item
+Status line applies (this row is about the ledger tooling itself, not a live Qn candidate).
+
+**Gates (fresh, taken after the final code change, L162):**
+`python3 -m pytest -o addopts='' -q` → **2762 passed, 0 failed** (2753 prior + 9 new), exit 0;
+`python3 scripts/invariants.py --full` → `invariants: all green`, exit 0 (only the standing
+non-gating advisories, all pre-existing and unrelated).
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (S14 `dead ✗`, infra-only
+shadow); `scripts/paper_pass.py` advanced the broker over the new `dt=2026-08-03` tape landed
+by this run's own step-0a fast-forward: 24 newly processed (18 deferred(caps), 272
+deferred(coverage), 258 already-in-ledger), one new ledger file
+(`paper/ledger/dt=2026-08-03.jsonl`) — `paper: 0 open position(s), 1617 settled contract(s),
+realized P&L $+28.86, cash $+28.86, open notional $0.00`.
+
+See `kb/lessons/00-lessons.md` (L268).
+
+---
+
 ## 2026-08-02 ~22:5x UTC — research loop idle-run (policy (a)): L232 `UNENFORCED` → `test`, and the static-invariant layer was scanning ZERO files in every worktree run
 
 **Steps 0a/0/0b.** Established by the calling session (HEAD `1f30afc`, no rewind; 6 open PRs
