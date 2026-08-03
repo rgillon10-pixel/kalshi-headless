@@ -6,6 +6,78 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~06:1x UTC — research loop idle-run (policy (c)): `universe_sweep`'s completeness_ok is structurally saturated — the VPS pager fires on a known fact, not a new failure
+
+Queue re-checked first (per protocol step 1/3): full Q0-Q50 file-shape rescan found 0 eligible
+TODO/IN-PROGRESS (all DONE / cred-BLOCKED / calendar-gated [Q37 opens ~08-04, still 20/21] /
+density-inadequate, consistent with both the 2026-08-03 nightly edge-hunter's and this run's own
+read) → **IDLE RUN.** Idle-run policy order checked first: (a) exhausted — L268 (2026-08-02)
+already confirmed the cloud-buildable mixed-tier `UNENFORCED` backlog is empty, nothing new since;
+(b) Q37's probe was re-verified execute-ready by tonight's edge-hunter run hours before this one,
+no new code to prep; (d) idea-gen round #21 was also run by the edge-hunter hours before this one.
+Took **(c) — a data-quality deep-dive on ONE tape family**, deliberately NOT re-covering today's
+already-examined ground (VPS-outage diagnosis, the extensive recent Q37/Q38 weather-tape audits).
+
+**Family picked:** `tape/universe_sweep/` — the largest family on disk (601 MB of 1.5 GB), fewest
+`kb/00-LOG.md` mentions per byte, never dedicated-audited before (`tape-auditor` subagent scan,
+this run).
+
+**The finding.** Every one of the **35** committed captures (`dt=2026-07-17` → `dt=2026-08-03`)
+sits at **exactly 20,000 lines** — `MAX_CALLS(20) * PAGE_LIMIT(1000)`
+(`collection/universe_sweep.py:74-75`). The pagination cursor never exhausts because the real
+open-market universe sits well above the cap (the module's own comment, "the whole open universe
+is ~10k markets," is stale). Consequence traced end-to-end: `collection/universe_sweep.py:224`
+computes `completeness_ok = cursor_exhausted and n_parse_errors==0`, which is therefore False on
+100% of real passes; `collection/hourly_pass.py:587` ANDs that into the WHOLE PASS's completeness;
+`collection/hourly_pass.py:635` exits 1 whenever the pass-level flag is False;
+`ops/vps/kalshi-headless-hourly.sh:86-87` fires a `Priority: high` phone notification to Ryan on
+that nonzero exit. **Every hourly pass that reaches its `universe_sweep` leg pages Ryan at high
+priority for a standing, already-known fact — indistinguishable, in both the exit code and the
+notification text, from a genuine new outage.** Measured blast radius (last 14 days, hour
+attributed via a same-pass proxy): **33 of 91 passes (36.3%)** ran at one of the four
+`universe_sweep` gate hours; on `dt=2026-08-02`, 3 of 6 passes (50%) were structurally guaranteed
+to page — elevated because the VPS-death cadence collapse (L269, ~273.9h outage) shrank total daily
+passes so the 4 fixed gate hours are now a much larger share of everything that still runs.
+
+The bounded-cap SHAPE was already known (L96 measured the cursor >80k; L125 measured the ~97%
+`KXMVE*` junk composition; `kb/00-LOG.md` 2026-07-17 flagged the IDENTICAL
+"`completeness_ok=False` is the expected steady state" property for `settlement_ledger` and left
+the fold-in question explicitly open) — but the ALARM-FATIGUE CONSEQUENCE was not: a lessons-ledger
+grep for `notify|alarm|pass_rc` found only L134/L139/L156, all about wiring an alarm to a clock,
+none about a wired alarm stuck permanently on. Nobody connected Q46 recreating the same shape at 4x
+`settlement_ledger`'s firing frequency to that open 2026-07-17 design question.
+
+**Built (cloud-buildable measurement half only).** A non-gating advisory, mirroring the L185/L208
+tape-shape-check pattern: `scripts/tape_gap_monitor.py::COMPLETENESS_CAP_FAMILIES` (two entries —
+`universe_sweep` cap 20,000, `settlement_ledger` cap 5,000, registered together so the check proves
+it measures the structural rate honestly rather than assuming saturation from the cap alone) +
+`completeness_cap_saturation(tape_root, family)`, grouping every committed line by `capture_id` and
+reporting `n_at_cap`/`fraction_at_cap`/`saturated` (alert threshold 90%; `None` below a 3-capture
+adequacy floor, never a guess). `scripts/invariants.py::_completeness_cap_saturation_issues()` +
+`completeness_cap_saturation_warning()`, wired into `--full` as a stderr-only,
+`except BaseException`-wrapped, NON-GATING advisory (L156 DEFECT-1 posture). Live run:
+`universe_sweep` → 35/35 (100%) **saturated**; `settlement_ledger` → 1/4 (25%) **not** saturated —
+the asymmetry between two families sharing the identical cap SHAPE is the self-check. Recorded as
+**L270** (mixed tier: **test** for the measurement half, **UNENFORCED** for the repair half — the
+L168 mixed-tier shape, correctly picked up by the L268 detector as Ryan-gated, not routed to a
+future idle-run queue). 17 new tests (9 `tests/test_tape_gap_monitor.py`, 8
+`tests/test_invariants.py`, each set including 2 real-tape acceptance tests).
+
+**Not built (Ryan/VPS-gated repair half).** Two candidates recorded verbatim in L270 so neither
+needs re-deriving: (1) raise `MAX_CALLS`/paginate further so the cursor genuinely exhausts; (2)
+change `hourly_pass.py`'s fold-in so a KNOWN-saturated leg reports on its own axis instead of ANDing
+into the pager trigger — the exact 2026-07-17 open question for `settlement_ledger`, now measurably
+also true here. Both are collector/pager design calls only Ryan can weigh; neither is attempted.
+
+No registry change, no CI, no P&L, no kill decision — two-agent rule N/A (a tooling advisory, same
+posture as every prior L185/L208/L223/L268 idle-run build). **Gates:** `pytest -o addopts='' -q` →
+**2779 passed, 0 failed** (was 2762 before this diff, +17 new tests, 0 regressions);
+`python3 scripts/invariants.py --full` → exit 0, all green, the new L270 advisory fires and
+correctly names `universe_sweep` only. See `findings/2026-08-03-universe-sweep-completeness-cap-saturation.md`,
+`kb/lessons/00-lessons.md` L270.
+
+---
+
 ## 2026-08-03 ~04:15 UTC — kalshi-edge-hunter nightly (Opus): review CLEAN, Q21 round #21 = 0 registered, Q37 prep re-verified execute-ready
 
 Nightly thinking-seat run. Steps 0a/0/0b first, then the three units + housekeeping. **Still 0 proven
