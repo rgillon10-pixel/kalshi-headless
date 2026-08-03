@@ -6,6 +6,80 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~04:15 UTC — kalshi-edge-hunter nightly (Opus): review CLEAN, Q21 round #21 = 0 registered, Q37 prep re-verified execute-ready
+
+Nightly thinking-seat run. Steps 0a/0/0b first, then the three units + housekeeping. **Still 0 proven
+edges; no registry flip, no CI into `kb/`, no kill decision.**
+
+**0a/0/0b.** `git pull --rebase` reported a `forced update` on the local `main` ref, so the
+history-integrity check was run in full: the last 4 merged PRs (#277→`325ce63`, #276→`60b8b5d`,
+#275→`9f6bc78`, #274→`1f30afc`) are all ancestors of `origin/main` HEAD `b404759`, and the newest
+`kb/00-LOG.md` entry (2026-08-03) matches the newest tape (`dt=2026-08-03`), gap 0 — **NO rewind**;
+the "forced update" was a stale local ref, not a rewritten base. Claim-check: 6 open PRs
+(#271/#208/#191/#166/#165/#125), all retro-docs or Ryan-review drafts, none claiming an eligible
+queue item. 0b: newest `tape/hourly-*` branch `tape/hourly-20260802T1616Z` already swept by PR #274;
+no new branch since; **207 `tape/hourly-*` + 10 `tape/burst-*` = 217 branches** (deletion still a
+broken cloud permission boundary, standing Q17).
+
+**Unit 1 — adversarial review of the last-24h findings: CLEAN, nothing failed.** An independent
+`verifier` re-checked one load-bearing number per finding. (1) VPS true-outage 273.9h (PR #277):
+**CONFIRMED** — re-derived every hourly-dual family's newest VPS-minute-bucket capture directly from
+tape (orderbook_depth/perp_tape/sports_pairs/weather_books all still `2026-07-22T17:2x:xxZ`;
+crypto_hourly/polymarket_macro_pairs `2026-07-29T18:29Z`, both inside the declared
+`kalshi-burst-fomc-0729` 17:40–19:45Z window and both named by its `burst_keys`), so the advisory's
+104.7h is contaminated and 273.9h is right. (2) Q50/S68 gate ladder (verifier-CONFIRMED 08-01):
+**CONFIRMED** — fills `real_bid`, settlement `broker_truth`, maker fee 0.0175 / flatten leg 0.07 via
+`core.pricing` (not hand-rolled), headline H=24/N=1 +$0.0695 [+0.0235,+0.1473] reproduces, near-close
+cells NEGATIVE as claimed (H=6 −$0.0562, H=12 −$0.0397), and the DEAD verdict does not depend on any
+synthetic price. (3) 08-02 Q21 round + L250 turnover: **N/A** — idea-stage/lesson-conversion, no
+fillable-price or CI claim entered `kb/`. No re-check failed → **no `review:` GitHub issue opened.**
+
+**Unit 2 — pipeline replenishment: Q21 round #21, 0 registered.** 0 eligible TODO/IN-PROGRESS across
+Q0–Q50 (Q50's topmost `TODO` is stale — verifier-CONFIRMED CLOSED 08-01, S68 still `dead ✗`). <2
+eligible → round fired. Producer proposed S72/S73/S74, each built to route around BOTH mapped walls
+(WALL-A taker→overround, WALL-B maker→unmeasurable-fill) on already-collected tape; independent
+`verifier` attacked all three on committed tape BEFORE registration → **KILL / KILL / KILL.**
+**S72** (LIP-window fee-halved ladder-coherence arb on weather): KILL — `weather_books` is ~3h
+cadence (7 snaps/day) so the ~1h LIP window is unobservable, AND S33 already cleared the FULL 0.07
+fee on its 14 executable runs (mean 0.182, ci95 [0.114,0.256]) and died on the depth×duration +
+no-opposing-unit walls, which a fee lever cannot move — the premise was false. **S73** (perp-anchored
+maker on near-money crypto_hourly, orderbook_depth touch-fill): KILL — WALL-B verbatim
+(`orderbook_depth` has no trade/volume field, so the touch-fill is the S68 unmeasurable-adverse-
+selection kill; near-money band also only 2.2% two-sided). **S74** (summer weather maker mid-miss
+fade on repaired weather_actuals): KILL — materially a duplicate of the already-built Q37 summer
+weather maker probe over the identical WALL-B tape (settlement truth fixes the fair-value input, not
+the fill). Lesson candidate deferred to kb-distiller: *fee-discount ideas must first prove the object
+died on fee, not on executability/admissibility* (+ a cadence pre-check that the target window is
+observable in the tape's snapshot cadence). NO registry table change (prose-note precedent). Consumed
+S72/S73/S74 → **next free = S75.** Binding constraint remains the DATA SURFACE — the Q47
+`orderbook_delta` trade-bearing feed, BUILD-DONE but Ryan-gated on an API key — not idea capacity.
+
+**Unit 3 — probe-prep: Q37 verified execute-ready (no build needed).** Q37 (summer weather maker-NO
+fade) unblocks within ~72h. By FILE SHAPE (L25) the honest post-fix counter reads **20 of 21 summer
+daily contract-days** (2026-07-15…2026-08-03), so the ≥21 gate opens **~2026-08-04** when the next
+daily pass lands. Its probe `scripts/q37_weather_summer_makerno_probe.py` is already built, self-
+activating, and offline-tested (**22/22 tests green**); it printed `INSUFFICIENT DATA … only 20
+present` and exited 0. Known caveat carried forward: the EMOS half is unavailable in a cloud checkout
+(`data/` gitignored, finding 2026-07-31(C)), so at gate-open Q37 fires BASELINE-ONLY. No new code.
+
+**Housekeeping.** Burst triggers with passed event dates to delete (Ryan/weekly-retro action, same
+list retro #271 named 08-02): `kalshi-burst-cpi-0714`, `wcsemi1-0714`, `wcsemi2-0715`,
+`wcfinal-0719`, `fomc-0729`. Open PRs >5 days (#125/#165/#166/#191/#208) already named by retro #271
+one day ago — NOT re-flagged (no new information; re-flagging trained the channel to be ignored once).
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (S14 `dead ✗`, paper-infra validation
+ONLY — NOT edge evidence): latest realized paper P&L **$+28.86** (per PR #277's 08-03 pass); no shadow
+processing this run.
+
+**Two-agent rule.** Satisfied at the idea stage for Unit 2 (producer + independent `verifier`, KILL×3
+before registration) and for Unit 1 (independent `verifier` re-check). No verdict-class change this
+run. **Gates:** `python3 scripts/invariants.py --full` exit 0, all green (pre-existing non-gating
+advisories only); `pytest -q` run fresh on this docs-only diff (no code touched). Docs/research-tier
+only — no execution code outside the sanctioned paper tier, no credentials, no orders. See
+`findings/2026-08-03-q21-idea-gen-round.md`.
+
+---
+
 ## 2026-08-03 ~03:2x UTC — research loop idle-run (policy (c)): VPS collector's true outage is 273.9h, not the 104.7h the advisory reports — a burst-window contamination blind spot
 
 Queue re-checked first (per protocol step 1/3): every Q0-Q50 status line reads DONE / BLOCKED /
