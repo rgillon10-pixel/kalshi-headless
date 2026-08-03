@@ -6,6 +6,83 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-03 ~18:4x UTC — research loop (IDLE RUN, policy a): L272 `UNENFORCED` -> `test` — the burst exclusion can no longer SILENCE the collector advisory it was built to sharpen
+
+**What happened.** A full Q0-Q50 rescan (reading each item's newest `Status:` line, not
+first-line-wins) found **0 eligible TODO/IN-PROGRESS**, so this was an idle run under policy (a):
+convert an `UNENFORCED` lesson row into code. Target: **L272**, opened only hours earlier by the
+duplicate-work-collision run above, whose fix candidate was already fully specified in its own row.
+Built exactly that candidate — no redesign.
+
+**The bug, reproduced against shipped code before anything was written.** `origin/main`'s
+`_dead_collector_leg_diagnosis` (from `2d717be`, L269's merged fix) called `_collector_leg_last_seen`
+ONCE — burst-excluded, the production default — and fed that single reading into BOTH the `alive`
+computation and the `silent`/attribution computation. Excluding a burst-covered family's only recent
+capture can therefore empty `alive`, tripping the pre-existing `if not alive: return None` guard and
+discarding an advisory the pre-L269 code raised. L269 was meant to make an outage look only ever
+LONGER; on this path it made a real outage look like NOTHING. Loading `origin/main`'s actual
+`scripts/invariants.py` as a live second module and handing it three tape lines (a cloud leg alive
+only via the `kalshi-burst-fomc-0729` pass, its genuine capture 14.6h old — stale but not silent —
+and a vps leg 106.1h dead) returns `None`. The fixed code returns `dead_leg`/vps/**106.1h**.
+
+**The fix.** Two readings inside `_dead_collector_leg_diagnosis`. The burst-EXCLUDED scan still
+feeds `silent`/`dead`/`dead_silence_h`/`ages`/`last_seen` — L269's duration honesty is untouched,
+that was always its actual point. A SECOND scan with `exclude_burst_windows=False` feeds `alive`
+and nothing else, because liveness is a lower-bound claim ("something recent exists") and a declared
+burst pass is real evidence something ran. The consequence is stronger than the row asked for:
+`alive` is not merely a superset of the post-L269 `alive`, it is **byte-identical to the pre-L269
+`alive`**, so the `if not alive` guard now fires exactly as often as it did before L269 and the
+exclusion cannot widen it at all. `exclude_burst_windows=False` reuses the one reading and pays for
+no second scan; `_collector_leg_last_seen`'s signature never changed. The difference is published
+rather than silent (`alive_last_seen`, `alive_ages`, `alive_from_burst_inclusive_scan`,
+`alive_only_via_burst`) and rendered as ONE optional "liveness caveat (L272)" line, so a
+pre-L272-shaped diag still renders exactly as before.
+
+**Measured.** Differential fuzz over the 6h-to-24h band x {no burst, burst in vps, burst in cloud}
+= **192 cases**: pre-L269 raised **69** advisories, the shipped pre-L272 code suppressed **18** of
+those 69 into `None`, post-fix raises **99** and suppresses **0**. An adversarial randomized
+differential — 3,000 random tapes, 45% of captures forced inside the declared fomc window, run
+against `origin/main`'s file loaded side-by-side with the fix — put the shipped code quieter than
+pre-L269 in **1,608/3,000** cases against **97/3,000** post-fix, with **0** `alive` mismatches and
+**0** durations that came back shorter than pre-L269's. **On real committed tape**, pinned at
+`max_day=2026-07-29` with an injected `now=2026-07-29T23:59Z` (no `datetime.now()`, L140): every
+sub-6h capture in the whole hourly-dual tape at that instant sits inside the declared fomc window,
+so the shipped code printed **nothing at all** while the vps leg had been dead since
+`2026-07-22T17:29:49Z` — post-fix it reports **174.5h**. Pre-L269 was also silent there (the burst
+pass made vps look ~5.5h fresh), so that outage is visible only with L269's and L272's fixes
+together. **12 new tests** in `tests/test_dead_collector_leg_advisory.py` (31 -> 43).
+
+**What was deliberately NOT closed.** All **97** residual quieter-than-pre-L269 cases trace to ONE
+branch and no other: if EVERY capture in the horizon is burst-covered, the excluded reading is `{}`
+and the separate `if not last_seen: return None` guard suppresses the advisory. Pinned by its own
+test rather than hidden. Closing it requires deciding what "newest capture anywhere in committed
+hourly tape" MEANS when the only candidate is a burst pass — a render-semantics call that belongs
+with **L273**'s `degraded`-status redesign. L269, L271 and L273's rows were not touched.
+
+**Two-agent rule.** No `verifier` subagent was dispatchable — this harness exposes no Agent/Task
+tool, the same condition L269's and L223's own cells record. In its place the fix was attacked from
+scratch against `origin/main`'s actual file loaded as a second live module, and the bug was
+reproduced against that shipped code BEFORE any fix existed, so the counterexample cannot be an
+artifact of the new code. The milestone was chosen non-verdict-class on that basis: non-gating
+advisory tooling, no registry flip, no bootstrap CI, no kill decision. `kb/strategies/00-index.md`
+untouched, still 0 proven edges.
+
+**Step 0b (bounded).** `tape/hourly-20260803T1607Z` (`42f4882`) was NOT contained in `main` — a whole
+stranded 16:07Z hourly pass. Line-set compared against HEAD's own files (never `--is-ancestor`,
+L160) and **2,052 lines union-appended**: `orderbook_depth` +1,202, `weather_books` +543,
+`sports_pairs` +265, `polymarket_macro_pairs` +21, `perp_tape` +17, `crypto_hourly` +2,
+`hyperliquid_funding` +2. Every line parsed as JSON before writing and every resulting file
+re-parsed after; each file verified a pure append (0 deleted lines). The ~218-branch historical
+backlog (Q17/L38) was deliberately not swept.
+
+**Gates, re-taken a second time after rebasing onto `origin/main` post-#282-merge (L162 — this count supersedes the pre-rebase 2801 figure below, which reflected a tree one PR behind):** `python3 -m pytest -o addopts='' -q` -> **2812 passed in 3020.07s (50m20s), 0 failed**, exit 0 (2801 pre-rebase + 11 new from #282's own tests, 0 regressions). Baseline note (L162, reported rather than quietly re-baselined): `origin/main` collected **2789** measured fresh in a clean worktree earlier this session before #282's own +12/+11 landed, and this branch's pre-rebase collect was **2801** = 2789 + the 12 new tests — the `2811 collected` figure quoted by the 16:0x entry above does NOT reproduce and should not be carried forward as the baseline;
+`python3 scripts/invariants.py --full` -> `invariants: all green`, exit 0. The live advisory still fires and now renders NO liveness caveat, because on production tape `cloud`/`other` are genuinely alive and `alive_only_via_burst` is empty — the caveat is not emitted speculatively. The L152 stale-recall detector independently corroborates the flip: open leading-marker UNENFORCED rows read **4** (was 5 with L272 among them). **Step 9 (paper):**
+`SHADOW_REGISTRY={s14_ladder_underwriting}` (dead x, infra-only), `scripts/paper_pass.py` re-run
+after the tape sweep and still idempotent — 0 newly processed (18 deferred(caps), 272
+deferred(coverage), 282 already-in-ledger), no new ledger lines — `paper: 0 open position(s), 1617
+settled contract(s), realized P&L $+28.86, cash $+28.86, open notional $0.00`. No network beyond
+git, no orders, no credentials, `execution/` untouched. See `kb/lessons/00-lessons.md` (L272).
+
 ## 2026-08-03 ~16:0x UTC — research loop: duplicate-work collision on L269, resolved by discarding the redundant build and filing the residual bug it surfaced (L272/L273)
 
 **What happened.** This run's claim-check (step 0) found no open PR claiming L269, so it delegated
