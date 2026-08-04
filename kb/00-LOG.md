@@ -6,6 +6,111 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-04 ~04:0x UTC — research loop (IDLE RUN, policy a): L271 `UNENFORCED` -> `test` — the collector advisory's scan window was RAGGED, so it reported a dead leg as silent 166h longer than it was
+
+**What happened.** Full Q0-Q50 rescan, reading each item's NEWEST `Status:` line rather than
+first-line-wins (Q9/Q11/Q16/Q23/Q27 all carry an original `TODO (added ...)` line BELOW a later
+DONE verdict; Q32's `PREP DONE` line contains the words "still TODO" in its prose): **0 eligible
+TODO/IN-PROGRESS**. Everything is DONE / BLOCKED / GATED / RESERVED / ROUND COMPLETE — Q37 gated
+20/21 (its own 08-03 run measured the gate counting the wrong unit), Q43 density-gated, Q19/Q48
+burst-gated, Q32/Q33/Q35-build/Q47 credential-blocked. So: idle run, policy (a).
+
+**Choosing the target honestly.** The auto-routed queue is genuinely exhausted: `stale_unenforced_
+recall_report()` reports **3** open leading-marker `UNENFORCED` rows — L213 (half 1 is a Ryan-side
+trigger-prompt change), L221 and L222 (both say DO NOT BUILD: their write-path halves duplicate
+open draft PR #165). That leaves the **mixed-tier** list L268 built precisely so these would stop
+being invisible: **L168 / L270 / L271**. L168's and L270's repair halves are deferred to Ryan on
+lane/design grounds — a collector write-path change and a pager-fold-in design call — which is an
+authority boundary, not something a cloud run may decide. **L271's was deferred on a COST claim**,
+and a cost claim is checkable. It was checked first, and it was false (see L276).
+
+**The defect.** `_collector_leg_last_seen` bounded its scan to "the newest N day-FILES per family"
+(`DEAD_LEG_LOOKBACK_DAYS=10`). Tape is exactly one `dt=<day>.jsonl` per family per day, so that
+window is RAGGED across families: a family writing most days reaches back ~10 days, a sparse or
+DEAD one reaches back much further. The aggregate MAX therefore lands on whichever family happens
+to still have an old file in scope. Reproduced live before touching anything: `vps` read
+**2026-07-15T19:23:54Z (464.0h of silence)** — sourced from `polymarket_pairs`, a family whose own
+writes stopped on 07-15 and whose 11 files reach back to 07-05 — while the dense families' windows
+only reached 07-25. The leg's TRUE last capture is **2026-07-22T17:29:49Z (~298h)**. So the pager-
+facing number OVER-stated the outage by ~166h while wearing a precise date. The inverted
+monotonicity that hides this: a DEEPER lookback returns a NEWER reading (10 -> 07-15, 20 -> 07-22,
+40 -> 07-22), so "scan further back and see if it changes" reads backwards.
+
+**The fix.** Exactly the candidate L271 spelled out, plus the escalation its own cost objection
+implied. (1) `calendar_horizon=True` (default): ONE uniform window — every family's day-files from
+`anchor - (N-1)` through `anchor`, `anchor` = the newest committed day across the scanned families.
+GLOBAL, never per-family: a per-family anchor reproduces the bug. `_newest_committed_day` reads
+filenames only, so anchoring costs no I/O, and the anchor is DATA-derived rather than clock-derived
+so every fixture and `max_day` pin stays wall-clock-free (L140). `calendar_horizon=False`
+reproduces the ragged reading, which is pinned rather than deleted. (2) A uniform window cannot see
+an outage older than itself, and going date-blind exactly when the outage is WORST is the L273
+"quieter the worse it gets" shape — so `_dead_collector_leg_diagnosis` runs ONE bounded deeper
+scan at `DEAD_LEG_DEEP_LOOKBACK_DAYS=30`, still uniform (it cannot re-introduce raggedness), for
+the MISSING legs only, and only when a monitored leg is absent. Liveness is deliberately NOT
+escalated: an older capture can never make a leg alive. (3) What neither scan sees is published as
+`silence_floor_h` and rendered as an explicit LOWER BOUND ("silent for AT LEAST Nh ... the true
+silence is longer, never shorter"), never a borrowed timestamp. Still NON-GATING; `--full` exit 0.
+
+**Measured.** Live effect on the production advisory: `vps ... last seen 2026-07-15T19:23:54Z
+(464.0h)` -> `2026-07-22T17:29:49Z (298.0h)`, labelled `[older than the routine 10-day window; date
+recovered by the deeper 30-day scan]`. Cost, measured rather than assumed: the uniform window reads
+**59 files / 95.7MB / 0.15s** vs **70 files** under the file-count bound — strictly CHEAPER, since
+the dead sparse family stops contributing files at all; the escalation costs **1.12s / 713MB** and
+is paid only in the abnormal case. **18 new tests** in `tests/test_dead_leg_calendar_horizon.py`,
+including the exact L271 fixture (a dense family whose vps capture sits 11 days back and a sparse
+family whose 2 files reach 21 days back — the file-count MAX picks the OLDER one, the uniform MAX
+does not), the pre-fix reading pinned via `calendar_horizon=False`, floor-not-a-date in both the
+`dead_leg` and `ambiguous` blocks, escalation-only-when-missing, an I/O bound, and 3 real-tape
+acceptance pins at frozen `max_day=2026-08-01` asserting BOUNDS not equalities (L191): the uniform
+reading is never OLDER than the ragged one for any leg, the escalation recovers the known
+2026-07-22 outage, and files-read stays within `deep days x families`.
+
+**Two existing tests changed — named here rather than quietly.** (1)
+`test_leg_silent_beyond_lookback_reports_unknown_not_a_fake_timestamp` asserted the OLD prose
+("not within the last 3 day-files"); its contract — no invented timestamp — is unchanged and now
+asserted directly against the specific capture the prose could have borrowed, plus the lower-bound
+wording. (2) `test_acceptance_real_tape_burst_exclusion_moves_the_vps_reading` calls the RAW scan,
+and the 2026-07-22 instant it pins now sits outside the routine window at its `max_day=2026-08-01`
+anchor; it takes both readings at the depth production actually escalates to, keeps every original
+assertion verbatim, and gained the new-behaviour half (at routine depth `vps` is absent, and the
+diagnosis recovers it via the escalation). Neither change relaxes an assertion.
+
+**What was deliberately NOT closed.** L168's and L270's repair halves stay UNENFORCED — both are
+Ryan-gated by lane, not by cost, and this run does not touch collector write-paths or pager
+fold-in. `DEAD_LEG_LOOKBACK_DAYS` stays 10 (the escalation, not a bigger routine window, is the
+answer to depth). The L152 stale-recall detector corroborates the flip independently: open
+leading-marker `UNENFORCED` unchanged at **3** (L213/L221/L222), mixed-tier **3 -> 2**
+(L168/L270), rows 273 -> 274.
+
+**Two-agent rule.** N/A by milestone class and stated: non-gating advisory tooling — no registry
+flip, no bootstrap CI, no kill decision. No `verifier` subagent was dispatchable (this harness
+exposes no Agent/Task tool — the same condition L269's, L272's and L273's cells record), and for
+the same reason no worker performed the edits; the lead did them directly via the shell. In place
+of a verifier, the defect was reproduced against the SHIPPED code before any fix was written, the
+pre-fix reading is pinned as a test so the bug stays reproducible, and every number quoted here
+was measured twice (once live, once at a frozen `max_day`). `kb/strategies/00-index.md` untouched
+— still **0 proven edges**.
+
+**Workspace hazard worth recording.** This run's first patch was silently reverted mid-run: the
+calling session's concurrent `tape_branch_sweep.py` ran `git stash` over the SHARED working tree
+(`stash@{0}: wip-research-lead-agent-inprogress`) and appended swept lines to
+`tape/*/dt=2026-08-03.jsonl` while measurements were in flight — which also explains a live reading
+that moved between two otherwise identical calls. Recovered by re-applying idempotent patch scripts
+kept outside the repo. Concurrent git operations on one checkout are not safe for in-flight edits;
+keep the patch script, not just the patched file.
+
+**Steps 0a/0/0b.** Performed by the calling session and re-checked here, not re-run: no rewind
+(`origin/main` HEAD `0a23c4e`, newest `kb/00-LOG.md` entry and newest committed tape both
+2026-08-03); the 6 open PRs (#271/#208/#191/#166/#165/#125) are long-standing Ryan-review-only
+docs and none claims a queue item; **step 0b is owned by the calling session this run** (a
+220-branch sweep it runs in parallel) and was deliberately not duplicated here.
+
+**Gates (fresh, taken AFTER the last change, L162)** and **step 9 (paper)**: see the run's final
+report — `python -m pytest -q` and `python scripts/invariants.py --full` were both re-run after the
+last edit (including this log entry and the ledger rows), and `scripts/paper_pass.py` was re-run
+after the swept tape landed so the ledger reflects it. No network beyond git, no orders, no
+credentials, `execution/` untouched. No `findings/` entry (lesson-conversion precedent,
+L269/L270/L272/L273). See `kb/lessons/00-lessons.md` (L271 enforcement cell, and the new L276).
 ## 2026-08-04 ~04:15 UTC — kalshi-edge-hunter nightly (Opus): adversarial review CLEAN (2 load-bearing numbers re-derived, both hold), Q21 round #22 = 0 registered (S75/S76/S77 all verifier-KILLED), Q37 gate now OPEN + execute-ready
 
 **The three units.**
