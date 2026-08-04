@@ -1,0 +1,285 @@
+{
+ "day": "2026-08-03",
+ "fill_traceability": {
+  "all_fills_traced": true,
+  "n_fills": 26,
+  "n_fills_traced_to_broker_truth_print": 26
+ },
+ "generated_at": "2026-08-04T12:43:15.992828+00:00",
+ "intervals": {
+  "drops": {
+   "no_settlement": 0,
+   "non_binary_result": 0,
+   "not_two_sided": 0,
+   "post_close": 0,
+   "single_snapshot": 3,
+   "unsettled": 145
+  },
+  "interval_coverage": 0.85,
+  "n_covered_intervals": 17,
+  "n_intervals": 20
+ },
+ "population": {
+  "binary_settlement_filter": "binary-filter: total 60, kept 10 (0.1667), dropped 50 [=50]",
+  "depth_tickers_in_day": 2713,
+  "settlement_cached": 60,
+  "sports_game_markets": 60,
+  "sports_tickers_with_prints": 38,
+  "stride_sample_size": 200,
+  "tickers_with_prints_in_sample": 42
+ },
+ "resolution_ceiling": "book cadence is ~3h; this tape supports interval-level fill EXISTENCE only. No queue-position, time-to-fill or sub-interval adverse-selection number is computed or claimable from it.",
+ "schema_version": "q51_maker_fillsim.v1",
+ "verdicts": {
+  "all_intervals": {
+   "admissibility": {
+    "admissible": false,
+    "n_opposing_units": 4,
+    "n_units": 7,
+    "reasons": [
+     "below_min_units"
+    ]
+   },
+   "admissible": false,
+   "ci95": [
+    -0.021249999999999998,
+    0.12023809523809523
+   ],
+   "clears_tick_magnitude": false,
+   "fee_rate": 0.0175,
+   "fill_evidence_tag": "broker_truth",
+   "fill_rate": 0.65,
+   "label": "all_intervals (HEADLINE, conservative)",
+   "mean": 0.0445,
+   "n_boot": 10000,
+   "n_filled_legs": 26,
+   "n_legs": 40,
+   "n_losing_units": 4,
+   "n_units_games": 7,
+   "price_source_tag": "real_bid",
+   "seed": 42,
+   "sign_bounded_objective": {
+    "all_zero_support": false,
+    "inadmissibility_is_definitional": false,
+    "max_value": 0.55,
+    "min_obs": 5,
+    "min_value": -0.56,
+    "n_negative": 11,
+    "n_obs": 40,
+    "n_positive": 15,
+    "n_units": 7,
+    "n_zero": 14,
+    "no_signal": false,
+    "observation_level_straddle_only": false,
+    "one_sided_support": false,
+    "reasons": [],
+    "support_sign": null,
+    "tol": 1e-12,
+    "unit_means_one_sided": false,
+    "verdict_bearing": true,
+    "weak_sample": false
+   },
+   "verdict": "INADMISSIBLE"
+  },
+  "all_intervals_no_bid": {
+   "admissibility": {
+    "admissible": false,
+    "n_opposing_units": 3,
+    "n_units": 7,
+    "reasons": [
+     "below_min_units"
+    ]
+   },
+   "admissible": false,
+   "ci95": [
+    -0.1527777777777778,
+    0.3252380952380952
+   ],
+   "clears_tick_magnitude": false,
+   "fee_rate": 0.0175,
+   "fill_evidence_tag": "broker_truth",
+   "fill_rate": 0.85,
+   "label": "all_intervals / NO-bid leg only (diagnostic)",
+   "mean": 0.09050000000000002,
+   "n_boot": 10000,
+   "n_filled_legs": 17,
+   "n_legs": 20,
+   "n_losing_units": 3,
+   "n_units_games": 7,
+   "price_source_tag": "real_bid",
+   "seed": 42,
+   "sign_bounded_objective": {
+    "all_zero_support": false,
+    "inadmissibility_is_definitional": false,
+    "max_value": 0.55,
+    "min_obs": 5,
+    "min_value": -0.5,
+    "n_negative": 8,
+    "n_obs": 20,
+    "n_positive": 9,
+    "n_units": 7,
+    "n_zero": 3,
+    "no_signal": false,
+    "observation_level_straddle_only": false,
+    "one_sided_support": false,
+    "reasons": [],
+    "support_sign": null,
+    "tol": 1e-12,
+    "unit_means_one_sided": false,
+    "verdict_bearing": true,
+    "weak_sample": false
+   },
+   "verdict": "INADMISSIBLE"
+  },
+  "all_intervals_yes_bid": {
+   "admissibility": {
+    "admissible": false,
+    "n_opposing_units": 3,
+    "n_units": 7,
+    "reasons": [
+     "below_min_units"
+    ]
+   },
+   "admissible": false,
+   "ci95": [
+    -0.20476190476190478,
+    0.18588235294117647
+   ],
+   "clears_tick_magnitude": false,
+   "fee_rate": 0.0175,
+   "fill_evidence_tag": "broker_truth",
+   "fill_rate": 0.45,
+   "label": "all_intervals / YES-bid leg only (diagnostic)",
+   "mean": -0.001500000000000007,
+   "n_boot": 10000,
+   "n_filled_legs": 9,
+   "n_legs": 20,
+   "n_losing_units": 1,
+   "n_units_games": 7,
+   "price_source_tag": "real_bid",
+   "seed": 42,
+   "sign_bounded_objective": {
+    "all_zero_support": false,
+    "inadmissibility_is_definitional": false,
+    "max_value": 0.49,
+    "min_obs": 5,
+    "min_value": -0.56,
+    "n_negative": 3,
+    "n_obs": 20,
+    "n_positive": 6,
+    "n_units": 7,
+    "n_zero": 11,
+    "no_signal": false,
+    "observation_level_straddle_only": false,
+    "one_sided_support": false,
+    "reasons": [],
+    "support_sign": null,
+    "tol": 1e-12,
+    "unit_means_one_sided": false,
+    "verdict_bearing": true,
+    "weak_sample": false
+   },
+   "verdict": "INADMISSIBLE"
+  },
+  "conditional_on_fill": {
+   "admissibility": {
+    "admissible": false,
+    "n_opposing_units": 4,
+    "n_units": 6,
+    "reasons": [
+     "below_min_units"
+    ]
+   },
+   "admissible": false,
+   "ci95": [
+    -0.028333333333333335,
+    0.21181818181818182
+   ],
+   "clears_tick_magnitude": false,
+   "fee_rate": 0.0175,
+   "fill_evidence_tag": "broker_truth",
+   "fill_rate": 1.0,
+   "label": "conditional on fill (diagnostic, NOT a strategy P&L)",
+   "mean": 0.06846153846153846,
+   "n_boot": 10000,
+   "n_filled_legs": 26,
+   "n_legs": 26,
+   "n_losing_units": 4,
+   "n_units_games": 6,
+   "price_source_tag": "real_bid",
+   "seed": 42,
+   "sign_bounded_objective": {
+    "all_zero_support": false,
+    "inadmissibility_is_definitional": false,
+    "max_value": 0.55,
+    "min_obs": 5,
+    "min_value": -0.56,
+    "n_negative": 11,
+    "n_obs": 26,
+    "n_positive": 15,
+    "n_units": 6,
+    "n_zero": 0,
+    "no_signal": false,
+    "observation_level_straddle_only": false,
+    "one_sided_support": false,
+    "reasons": [],
+    "support_sign": null,
+    "tol": 1e-12,
+    "unit_means_one_sided": false,
+    "verdict_bearing": true,
+    "weak_sample": false
+   },
+   "verdict": "INADMISSIBLE"
+  },
+  "covered_intervals": {
+   "admissibility": {
+    "admissible": false,
+    "n_opposing_units": 4,
+    "n_units": 6,
+    "reasons": [
+     "below_min_units"
+    ]
+   },
+   "admissible": false,
+   "ci95": [
+    -0.025,
+    0.13611111111111113
+   ],
+   "clears_tick_magnitude": false,
+   "fee_rate": 0.0175,
+   "fill_evidence_tag": "broker_truth",
+   "fill_rate": 0.7647058823529411,
+   "label": "covered_intervals (SENSITIVITY, conditions on activity)",
+   "mean": 0.05235294117647059,
+   "n_boot": 10000,
+   "n_filled_legs": 26,
+   "n_legs": 34,
+   "n_losing_units": 4,
+   "n_units_games": 6,
+   "price_source_tag": "real_bid",
+   "seed": 42,
+   "sign_bounded_objective": {
+    "all_zero_support": false,
+    "inadmissibility_is_definitional": false,
+    "max_value": 0.55,
+    "min_obs": 5,
+    "min_value": -0.56,
+    "n_negative": 11,
+    "n_obs": 34,
+    "n_positive": 15,
+    "n_units": 6,
+    "n_zero": 8,
+    "no_signal": false,
+    "observation_level_straddle_only": false,
+    "one_sided_support": false,
+    "reasons": [],
+    "support_sign": null,
+    "tol": 1e-12,
+    "unit_means_one_sided": false,
+    "verdict_bearing": true,
+    "weak_sample": false
+   },
+   "verdict": "INADMISSIBLE"
+  }
+ }
+}
