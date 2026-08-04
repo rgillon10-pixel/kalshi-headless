@@ -6,6 +6,95 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-04 08:50 ET — Q51 milestone 2: real prints, real fills — and milestone 1 was reading the tape backwards
+
+**What happened.** Milestone 2 was the payoff leg: take the executed-print tape built this
+morning, join it to `tape/orderbook_depth/`, and re-test the sports maker family (S13/S23/S29
+shape) that eight candidates died on for lack of exactly this measurement. Built
+`scripts/q51_maker_fillsim.py` (+41 offline tests) and, standing in for a `verifier` that could
+not be dispatched, `scripts/q51_maker_fillsim_rederive.py` (+14 tests). Mechanism: at book
+snapshot `t_i`, rest at the observed touch — `best_yes_bid`, and as an independent second leg
+`best_no_bid` — ask whether a taker crossed into that side at or through that price before
+`t_{i+1}`, and hold any fill to settlement. Settlement came from one read-only unauthenticated
+`GET /markets/{ticker}` pass over 60 tickers, cached to `tape/q51_settlement_cache/` so every
+re-run and every check is offline.
+
+**The first result was that milestone 1 read the tape backwards.** Milestone 1 defined
+`taker_book_side` as *"the side of the BOOK the taker crossed into"* and wrote that into the
+collector docstring, the finding, and this milestone's own spec. Building the fill predicate on
+that sentence and then checking it against the book falsified it. Restricted to prints landing
+within 15 minutes of their reference snapshot — so the quote is not up to three hours stale —
+`bid`-tagged prints execute at or **above** the best ask **86.8%** of the time (n=151) and
+`ask`-tagged prints at or **below** the best bid **83.3%** (n=30). A `bid` print is a **buy**.
+The field names the side the taker's *own order* sat on: a taker holding a bid lifts the ask.
+The part that makes this a measurement rather than an anecdote is the decay — `bid`→ask
+agreement falls 86.8% → 84.6% → 70.4% as the join window widens from ≤15 min to ≤60 min to any
+age, which is what a real relationship does under added staleness and what an artifact does
+not. Two weaker corroborations: the three side fields are perfectly collinear on this tape
+(`bid`/`yes`/`yes` 31,831; `ask`/`no`/`no` 7,867), and under the corrected reading the 80/20
+split says retail overwhelmingly *buys*, the standard prediction-market pattern, where the
+original reading implied 80% of taker flow *sells*.
+
+This was load-bearing, not a naming quibble. The identical tape, read milestone 1's way, gives
+a 27.5% fill rate and a mean of **−$0.066**; read correctly, **65.0%** and **+$0.045**. The
+point estimate changes sign. No captured record changed — the collector stores the field
+verbatim from the API and never derived it, so the blast radius was confined to interpretation
+and no re-capture is needed. That is itself the corollary worth keeping: a collector that had
+derived a `fills_a_resting_bid` boolean from the misreading would have poisoned the tape.
+Recorded as **L279**, pinned by three hard acceptance tests over the frozen `dt=2026-08-03`
+slice plus an inversion-regression test; the collector docstring is corrected in place and the
+milestone-1 finding is annotated, not rewritten.
+
+**The verdict: DATA-INADEQUATE, and the constraint moved a third time.** Headline object (all
+intervals, `real_bid` rest price, `broker_truth` fill evidence, maker fee 0.0175 per L5,
+block-bootstrap by GAME, n_boot 10,000, seed 42): mean **+$0.0445**, 95% CI
+**[−$0.0212, +$0.1202]**, **n_units = 7 games** — below the L41 floor of 10 — with 4 of 7
+clusters losing (the S20 requirement satisfied), 40 legs / 26 filled, interval coverage
+**85.0%** (17/20). Admissibility fails on `below_min_units` and nothing else; the L27 tick gate
+fails; and `sign_bounded_objective` reports `verdict_bearing=True`,
+`inadmissibility_is_definitional=False`, which is L249's discriminator saying this is an honest
+*"not measured yet"* rather than a gate that bounds its own sign. Every binding gate held: all
+26 fills trace to a `broker_truth` `trade_id` (the predicate reads a print or returns `False`,
+so a synthesised fill cannot occur); no queue-position or time-to-fill number is computed
+anywhere, and the report's key set is test-asserted free of them; interval coverage is reported
+beside every fill rate on both the headline and the sensitivity branch.
+
+Why only 7 games: **145 of the day's 165 sports intervals die because the market has not
+settled** — 49 of the 60 sampled sports markets are games scheduled 2026-08-04 through 08-09,
+still `active`. Zero intervals were lost to coverage, a missing settlement record, a non-binary
+result (L52), a one-sided book, or a post-close entry. So the binding constraint has moved a
+third time: from trade data (milestone 1's answer), to book resolution (milestone 1's revised
+answer), to **settlement recency** — and this one is nearly free to fix. Milestone 3 is now a
+one-command settlement re-pull over tape we **already hold**, taking the bootstrap to roughly
+57 game units and ~330 legs.
+
+**What it means.** The queue spec's kill conditions read literally as a kill here, but the L41
+gate fires first and an inadmissible CI is not a verdict — that is the entire point of the
+gate. So this run records DATA-INADEQUATE and explicitly declines to convert a 7-unit straddle
+into a kill. S13/S23/S29 keep the status they already had; nothing is revived and nothing is
+newly buried. The one robust observation is the fill-rate asymmetry, which follows directly
+from the corrected orientation: a resting YES bid filled 45.0% of the time, a resting NO bid
+85.0%, because taker flow is ~80% buying. Any future maker design on this population should
+expect to be filled mostly on the side it is selling.
+
+**Two-agent status: PROVISIONAL.** No `verifier` subagent was dispatchable (no `Task` tool in
+context — the same constraint on Q19, Q49, Q50 and milestone 1). The sanctioned fallback ran: a
+second independent code path with its own reader, its own Decimal round-up fee arithmetic
+against the probe's `math.ceil`, its own grouping, its own bootstrap and a different seed,
+reading only the persisted per-row artifact and never importing the probe. It reproduced 40/40
+rows with 0 P&L mismatches, 0 untraced fills, 0 price-tag violations and the same verdict. That
+is a redundancy check, not a verifier, and its limit is exactly the one this run demonstrated:
+it would have inherited the orientation misreading. Only the tape caught that. No row in
+`kb/strategies/00-index.md` moves.
+
+**Artifacts.** `findings/2026-08-04-q51-maker-fillsim-milestone2.md`;
+`scripts/q51_maker_fillsim.py`; `scripts/q51_maker_fillsim_rederive.py`;
+`reports/q51_maker_fillsim.json`; `reports/q51_maker_fillsim_rows.jsonl`;
+`tape/q51_settlement_cache/settlement.json`; correction appended to
+`findings/2026-08-04-q51-trade-print-surface-wall-b-half-broken.md`; lesson **L279**.
+
+---
+
 ## 2026-08-04 06:00 ET — Q51: the public executed-trade tape is built; WALL-B is half broken
 
 **What happened.** The research loop found 0 eligible queue items and idle-run policy (a)

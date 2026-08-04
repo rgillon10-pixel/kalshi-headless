@@ -129,3 +129,48 @@ trade tape together close WALL-B completely, where either alone does not.
    `real_bid`/`real_ask` book quotes).
 2. Backfill more days/tickers, aimed at the populations whose book tape already exists.
 3. **Ryan action:** Q47's WS book stream is now the single highest-value unblock.
+
+---
+
+## CORRECTION appended 2026-08-04 (Q51 milestone 2, same day) — the `taker_book_side`
+## orientation above is INVERTED
+
+*Annotated, not rewritten (the L191/L236 discipline: a finding is an append-only record of
+what a run concluded, and the correction is worth more next to the error than in place of
+it). Nothing else in this finding changes — every count, coverage figure and adequacy
+verdict above stands.*
+
+This finding states, twice, that `taker_book_side` is *"the side of the BOOK the taker
+crossed into"* and that *"a resting maker order fills exactly when a taker crosses into its
+side"*. Milestone 2 tested that against the two committed tapes and it does not hold. The
+field names the side of the book the **taker's own order sat on**: a taker carrying a BID
+is a BUYER and LIFTS a resting offer; a taker carrying an ASK is a SELLER and HITS a
+resting bid.
+
+Evidence (`scripts/q51_maker_fillsim.py`, pinned by
+`tests/test_q51_maker_fillsim.py::test_acceptance_taker_book_side_orientation_*`),
+restricted to prints landing within 15 minutes of their reference book snapshot so the
+quote is not up to three hours stale:
+
+| `taker_book_side` | n (≤15 min) | at/above best ASK | at/below best BID |
+|---|---|---|---|
+| `bid` | 151 | **86.8%** | 9.9% |
+| `ask` | 30 | 0.0% | **83.3%** |
+
+and the effect decays monotonically as the join window widens — `bid` prints sit at/above
+the ask 86.8% → 84.6% → 70.4% at ≤15 min / ≤60 min / any age — which is what a real
+relationship does under a widening join window and what an artifact does not.
+
+Two corroborations, neither of them independent evidence but both consistent: the three
+side fields are perfectly collinear on this tape (`bid`/`yes`/`yes` 31,831 rows,
+`ask`/`no`/`no` 7,867 rows), so `taker_side` reads the same way; and under the corrected
+orientation the 80/20 split says retail overwhelmingly **buys**, the standard
+prediction-market pattern, where the original reading would have claimed 80% of taker flow
+**sells**.
+
+**Blast radius.** Zero on the data — `collection/kalshi_trades.py` stores the field
+verbatim from the API and never derived it, so no captured record changed and no re-capture
+is needed. The damage was confined to interpretation, and it was load-bearing: read the
+milestone-1 way, milestone 2's fill-sim reported a 27.5% fill rate and a mean of −$0.066;
+read correctly, the same tape gives 65.0% and +$0.045. The collector docstring is corrected
+in place with a dated note. See `findings/2026-08-04-q51-maker-fillsim-milestone2.md`.

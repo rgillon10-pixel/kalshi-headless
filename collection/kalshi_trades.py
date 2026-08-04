@@ -11,11 +11,30 @@ as PUBLIC market data since 2026-06-18 under a `~` (inferred) marker, and nothin
 built against it. This module is that surface.
 
 What a trade print buys that a book snapshot cannot. Each record carries
-`taker_book_side` ∈ {bid, ask}: the side of the BOOK the taker crossed into. A resting maker
-order is filled precisely when a taker crosses into its side at or through its price — so
-`taker_book_side` + `price` + `count` is the direct observable for "would my resting order
-have been hit?", the question every fill-sim in this repo has so far had to SYNTHESIZE
-(prime-directive-forbidden as a fill price) or assume away (`OPTIMISTIC_FILL=True`).
+`taker_book_side` ∈ {bid, ask}, plus `price` and `count`: the direct observable for "would
+my resting order have been hit?", the question every fill-sim in this repo has so far had
+to SYNTHESIZE (prime-directive-forbidden as a fill price) or assume away
+(`OPTIMISTIC_FILL=True`).
+
+*** ORIENTATION — CORRECTED 2026-08-04 (Q51 milestone 2). *** This docstring originally
+read `taker_book_side` as "the side of the BOOK the taker crossed INTO". **That is
+backwards**, and the committed tape says so. `taker_book_side` names the side of the book
+the TAKER'S OWN order sat on: a taker carrying a BID is a BUYER and LIFTS a resting offer;
+a taker carrying an ASK is a SELLER and HITS a resting bid. Measured on
+`tape/kalshi_trades/dt=2026-08-03.jsonl` x `tape/orderbook_depth/dt=2026-08-03.jsonl`,
+restricted to prints landing within 15 minutes of their reference snapshot so the quote is
+not up to 3h stale: `bid` prints execute at or ABOVE the best ask 86.8% of the time
+(n=151), `ask` prints at or BELOW the best bid 83.3% (n=30), and the effect decays
+monotonically as the join window widens (86.8% -> 84.6% -> 70.4% at <=15min / <=60min /
+any age) exactly as a real relationship does and an artifact does not. The three side
+fields are perfectly collinear on this tape (`bid`/`yes`/`yes` 31,831; `ask`/`no`/`no`
+7,867), so the same reading is available from `taker_side` and the redundancy is not extra
+evidence. Under the corrected orientation the 80/20 split says retail overwhelmingly BUYS
+— the standard prediction-market pattern; under the original reading it would have claimed
+80% of taker flow SELLS. The RECORDS ARE UNAFFECTED (the field is stored verbatim from the
+API and was never derived here); only the interpretation moves. Consumers: a resting YES
+bid is filled by a `taker_book_side == "ask"` print, NOT a `"bid"` one. Pinned by
+`tests/test_q51_maker_fillsim.py::test_acceptance_taker_book_side_orientation_*`.
 
 Trust / provenance (CLAUDE.md trust-default). An executed trade is a venue-reported fact
 about a completed transaction, not a quote we hope to hit and not a model output — the same
@@ -118,8 +137,11 @@ def _record_from_trade(t: Dict[str, Any], captured_at: str, capture_id: str,
                        raw_sha256: Optional[str]) -> Dict[str, Any]:
     """One executed-print record from a Kalshi `/markets/trades` object.
 
-    `taker_book_side` is the load-bearing field (see module docstring): the book side the
-    taker crossed into, i.e. the side on which a resting maker order actually got hit.
+    `taker_book_side` is the load-bearing field: the side of the book the TAKER'S OWN
+    order sat on — a `bid` taker BUYS (lifting a resting offer), an `ask` taker SELLS
+    (hitting a resting bid). See the module docstring's ORIENTATION note: the original
+    reading of this field was inverted and was corrected on 2026-08-04 against the tape.
+    Stored verbatim from the API and never derived here, so no record changed.
     Prices are stored verbatim in dollars — no normalization, no derived probability.
     """
     ticker = t.get("ticker")
