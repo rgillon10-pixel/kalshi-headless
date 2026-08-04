@@ -6,6 +6,70 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-04 15:50 ET — IDLE RUN (policy c): `weather_books` meta sidecar falsifies L84's concurrency-safety claim — 47/48 keys duplicated on one committed day, 5 with differing content
+
+**What happened.** Full Q0-Q51 rescan again found 0 eligible items (Q51 milestone 3 stays
+time-gated to 2026-08-10; every other item is DONE/BLOCKED/gated per the same-day Q21 audit).
+Idle-run policy (a) stays exhausted (open UNENFORCED set unchanged: L213/L221/L222, all
+Ryan-gated); policy (b) stays empty (Q51 milestone 3 has no script to prep — it re-runs
+`q51_maker_fillsim.py` UNCHANGED). Dispatched a `tape-auditor` subagent for policy (c),
+instructed to avoid every family a prior run already covered (kalshi_trades, universe_sweep,
+VPS collector-health, weather_actuals, econ_prints, polymarket_pairs/polymarket_macro_pairs,
+orderbook_depth, anomalies, the kb/lessons ledger itself, the Q48 FOMC burst tape). It picked
+`tape/weather_books/` — 135MB, 71,626 book lines + 934 meta lines across 19 days, whose only
+prior audits (2026-07-18/20) checked day-COUNTS, never the `meta/` sidecar's own schema or
+concurrency contract, despite lesson L170 (2026-07-26, `hyperliquid_funding`) flagging that
+exact claim class as "worth a grep-check the next time one is audited."
+
+**The finding.** `_existing_meta_series()` dedups a day's meta write by reading the day's
+already-written file back — correct within one process, but this repo's collectors routinely
+race on separate unmerged `tape/hourly-*` branches (LOOP-QUEUE.md step 0b), and each
+branch-local read sees no conflict. `tape/weather_books/meta/dt=2026-07-27.jsonl` carries
+**47 of its 48 `(series, group)` keys twice** — every other of the 19 committed day-files is
+exactly 1:1. Traced by `git log -S` to a single commit (`a7ee98b`, an unrelated 2026-07-31
+idle-run) that union-appended both branches' rows; the sweep's line-level containment check
+correctly could not collapse them, because the two rows genuinely differ (`capture_id`/
+`captured_at`, and for 5 pairs `rules_primary`/`sample_ticker` too — the two racing passes
+sampled different hourly-directional contract instances). Blast radius today: **nil** — zero
+production consumers of `meta/`, only a test — but that test
+(`test_meta_written_once_per_series_day`) pins single-process behavior and passes green while
+the real committed tape violates the exact property it claims to protect. This is L170's
+predicted failure class confirmed in a second family.
+
+**What was built.** `scripts/invariants.py::_weather_books_meta_duplicate_issues` /
+`weather_books_meta_duplicate_warning` — a non-gating `--full` advisory (same posture as
+L210: a historical branch-merge duplicate in append-only tape cannot be un-committed, so
+gating on it would fail every future run over an already-known fact). A
+`WEATHER_BOOKS_META_DUP_ALLOWLIST = {"2026-07-27"}` names the one known incident; any OTHER
+day hitting this is reported as a fresh regression. `collection/weather_books.py`'s docstring
+corrected in place (dated note, L279 precedent — annotated, not rewritten) distinguishing true
+series-level constants (`settlement_sources`/`title`/`fee_type`, 0 variation across 19 days)
+from per-pass samples (`rules_primary`/`sample_ticker`/`contract_url`). New lesson **L281**
+supersedes L84 per the ledger's own rule (never edit/delete a row). 16 new tests in
+`tests/test_invariants.py`, including a HARD real-tape acceptance test pinning the exact
+numbers (47/48 duplicated, 5 content-differing, 0 dirty days elsewhere) so a second incident
+would be caught immediately.
+
+**Side-finding.** All 5 hourly-directional series flipped `frequency` `one_off`→`hourly`
+between `dt=2026-07-23`/`07-24`, simultaneously — a genuine, dated Kalshi-side reclassification
+our tape happened to capture, background for Q36; not acted on further.
+
+**No verdict-class change.** No P&L, no CI, no registry flip, no kill decision — tooling +
+lesson-correction only, two-agent rule N/A (same posture as L145/L152/L205/L210/L223).
+
+**Step 9.** `SHADOW_REGISTRY={s14_ladder_underwriting}` — `scripts/paper_pass.py` is
+idempotent this run (0 newly processed, 272 deferred(coverage), 300 already-in-ledger):
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76,
+open notional $0.00`. No new ledger lines.
+
+**Gates (fresh, taken after this diff's last code change):** `python3 -m pytest -o addopts=''
+-q` → **2998 passed, 0 failed** (4241.72s / 1:10:41); `python3 scripts/invariants.py --full`
+→ exit **0**, all green (the new L281 advisory fires as the expected non-gating known-incident
+note, no new regression). See `findings/2026-08-04-weather-books-meta-duplicate-and-provenance.md`,
+`kb/lessons/00-lessons.md` L281.
+
+---
+
 ## 2026-08-04 12:20 ET — IDLE RUN (policy c): `kalshi_trades` is a flawless tape whose join is 10% usable — and the defect is on the BOOK side
 
 **What happened.** Full Q0-Q51 rescan found 0 eligible items (Q51 milestone 3 is time-gated on
