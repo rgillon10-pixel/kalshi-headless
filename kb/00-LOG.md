@@ -6,6 +6,67 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-04 12:20 ET — IDLE RUN (policy c): `kalshi_trades` is a flawless tape whose join is 10% usable — and the defect is on the BOOK side
+
+**What happened.** Full Q0-Q51 rescan found 0 eligible items (Q51 milestone 3 is time-gated on
+games not yet played; idle-run policy (a) is exhausted — L213/L221/L222's remaining halves are
+all Ryan-gated collector-write-path or account work). Policy (b) was checked and found to have
+no script to write: milestone 3's spec is "re-run `scripts/q51_maker_fillsim.py` UNCHANGED"
+after one settlement re-pull. So this run did policy (c): a data-quality deep-dive on the
+newest, least-audited tape family, `tape/kalshi_trades/` — one day old, and already corrected
+once (L279). Built `scripts/q51_trade_tape_quality.py` (read-only, fully offline, no network)
++ `tests/test_q51_trade_tape_quality.py` (34 tests: every defect detector fires on a planted
+defect, plus 7 acceptance tests over the frozen `dt=2026-08-03` slice) →
+`reports/q51_trade_tape_quality.json`.
+
+**The tape is clean.** 39,698 lines / 39,698 distinct `trade_id`s / 0 duplicates, 0 parse
+errors, 0 broken `yes_price + no_price = 1` identities, 0 sub-tick prices, 0 non-positive
+sizes, 0 `trade_day` disagreements with `created_time`, 0 captures dated before their trade,
+24/24 UTC hours present, one schema version, one tag (`broker_truth`), one `capture_id`.
+Two fields are easy to misread and are now pinned: `event_ticker` is **structurally null on
+every line** (the `/markets/trades` payload has no such field — confirmed with one read-only
+public GET), so the block-bootstrap unit must be DERIVED from the ticker string; `game_of()`
+was validated against the venue's own `event_ticker` for the first time, 60 checked / 0
+mismatches. And `raw_sha256` is a per-QUERY digest (42 distinct over 39,698 lines, max
+multiplicity 10,156), not a per-line content hash — provenance grouping, not integrity.
+57.45% of prints are fractional-size (p01 = 0.26 contracts).
+
+**The finding.** Milestone 1 measured the join BOOK-side — "of the book intervals I hold, how
+many contain a print?" — and got a healthy-looking 65%. Measured PRINT-side, only **10.1%** of
+prints sit inside a bracketing same-day book span (17.2% if adjacent days are admitted), and
+**82.7%** land after the last snapshot their ticker ever received. Only **0.46%** have a
+reference quote younger than 15 minutes; the median quote age at execution is **149.7 min**.
+The buckets partition the tape exactly, so nothing is hidden. The cause is not the trade
+collector: across 08-02..08-04 `orderbook_depth` ran only **10 passes**, median gap 180 min
+(nominal) but **max gap 1,080 min = 18 h** starting 2026-08-03T15:56Z, plus a 9 h hole the same
+day. The worst dropouts are the highest-volume markets (one NWSL market: 10,156 prints, 6
+snapshots, 10,120 prints after the last one). This also re-scopes L279 honestly: its n=151/n=30
+orientation evidence comes from that 0.46% fresh-quote slice.
+
+**Fill capacity, the size question no fill-sim here has asked.** Re-tracing all 26 committed
+milestone-2 fills (26/26 traced, 0 untraceable; orientation imported wholesale from the tested
+predicate, no P&L re-derived): at 1 contract, 92.3% of fills are supported by the FIRST
+qualifying print; at 10, 57.7%; at 100, 15.4%; at 1,000, 0%. Milestone 2's implicit 1-contract
+assumption is therefore size-safe, and its result explicitly does not scale.
+
+**Policy-(b) by-product.** Milestone 3's gate date, computed offline from the committed
+settlement cache: cumulative resolvable markets by close day are 08-09 → 44, 08-10 → 47,
+08-12 → 57, 08-23 → 60. The queue's "once the 08-04..08-09 games have been played" is
+incomplete — 16 of 60 markets close after 08-09. A re-pull on **2026-08-10** already yields
+~44 settled markets (far above the L41 floor of 10 units); a second after **2026-08-24**
+completes it.
+
+**What it means.** The WALL-B unblocker is real but its usable fraction is an order of
+magnitude smaller than the book-side number suggested, and closing that gap is a
+`orderbook_depth` cadence/coverage problem, not a trade-data problem — which is the same
+conclusion Q47 (the WS `orderbook_delta` daemon, built, Ryan-gated on a working key) already
+points at, now with a print-weighted number attached.
+
+**Two-agent rule: N/A** — nothing verdict-class (no CI, no P&L, no kill, no registry flip).
+Also not satisfiable: no `Task`/subagent tool exists in this environment, as on Q19/Q49/Q50
+and both Q51 milestones. Every number is re-derivable by one offline command.
+→ `findings/2026-08-04-q51-trade-tape-quality-deepdive.md`, lesson **L280**.
+
 ## 2026-08-04 08:50 ET — Q51 milestone 2: real prints, real fills — and milestone 1 was reading the tape backwards
 
 **What happened.** Milestone 2 was the payoff leg: take the executed-print tape built this
