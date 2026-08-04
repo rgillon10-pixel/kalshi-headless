@@ -6,6 +6,76 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-04 ~04:15 UTC — kalshi-edge-hunter nightly (Opus): adversarial review CLEAN (2 load-bearing numbers re-derived, both hold), Q21 round #22 = 0 registered (S75/S76/S77 all verifier-KILLED), Q37 gate now OPEN + execute-ready
+
+**The three units.**
+
+**Unit 1 — adversarial review of the last 24h of findings/verdicts.** The last 24h are all
+collector-advisory infra idle-runs (L269→test, L272→test, L273→test), one universe_sweep saturation
+finding, one VPS-outage data-quality finding, and yesterday's Q21 round #21 (0 registered) — none
+produced a new bootstrap CI or fill price. Re-checked the two findings that DO carry a load-bearing
+number, re-deriving each independently from committed tape (not trusting the finding's printed value):
+- **Q37 gate-day-vs-bootstrap-unit (`findings/2026-08-03-q37-gate-day-vs-bootstrap-unit.md`):**
+  re-ran `scripts/q37_bootstrap_unit_preflight.py` — reproduces **15 usable bootstrap units** (gate now
+  21 days; deficit reasons `{incomplete_book:1, zero_fill:1, settlement_lag:4}`), clears the L41 floor
+  of 10, and the L32 dual-cut degeneracy (`touched_AND_frozen=0`) reproduces. **CONFIRMED.**
+- **VPS true-outage 273.9h (`findings/2026-08-03-vps-collector-true-outage-273h-...md`):** re-derived
+  the per-family newest genuine VPS-bucket (minute 20–29) capture directly from every
+  `tape/<family>/dt=*.jsonl` — the four non-burst-covered families (`orderbook_depth`/`perp_tape`/
+  `sports_pairs`/`weather_books`) are all frozen at **2026-07-22T17:2x**, the two burst-covered families
+  (`crypto_hourly`/`polymarket_macro_pairs`) show the 07-29T18:29 FOMC-burst contamination exactly as
+  claimed, `settlement_ledger` at 2026-07-17T12:23. As of this run the true VPS outage is **~298.8h
+  (12.5 days)**, `settlement_ledger` **~423.9h (17.7 days)**. **CONFIRMED.**
+- **Review verdict: CLEAN.** Nothing failed re-check; no GitHub issue opened.
+
+**Unit 2 — pipeline replenishment (Q21 round #22).** Full Q0–Q50 file-shape rescan: Q37's gate has
+OPENED (21/21 summer contract-days) → 1 eligible, still <2 → round fired. Producer proposed S75/S76/S77,
+each built to route around BOTH walls on already-collected tape; independent `verifier` attacked all
+three on committed tape BEFORE registration (two-agent rule at idea stage) → **KILL / KILL / KILL**,
+**0 registered.** **S75** (delisting-gap survivor taker): survivor already repriced — median surviving-leg
+`real_ask` sum = 1.00 across 442 dead-leg `sports_pairs` captures, only 4/442 <0.98 (the one gap is
+genuine in-play risk); WALL-A. **S76** (funding-extreme crypto_hourly fade): max `|HL BTC funding|`
+1.89e-5/hr ⇒ ~$1.25 drift vs $100 brackets (~80× too small), only 5/188 brackets fillable; WALL-A.
+**S77** (weather realized-obs late NO-taker): `weather_actuals` is post-close daily `broker_truth` only
+(capture UTC-hours {09:218,12:40,13:160,15:2}, zero local-afternoon obs), far NO leg 1¢-pinned (S10).
+Lesson candidate deferred to kb-distiller: funding-rate drift is dimensionally negligible vs bracket
+width (~80×), so no perp-funding signal can beat the crypto-ladder overround (complements S8/S10/S49/S71).
+Consumed S75/S76/S77 → next free **S78.** Binding constraint remains the DATA SURFACE (Q47
+`orderbook_delta` trade-bearing feed, Ryan-gated), not idea capacity. See
+`findings/2026-08-04-q21-idea-gen-round.md`.
+
+**Unit 3 — probe-prep.** Q37 (weather summer maker probe) unblocks within the 72h window — in fact its
+gate is now OPEN. Verified execute-ready by FILE SHAPE (L25), not path existence:
+`scripts/q37_weather_summer_makerno_probe.py` + `scripts/q37_bootstrap_unit_preflight.py` present,
+`tests/test_q37_weather_summer_makerno_probe.py` → **33 passed**, preflight re-run = 15 units. The next
+research-loop firing has only to execute it; its output is a verdict-class CI and binds the two-agent
+rule. Nothing to build this run.
+
+**Housekeeping.** Remote tape branches: **210 `tape/hourly-*` + 10 `tape/burst-*` = 220.** Stale
+`kalshi-burst-*` triggers whose event date has passed, named for deletion (Ryan-side): `-fomc-0729`
+(still enabled=True, now recurs annually), `-wcfinal-0719`, `-cpi-0714`, `-wcsemi1-0714`, `-wcsemi2-0715`.
+Open PRs blocked >5 days on a Ryan action (#125/#208/#271 retros; #191/#165/#166 drafts) are all
+long-standing and already flagged in prior notes/retros — NOT re-flagged this run (anti-tune-out rule).
+The VPS 12.5-day death is real and worsening but already flagged 07-20/25/27 and in the 08-03 finding
+with no new actionable info since — noted, not re-escalated.
+
+**Two-agent rule / Stop rules.** 0 registrations and 0 verdict-class flips this run; the review CONFIRMED
+existing numbers rather than producing new ones; the Q21 kills used producer + independent verifier at
+idea stage. No credentials, no orders, `execution/` untouched, no demo/live path. `kb/strategies/00-index.md`
+unchanged — still **0 proven edges.**
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra validation only,
+NOT edge evidence). Deterministic replay over tape appended since the last ledger entry processed **18
+newly-settled records** → new ledger file `paper/ledger/dt=2026-08-04.jsonl` (212 records; fills tagged
+`real_bid`, settles `broker_truth`, `fill_model=maker_candle_through`, **0 synthetic fills**): `paper:
+0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00`
+(down from +$28.86 as expected of a dead strategy).
+
+**Gates (fresh, docs+paper-ledger-only diff — no source/test file changed):** `python3 scripts/invariants.py
+--full` → `invariants: all green`, exit 0 (standing non-gating advisories only, none new); `python3 -m
+pytest -o addopts='' -q` → green, ≥2825 passed / 0 failed (identical to `origin/main` `0a23c4e` since no
+code changed). See `findings/2026-08-04-q21-idea-gen-round.md`.
+
 ## 2026-08-03 ~21:5x UTC — research loop (IDLE RUN, policy a): L273 `UNENFORCED` -> `test` — the collector advisory no longer goes SILENT precisely when the pipeline is at its worst
 
 **What happened.** A full Q0-Q50 rescan, reading each item's NEWEST `Status:` line rather than
