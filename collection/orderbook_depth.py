@@ -55,6 +55,17 @@ this tape as snapshot-sampled, and say so.
 
 Run one pass (standalone / dev):
     python -m collection.orderbook_depth --tickers KXWCGAME-...-USA KXBTC-...-T69300
+
+DATED NOTE (2026-08-04, L282, corrects L84 a third time): this collector appends every
+captured ticker on every pass with no read-back dedup at all, yet `dt=2026-07-28.jsonl` still
+carries 1,093 byte-identical duplicate `(capture_id, ticker)` rows — the SAME pass landed on
+`main` via two separately-racing commits (a live hourly pass and a later stranded-branch
+recovery whose own line-level containment check could not see the pass was already merged).
+This confirms the step-0b union-append race (first found in `weather_books`'s per-day dedup,
+L281) is a property of the sweep workflow itself, not of any one collector's dedup strategy —
+it hits families with NO dedup exactly as it hits families that do. See
+`scripts/invariants.py::orderbook_depth_duplicate_capture_warning` (non-gating `--full`
+advisory) and `findings/2026-08-04-orderbook-depth-duplicate-capture-and-cadence.md`.
 """
 from __future__ import annotations
 

@@ -6,6 +6,77 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-04 18:36 ET — IDLE RUN (policy c): `orderbook_depth` — L84 falsified a THIRD time (1,093 duplicate rows), plus a measured 6x post-VPS cadence collapse
+
+**What happened.** Step 0a (history-integrity) PASS: `origin/main` HEAD `c724f8d`, no rewind
+(newest `kb/00-LOG.md` entry and newest committed tape both 2026-08-04). Claim-check: the 5
+most-recently-closed PRs (#287-#291) all ancestors of `main` by SHA; open PRs unchanged
+(#125/#165/#166/#191/#208/#271, all Ryan-review-only, none claiming queue work). **Step 0b
+found real work**: the newest stranded branch, `tape/hourly-20260804T1914Z` (commit
+2026-08-04T19:14:38Z, ~2h old — past the 30-min safety window), was NOT a zero-diff subset of
+`main` — it carried **23,174 genuinely new lines** across 8 families (crypto_hourly,
+hyperliquid_funding, orderbook_depth, perp_tape, polymarket_macro_pairs, sports_pairs,
+universe_sweep as a whole new day-file, weather_books). Verified prefix-preserving against
+`origin/main` and all-JSON-valid line-by-line before appending; swept and merged separately
+(PR #292, squash) ahead of this milestone so `main` stayed current. Full Q0-Q51 rescan: still 0
+eligible (Q51 milestone 3 remains time-gated to 2026-08-10); idle-run policy (a) stays
+exhausted (L213/L221/L222 unchanged, Ryan-gated); policy (b) stays empty (Q51 milestone 3 has
+no script to prep) → policy (c). Picked `tape/orderbook_depth/` — previously audited only for
+hollow crypto ladders (L168/L169, 2026-07-26); its capture-cadence and cross-writer-duplicate
+angles were never checked.
+
+**Finding 1 (the enforced one): L84 falsified a third time.** `collection/orderbook_depth.py`
+has NO read-back dedup at all (unlike `weather_books`, which does and was still hit by this —
+L281, this morning), yet `dt=2026-07-28.jsonl` carries **1,093 byte-identical duplicate
+`(capture_id, ticker)` rows** — a whole 1,093-ticker pass landed on `main` twice. Traced via
+`git log --numstat`: commit `8130bff` ("hourly pass 20260728T065635Z (continued)", 07:06:58Z)
+introduced the pass fresh; commit `c4ed31a` ("recover 1,691 stranded lines
+(hourly-20260728T1004Z)", #223, 13:07:07Z) independently reintroduced the identical 1,093 rows
+from a branch forked before `8130bff` landed — its own line-level containment check correctly
+(by its own contract) saw 1,093 "new" lines that were in fact already merged elsewhere. Third
+family (after `hyperliquid_funding`/L170, `weather_books`-meta/L281) to show this exact defect
+from the exact same step-0b union-append mechanism — with or without a collector-side dedup
+guard — promoting it from "one family's bug" to a structural property of the sweep workflow
+itself. One consumer, `scripts/s6_maker_firstcut.py::_dedup_by_capture`, already defends
+against exactly this (docstring names the risk) — the pattern was suspected before, just not
+confirmed on this family. Every duplicate is byte-identical (0 content-differing, unlike L281's
+5) since this is the same capture landing twice, not two different passes racing.
+
+**Finding 2 (descriptive, not enforced): post-VPS cadence collapse, measured directly on this
+family.** Across the full 462-capture, 28-day history, splitting at the VPS death
+(~2026-07-22): median inter-capture gap **0.52h before → 3.00h after** (≈6x), mean **0.92h →
+4.72h**, max gap **56.91h (pre-existing 07-08 outage) → 21.00h** post-VPS. This independently
+reproduces and generalizes this morning's L280 finding (18h max gap in an 08-02..08-04 slice)
+to the family's entire post-VPS history: the degradation is the new steady state, not a one-off
+window. The nominally-hourly `kalshi-collector` leg is effectively floored at the cloud
+research-loop's 3-hourly cadence now. Not acted on (VPS revival is Ryan's call, already
+flagged).
+
+**What was built.** `scripts/invariants.py::_orderbook_depth_duplicate_capture_issues` /
+`orderbook_depth_duplicate_capture_warning` — non-gating `--full` advisory, structurally
+identical to L281's, with `ORDERBOOK_DEPTH_DUP_ALLOWLIST = {"2026-07-28"}` naming the one known
+incident. `collection/orderbook_depth.py` docstring corrected in place (dated note). New lesson
+**L282** supersedes L84 a third time. 14 new tests in `tests/test_invariants.py`, including a
+HARD real-tape acceptance test pinning 1,093/5,391 duplicated keys, 0 content-differing, 0
+dirty days elsewhere.
+
+**No verdict-class change.** No P&L, no CI, no registry flip, no kill decision — tooling +
+lesson-correction + descriptive cadence facts only, two-agent rule N/A (same posture as
+L145/L152/L205/L210/L223/L281).
+
+**Step 9.** `SHADOW_REGISTRY={s14_ladder_underwriting}` — `scripts/paper_pass.py` idempotent
+this run (0 newly processed, 272 deferred(coverage), 300 already-in-ledger): `paper: 0 open
+position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional
+$0.00`. No new ledger lines.
+
+**Gates (fresh, taken after this diff's last code change):** `python3 -m pytest -o addopts=''
+-q` → **3,012 passed, 0 failed** (~70min, exit 0; 2,998 on origin/main pre-run + 14 new, 0 regressions); `python3 scripts/invariants.py --full` → exit **0**, all green
+(the new L282 advisory fires as the expected non-gating known-incident note, no new
+regression). See `findings/2026-08-04-orderbook-depth-duplicate-capture-and-cadence.md`,
+`kb/lessons/00-lessons.md` L282.
+
+---
+
 ## 2026-08-04 15:50 ET — IDLE RUN (policy c): `weather_books` meta sidecar falsifies L84's concurrency-safety claim — 47/48 keys duplicated on one committed day, 5 with differing content
 
 **What happened.** Full Q0-Q51 rescan again found 0 eligible items (Q51 milestone 3 stays
