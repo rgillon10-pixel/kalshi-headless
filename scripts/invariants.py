@@ -2330,6 +2330,107 @@ def weather_books_meta_duplicate_warning(issues: List[Dict[str, object]]) -> Opt
     return "\n".join(lines)
 
 
+# ─── orderbook_depth duplicate-(capture_id,ticker) advisory (L282, corrects L84 a 3rd time) ──
+#
+# L84's "concurrency-safe across concurrent writers" claim was already falsified for
+# `tape/weather_books/meta/` (L281). The SAME step-0b union-append race hits
+# `tape/orderbook_depth/` too: two racing branch-local commits (2026-07-28T07:06:58Z's
+# "hourly pass ... (continued)" and the later "recover 1,691 stranded lines" sweep, #223)
+# each independently appended the SAME 1,093-ticker pass (`capture_id=20260728T065616Z`),
+# neither having seen the other's write — every one of those 1,093 tickers now carries a
+# byte-identical duplicate row. This is the THIRD family (after hyperliquid_funding/L170 and
+# weather_books-meta/L281) to show this exact defect class from the identical mechanism,
+# confirming it is a property of the step-0b sweep itself, not any one collector.
+# `ORDERBOOK_DEPTH_DUP_ALLOWLIST` names the one known historical incident so it is reported as
+# a KNOWN fact, not re-flagged as new every run; any OTHER day hitting this is a genuine fresh
+# regression the next `--full` run should surface loudly.
+
+ORDERBOOK_DEPTH_DUP_ALLOWLIST = frozenset({"2026-07-28"})
+
+
+def _orderbook_depth_duplicate_capture_issues(
+        tape_root: Path = ROOT / "tape",
+        allowlist: frozenset = ORDERBOOK_DEPTH_DUP_ALLOWLIST) -> List[Dict[str, object]]:
+    """Per day-file in `tape/orderbook_depth/`, count `(capture_id, ticker)` occurrences — one
+    pass captures each ticker at most once. A day assembled from two independently-written
+    branches can carry a duplicate the L216/L217 sweep's line-level containment check cannot
+    collapse (the rows genuinely differ in nothing key-bearing, or in `raw_sha256` alone if the
+    book moved between the two writers' own fetches). Read-only, offline. Best-effort: any
+    exception yields [], so it can never poison the gate."""
+    fam_dir = tape_root / "orderbook_depth"
+    if not fam_dir.is_dir():
+        return []
+    try:
+        issues: List[Dict[str, object]] = []
+        for path in sorted(fam_dir.glob("dt=*.jsonl")):
+            day = path.name[len("dt="):-len(".jsonl")]
+            by_key: Dict[Tuple[Optional[str], Optional[str]], List[Dict[str, Any]]] = {}
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    ticker = rec.get("ticker")
+                    if not ticker:
+                        continue
+                    by_key.setdefault((rec.get("capture_id"), ticker), []).append(rec)
+            dup = {k: v for k, v in by_key.items() if len(v) > 1}
+            if not dup:
+                continue
+            details = []
+            for (capture_id, ticker), recs in sorted(dup.items(),
+                                                       key=lambda kv: (kv[0][0] or "",
+                                                                        kv[0][1] or "")):
+                first = recs[0]
+                differing = sorted({
+                    field for rec in recs[1:] for field in first
+                    if field not in ("capture_id", "ticker")
+                    and first.get(field) != rec.get(field)
+                })
+                details.append({
+                    "capture_id": capture_id, "ticker": ticker, "n": len(recs),
+                    "differing_fields": differing,
+                })
+            issues.append({
+                "day": day, "n_duplicate_keys": len(dup), "n_keys": len(by_key),
+                "allowlisted": day in allowlist, "duplicates": details,
+            })
+        return issues
+    except Exception:
+        return []
+
+
+def orderbook_depth_duplicate_capture_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """Non-gating advisory naming any `tape/orderbook_depth/dt=*.jsonl` day whose
+    once-per-(capture_id,ticker) contract is violated. Pure. NEVER flips the exit code.
+    See kb/lessons/00-lessons.md L282 (corrects L84 a third time)."""
+    if not issues:
+        return None
+    new = [i for i in issues if not i["allowlisted"]]
+    known = [i for i in issues if i["allowlisted"]]
+    lines: List[str] = []
+    if new:
+        lines.append(f"warning (non-gating): {len(new)} tape/orderbook_depth/dt=*.jsonl "
+                     f"day(s) violate the once-per-(capture_id,ticker) contract and are a "
+                     f"NEW regression (not the known 2026-07-28 incident):")
+        for issue in new:
+            n_content = sum(1 for d in issue["duplicates"] if d["differing_fields"])
+            lines.append(f"  - dt={issue['day']}: {issue['n_duplicate_keys']} duplicated "
+                         f"key(s) of {issue['n_keys']}, {n_content} with differing content")
+        lines.append("  See kb/lessons/00-lessons.md L282 (corrects L84).")
+    if known:
+        days = ", ".join(f"dt={i['day']}" for i in known)
+        n_content = sum(1 for i in known for d in i["duplicates"] if d["differing_fields"])
+        lines.append(f"note (non-gating, known historical incident): {days} still carries the "
+                     f"L282 duplicate ({n_content} key(s) with differing content) — append-only "
+                     f"tape, not rewritten. See kb/lessons/00-lessons.md L282 (corrects L84).")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -4147,6 +4248,20 @@ def main() -> int:
                 sys.stderr.write(meta_dup_warning + "\n")
         except BaseException:
             sys.stderr.write("note: weather_books meta-duplicate advisory could not be "
+                             "computed (non-gating; exit code unaffected)\n")
+        # L282 advisory: a tape/orderbook_depth/dt=*.jsonl day whose once-per-(capture_id,
+        # ticker) contract is violated — the same append-only-branch-merge class as L210/L281,
+        # confirms L84's overclaimed cross-writer concurrency safety fails for a THIRD family.
+        # Non-gating: the one known historical incident (2026-07-28) cannot be un-committed.
+        # Wrapped in `except BaseException` for the L156 DEFECT-1 reason: a raise in the
+        # FORMATTER must not turn a non-gating advisory into a gate.
+        try:
+            ob_dup_warning = orderbook_depth_duplicate_capture_warning(
+                _orderbook_depth_duplicate_capture_issues())
+            if ob_dup_warning:
+                sys.stderr.write(ob_dup_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: orderbook_depth duplicate-capture advisory could not be "
                              "computed (non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.

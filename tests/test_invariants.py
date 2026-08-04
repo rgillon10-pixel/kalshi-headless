@@ -2236,6 +2236,179 @@ def test_acceptance_l281_real_tape_reproduces_the_2026_07_27_incident():
     assert "NEW regression" not in msg
 
 
+# ─── orderbook_depth duplicate-(capture_id,ticker) advisory (L282, corrects L84 a 3rd time) ──
+
+def _write_ob_tape(tape_root, day, records):
+    import json as _json
+    fam = tape_root / "orderbook_depth"
+    fam.mkdir(parents=True, exist_ok=True)
+    with open(fam / f"dt={day}.jsonl", "w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(_json.dumps(rec) + "\n")
+
+
+def _ob_row(ticker, capture_id, captured_at="2026-07-28T06:56:16.273008+00:00",
+            best_yes_bid=0.47, raw_sha256="deadbeef"):
+    return {"schema_version": "orderbook_depth.v1", "capture_id": capture_id,
+            "captured_at": captured_at, "venue": "kalshi", "ticker": ticker,
+            "yes_bids": [[best_yes_bid, 10.0]], "no_bids": [[0.51, 5.0]],
+            "best_yes_bid": best_yes_bid, "best_no_bid": 0.51,
+            "best_yes_ask": round(1 - 0.51, 2), "best_no_ask": round(1 - best_yes_bid, 2),
+            "depth": 2, "price_source_tags": {"asks": "real_ask", "bids": "real_bid"},
+            "raw_sha256": raw_sha256}
+
+
+def test_orderbook_depth_duplicate_issues_missing_tape_root_is_empty_L282(tmp_path):
+    assert inv._orderbook_depth_duplicate_capture_issues(tmp_path / "nope") == []
+
+
+def test_orderbook_depth_duplicate_issues_missing_family_dir_is_empty_L282(tmp_path):
+    assert inv._orderbook_depth_duplicate_capture_issues(tmp_path) == []
+
+
+def test_orderbook_depth_duplicate_issues_clean_day_is_empty_L282(tmp_path):
+    """The normal, single-writer case: one row per (capture_id, ticker), no duplicates."""
+    _write_ob_tape(tmp_path, "2026-07-20", [
+        _ob_row("KXFOO-A", "c1"), _ob_row("KXFOO-B", "c1"), _ob_row("KXFOO-A", "c2"),
+    ])
+    assert inv._orderbook_depth_duplicate_capture_issues(tmp_path, allowlist=frozenset()) == []
+
+
+def test_orderbook_depth_duplicate_issues_same_ticker_different_capture_is_not_a_dup_L282(
+        tmp_path):
+    """The uniqueness key is (capture_id, ticker) — repeat passes on the same ticker across
+    DIFFERENT passes are the normal, expected shape."""
+    _write_ob_tape(tmp_path, "2026-07-20", [
+        _ob_row("KXFOO-A", "c1"), _ob_row("KXFOO-A", "c2"),
+    ])
+    assert inv._orderbook_depth_duplicate_capture_issues(tmp_path, allowlist=frozenset()) == []
+
+
+def test_orderbook_depth_duplicate_issues_finds_byte_identical_duplicate_L282(tmp_path):
+    """Two racing branch-local commits, each appending the same pass's row for this ticker."""
+    _write_ob_tape(tmp_path, "2026-08-09", [
+        _ob_row("KXFOO-A", "c1"), _ob_row("KXFOO-A", "c1"),
+    ])
+    issues = inv._orderbook_depth_duplicate_capture_issues(tmp_path, allowlist=frozenset())
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["day"] == "2026-08-09"
+    assert issue["n_duplicate_keys"] == 1
+    assert issue["n_keys"] == 1
+    assert issue["allowlisted"] is False
+    dup = issue["duplicates"][0]
+    assert dup["ticker"] == "KXFOO-A" and dup["capture_id"] == "c1"
+    assert dup["n"] == 2
+    assert dup["differing_fields"] == []  # byte-identical
+
+
+def test_orderbook_depth_duplicate_issues_content_differs_is_reported_L282(tmp_path):
+    _write_ob_tape(tmp_path, "2026-08-09", [
+        _ob_row("KXFOO-A", "c1", best_yes_bid=0.47, raw_sha256="aaa"),
+        _ob_row("KXFOO-A", "c1", best_yes_bid=0.52, raw_sha256="bbb"),
+    ])
+    issues = inv._orderbook_depth_duplicate_capture_issues(tmp_path, allowlist=frozenset())
+    dup = issues[0]["duplicates"][0]
+    assert "best_yes_bid" in dup["differing_fields"]
+    assert "raw_sha256" in dup["differing_fields"]
+
+
+def test_orderbook_depth_duplicate_issues_allowlisted_day_is_flagged_L282(tmp_path):
+    _write_ob_tape(tmp_path, "2026-07-28", [
+        _ob_row("KXFOO-A", "c1"), _ob_row("KXFOO-A", "c1"),
+    ])
+    issues = inv._orderbook_depth_duplicate_capture_issues(
+        tmp_path, allowlist=frozenset({"2026-07-28"}))
+    assert len(issues) == 1
+    assert issues[0]["allowlisted"] is True
+
+
+def test_orderbook_depth_duplicate_issues_never_raises_on_garbage_L282(tmp_path):
+    fam = tmp_path / "orderbook_depth"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-28.jsonl").write_bytes(b"\xff\xfe not json at all\n")
+    assert inv._orderbook_depth_duplicate_capture_issues(tmp_path) == []
+
+
+def test_orderbook_depth_duplicate_issues_missing_ticker_field_is_skipped_L282(tmp_path):
+    _write_ob_tape(tmp_path, "2026-07-28", [
+        {"capture_id": "c1"}, {"capture_id": "c1"},   # no "ticker" — must not KeyError
+    ])
+    assert inv._orderbook_depth_duplicate_capture_issues(tmp_path) == []
+
+
+def test_orderbook_depth_duplicate_warning_none_when_empty_L282():
+    assert inv.orderbook_depth_duplicate_capture_warning([]) is None
+
+
+def test_orderbook_depth_duplicate_warning_new_regression_content_L282(tmp_path):
+    _write_ob_tape(tmp_path, "2026-08-09", [
+        _ob_row("KXFOO-A", "c1"), _ob_row("KXFOO-A", "c1"),
+    ])
+    issues = inv._orderbook_depth_duplicate_capture_issues(tmp_path, allowlist=frozenset())
+    msg = inv.orderbook_depth_duplicate_capture_warning(issues)
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "NEW regression" in msg
+    assert "2026-08-09" in msg
+    assert "L282" in msg
+
+
+def test_orderbook_depth_duplicate_warning_known_incident_content_L282(tmp_path):
+    _write_ob_tape(tmp_path, "2026-07-28", [
+        _ob_row("KXFOO-A", "c1"), _ob_row("KXFOO-A", "c1"),
+    ])
+    issues = inv._orderbook_depth_duplicate_capture_issues(
+        tmp_path, allowlist=frozenset({"2026-07-28"}))
+    msg = inv.orderbook_depth_duplicate_capture_warning(issues)
+    assert msg is not None
+    assert "known historical incident" in msg
+    assert "dt=2026-07-28" in msg
+    assert "L84" in msg
+    assert "NEW regression" not in msg
+
+
+def test_orderbook_depth_duplicate_warning_never_gates_exit_code_L282(monkeypatch, capsys):
+    monkeypatch.setattr(
+        inv, "_orderbook_depth_duplicate_capture_issues",
+        lambda: [{"day": "2026-01-01", "n_duplicate_keys": 1, "n_keys": 1,
+                  "allowlisted": False,
+                  "duplicates": [{"ticker": "FAKE", "capture_id": "c1", "n": 2,
+                                  "differing_fields": []}]}])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "2026-01-01" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_acceptance_l282_real_tape_reproduces_the_2026_07_28_incident():
+    """HARD acceptance against the real committed tape: dt=2026-07-28 carries exactly the
+    incident this lesson names — 1,093 duplicated (capture_id,ticker) keys, all byte-identical
+    (0 with differing content) — and it is reported as the KNOWN incident (allowlisted), never
+    as a fresh regression."""
+    fam = ROOT / "tape" / "orderbook_depth"
+    if not fam.is_dir():
+        pytest.skip("committed tape/orderbook_depth/ not present")
+    issues = inv._orderbook_depth_duplicate_capture_issues()
+    by_day = {i["day"]: i for i in issues}
+    assert "2026-07-28" in by_day, by_day
+    issue = by_day["2026-07-28"]
+    assert issue["allowlisted"] is True
+    assert issue["n_duplicate_keys"] == 1093
+    n_content_differs = sum(1 for d in issue["duplicates"] if d["differing_fields"])
+    assert n_content_differs == 0
+    # every OTHER committed day-file must be clean — a second incident would be new information
+    other_days_dirty = [i["day"] for i in issues if i["day"] != "2026-07-28"]
+    assert other_days_dirty == [], other_days_dirty
+    msg = inv.orderbook_depth_duplicate_capture_warning(issues)
+    assert msg is not None
+    assert "known historical incident" in msg
+    assert "NEW regression" not in msg
+
+
 def test_econ_prints_settlement_regression_warning_none_when_empty():
     assert inv.econ_prints_settlement_regression_warning([]) is None
 
