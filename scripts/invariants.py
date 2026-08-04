@@ -1088,10 +1088,36 @@ DEAD_LEG_SILENCE_HOURS = 24.0
 #     venue are all fine, which is what makes a 24h+ silence attributable to ONE leg rather than
 #     to a whole-pipe outage (the 2026-07-09 systemic case, which stays AMBIGUOUS here).
 DEAD_LEG_ALIVE_HOURS = 6.0
-# Bounded I/O: newest N day-files per family (~300MB / ~0.6s across all hourly families on
-# 2026-07-25 tape). A leg silent longer than the lookback reports last-seen "unknown" rather
-# than a fabricated timestamp — honest, and still correctly flagged dead.
+# Bounded I/O horizon for the leg scan. A leg silent longer than the horizon reports last-seen
+# "unknown" rather than a fabricated timestamp — honest, and still correctly flagged dead.
+#
+# L271 repair (2026-08-04): this used to mean "the newest N day-FILES PER FAMILY", which is a
+# RAGGED window — a family writing a file most days reaches back ~N days, a sparse or DEAD one
+# reaches back much further — so the aggregate MAX could land on a stale family's older capture
+# and report a leg's last-seen as OLDER than the truth. Live on 2026-08-04 the `vps` leg read
+# 2026-07-15T19:23:54Z (464.0h of silence), sourced from `polymarket_pairs`, whose own writes
+# stopped on 07-15; the leg's true last capture was 2026-07-22T17:29:49Z (~298h) — a ~166h
+# OVER-statement wearing a precise date. It now means N CALENDAR DAYS, inclusive, ending at the
+# newest committed day-file across the scanned families: ONE uniform window for every family, so
+# the MAX is a genuine "newest capture inside this window" rather than a statement about which
+# families happen to write often. Note the monotonicity that made this easy to miss: under the
+# old bound a DEEPER lookback returned a NEWER last-seen (10 -> 2026-07-15, 20 -> 2026-07-22).
+#
+# Measured cost of the change on live tape (2026-08-04): 59 files / 95.7MB / 0.15s under the
+# calendar window vs 70 files under the file-count bound — strictly CHEAPER, because the sparse
+# dead family stops contributing files at all. L271 recorded "unbounded I/O on a family that
+# writes many files per day" as its reason NOT to build this; the tape layout is exactly one
+# `dt=<day>.jsonl` per family per day, so that premise does not hold.
 DEAD_LEG_LOOKBACK_DAYS = 10
+# The bounded ESCALATION. A uniform N-day window cannot see an outage older than N days, and
+# going date-blind exactly when the outage is WORST is the same "quieter the worse it gets"
+# shape L273 fixed elsewhere. So when — and only when — a monitored leg has no capture inside
+# the routine window, ONE deeper scan at this depth runs and recovers the true last capture for
+# the MISSING legs only. It is still a uniform calendar window (it cannot re-introduce the
+# ragged-window defect), still bounded, and paid only in the abnormal case: measured 1.12s /
+# 713MB on live 2026-08-04 tape vs 0.15s for the routine path. If even the deep scan sees
+# nothing, the advisory reports a LOWER BOUND on the silence and never a fabricated timestamp.
+DEAD_LEG_DEEP_LOOKBACK_DAYS = 30
 
 _CAPTURED_AT_RE = re.compile(rb'"captured_at"\s*:\s*"([^"]{10,40})"')
 _TAPE_GAP_MONITOR_PATH = ROOT / "scripts" / "tape_gap_monitor.py"
@@ -1177,10 +1203,38 @@ def _family_burst_windows(tgm, family: str) -> Optional[List[Tuple[object, objec
         return None
 
 
+def _newest_committed_day(tape_root: Path, families: List[str],
+                          max_day: Optional[date] = None) -> Optional[date]:
+    """The newest `dt=<day>.jsonl` day present across `families` (<= `max_day` when given), or
+    None. Filename-only — no file is opened — so anchoring the scan horizon costs no I/O.
+
+    The anchor is DATA-derived, not clock-derived, on purpose: `_collector_leg_last_seen` takes
+    no `now`, its tests pin fixed historical slices via `max_day`, and whole-tape staleness is
+    already handled downstream by comparing ages against the injected `now` in
+    `_dead_collector_leg_diagnosis`. Anchoring on the clock instead would make every fixture and
+    every pinned real-tape acceptance test wall-clock dependent (L140)."""
+    newest: Optional[date] = None
+    for family in families:
+        family_dir = tape_root / family
+        if not family_dir.is_dir():
+            continue
+        for path in family_dir.glob("dt=*.jsonl"):
+            try:
+                day = date.fromisoformat(path.name[len("dt="):-len(".jsonl")])
+            except ValueError:
+                continue
+            if max_day is not None and day > max_day:
+                continue
+            if newest is None or day > newest:
+                newest = day
+    return newest
+
+
 def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
                              lookback_days: int = DEAD_LEG_LOOKBACK_DAYS,
                              max_day: Optional[date] = None,
                              exclude_burst_windows: bool = True,
+                             calendar_horizon: bool = True,
                              stats: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
     """Newest `captured_at` per collector leg ("vps"/"cloud"/"other"), scanned from committed
     tape only (no network, no git). Legs are bucketed by minute-of-hour using
@@ -1195,21 +1249,38 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
     capture in a family no trigger covers still counts at the same instant. A burst pass is
     sanctioned re-collection, not a scheduled cron pass, and letting one stand in for a
     scheduled pass understates a real outage (measured 2.6x). Pass False to reproduce the
-    pre-L269 reading. `stats` (optional out-dict, mutated in place) reports the exclusion so it
-    is visible rather than silent: `n_burst_excluded`, `burst_excluded_by_family`,
-    `scan_oldest_day` (the oldest day-file actually read — see L271: the horizon is newest-N
-    day-FILES *per family*, i.e. ragged, so the aggregate max can be OLDER than the leg's true
-    last capture), and `burst_table_unavailable` (families that degraded)."""
+    pre-L269 reading.
+
+    `calendar_horizon` (default True, L271) makes the scan window ONE uniform calendar window —
+    every family's day-files from `anchor - (lookback_days - 1)` through `anchor`, where
+    `anchor` is the newest committed day across the scanned families (capped by `max_day`).
+    Pass False to reproduce the pre-L271 reading, whose bound was the newest `lookback_days`
+    day-FILES *per family* — ragged across families, so the aggregate max could land on a sparse
+    or dead family's older capture and OVER-state a leg's silence while looking precise.
+
+    `stats` (optional out-dict, mutated in place) reports both the exclusion and the horizon so
+    neither is silent: `n_burst_excluded`, `burst_excluded_by_family`, `burst_table_unavailable`
+    (families that degraded), `calendar_horizon`, `horizon_days`, `scan_anchor_day`,
+    `scan_cutoff_day` (None in the pre-L271 mode, which has no single cutoff — that is exactly
+    its defect), `scan_oldest_day` (the oldest day-file actually read) and `n_files_read`."""
     out: Dict[str, str] = {}
     excluded: Dict[str, int] = {}
     degraded: List[str] = []
     oldest_day: Optional[date] = None
+    anchor_day: Optional[date] = None
+    cutoff_day: Optional[date] = None
+    n_files_read = 0
     try:
         tgm = _load_tape_gap_monitor()
         if tgm is None or not tape_root.is_dir():
             return {}
         families = [f for f, cfg in tgm.FAMILY_CONFIG.items()
                     if cfg.get("kind") == "hourly-dual"]
+        # L271: one cutoff for every family, computed once from filenames only.
+        if calendar_horizon:
+            anchor_day = _newest_committed_day(tape_root, families, max_day)
+            if anchor_day is not None:
+                cutoff_day = anchor_day - timedelta(days=max(int(lookback_days), 1) - 1)
         for family in families:
             family_dir = tape_root / family
             if not family_dir.is_dir():
@@ -1230,13 +1301,18 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
                 if max_day is not None and d > max_day:
                     continue
                 days.append((d, p))
-            for day, path in sorted(days)[-lookback_days:]:
+            if calendar_horizon and cutoff_day is not None:
+                chosen = [(d, pth) for d, pth in sorted(days) if d >= cutoff_day]
+            else:
+                chosen = sorted(days)[-lookback_days:]
+            for day, path in chosen:
                 if oldest_day is None or day < oldest_day:
                     oldest_day = day
                 try:
                     blob = path.read_bytes()
                 except Exception:
                     continue
+                n_files_read += 1
                 for raw in set(_CAPTURED_AT_RE.findall(blob)):
                     ts = raw.decode("utf-8", "replace")
                     dt = _parse_capture_ts(ts)
@@ -1258,6 +1334,11 @@ def _collector_leg_last_seen(tape_root: Path = ROOT / "tape",
             stats["n_burst_excluded"] = sum(excluded.values())
             stats["scan_oldest_day"] = oldest_day.isoformat() if oldest_day else None
             stats["burst_table_unavailable"] = sorted(degraded)
+            stats["calendar_horizon"] = bool(calendar_horizon)
+            stats["horizon_days"] = int(lookback_days)
+            stats["scan_anchor_day"] = anchor_day.isoformat() if anchor_day else None
+            stats["scan_cutoff_day"] = cutoff_day.isoformat() if cutoff_day else None
+            stats["n_files_read"] = n_files_read
 
 
 def _parse_capture_ts(ts: str):
@@ -1275,6 +1356,8 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
                                   lookback_days: int = DEAD_LEG_LOOKBACK_DAYS,
                                   max_day: Optional[date] = None,
                                   exclude_burst_windows: bool = True,
+                                  calendar_horizon: bool = True,
+                                  deep_lookback_days: int = DEAD_LEG_DEEP_LOOKBACK_DAYS,
                                   ) -> Optional[Dict[str, object]]:
     """Diagnose an apparently-dead collector leg from committed tape (L117/L129). Returns None
     when there is nothing to say (no readable tape, or every scheduled leg captured within
@@ -1304,6 +1387,7 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
         last_seen = _collector_leg_last_seen(tape_root, lookback_days=lookback_days,
                                              max_day=max_day,
                                              exclude_burst_windows=exclude_burst_windows,
+                                             calendar_horizon=calendar_horizon,
                                              stats=scan_stats)
         if not last_seen:
             # RESIDUAL, recorded not hidden (L272): if EVERY capture in the horizon fell
@@ -1337,10 +1421,44 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
             alive_last_seen = _collector_leg_last_seen(tape_root, lookback_days=lookback_days,
                                                       max_day=max_day,
                                                       exclude_burst_windows=False,
+                                                      calendar_horizon=calendar_horizon,
                                                       stats=alive_stats)
         else:
             alive_last_seen = last_seen
             alive_stats = dict(scan_stats)
+
+        # L271 escalation half. The routine window is UNIFORM now, so a leg whose last capture
+        # predates it is simply ABSENT — honest, but date-blind exactly when the outage is
+        # longest (the "quieter the worse it gets" shape L273 fixed elsewhere). ONE deeper,
+        # still-uniform scan recovers the true date for the MISSING legs only. Skipped entirely
+        # when nothing is missing (the ordinary case, zero extra I/O) and on the pre-L271
+        # reproduction path (`calendar_horizon=False`), whose ragged window this must not
+        # re-enter. Liveness is deliberately NOT escalated: a deeper scan can only find OLDER
+        # captures, and older captures can never make a leg alive.
+        deep_stats: Dict[str, Any] = {}
+        recovered: List[str] = []
+        missing = [leg for leg in DEAD_LEG_MONITORED if leg not in last_seen]
+        if calendar_horizon and missing and int(deep_lookback_days) > int(lookback_days):
+            deep_seen = _collector_leg_last_seen(tape_root, lookback_days=deep_lookback_days,
+                                                 max_day=max_day,
+                                                 exclude_burst_windows=exclude_burst_windows,
+                                                 calendar_horizon=True, stats=deep_stats)
+            for leg in missing:
+                if deep_seen.get(leg):
+                    last_seen[leg] = deep_seen[leg]
+                    recovered.append(leg)
+
+        # The LOWER BOUND on any still-unknown leg's silence: nothing on or after the deepest
+        # cutoff actually read, so the silence is at least `now - start-of-that-day`. A bound,
+        # never a date — the true silence is longer, never shorter.
+        silence_floor_h: Optional[float] = None
+        floor_cutoff = deep_stats.get("scan_cutoff_day") or scan_stats.get("scan_cutoff_day")
+        if floor_cutoff:
+            try:
+                cut_dt = _datetime.fromisoformat(str(floor_cutoff)).replace(tzinfo=_timezone.utc)
+                silence_floor_h = (now - cut_dt).total_seconds() / 3600.0
+            except Exception:
+                silence_floor_h = None
 
         ages = {leg: _age_h(iso) for leg, iso in last_seen.items()}
         alive_ages = {leg: _age_h(iso) for leg, iso in alive_last_seen.items()}
@@ -1375,6 +1493,17 @@ def _dead_collector_leg_diagnosis(tape_root: Path = ROOT / "tape",
             "burst_excluded_by_family": scan_stats.get("burst_excluded_by_family"),
             "burst_table_unavailable": scan_stats.get("burst_table_unavailable"),
             "scan_oldest_day": scan_stats.get("scan_oldest_day"),
+            # L271 provenance: the horizon this reading actually used, what it cost, which legs
+            # needed the deeper scan, and the floor for anything still unseen.
+            "calendar_horizon": scan_stats.get("calendar_horizon"),
+            "scan_anchor_day": scan_stats.get("scan_anchor_day"),
+            "scan_cutoff_day": scan_stats.get("scan_cutoff_day"),
+            "n_files_read": scan_stats.get("n_files_read"),
+            "recovered_by_deep_scan": recovered,
+            "deep_scan_days": deep_stats.get("horizon_days"),
+            "deep_scan_cutoff_day": deep_stats.get("scan_cutoff_day"),
+            "deep_scan_files_read": deep_stats.get("n_files_read"),
+            "silence_floor_h": silence_floor_h,
             # L272 provenance: which reading each half of the verdict came from. `alive*` are
             # from the burst-INCLUSIVE scan; everything else above is burst-EXCLUDED.
             "alive_last_seen": alive_last_seen,
@@ -1430,9 +1559,18 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
     newest_age = diag.get("newest_age_h")
     newest_age_s = f"{newest_age:.1f}h ago" if isinstance(newest_age, float) else "unknown age"
     header = "COLLECTOR HEALTH ADVISORY (non-gating): "
+    # L271: the two horizons read differently and must be NAMED differently — a diag built
+    # before these keys existed (or by a fixture) still renders the old phrase, no invented fact.
+    _cutoff_day = diag.get("scan_cutoff_day")
+    _anchor_day = diag.get("scan_anchor_day")
+    _deep_cutoff_day = diag.get("deep_scan_cutoff_day")
+    _recovered = list(diag.get("recovered_by_deep_scan") or [])
+    _floor_h = diag.get("silence_floor_h")
+    _horizon_phrase = (f"one uniform {lookback}-calendar-day window ending {_anchor_day}"
+                       if _cutoff_day else f"last {lookback} day-files per family")
     tail = (f"Newest capture anywhere in committed hourly tape: {diag.get('newest_iso')} "
             f"({newest_age_s}). Detected from committed tape only (captured_at minute-of-hour "
-            f"buckets, last {lookback} day-files per family); leg signatures imported from "
+            f"buckets, {_horizon_phrase}); leg signatures imported from "
             f"scripts/tape_gap_monitor.py. This is ADVISORY ONLY and does NOT affect the exit "
             f"code — a dead VPS cron cannot be fixed from a cloud run. Fix = restart the cron on "
             f"the machine that owns it. See kb/lessons/00-lessons.md L117/L129.")
@@ -1466,7 +1604,25 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
                 f"ran, and reading it from the excluded scan used to SUPPRESS this whole "
                 f"advisory); the silence durations above remain burst-excluded and honest.")
         oldest = diag.get("scan_oldest_day")
-        if oldest:
+        if _cutoff_day and _anchor_day:
+            recovered_s = ""
+            if _recovered:
+                recovered_s = (f" A leg whose last capture predates that window is NOT reported "
+                               f"as missing on sight: one deeper {diag.get('deep_scan_days')}-"
+                               f"calendar-day scan (back to {_deep_cutoff_day}, "
+                               f"{diag.get('deep_scan_files_read')} file(s)) recovered the true "
+                               f"date for: {', '.join(_recovered)}.")
+            out.append(
+                f"  - horizon caveat: this reading is ONE UNIFORM window — every family's "
+                f"day-files from {_cutoff_day} through {_anchor_day} ({lookback} calendar days, "
+                f"{diag.get('n_files_read')} file(s) read). Before kb/lessons L271 the bound was "
+                f"the newest {lookback} DAY-FILES PER FAMILY, a ragged window in which a sparse "
+                f"or DEAD family reached much further back than a busy one, so the newest-capture "
+                f"MAX could land on the stale family and report a leg as silent LONGER than it "
+                f"truly was (measured live 2026-08-04: 464.0h reported vs 297.9h true, a 166h "
+                f"over-statement wearing a precise date).{recovered_s} Anything still unseen is "
+                f"reported as a LOWER BOUND on the silence, never as a date.")
+        elif oldest:
             out.append(
                 f"  - horizon caveat: the scan reads the newest {lookback} DAY-FILES PER "
                 f"FAMILY, which is a ragged window, not {lookback} calendar days — a family "
@@ -1477,14 +1633,28 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
                 f"indicative and the 'is it dead' verdict as the reliable part.")
         return out
 
+    def _unknown_leg_phrase(leg: str) -> str:
+        """L271: what to say about a leg with no capture anywhere in the deepest window read.
+        A LOWER BOUND, explicitly labelled as one — never a fabricated or borrowed timestamp."""
+        deepest = _deep_cutoff_day or _cutoff_day
+        if isinstance(_floor_h, float) and deepest:
+            return (f"  - {leg}: NO capture at all on or after {deepest} — silent for AT LEAST "
+                    f"{_floor_h:.1f}h. That is a LOWER BOUND, not a measurement: the scan cannot "
+                    f"see further back, so the true silence is longer, never shorter.")
+        return (f"  - {leg}: NO capture at all in the last {lookback} day-files "
+                f"(silent for longer than the lookback window)")
+
     def _leg_line(leg: str) -> str:
         seen = diag.get("last_seen", {}).get(leg)  # type: ignore[union-attr]
         age = diag.get("ages", {}).get(leg)        # type: ignore[union-attr]
         if seen is None:
-            return (f"  - {leg}: NO capture at all in the last {lookback} day-files "
-                    f"(silent for longer than the lookback window)")
+            return _unknown_leg_phrase(leg)
         age_s = f"{age:.1f}h" if isinstance(age, float) else "unknown"
-        return f"  - {leg}: last seen {seen} ({age_s} of silence)"
+        suffix = ""
+        if leg in _recovered:
+            suffix = (f"  [older than the routine {lookback}-day window; date recovered by the "
+                      f"deeper {diag.get('deep_scan_days')}-day scan]")
+        return f"  - {leg}: last seen {seen} ({age_s} of silence){suffix}"
 
     if diag.get("status") == "ambiguous":
         silent = diag.get("silent", [])
@@ -1531,8 +1701,25 @@ def dead_collector_leg_warning(diag: Optional[Dict[str, object]]) -> Optional[st
 
     dead = diag.get("dead")
     silence = diag.get("dead_silence_h")
-    silence_s = f"{silence:.1f}h" if isinstance(silence, float) else f">{lookback} days"
-    seen_s = diag.get("dead_last_seen") or f"not within the last {lookback} day-files"
+    if isinstance(silence, float):
+        silence_s = f"{silence:.1f}h"
+    elif isinstance(_floor_h, float):
+        # L271: a bound, said as a bound. ">N days" used to be the only honest thing available
+        # here; the uniform horizon gives an actual number to put behind the ">=".
+        silence_s = f">={_floor_h:.1f}h (lower bound — nothing on or after " \
+                    f"{_deep_cutoff_day or _cutoff_day} in any scanned family)"
+    else:
+        silence_s = f">{lookback} days"
+    if diag.get("dead_last_seen"):
+        seen_s = diag.get("dead_last_seen")
+        if dead in _recovered:
+            seen_s = (f"{seen_s}  [older than the routine {lookback}-day window; recovered by "
+                      f"the deeper {diag.get('deep_scan_days')}-day scan]")
+    elif _deep_cutoff_day or _cutoff_day:
+        seen_s = (f"none on or after {_deep_cutoff_day or _cutoff_day} — the deepest day-file "
+                  f"scanned (no timestamp is invented for it)")
+    else:
+        seen_s = f"not within the last {lookback} day-files"
     alive = [leg for leg in (diag.get("alive") or []) if leg != dead]  # type: ignore[union-attr]
     return "\n".join([
         header + f"the '{dead}' collector leg appears DEAD.",

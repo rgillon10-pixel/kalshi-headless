@@ -101,8 +101,13 @@ def test_cloud_leg_dead_advisory_names_cloud(tmp_path):
 
 
 def test_leg_silent_beyond_lookback_reports_unknown_not_a_fake_timestamp(tmp_path):
-    """A leg dead longer than the day-file lookback has NO last-seen in scope — the advisory
-    says so honestly instead of inventing one."""
+    """A leg dead longer than the scan horizon has NO last-seen in scope — the advisory says so
+    honestly instead of inventing one.
+
+    L271 (2026-08-04) rewrote the PROSE this asserts, not the rule: the horizon is now a uniform
+    calendar window plus one bounded deeper scan, and what neither can see is stated as a LOWER
+    BOUND on the silence. The contract under test is unchanged and is now checked directly —
+    no timestamp may be invented or borrowed for the dead leg."""
     now = datetime(2026, 7, 25, 6, 0, tzinfo=UTC)
     _leg_series(tmp_path, 23, now - timedelta(days=40), now - timedelta(days=30))  # long gone
     _leg_series(tmp_path, 53, now - timedelta(hours=48), now - timedelta(hours=1))
@@ -111,7 +116,13 @@ def test_leg_silent_beyond_lookback_reports_unknown_not_a_fake_timestamp(tmp_pat
     assert diag["dead"] == "vps"
     assert diag["dead_last_seen"] is None
     msg = inv.dead_collector_leg_warning(diag)
-    assert "not within the last 3 day-files" in msg
+    assert "no timestamp is invented for it" in msg
+    assert "lower bound" in msg.lower()
+    # the exact capture the old prose might have borrowed — the LAST vps capture written, which
+    # sits outside every window here. Horizon BOUNDARY dates may appear (they are the scan's own
+    # limits); a capture timestamp may not.
+    last_vps_written = (now - timedelta(days=30)).replace(minute=23, second=11, microsecond=0)
+    assert last_vps_written.isoformat() not in msg
 
 
 # ─── unit: both legs silent -> AMBIGUOUS, never a guess ─────────────────────
@@ -498,10 +509,19 @@ _L269_MAX_DAY = date(2026, 8, 1)
 
 @_real
 def test_acceptance_real_tape_burst_exclusion_moves_the_vps_reading():
-    off = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_L269_MAX_DAY,
+    # L271 (2026-08-04): this test pins the BURST-EXCLUSION claim, which is independent of the
+    # scan horizon. The genuine 2026-07-22 capture it names sits outside the routine 10-day
+    # window at this anchor, so both readings are taken at the depth production actually reaches
+    # for a missing leg (`DEAD_LEG_DEEP_LOOKBACK_DAYS`, applied by the escalation in
+    # `_dead_collector_leg_diagnosis`). The assertions themselves are unchanged; the horizon
+    # behaviour at the routine depth is pinned separately below and in
+    # tests/test_dead_leg_calendar_horizon.py.
+    _deep = inv.DEAD_LEG_DEEP_LOOKBACK_DAYS
+    off = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_L269_MAX_DAY, lookback_days=_deep,
                                        exclude_burst_windows=False)
     stats: dict = {}
-    on = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_L269_MAX_DAY, stats=stats)
+    on = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_L269_MAX_DAY, lookback_days=_deep,
+                                      stats=stats)
     assert off["vps"].startswith("2026-07-29T18:29:45"), off["vps"]
     assert on["vps"].startswith("2026-07-22T17:29:49"), on["vps"]
     assert on["vps"] < off["vps"], "the fix must make the outage look LONGER, never shorter"
@@ -510,6 +530,16 @@ def test_acceptance_real_tape_burst_exclusion_moves_the_vps_reading():
     assert stats["n_burst_excluded"] > 0
     assert set(stats["burst_excluded_by_family"]) <= {
         "crypto_hourly", "polymarket_pairs", "polymarket_macro_pairs"}
+    # L271: at the ROUTINE depth the same slice has no vps capture in window at all — the
+    # advisory reaches this instant via the escalation, never by borrowing a stale family's
+    # older capture the way the pre-L271 ragged window did.
+    routine = inv._collector_leg_last_seen(_REAL_TAPE, max_day=_L269_MAX_DAY)
+    assert "vps" not in routine
+    diag = inv._dead_collector_leg_diagnosis(tape_root=_REAL_TAPE,
+                                             now=datetime(2026, 8, 2, 12, 0, tzinfo=UTC),
+                                             max_day=_L269_MAX_DAY)
+    assert str(diag["last_seen"]["vps"]).startswith("2026-07-22T17:29:49")
+    assert diag["recovered_by_deep_scan"] == ["vps"]
 
 
 # ─── L272: `alive` must be read from the burst-INCLUSIVE scan ───────────────
