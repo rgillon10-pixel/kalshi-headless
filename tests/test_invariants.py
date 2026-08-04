@@ -2053,6 +2053,189 @@ def _econ_row(series_key, captured_at, status, event_ticker=None):
             "recent_settlement": {"status": status, "event_ticker": event_ticker}}
 
 
+# ─── weather_books meta duplicate-(series,group)-per-day advisory (L281, corrects L84) ──
+
+def _write_meta_tape(tape_root, day, records):
+    import json as _json
+    meta = tape_root / "weather_books" / "meta"
+    meta.mkdir(parents=True, exist_ok=True)
+    with open(meta / f"dt={day}.jsonl", "w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(_json.dumps(rec) + "\n")
+
+
+def _meta_row(series, group, capture_id, captured_at="2026-07-27T04:00:36+00:00",
+              rules_primary="rules text", sample_ticker="KX-SAMPLE"):
+    return {"schema_version": "weather_series_meta.v1", "capture_id": capture_id,
+            "captured_at": captured_at, "venue": "kalshi", "group": group, "series": series,
+            "title": "a title", "settlement_sources": ["NWS"], "fee_type": "quadratic",
+            "fee_multiplier": 1.0, "frequency": "hourly", "contract_url": "http://x",
+            "rules_primary": rules_primary, "rules_secondary": None,
+            "sample_ticker": sample_ticker, "detail_error": None}
+
+
+def test_weather_books_meta_duplicate_issues_missing_tape_root_is_empty_L281(tmp_path):
+    assert inv._weather_books_meta_duplicate_issues(tmp_path / "nope") == []
+
+
+def test_weather_books_meta_duplicate_issues_missing_meta_dir_is_empty_L281(tmp_path):
+    (tmp_path / "weather_books").mkdir(parents=True)
+    assert inv._weather_books_meta_duplicate_issues(tmp_path) == []
+
+
+def test_weather_books_meta_duplicate_issues_clean_day_is_empty_L281(tmp_path):
+    """The normal, single-writer case: one row per (series, group), no duplicates."""
+    _write_meta_tape(tmp_path, "2026-07-20", [
+        _meta_row("KXTEMPNYCH", "hourly", "c1"),
+        _meta_row("KXHIGHNY", "daily", "c1"),
+    ])
+    assert inv._weather_books_meta_duplicate_issues(tmp_path) == []
+
+
+def test_weather_books_meta_duplicate_issues_same_series_different_group_is_not_a_dup_L281(
+        tmp_path):
+    """The uniqueness key is (series, group), not series alone."""
+    _write_meta_tape(tmp_path, "2026-07-20", [
+        _meta_row("KXFOO", "hourly", "c1"),
+        _meta_row("KXFOO", "daily", "c1"),
+    ])
+    assert inv._weather_books_meta_duplicate_issues(tmp_path) == []
+
+
+def test_weather_books_meta_duplicate_issues_finds_byte_identical_duplicate_L281(tmp_path):
+    """Two branch-local passes racing the same day, both writing the identical sample."""
+    _write_meta_tape(tmp_path, "2026-08-09", [
+        _meta_row("KXTEMPNYCH", "hourly", "c1", rules_primary="same", sample_ticker="KX-A"),
+        _meta_row("KXTEMPNYCH", "hourly", "c2", rules_primary="same", sample_ticker="KX-A"),
+    ])
+    issues = inv._weather_books_meta_duplicate_issues(tmp_path, allowlist=frozenset())
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["day"] == "2026-08-09"
+    assert issue["n_duplicate_keys"] == 1
+    assert issue["n_keys"] == 1
+    assert issue["allowlisted"] is False
+    dup = issue["duplicates"][0]
+    assert dup["series"] == "KXTEMPNYCH" and dup["group"] == "hourly"
+    assert dup["n"] == 2
+    assert dup["capture_ids"] == ["c1", "c2"]
+    assert dup["differing_fields"] == []  # byte-identical modulo capture_id/captured_at
+
+
+def test_weather_books_meta_duplicate_issues_content_differs_is_reported_L281(tmp_path):
+    """The real 2026-07-27 shape: two racing passes sample DIFFERENT contract instances, so
+    rules_primary/sample_ticker genuinely disagree, not just capture_id/captured_at."""
+    _write_meta_tape(tmp_path, "2026-08-09", [
+        _meta_row("KXTEMPAUSH", "hourly", "c1", rules_primary="above 82.99", sample_ticker="A"),
+        _meta_row("KXTEMPAUSH", "hourly", "c2", rules_primary="above 83.99", sample_ticker="B"),
+    ])
+    issues = inv._weather_books_meta_duplicate_issues(tmp_path, allowlist=frozenset())
+    assert len(issues) == 1
+    dup = issues[0]["duplicates"][0]
+    assert set(dup["differing_fields"]) == {"rules_primary", "sample_ticker"}
+
+
+def test_weather_books_meta_duplicate_issues_allowlisted_day_is_flagged_L281(tmp_path):
+    _write_meta_tape(tmp_path, "2026-07-27", [
+        _meta_row("KXTEMPNYCH", "hourly", "c1"),
+        _meta_row("KXTEMPNYCH", "hourly", "c2"),
+    ])
+    issues = inv._weather_books_meta_duplicate_issues(
+        tmp_path, allowlist=frozenset({"2026-07-27"}))
+    assert len(issues) == 1
+    assert issues[0]["allowlisted"] is True
+
+
+def test_weather_books_meta_duplicate_issues_never_raises_on_garbage_L281(tmp_path):
+    meta = tmp_path / "weather_books" / "meta"
+    meta.mkdir(parents=True)
+    (meta / "dt=2026-07-27.jsonl").write_bytes(b"\xff\xfe not json at all\n")
+    assert inv._weather_books_meta_duplicate_issues(tmp_path) == []
+
+
+def test_weather_books_meta_duplicate_issues_missing_series_field_is_skipped_L281(tmp_path):
+    _write_meta_tape(tmp_path, "2026-07-27", [
+        {"group": "hourly", "capture_id": "c1"},   # no "series" — must not KeyError
+        {"group": "hourly", "capture_id": "c2"},
+    ])
+    assert inv._weather_books_meta_duplicate_issues(tmp_path) == []
+
+
+def test_weather_books_meta_duplicate_warning_none_when_empty_L281():
+    assert inv.weather_books_meta_duplicate_warning([]) is None
+
+
+def test_weather_books_meta_duplicate_warning_new_regression_content_L281(tmp_path):
+    _write_meta_tape(tmp_path, "2026-08-09", [
+        _meta_row("KXTEMPNYCH", "hourly", "c1"),
+        _meta_row("KXTEMPNYCH", "hourly", "c2"),
+    ])
+    issues = inv._weather_books_meta_duplicate_issues(tmp_path, allowlist=frozenset())
+    msg = inv.weather_books_meta_duplicate_warning(issues)
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "NEW regression" in msg
+    assert "2026-08-09" in msg
+    assert "L281" in msg
+
+
+def test_weather_books_meta_duplicate_warning_known_incident_content_L281(tmp_path):
+    _write_meta_tape(tmp_path, "2026-07-27", [
+        _meta_row("KXTEMPNYCH", "hourly", "c1"),
+        _meta_row("KXTEMPNYCH", "hourly", "c2"),
+    ])
+    issues = inv._weather_books_meta_duplicate_issues(
+        tmp_path, allowlist=frozenset({"2026-07-27"}))
+    msg = inv.weather_books_meta_duplicate_warning(issues)
+    assert msg is not None
+    assert "known historical incident" in msg
+    assert "dt=2026-07-27" in msg
+    assert "L84" in msg
+    assert "NEW regression" not in msg   # allowlisted day is not reported as fresh
+
+
+def test_weather_books_meta_duplicate_warning_never_gates_exit_code_L281(monkeypatch, capsys):
+    monkeypatch.setattr(
+        inv, "_weather_books_meta_duplicate_issues",
+        lambda: [{"day": "2026-01-01", "n_duplicate_keys": 1, "n_keys": 1,
+                  "allowlisted": False,
+                  "duplicates": [{"series": "FAKE", "group": "hourly", "n": 2,
+                                  "capture_ids": ["c1", "c2"], "differing_fields": []}]}])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "2026-01-01" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_acceptance_l281_real_tape_reproduces_the_2026_07_27_incident():
+    """HARD acceptance against the real committed tape: dt=2026-07-27 carries exactly the
+    incident this lesson names — 47 of 48 (series,group) keys duplicated, 5 with content
+    that genuinely differs (not just capture metadata) — and it is reported as the KNOWN
+    incident (allowlisted), never as a fresh regression."""
+    fam = ROOT / "tape" / "weather_books" / "meta"
+    if not fam.is_dir():
+        pytest.skip("committed tape/weather_books/meta/ not present")
+    issues = inv._weather_books_meta_duplicate_issues()
+    by_day = {i["day"]: i for i in issues}
+    assert "2026-07-27" in by_day, by_day
+    issue = by_day["2026-07-27"]
+    assert issue["allowlisted"] is True
+    assert issue["n_duplicate_keys"] == 47
+    assert issue["n_keys"] == 48
+    n_content_differs = sum(1 for d in issue["duplicates"] if d["differing_fields"])
+    assert n_content_differs == 5
+    # every OTHER committed day-file must be clean — a second incident would be new information
+    other_days_dirty = [i["day"] for i in issues if i["day"] != "2026-07-27"]
+    assert other_days_dirty == [], other_days_dirty
+    msg = inv.weather_books_meta_duplicate_warning(issues)
+    assert msg is not None
+    assert "known historical incident" in msg
+    assert "NEW regression" not in msg
+
+
 def test_econ_prints_settlement_regression_warning_none_when_empty():
     assert inv.econ_prints_settlement_regression_warning([]) is None
 

@@ -61,6 +61,22 @@ keys (append-only, never rewritten). Cheap now, priceless later: the W-B settlem
 needs to know KXTEMPNYCH settles on The Weather Company for KNYC, and daily highs on the NWS
 Climatological Report — recorded verbatim from the series' own settlement_sources + a sample
 market's rules_primary/rules_secondary, never guessed.
+CORRECTION (2026-08-04, L281 — corrects L84): the "write-once-per-series-per-day" dedup in
+`_existing_meta_series` is only concurrency-safe within ONE working tree. Two collector passes
+racing on separate unmerged `tape/hourly-*` branches (LOOP-QUEUE.md step 0b) each read a
+branch-local file and see no conflict, so BOTH write a meta record for the same (series, day);
+the step-0b sweep's line-level union-append cannot collapse them (the rows genuinely differ in
+`capture_id`/`captured_at`). Real incident: `dt=2026-07-27` carries 47 of 48 keys twice, 5 with
+DIFFERING `rules_primary`/`sample_ticker` — because the two racing passes sampled different
+hourly-directional contract instances (`first_market`, below), not just different capture
+timestamps. A consumer that reads meta by `series` alone on that day gets a value that depends
+on read order. `scripts/invariants.py::weather_books_meta_duplicate_warning` (non-gating)
+flags any NEW day this recurs on; the 2026-07-27 line is not rewritten (append-only) and is
+allowlisted as the known historical incident. `settlement_sources`/`title`/`fee_type` are true
+series-level constants (0 variation observed across 19 committed days save one deliberate
+`frequency` reclassification); `rules_primary`/`sample_ticker`/`contract_url` are per-PASS
+samples of whichever market happened to be `first_market` that pass — real, verbatim, never
+guessed, but not guaranteed identical to a different pass's sample of the same series-day.
 
 HONEST CADENCE CAVEAT (same as orderbook_depth.py): the recurring collector runs HOURLY. Hourly
 snapshots are coarse for the sub-degree, minutes-matter W-B latency play and the W-C late-session

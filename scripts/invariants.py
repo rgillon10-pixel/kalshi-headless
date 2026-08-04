@@ -2229,6 +2229,107 @@ def econ_prints_settlement_regression_warning(issues: List[Dict[str, object]]) -
     return "\n".join(lines)
 
 
+# ─── weather_books meta sidecar duplicate-(series,group)-per-day advisory (L281) ────────
+#
+# L84 claimed `collection/weather_books.py::_existing_meta_series`'s read-back dedup is
+# "concurrency-safe across concurrent writers." Falsified on committed tape (2026-08-04
+# idle-run policy-(c) audit): two collector passes each ran on their own unmerged
+# `tape/hourly-*` branch (LOOP-QUEUE.md step 0b), neither saw the other's meta write, and the
+# step-0b sweep union-appended both — `tape/weather_books/meta/dt=2026-07-27.jsonl` carries
+# 47 of its 48 `(series, group)` keys TWICE, 5 of the 47 pairs even differing in CONTENT
+# (`rules_primary`/`sample_ticker`, since the two racing passes sampled different
+# hourly-directional contract instances). Non-gating: the historical duplicate lines cannot
+# be un-committed (append-only tape) and the sweep's own line-level containment check cannot
+# collapse them (the rows genuinely differ in `capture_id`/`captured_at`, so they are not the
+# same line). `WEATHER_BOOKS_META_DUP_ALLOWLIST` names the one known historical incident so
+# it is reported as a KNOWN fact, not re-flagged as new every run; any OTHER day hitting this
+# is a genuine fresh regression the next `--full` run should surface loudly.
+
+WEATHER_BOOKS_META_DUP_ALLOWLIST = frozenset({"2026-07-27"})
+
+
+def _weather_books_meta_duplicate_issues(
+        tape_root: Path = ROOT / "tape",
+        allowlist: frozenset = WEATHER_BOOKS_META_DUP_ALLOWLIST) -> List[Dict[str, object]]:
+    """Per day-file in `tape/weather_books/meta/`, count `(series, group)` occurrences —
+    the sidecar's own contract (`_existing_meta_series`) is write-once-per-series-per-day.
+    A day assembled from two independently-written branches can carry a duplicate the L216/
+    L217 sweep cannot collapse (L281, corrects L84). Read-only, offline. Best-effort: any
+    exception yields [], so it can never poison the gate."""
+    meta_dir = tape_root / "weather_books" / "meta"
+    if not meta_dir.is_dir():
+        return []
+    try:
+        issues: List[Dict[str, object]] = []
+        for path in sorted(meta_dir.glob("dt=*.jsonl")):
+            day = path.name[len("dt="):-len(".jsonl")]
+            by_key: Dict[Tuple[str, Optional[str]], List[Dict[str, Any]]] = {}
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    series = rec.get("series")
+                    if not series:
+                        continue
+                    by_key.setdefault((series, rec.get("group")), []).append(rec)
+            dup = {k: v for k, v in by_key.items() if len(v) > 1}
+            if not dup:
+                continue
+            details = []
+            for (series, group), recs in sorted(dup.items(), key=lambda kv: (kv[0][0] or "",
+                                                                              kv[0][1] or "")):
+                first = recs[0]
+                differing = sorted({
+                    field for rec in recs[1:] for field in first
+                    if field not in ("capture_id", "captured_at")
+                    and first.get(field) != rec.get(field)
+                })
+                details.append({
+                    "series": series, "group": group, "n": len(recs),
+                    "capture_ids": sorted({r.get("capture_id") for r in recs}),
+                    "differing_fields": differing,
+                })
+            issues.append({
+                "day": day, "n_duplicate_keys": len(dup), "n_keys": len(by_key),
+                "allowlisted": day in allowlist, "duplicates": details,
+            })
+        return issues
+    except Exception:
+        return []
+
+
+def weather_books_meta_duplicate_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """Non-gating advisory naming any `tape/weather_books/meta/dt=*.jsonl` day whose
+    write-once-per-`(series, group)` contract is violated. Pure. NEVER flips the exit code.
+    See kb/lessons/00-lessons.md L281 (corrects L84)."""
+    if not issues:
+        return None
+    new = [i for i in issues if not i["allowlisted"]]
+    known = [i for i in issues if i["allowlisted"]]
+    lines: List[str] = []
+    if new:
+        lines.append(f"warning (non-gating): {len(new)} tape/weather_books/meta/dt=*.jsonl "
+                     f"day(s) violate the write-once-per-(series,group) contract and are a "
+                     f"NEW regression (not the known 2026-07-27 incident):")
+        for issue in new:
+            n_content = sum(1 for d in issue["duplicates"] if d["differing_fields"])
+            lines.append(f"  - dt={issue['day']}: {issue['n_duplicate_keys']} duplicated "
+                         f"key(s) of {issue['n_keys']}, {n_content} with differing content")
+        lines.append("  See kb/lessons/00-lessons.md L281 (corrects L84).")
+    if known:
+        days = ", ".join(f"dt={i['day']}" for i in known)
+        n_content = sum(1 for i in known for d in i["duplicates"] if d["differing_fields"])
+        lines.append(f"note (non-gating, known historical incident): {days} still carries the "
+                     f"L281 duplicate ({n_content} key(s) with differing content) — append-only "
+                     f"tape, not rewritten. See kb/lessons/00-lessons.md L281 (corrects L84).")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -4032,6 +4133,20 @@ def main() -> int:
                 sys.stderr.write(econ_regression_warning + "\n")
         except BaseException:
             sys.stderr.write("note: econ-prints settlement-regression advisory could not be "
+                             "computed (non-gating; exit code unaffected)\n")
+        # L281 advisory: a tape/weather_books/meta/dt=*.jsonl day whose write-once-per-
+        # (series,group) contract is violated — the same append-only-branch-merge class as
+        # L210, corrects L84's overclaimed cross-writer concurrency safety. Non-gating: the
+        # one known historical incident (2026-07-27) cannot be un-committed. Wrapped in
+        # `except BaseException` for the L156 DEFECT-1 reason: a raise in the FORMATTER must
+        # not turn a non-gating advisory into a gate.
+        try:
+            meta_dup_warning = weather_books_meta_duplicate_warning(
+                _weather_books_meta_duplicate_issues())
+            if meta_dup_warning:
+                sys.stderr.write(meta_dup_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: weather_books meta-duplicate advisory could not be "
                              "computed (non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.
