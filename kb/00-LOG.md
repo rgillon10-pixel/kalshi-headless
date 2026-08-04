@@ -6,6 +6,71 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-04 06:00 ET — Q51: the public executed-trade tape is built; WALL-B is half broken
+
+**What happened.** The research loop found 0 eligible queue items and idle-run policy (a)
+exhausted (all three open `UNENFORCED` lesson rows — L213, L221, L222 — are Ryan-gated
+collector-write-path or trigger-prompt halves, not cloud-buildable). Rather than take a
+(b)/(c)/(d) filler, it built the thing the repo's own last three Q21 rounds named as *the*
+blocker.
+
+Eight candidates — S6, S13, S19, S21, S23, S29, S68 and the S73 idea-stage kill — died on one
+sentence: *"`orderbook_depth` has no trade-print field, so a rested maker fill is
+unmeasurable"* (L68/L131). `kb/kalshi-api/02-rest-and-websocket.md` has listed
+`GET /markets/trades` as PUBLIC market data since 2026-06-18 under a `~` (inferred) marker,
+and in seven weeks nobody pointed a collector at it. Now built: `collection/kalshi_trades.py`
+— read-only, unauthenticated, ticker- and window-scoped, cursor-paginated with `at_cap`
+reported on its own axis (L270), deduped by immutable `trade_id` so re-running a window
+appends zero bytes (the L221 byte-redundant-recapture shape, avoided by construction), every
+line tagged `price_source_tag: "broker_truth"` (an executed trade is a venue-reported
+completed transaction; the `core/source_tag.py` enum is NOT widened), prices verbatim with no
+normalization (Hard Rule #3). Deliberately NOT wired into `hourly_pass.py` — that mutates a
+live collector's write path, which L221/L222 place outside a research run's lane.
+
+**What it means.** The load-bearing field is `taker_book_side` ∈ {bid, ask}: the side of the
+book the taker crossed into, i.e. the side on which a resting maker order actually got hit.
+History backfills to at least 2026-06-20 — *before* our oldest book tape — so the fill
+question is retro-testable on already-committed tape rather than only after N more forward
+days. Venue-wide density is ~1e6 prints/day (>6,000 in a single 10-minute window), so pulls
+must be aimed at the ticker population whose book we already hold; a venue-wide daily backfill
+would be ~600MB/day and is not viable.
+
+**The measurement (first capture: stride-13 sample of 200 of the 2,713 tickers in
+`orderbook_depth/dt=2026-08-03`, full UTC day).** 39,698 prints in 236 calls, cursor
+exhausted, `completeness_ok=True`, 0 parse errors, 0 duplicates. Tickers with ≥1 print
+42/200 (21.0%) — 79% of the book population is quoted-but-untraded. `taker_book_side` split
+bid 31,831 / ask 7,867. Interval coverage 67/165 = 40.6% across the sample, **67/103 = 65.0%
+on traded tickers**. Median inter-snapshot book interval **180.3 min**. Print price inside the
+preceding snapshot's [bid, ask] only **66.0%**.
+
+**So: WALL-B is HALF broken, and the constraint MOVES rather than vanishing.** Interval-level
+fill *existence* — "did a taker cross into my side at or through my price between two book
+snapshots?" — is now answerable 65% of the time on traded tickers, which is enough for a
+coarse maker fill-sim of the S13/S23/S29 shape. Queue position, time-to-fill and sub-3h
+adverse selection remain unmeasurable: a third of prints execute outside a quote up to three
+hours stale, which is a property of the BOOK cadence, not of the new tape. Before this run the
+missing input was trade data; after it, the missing input is book *resolution*. That re-prices
+**Q47** (the WS `orderbook_delta` daemon — built, activation gated on a working key from
+Ryan): the book stream plus this trade tape together close WALL-B, where either alone does not.
+
+**PROVISIONAL, and nothing flipped.** No agent-dispatch tool existed in this run's
+environment, so no independent `verifier` could be run; per LOOP-QUEUE.md's two-agent rule the
+result is recorded as PROVISIONAL — 0 registry status changes, 0 strategies revived, no CI
+computed. This is an input, not an edge.
+
+Also this run: step-0b swept 20 newest dated `tape/*` branches (19 already zero-diff — 6
+line-level verified, 13 capture_id-level per L216 — and 1 real: `tape/hourly-20260804T0704Z`
+contributed 627 lines across `crypto_hourly` / `polymarket_macro_pairs` / `sports_pairs`
+`dt=2026-08-04`, all three files previously absent from `main` entirely; the branch is NOT
+deleted, per step 0b that waits for this PR to merge). Paper tier advanced: 0 new fills,
+0 open, 1,657 settled, realized P&L $+27.76 (unchanged).
+
+Notes: `findings/2026-08-04-q51-trade-print-surface-wall-b-half-broken.md` ·
+`collection/kalshi_trades.py` · `scripts/q51_trade_print_joinability.py` ·
+`tests/test_kalshi_trades.py` · `tests/test_q51_trade_print_joinability.py` · LOOP-QUEUE.md Q51
+
+---
+
 ## 2026-08-04 ~07:xx UTC — research loop: Q37's FIRST LIVE VERDICT — weather summer maker-NO fade is DEAD, verifier-CONFIRMED
 
 The gate opened this run (21/21 summer contract-days in `tape/weather_books/`) — `scripts/q37_weather_summer_makerno_probe.py`'s first-ever live execution, after four calendar months of prep runs printing `INSUFFICIENT DATA`. Primary movement-conditioned cut, block-bootstrapped by calendar contract-day at `real_bid` entry / `broker_truth` settlement: mean **−$0.05670**, 95% CI **[−$0.09598, −$0.03023]**, n_units=15 (clears the L41 `MIN_CI_UNITS=10` floor), n_obs=531 filled trades. Strictly negative — the expected weather death, now measured for the specific summer×maker cell Q37 existed to test.
