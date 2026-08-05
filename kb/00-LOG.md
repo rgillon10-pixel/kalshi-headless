@@ -6,6 +6,94 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-05 11:0x ET (15:0x UTC) — research loop: IDLE RUN (policy c) — the 2026-07-28 duplicate is SIX families wide, and the step-0b sweep did not cause it (L282 attribution falsified, new lesson L285)
+
+**What happened.** Steps 0/0a/0b were established by the calling session (history-integrity PASS,
+`origin/main` HEAD `5b2dd78` with a real ancestor chain through #288->#295; no open PR claims queue
+work; newest stranded branch `tape/hourly-20260804T1914Z` already a strict subset of `main`, nothing
+new to sweep). Confirmed the queue read myself by each `### Qn` section's LATEST `Status:` line (a
+later paragraph can supersede an old TODO-looking header — Q23/Q24/Q27 all carry that shape):
+**0 eligible TODO/IN-PROGRESS** -> IDLE RUN. **Policy (a) re-verified rather than trusted:** the
+repo's own machine-readable census (`invariants.py --full`'s L152 stanza) reports
+`n_open_unenforced = 4`, and reading all four confirms every one needs a Ryan-side credential/account
+action or is the Ryan-lane sweep-workflow half of L282 — nothing in a research run's lane. Policy (b)
+empty (Q51 milestone 3 time-gated to 2026-08-10, script built and unchanged). -> **policy (c)**.
+
+**The question.** Three tape families had independently shown the same "a whole capture pass landed on
+`main` twice" defect (L170 `hyperliquid_funding`, L281 `weather_books/meta`, L282 `orderbook_depth`),
+each found by a per-family logical-key audit. Rather than audit a fourth family the same way, ask the
+family-agnostic version: **which committed tape files anywhere carry byte-identical duplicate lines?**
+
+**Finding 1 — the incident is six families wide, not one.** An exact-line census over all **1,476,500
+committed tape lines / 342 day-files** finds duplicates on **exactly one calendar day**, `dt=2026-07-28`,
+in **six** families: `orderbook_depth` 1,093 + `sports_pairs` 228 + `perp_tape` 17 +
+`polymarket_macro_pairs` 16 + `crypto_hourly` 2 + `hyperliquid_funding` 2 = **1,358 lines**. Zero
+duplicates on any other day in any other family, including the 8 days appended since. Each family's
+duplicates carry exactly ONE `capture_id`, and all six belong to the SAME collection pass
+(`20260728T065635Z`, legs stamped 06:54Z-07:04Z). L282 recorded 1,093 of those 1,358 — 80%.
+
+**Finding 2 — the commit L282 blames is the one that behaved correctly.** Commit-by-commit: the morning
+pass lands clean across `dd29b3a3` (06:57Z) + `8130bffa` (07:07Z, "(continued)"); the step-0b sweep
+`c4ed31ab` (08:07Z, PR #223) leaves the tape at **0 duplicates** — its 1,093 `orderbook_depth` rows carry
+`capture_id=20260728T095630Z`, a DIFFERENT, genuinely-absent capture; and all 1,358 duplicates appear at
+13:09Z in `10681abe` ("tape: hourly pass 2026-07-28T13:08:00Z"), **whose parent IS `c4ed31ab`** — it
+re-appended lines its own parent already contained. Checked a third way: re-running TODAY's
+`scripts/tape_branch_sweep.py::per_file_containment("origin/tape/hourly-20260728T1004Z",
+base_ref="8016b8ac")` (the sweep commit's own parent; the branch is still on `origin`, so this is
+re-runnable) returns **1,691 missing lines across 10 files, 0 size-guard-skipped** — exactly the 1,691
+tape lines `c4ed31ab` committed. The containment check did not mis-fire.
+
+**What that means.** L282's DATA stands; its ATTRIBUTION does not, and neither does its promotion of the
+pattern to "a structural property of the step-0b stranded-branch-sweep workflow itself". L170 and L281
+stand untouched (L281's duplicates differ in CONTENT, a class this byte-identical census cannot see and
+does not claim to). The replacement rule: the union-append convention (LOOP-QUEUE step 0b) is correct for
+a STRANDED BRANCH, whose content is disjoint from `main` by construction, and wrong as a
+`git pull --rebase` conflict resolution, where the local side's overlap with upstream has by definition
+already been merged. The 13:09Z tree is exactly `main`'s file ++ a stale local copy of the morning pass
+++ the new pass, in that order, in all six families — a plain rebase REPLAY is ruled out (it would have
+produced its own commit; the graph has none). WHICH runner resolved it cannot be proven from the object
+graph and is deliberately not guessed at (L221/L222 attribution discipline). Live-risk read, honest: the
+specific route is plausibly closed (cloud runs now push to `tape/hourly-*` branches, not `main`), but
+multi-commit carried-forward passes still reach `main` (`... [continued]`/`... [final]`, 2026-08-02) and
+`ops/vps/kalshi-headless-hourly.sh` still opens every pass with `git pull --rebase -q origin main` over a
+tree that may hold an unpushed tape commit. Eight clean days is evidence of rarity, not of repair.
+
+**Built.** `scripts/invariants.py`: `TAPE_DUP_LINE_ALLOWLIST = {"2026-07-28"}` +
+`_tape_duplicate_line_issues()` + `tape_duplicate_line_warning()`, wired **non-gating** into `--full`'s
+stderr advisory stanza, `BaseException`-wrapped (L156 DEFECT-1). Family-agnostic by design — the defect
+lives in the commit path, not in any collector — which also makes it the cheapest superset of the two
+existing per-family duplicate advisories (both deliberately left in place: the `orderbook_depth` one is
+finer-grained, the `weather_books/meta` one catches the content-differing class this cannot). Lines
+compared by 16-byte digest so the 760k-line `universe_sweep` files cost bounded memory; whole-tape runtime
+~5s. **Scope limit stated up front (L155):** byte-identical repeats ONLY — a 0-issue report is precision
+evidence about exact re-appends, never a clean bill of health for logical-key duplication.
+
+**Class and verification.** Descriptive/tooling + a lesson-attribution correction: no P&L, no bootstrap CI,
+no registry flip, no kill decision, `kb/strategies/00-index.md` untouched, still 0 proven edges. No price
+is quoted anywhere in this run, so no `price_source_tag` applies. The two-agent verdict rule is **N/A** by
+class (L145/L152/L205/L210/L223/L281/L282 precedent); no `Task` tool exists in this harness, so no
+subagent was dispatchable regardless and the lead performed the edits directly — stated, not hidden. In
+its place, the falsifying claim was attacked from three independent directions (per-commit blob census,
+`capture_id` identity of the sweep's own rows, and a live re-run of today's containment check against the
+historical branch), any one of which alone would have been weaker.
+
+**Gates (fresh, taken after the last edit — L162).** See the LOOP-QUEUE log-of-runs line for this run for
+the exact counts. **Step 9 (paper):** `SHADOW_REGISTRY={s14_ladder_underwriting}`, `scripts/paper_pass.py`
+re-run, 1,587 records loaded, 0 newly processed (0 deferred(caps), 272 deferred(coverage), 300
+already-in-ledger), **no new ledger lines** — `paper: 0 open position(s), 1657 settled contract(s),
+realized P&L $+27.76, cash $+27.76, open notional $0.00`. No network beyond git, no orders, no credentials,
+`execution/` untouched, paper tier only.
+
+**Renumbered on rebase.** Landed concurrently with the 03:20 ET / 07:20 UTC "Q51 milestone-3 pre-flight"
+run below, which reached `main` first and claimed lesson **L284**; this run's new lesson is therefore
+**L285** (not the L284 the producing session originally assigned — same renumber-on-rebase pattern that
+run itself applied to its own L283->L284 collision with PR #295, per its LOOP-QUEUE log line).
+
+New lesson **L285** (enforcement: test).
+`findings/2026-08-05-duplicate-tape-line-census-l282-attribution-falsified.md`.
+
+---
+
 ## 2026-08-05 ~03:20 ET (07:20 UTC) — research loop (Opus): IDLE RUN, policy (b) — Q51 milestone-3 pre-flight: the 08-10 firing buys 44 units not 57, and its own command would have turned the gate RED
 
 **Queue state: 0 eligible.** Read each item's LATEST status (they are appended newest-at-top
@@ -100,6 +188,7 @@ plus a CLI `-q` is `-qq`, which suppresses that line — worth knowing before qu
 `findings/2026-08-05-q51-m3-preflight-and-firing-hazard.md`, lesson **L284**, LOOP-QUEUE Q51.
 
 ---
+
 ## 2026-08-05 00:2x ET — IDLE RUN (policy c): the Q51 print-side hole is a CADENCE hole; `universe_sweep` is a rotating census, not a panel
 
 **What happened.** Step 0a (history-integrity) PASS: HEAD == `origin/main` == `29bfc035`, the 5
