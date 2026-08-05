@@ -1,0 +1,880 @@
+{
+  "anchor_coverage": {
+    "orderbook_depth_adjacent": {
+      "bracket": {
+        "buckets_partition_the_tape": true,
+        "criterion": "bracket",
+        "frac_usable": 0.1719,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0048,
+            "n": 189
+          },
+          "within_180min": {
+            "frac": 0.1299,
+            "n": 5155
+          },
+          "within_60min": {
+            "frac": 0.0188,
+            "n": 746
+          },
+          "within_720min": {
+            "frac": 0.1719,
+            "n": 6825
+          }
+        },
+        "median_anchor_age_min": 156.1,
+        "n_after_last_observation": 32812,
+        "n_before_first_observation": 4,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 0,
+        "n_ticker_under_two_observations": 57,
+        "n_usable": 6825,
+        "p90_anchor_age_min": 438.5
+      },
+      "prior": {
+        "buckets_partition_the_tape": true,
+        "criterion": "prior",
+        "frac_usable": 0.9985,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0199,
+            "n": 791
+          },
+          "within_180min": {
+            "frac": 0.6723,
+            "n": 26687
+          },
+          "within_60min": {
+            "frac": 0.0826,
+            "n": 3281
+          },
+          "within_720min": {
+            "frac": 0.9985,
+            "n": 39637
+          }
+        },
+        "median_anchor_age_min": 128.6,
+        "n_after_last_observation": 0,
+        "n_before_first_observation": 61,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 0,
+        "n_ticker_under_two_observations": 0,
+        "n_usable": 39637,
+        "p90_anchor_age_min": 365.8
+      }
+    },
+    "orderbook_depth_same_day": {
+      "bracket": {
+        "buckets_partition_the_tape": true,
+        "criterion": "bracket",
+        "frac_usable": 0.101,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0046,
+            "n": 181
+          },
+          "within_180min": {
+            "frac": 0.0644,
+            "n": 2556
+          },
+          "within_60min": {
+            "frac": 0.0183,
+            "n": 726
+          },
+          "within_720min": {
+            "frac": 0.101,
+            "n": 4011
+          }
+        },
+        "median_anchor_age_min": 149.7,
+        "n_after_last_observation": 17629,
+        "n_before_first_observation": 97,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 0,
+        "n_ticker_under_two_observations": 17961,
+        "n_usable": 4011,
+        "p90_anchor_age_min": 479.5
+      },
+      "prior": {
+        "buckets_partition_the_tape": true,
+        "criterion": "prior",
+        "frac_usable": 0.935,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0199,
+            "n": 791
+          },
+          "within_180min": {
+            "frac": 0.6089,
+            "n": 24173
+          },
+          "within_60min": {
+            "frac": 0.0826,
+            "n": 3281
+          },
+          "within_720min": {
+            "frac": 0.935,
+            "n": 37116
+          }
+        },
+        "median_anchor_age_min": 123.6,
+        "n_after_last_observation": 0,
+        "n_before_first_observation": 2582,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 0,
+        "n_ticker_under_two_observations": 0,
+        "n_usable": 37116,
+        "p90_anchor_age_min": 375.7
+      }
+    },
+    "union_adjacent": {
+      "bracket": {
+        "buckets_partition_the_tape": true,
+        "criterion": "bracket",
+        "frac_usable": 0.1719,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0048,
+            "n": 189
+          },
+          "within_180min": {
+            "frac": 0.1299,
+            "n": 5155
+          },
+          "within_60min": {
+            "frac": 0.0188,
+            "n": 746
+          },
+          "within_720min": {
+            "frac": 0.1719,
+            "n": 6825
+          }
+        },
+        "median_anchor_age_min": 156.1,
+        "n_after_last_observation": 32812,
+        "n_before_first_observation": 4,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 0,
+        "n_ticker_under_two_observations": 57,
+        "n_usable": 6825,
+        "p90_anchor_age_min": 438.5
+      },
+      "prior": {
+        "buckets_partition_the_tape": true,
+        "criterion": "prior",
+        "frac_usable": 0.9985,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0199,
+            "n": 791
+          },
+          "within_180min": {
+            "frac": 0.6723,
+            "n": 26687
+          },
+          "within_60min": {
+            "frac": 0.0826,
+            "n": 3281
+          },
+          "within_720min": {
+            "frac": 0.9985,
+            "n": 39637
+          }
+        },
+        "median_anchor_age_min": 128.6,
+        "n_after_last_observation": 0,
+        "n_before_first_observation": 61,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 0,
+        "n_ticker_under_two_observations": 0,
+        "n_usable": 39637,
+        "p90_anchor_age_min": 365.8
+      }
+    },
+    "universe_sweep_adjacent": {
+      "bracket": {
+        "buckets_partition_the_tape": true,
+        "criterion": "bracket",
+        "frac_usable": 0.0,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0,
+            "n": 0
+          },
+          "within_180min": {
+            "frac": 0.0,
+            "n": 0
+          },
+          "within_60min": {
+            "frac": 0.0,
+            "n": 0
+          },
+          "within_720min": {
+            "frac": 0.0,
+            "n": 0
+          }
+        },
+        "median_anchor_age_min": null,
+        "n_after_last_observation": 0,
+        "n_before_first_observation": 0,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 39698,
+        "n_ticker_under_two_observations": 0,
+        "n_usable": 0,
+        "p90_anchor_age_min": null
+      },
+      "prior": {
+        "buckets_partition_the_tape": true,
+        "criterion": "prior",
+        "frac_usable": 0.0,
+        "freshness_ladder": {
+          "within_15min": {
+            "frac": 0.0,
+            "n": 0
+          },
+          "within_180min": {
+            "frac": 0.0,
+            "n": 0
+          },
+          "within_60min": {
+            "frac": 0.0,
+            "n": 0
+          },
+          "within_720min": {
+            "frac": 0.0,
+            "n": 0
+          }
+        },
+        "median_anchor_age_min": null,
+        "n_after_last_observation": 0,
+        "n_before_first_observation": 0,
+        "n_prints": 39698,
+        "n_ticker_never_observed": 39698,
+        "n_ticker_under_two_observations": 0,
+        "n_usable": 0,
+        "p90_anchor_age_min": null
+      }
+    }
+  },
+  "book_days": [
+    "2026-08-02",
+    "2026-08-03",
+    "2026-08-04"
+  ],
+  "control": {
+    "definition": "L280's BRACKET criterion over orderbook_depth same-day tape",
+    "published_frac_usable": 0.101,
+    "reproduced_frac_usable": 0.101,
+    "reproduces": true
+  },
+  "fresh_anchor_unit_profile": {
+    "orderbook_depth_adjacent": {
+      "within_15min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.0199,
+        "max_anchor_age_min": 15.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 791,
+        "n_prints": 39698,
+        "n_resample_units": 21,
+        "prints_per_unit": [
+          328,
+          157,
+          102,
+          56,
+          47,
+          36,
+          15,
+          14,
+          10,
+          4,
+          4,
+          3,
+          3,
+          3,
+          2,
+          2,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      },
+      "within_180min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.6723,
+        "max_anchor_age_min": 180.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 26687,
+        "n_prints": 39698,
+        "n_resample_units": 32,
+        "prints_per_unit": [
+          10156,
+          5442,
+          2887,
+          2300,
+          2136,
+          2088,
+          616,
+          516,
+          105,
+          83,
+          55,
+          44,
+          43,
+          35,
+          33,
+          30,
+          23,
+          15,
+          13,
+          13,
+          11,
+          8,
+          7,
+          7,
+          4,
+          4,
+          3,
+          3,
+          2,
+          2,
+          2,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      },
+      "within_60min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.0826,
+        "max_anchor_age_min": 60.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 3281,
+        "n_prints": 39698,
+        "n_resample_units": 27,
+        "prints_per_unit": [
+          1064,
+          807,
+          620,
+          226,
+          204,
+          186,
+          43,
+          22,
+          21,
+          15,
+          14,
+          14,
+          10,
+          8,
+          7,
+          3,
+          3,
+          2,
+          2,
+          2,
+          2,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      }
+    },
+    "orderbook_depth_same_day": {
+      "within_15min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.0199,
+        "max_anchor_age_min": 15.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 791,
+        "n_prints": 39698,
+        "n_resample_units": 21,
+        "prints_per_unit": [
+          328,
+          157,
+          102,
+          56,
+          47,
+          36,
+          15,
+          14,
+          10,
+          4,
+          4,
+          3,
+          3,
+          3,
+          2,
+          2,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      },
+      "within_180min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.6089,
+        "max_anchor_age_min": 180.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 24173,
+        "n_prints": 39698,
+        "n_resample_units": 32,
+        "prints_per_unit": [
+          10120,
+          5341,
+          2885,
+          2129,
+          2023,
+          612,
+          508,
+          105,
+          83,
+          55,
+          44,
+          43,
+          35,
+          33,
+          28,
+          22,
+          15,
+          14,
+          13,
+          13,
+          10,
+          8,
+          7,
+          7,
+          4,
+          4,
+          3,
+          3,
+          2,
+          2,
+          1,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      },
+      "within_60min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.0826,
+        "max_anchor_age_min": 60.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 3281,
+        "n_prints": 39698,
+        "n_resample_units": 27,
+        "prints_per_unit": [
+          1064,
+          807,
+          620,
+          226,
+          204,
+          186,
+          43,
+          22,
+          21,
+          15,
+          14,
+          14,
+          10,
+          8,
+          7,
+          3,
+          3,
+          2,
+          2,
+          2,
+          2,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      }
+    },
+    "union_adjacent": {
+      "within_15min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.0199,
+        "max_anchor_age_min": 15.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 791,
+        "n_prints": 39698,
+        "n_resample_units": 21,
+        "prints_per_unit": [
+          328,
+          157,
+          102,
+          56,
+          47,
+          36,
+          15,
+          14,
+          10,
+          4,
+          4,
+          3,
+          3,
+          3,
+          2,
+          2,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      },
+      "within_180min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.6723,
+        "max_anchor_age_min": 180.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 26687,
+        "n_prints": 39698,
+        "n_resample_units": 32,
+        "prints_per_unit": [
+          10156,
+          5442,
+          2887,
+          2300,
+          2136,
+          2088,
+          616,
+          516,
+          105,
+          83,
+          55,
+          44,
+          43,
+          35,
+          33,
+          30,
+          23,
+          15,
+          13,
+          13,
+          11,
+          8,
+          7,
+          7,
+          4,
+          4,
+          3,
+          3,
+          2,
+          2,
+          2,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      },
+      "within_60min": {
+        "clears_unit_floor": true,
+        "frac_fresh_anchored": 0.0826,
+        "max_anchor_age_min": 60.0,
+        "min_units_floor": 10,
+        "n_fresh_anchored_prints": 3281,
+        "n_prints": 39698,
+        "n_resample_units": 27,
+        "prints_per_unit": [
+          1064,
+          807,
+          620,
+          226,
+          204,
+          186,
+          43,
+          22,
+          21,
+          15,
+          14,
+          14,
+          10,
+          8,
+          7,
+          3,
+          3,
+          2,
+          2,
+          2,
+          2,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "unit_definition": "game (L6) via game_of(ticker)"
+      }
+    }
+  },
+  "price_source_tags": {
+    "kalshi_trades": "broker_truth (enforced at load: non-broker_truth lines dropped)",
+    "orderbook_depth": {
+      "{\"asks\": \"real_ask\", \"bids\": \"real_bid\"}": 19253
+    },
+    "universe_sweep": "see universe_sweep_panel_profile.price_source_tag_census"
+  },
+  "print_day": "2026-08-03",
+  "schema_version": "q51_book_anchor_audit.v1",
+  "ticker_coverage": {
+    "families": {
+      "orderbook_depth_adjacent": {
+        "frac_print_tickers_covered": 1.0,
+        "frac_prints_on_covered_tickers": 1.0,
+        "n_print_tickers_covered": 42,
+        "n_prints_on_covered_tickers": 39698
+      },
+      "orderbook_depth_same_day": {
+        "frac_print_tickers_covered": 1.0,
+        "frac_prints_on_covered_tickers": 1.0,
+        "n_print_tickers_covered": 42,
+        "n_prints_on_covered_tickers": 39698
+      },
+      "union_adjacent": {
+        "frac_print_tickers_covered": 1.0,
+        "frac_prints_on_covered_tickers": 1.0,
+        "n_print_tickers_covered": 42,
+        "n_prints_on_covered_tickers": 39698
+      },
+      "universe_sweep_adjacent": {
+        "frac_print_tickers_covered": 0.0,
+        "frac_prints_on_covered_tickers": 0.0,
+        "n_print_tickers_covered": 0,
+        "n_prints_on_covered_tickers": 0
+      }
+    },
+    "n_print_tickers": 42,
+    "n_prints": 39698
+  },
+  "universe_sweep_panel_profile": {
+    "days": [
+      "2026-07-17",
+      "2026-07-18",
+      "2026-07-19",
+      "2026-07-20",
+      "2026-07-21",
+      "2026-07-22",
+      "2026-07-23",
+      "2026-07-24",
+      "2026-07-26",
+      "2026-07-27",
+      "2026-07-28",
+      "2026-07-30",
+      "2026-08-01",
+      "2026-08-02",
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05"
+    ],
+    "frac_captures_at_row_cap": 1.0,
+    "frac_tickers_observed_once": 0.9492,
+    "is_panel": false,
+    "max_observations_per_ticker": 2,
+    "n_distinct_tickers": 723235,
+    "n_lines": 760000,
+    "n_parse_errors": 0,
+    "n_tickers_ever_revisited": 36765,
+    "n_tickers_observed_once": 686470,
+    "observations_per_ticker_histogram": {
+      "1": 686470,
+      "2": 36765
+    },
+    "per_day": {
+      "2026-07-17": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000,
+          20000
+        ],
+        "n_captures": 3,
+        "n_distinct_tickers": 60000,
+        "n_lines": 60000
+      },
+      "2026-07-18": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000,
+          20000,
+          20000,
+          20000
+        ],
+        "n_captures": 5,
+        "n_distinct_tickers": 100000,
+        "n_lines": 100000
+      },
+      "2026-07-19": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000
+        ],
+        "n_captures": 2,
+        "n_distinct_tickers": 40000,
+        "n_lines": 40000
+      },
+      "2026-07-20": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000,
+          20000
+        ],
+        "n_captures": 3,
+        "n_distinct_tickers": 60000,
+        "n_lines": 60000
+      },
+      "2026-07-21": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000,
+          20000,
+          20000
+        ],
+        "n_captures": 4,
+        "n_distinct_tickers": 80000,
+        "n_lines": 80000
+      },
+      "2026-07-22": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000,
+          20000,
+          20000,
+          20000
+        ],
+        "n_captures": 5,
+        "n_distinct_tickers": 82109,
+        "n_lines": 100000
+      },
+      "2026-07-23": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000
+        ],
+        "n_captures": 1,
+        "n_distinct_tickers": 20000,
+        "n_lines": 20000
+      },
+      "2026-07-24": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000
+        ],
+        "n_captures": 1,
+        "n_distinct_tickers": 20000,
+        "n_lines": 20000
+      },
+      "2026-07-26": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000
+        ],
+        "n_captures": 1,
+        "n_distinct_tickers": 20000,
+        "n_lines": 20000
+      },
+      "2026-07-27": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000
+        ],
+        "n_captures": 2,
+        "n_distinct_tickers": 40000,
+        "n_lines": 40000
+      },
+      "2026-07-28": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000
+        ],
+        "n_captures": 1,
+        "n_distinct_tickers": 20000,
+        "n_lines": 20000
+      },
+      "2026-07-30": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000
+        ],
+        "n_captures": 2,
+        "n_distinct_tickers": 40000,
+        "n_lines": 40000
+      },
+      "2026-08-01": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000
+        ],
+        "n_captures": 2,
+        "n_distinct_tickers": 21126,
+        "n_lines": 40000
+      },
+      "2026-08-02": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000
+        ],
+        "n_captures": 2,
+        "n_distinct_tickers": 40000,
+        "n_lines": 40000
+      },
+      "2026-08-03": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000,
+          20000
+        ],
+        "n_captures": 2,
+        "n_distinct_tickers": 40000,
+        "n_lines": 40000
+      },
+      "2026-08-04": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000
+        ],
+        "n_captures": 1,
+        "n_distinct_tickers": 20000,
+        "n_lines": 20000
+      },
+      "2026-08-05": {
+        "all_captures_at_cap": true,
+        "capture_sizes": [
+          20000
+        ],
+        "n_captures": 1,
+        "n_distinct_tickers": 20000,
+        "n_lines": 20000
+      }
+    },
+    "price_source_tag_census": {
+      "real_ask": 760000
+    }
+  },
+  "verdict_class": "DATA-ADEQUACY \u2014 no edge claim, no P&L, no CI, no registry change"
+}
