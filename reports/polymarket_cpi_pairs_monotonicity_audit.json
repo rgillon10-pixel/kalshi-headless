@@ -1,0 +1,543 @@
+{
+  "audited_at": "2026-08-05T14:32:53.888824+00:00",
+  "econ_prints_join": {
+    "all_records": {
+      "failure_reasons": {},
+      "frac_joined": 1.0,
+      "freshness_ladder": {
+        "within_0.05h": {
+          "frac": 0.987528,
+          "n": 1742
+        },
+        "within_0.25h": {
+          "frac": 0.987528,
+          "n": 1742
+        },
+        "within_1.0h": {
+          "frac": 0.987528,
+          "n": 1742
+        },
+        "within_24.0h": {
+          "frac": 1.0,
+          "n": 1764
+        },
+        "within_6.0h": {
+          "frac": 1.0,
+          "n": 1764
+        }
+      },
+      "max_age_hours": 5.906942,
+      "median_age_hours": 0.001242,
+      "n_joined": 1764,
+      "n_total": 1764,
+      "reconstruction": {
+        "frac_exact": 0.996599,
+        "max_abs_diff": 0.04,
+        "max_abs_diff_on_joins_within_1h": 0.0,
+        "meaning": "re-applying the collector's own differencing transform to the econ_prints real_ask ladder reproduces the persisted synthetic derived_prob \u2014 the raw legs the pairs schema drops are recoverable",
+        "n_exact_to_1e_9": 1758,
+        "n_reconstructed": 1764,
+        "n_reconstructed_on_joins_within_1h": 1742
+      }
+    },
+    "clean_cohort": {
+      "failure_reasons": {},
+      "frac_joined": 1.0,
+      "freshness_ladder": {
+        "within_0.05h": {
+          "frac": 0.986521,
+          "n": 1537
+        },
+        "within_0.25h": {
+          "frac": 0.986521,
+          "n": 1537
+        },
+        "within_1.0h": {
+          "frac": 0.986521,
+          "n": 1537
+        },
+        "within_24.0h": {
+          "frac": 1.0,
+          "n": 1558
+        },
+        "within_6.0h": {
+          "frac": 1.0,
+          "n": 1558
+        }
+      },
+      "max_age_hours": 5.906942,
+      "median_age_hours": 0.001228,
+      "n_joined": 1558,
+      "n_total": 1558,
+      "reconstruction": {
+        "frac_exact": 0.996149,
+        "max_abs_diff": 0.04,
+        "max_abs_diff_on_joins_within_1h": 0.0,
+        "meaning": "re-applying the collector's own differencing transform to the econ_prints real_ask ladder reproduces the persisted synthetic derived_prob \u2014 the raw legs the pairs schema drops are recoverable",
+        "n_exact_to_1e_9": 1552,
+        "n_reconstructed": 1558,
+        "n_reconstructed_on_joins_within_1h": 1537
+      }
+    },
+    "inversion_anatomy": {
+      "high_rung_one_sided_no_bid": 196,
+      "high_rung_spread_tight": 93,
+      "high_rung_spread_wide": 113,
+      "inversion_reproduced_in_real_ask_ladder": 206,
+      "meaning": "a violating record's two real_ask legs are recoverable from econ_prints, which is what turns 'this number is invalid' into 'this rung was quoted one-sided at ask\u2248$1 with no bid'",
+      "median_high_rung_spread": 0.97,
+      "top_rung_ask_patterns": {
+        "ask_lo=0.01,ask_hi=0.03": 23,
+        "ask_lo=0.01,ask_hi=0.04": 32,
+        "ask_lo=0.01,ask_hi=0.16": 10,
+        "ask_lo=0.06,ask_hi=0.95": 2,
+        "ask_lo=0.08,ask_hi=0.14": 2,
+        "ask_lo=0.08,ask_hi=0.97": 108,
+        "ask_lo=0.14,ask_hi=0.42": 3,
+        "ask_lo=0.16,ask_hi=0.19": 10
+      }
+    },
+    "join_key": "kalshi.event_ticker + kalshi_inputs strike(s), nearest capture in time",
+    "violating_cohort": {
+      "failure_reasons": {},
+      "frac_joined": 1.0,
+      "freshness_ladder": {
+        "within_0.05h": {
+          "frac": 0.995146,
+          "n": 205
+        },
+        "within_0.25h": {
+          "frac": 0.995146,
+          "n": 205
+        },
+        "within_1.0h": {
+          "frac": 0.995146,
+          "n": 205
+        },
+        "within_24.0h": {
+          "frac": 1.0,
+          "n": 206
+        },
+        "within_6.0h": {
+          "frac": 1.0,
+          "n": 206
+        }
+      },
+      "max_age_hours": 5.906942,
+      "median_age_hours": 0.001289,
+      "n_joined": 206,
+      "n_total": 206,
+      "reconstruction": {
+        "frac_exact": 1.0,
+        "max_abs_diff": 0.0,
+        "max_abs_diff_on_joins_within_1h": 0.0,
+        "meaning": "re-applying the collector's own differencing transform to the econ_prints real_ask ladder reproduces the persisted synthetic derived_prob \u2014 the raw legs the pairs schema drops are recoverable",
+        "n_exact_to_1e_9": 206,
+        "n_reconstructed": 206,
+        "n_reconstructed_on_joins_within_1h": 205
+      }
+    }
+  },
+  "econ_tape_dir": "/home/user/kalshi-headless/tape/econ_prints",
+  "git_ref": "5b2dd7865bbd4b9d6ae22d6fb546f12ee9518d01",
+  "ladder_spacing_check": {
+    "collector_assumed_step": 0.1,
+    "inferred_spacing_by_series": {
+      "KXCPI": {
+        "0.1": 2407
+      },
+      "KXCPICORE": {
+        "0.1": 2407
+      },
+      "KXCPIYOY": {
+        "0.1": 1955
+      }
+    },
+    "meaning": "L7 \u2014 the collector hardcodes a 0.1 CPI step; this is that assumption checked against each ladder's own inferred spacing, not re-hardcoded"
+  },
+  "max_day": "2026-08-04",
+  "pairs_tape_dir": "/home/user/kalshi-headless/tape/polymarket_cpi_pairs",
+  "population": {
+    "n_bad_json": 0,
+    "n_by_bucket_kind": {
+      "ceiling": 173,
+      "exact": 1375,
+      "floor": 216
+    },
+    "n_by_event_ticker": {
+      "KXCPI-26JUL": 105,
+      "KXCPI-26JUN": 150,
+      "KXCPICORE-26JUL": 917,
+      "KXCPIYOY-26JUL": 252,
+      "KXCPIYOY-26JUN": 340
+    },
+    "n_by_series": {
+      "cpi_core_mom": 917,
+      "cpi_mom": 255,
+      "cpi_yoy": 592
+    },
+    "n_econ_events_indexed": 27,
+    "n_econ_ladders_indexed": 10209,
+    "n_files": 23,
+    "n_lines": 1764,
+    "n_other_schema": 0,
+    "n_pair_records": 1764
+  },
+  "prob_gap_containment": {
+    "all_records": {
+      "max_abs_gap": 1.73,
+      "mean_abs_gap": 0.238668,
+      "median_abs_gap": 0.0715,
+      "n": 1764,
+      "sum_abs_gap": 421.01
+    },
+    "clean_cohort": {
+      "max_abs_gap": 0.966,
+      "mean_abs_gap": 0.199207,
+      "median_abs_gap": 0.06,
+      "n": 1558,
+      "sum_abs_gap": 310.365
+    },
+    "frac_of_headline_mean_that_is_excess_over_clean_cohort": 0.165338,
+    "frac_of_total_abs_gap_mass_from_violating_cohort": 0.262808,
+    "frac_of_violations_carrying_a_gap": 1.0,
+    "impossible_records": [
+      {
+        "bucket_kind": "exact",
+        "bucket_value": 0.5,
+        "captured_at": "2026-07-06T15:18:43.609777+00:00",
+        "derived_prob": -0.89,
+        "econ_prints_diagnosis": {
+          "age_hours": 5.906942,
+          "ask_at_exceed_ge": 0.97,
+          "ask_at_exceed_le": 0.08,
+          "ladder_captured_at": "2026-07-06T09:24:18.617462+00:00",
+          "rung_price_source_tags": [
+            "real_ask"
+          ],
+          "yes_bid_at_exceed_ge": 0.0
+        },
+        "event_ticker": "KXCPICORE-26JUL",
+        "flag_persisted": true,
+        "kalshi_inputs": {
+          "exceed_ge": 0.5,
+          "exceed_le": 0.4
+        },
+        "polymarket_best_ask": 0.78,
+        "prob_gap": -1.67
+      },
+      {
+        "bucket_kind": "exact",
+        "bucket_value": 0.5,
+        "captured_at": "2026-07-07T09:26:58.177068+00:00",
+        "derived_prob": -0.89,
+        "econ_prints_diagnosis": {
+          "age_hours": 0.000762,
+          "ask_at_exceed_ge": 0.97,
+          "ask_at_exceed_le": 0.08,
+          "ladder_captured_at": "2026-07-07T09:26:55.433970+00:00",
+          "rung_price_source_tags": [
+            "real_ask"
+          ],
+          "yes_bid_at_exceed_ge": 0.0
+        },
+        "event_ticker": "KXCPICORE-26JUL",
+        "flag_persisted": true,
+        "kalshi_inputs": {
+          "exceed_ge": 0.5,
+          "exceed_le": 0.4
+        },
+        "polymarket_best_ask": 0.84,
+        "prob_gap": -1.73
+      }
+    ],
+    "meaning": "the collector flags the invalid derived_prob and then computes prob_gap from it anyway; the gap carries no flag of its own, so a consumer that reads prob_gap without also reading kalshi.monotonicity_violation inherits the defect",
+    "n_impossible_abs_gap_gt_1": 2,
+    "n_violating_records_with_a_persisted_prob_gap": 206,
+    "violating_cohort": {
+      "max_abs_gap": 1.73,
+      "mean_abs_gap": 0.537112,
+      "median_abs_gap": 0.893,
+      "n": 206,
+      "sum_abs_gap": 110.645
+    }
+  },
+  "scope": "DESCRIPTIVE / DATA-QUALITY ONLY \u2014 read-only over tape; no gate, no bootstrap CI, no P&L, no strategy verdict, no registry change, no collector write-path change",
+  "source_tags": {
+    "econ_prints_rungs_used_in_join": {
+      "real_ask": 1764
+    },
+    "kalshi_leg": {
+      "synthetic": 1764
+    },
+    "note": "prob_gap is a SYNTHETIC-minus-REAL_ASK difference and carries no tag of its own; per CLAUDE.md's trust default an untagged number is `synthetic`",
+    "polymarket_leg": {
+      "real_ask": 1764
+    }
+  },
+  "temporal": {
+    "by_day": {
+      "2026-07-06": {
+        "frac_econ_inverted": 0.055556,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 1,
+        "n_econ_rung_pair_observations": 18,
+        "n_exact_bucket": 18,
+        "n_impossible_gaps": 1,
+        "n_records": 22,
+        "n_violations": 1
+      },
+      "2026-07-07": {
+        "frac_econ_inverted": 0.055556,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 2,
+        "n_econ_rung_pair_observations": 36,
+        "n_exact_bucket": 18,
+        "n_impossible_gaps": 1,
+        "n_records": 22,
+        "n_violations": 1
+      },
+      "2026-07-08": {
+        "frac_econ_inverted": 0.055556,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 2,
+        "n_econ_rung_pair_observations": 36,
+        "n_exact_bucket": 36,
+        "n_impossible_gaps": 0,
+        "n_records": 44,
+        "n_violations": 2
+      },
+      "2026-07-11": {
+        "frac_econ_inverted": 0.055556,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 2,
+        "n_econ_rung_pair_observations": 36,
+        "n_exact_bucket": 36,
+        "n_impossible_gaps": 0,
+        "n_records": 44,
+        "n_violations": 2
+      },
+      "2026-07-12": {
+        "frac_econ_inverted": 0.055556,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 1,
+        "n_econ_rung_pair_observations": 18,
+        "n_exact_bucket": 18,
+        "n_impossible_gaps": 0,
+        "n_records": 22,
+        "n_violations": 1
+      },
+      "2026-07-13": {
+        "frac_econ_inverted": 0.055556,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 58,
+        "n_econ_rung_pair_observations": 1044,
+        "n_exact_bucket": 36,
+        "n_impossible_gaps": 0,
+        "n_records": 44,
+        "n_violations": 2
+      },
+      "2026-07-14": {
+        "frac_econ_inverted": 0.145007,
+        "n_capture_passes": 101,
+        "n_econ_inverted": 212,
+        "n_econ_rung_pair_observations": 1462,
+        "n_exact_bucket": 814,
+        "n_impossible_gaps": 0,
+        "n_records": 1062,
+        "n_violations": 176
+      },
+      "2026-07-15": {
+        "frac_econ_inverted": 0.105263,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 4,
+        "n_econ_rung_pair_observations": 38,
+        "n_exact_bucket": 38,
+        "n_impossible_gaps": 0,
+        "n_records": 48,
+        "n_violations": 4
+      },
+      "2026-07-16": {
+        "frac_econ_inverted": 0.157895,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 90,
+        "n_econ_rung_pair_observations": 570,
+        "n_exact_bucket": 38,
+        "n_impossible_gaps": 0,
+        "n_records": 48,
+        "n_violations": 6
+      },
+      "2026-07-17": {
+        "frac_econ_inverted": 0.052632,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 18,
+        "n_econ_rung_pair_observations": 342,
+        "n_exact_bucket": 38,
+        "n_impossible_gaps": 0,
+        "n_records": 48,
+        "n_violations": 2
+      },
+      "2026-07-18": {
+        "frac_econ_inverted": 0.105263,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 22,
+        "n_econ_rung_pair_observations": 209,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 2
+      },
+      "2026-07-19": {
+        "frac_econ_inverted": 0.105263,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 12,
+        "n_econ_rung_pair_observations": 114,
+        "n_exact_bucket": 38,
+        "n_impossible_gaps": 0,
+        "n_records": 48,
+        "n_violations": 4
+      },
+      "2026-07-20": {
+        "frac_econ_inverted": 0.052632,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 23,
+        "n_econ_rung_pair_observations": 437,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 1
+      },
+      "2026-07-21": {
+        "frac_econ_inverted": 0.052632,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 21,
+        "n_econ_rung_pair_observations": 399,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 1
+      },
+      "2026-07-22": {
+        "frac_econ_inverted": 0.0,
+        "n_capture_passes": 2,
+        "n_econ_inverted": 0,
+        "n_econ_rung_pair_observations": 114,
+        "n_exact_bucket": 38,
+        "n_impossible_gaps": 0,
+        "n_records": 48,
+        "n_violations": 0
+      },
+      "2026-07-26": {
+        "frac_econ_inverted": 0.0,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 0,
+        "n_econ_rung_pair_observations": 19,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 0
+      },
+      "2026-07-28": {
+        "frac_econ_inverted": 0.0,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 0,
+        "n_econ_rung_pair_observations": 19,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 0
+      },
+      "2026-07-29": {
+        "frac_econ_inverted": 0.050343,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 22,
+        "n_econ_rung_pair_observations": 437,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 0
+      },
+      "2026-07-30": {
+        "frac_econ_inverted": 0.0,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 0,
+        "n_econ_rung_pair_observations": 19,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 0
+      },
+      "2026-07-31": {
+        "frac_econ_inverted": 0.008669,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 14,
+        "n_econ_rung_pair_observations": 1615,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 0
+      },
+      "2026-08-01": {
+        "frac_econ_inverted": 0.0,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 0,
+        "n_econ_rung_pair_observations": 19,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 0
+      },
+      "2026-08-02": {
+        "frac_econ_inverted": 0.052632,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 1,
+        "n_econ_rung_pair_observations": 19,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 1
+      },
+      "2026-08-04": {
+        "frac_econ_inverted": 0.0,
+        "n_capture_passes": 1,
+        "n_econ_inverted": 0,
+        "n_econ_rung_pair_observations": 19,
+        "n_exact_bucket": 19,
+        "n_impossible_gaps": 0,
+        "n_records": 24,
+        "n_violations": 0
+      }
+    },
+    "days_with_zero_flags_but_a_nonzero_econ_inversion_rate": [
+      "2026-07-29",
+      "2026-07-31"
+    ],
+    "meaning": "the pairs family's violation count is bounded by its own capture cadence: a day can record 0 violations while the same rungs were observably inverted in econ_prints (L280 \u2014 measure a join from both sides; L283 \u2014 a hole can be cadence, not breadth)"
+  },
+  "uncommitted_tape_paths": [],
+  "violation_detection": {
+    "cooccurrence_persisted_vs_recomputed": {
+      "persisted=False,recomputed=False": 1558,
+      "persisted=True,recomputed=True": 206
+    },
+    "derived_prob_range_on_violations": {
+      "max": -0.009999999999999998,
+      "min": -0.89
+    },
+    "flag_is_honest": true,
+    "frac_violating": 0.11678,
+    "n_by_bucket_kind": {
+      "exact": 206
+    },
+    "n_by_event_ticker": {
+      "KXCPI-26JUL": 5,
+      "KXCPI-26JUN": 19,
+      "KXCPICORE-26JUL": 119,
+      "KXCPIYOY-26JUL": 7,
+      "KXCPIYOY-26JUN": 56
+    },
+    "n_flag_disagreements": 0,
+    "n_violations_persisted": 206,
+    "n_violations_recomputed": 206
+  }
+}

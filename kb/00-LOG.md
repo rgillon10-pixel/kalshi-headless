@@ -91,6 +91,87 @@ run itself applied to its own L283->L284 collision with PR #295, per its LOOP-QU
 
 New lesson **L285** (enforcement: test).
 `findings/2026-08-05-duplicate-tape-line-census-l282-attribution-falsified.md`.
+## 2026-08-05 ~05:4x ET — IDLE RUN (policy c): `polymarket_cpi_pairs` detects its own invalid values honestly and then persists a metric derived from them; `econ_prints` diagnoses 206/206
+
+**What happened.** An idle-run data-quality deep-dive (LOOP-QUEUE idle-run policy (c)) on the
+least-examined live tape families in the repo — `tape/polymarket_cpi_pairs/` (23 files,
+`dt=2026-07-06`..`08-04`, 1,764 records; **21** distinct `kb/00-LOG.md` entries mention it
+against 52/103/115 for `econ_prints`/`polymarket_macro_pairs`/`sports_pairs`, and the only two
+probes that reference it — `s17_leadlag_probe` and `q31_cross_venue_arb_probe` — both
+deliberately EXCLUDE it as synthetic, so **no committed consumer reads its `prob_gap` or
+`derived_prob` at all** and everything below is a LATENT defect, not a realized error in a
+published number). New script
+`scripts/polymarket_cpi_pairs_monotonicity_audit.py` re-derives everything from tape with its
+own loader and its own predicate (trust=FALSE: the collector's flag is the thing under test,
+so it is never the evidence for itself), over a CLOSED window (`--max-day 2026-08-04`) so the
+numbers a finding quotes cannot be moved by tomorrow's pass.
+
+**Finding 1 — the detection half is honest.** The Kalshi leg is `synthetic` by construction
+(`collection/polymarket_pairs.py::price_cpi_bucket_from_kalshi` differences Kalshi's cumulative
+`yes_ask` ladder into a Polymarket-shaped bucket). When the ladder is locally inverted the
+difference goes negative; the collector never clips and sets `monotonicity_violation: True`.
+Independently recomputed: **206/1,764 (11.68%)** violating, all `exact` buckets, `derived_prob`
+down to **-0.89**, co-occurrence with the persisted flag perfect in BOTH directions
+(1,558 clean/clean, 206 flagged/flagged, **0** disagreements).
+
+**Finding 2 — the metric half is not contained.** `prob_gap` (`synthetic` derived_prob minus
+`real_ask` Polymarket best_ask) is computed and persisted on **206/206** of the flagged-invalid
+records and carries no flag of its own. **2** committed records hold an absolute gap **> 1.0**
+(max **1.73**) — impossible for a difference of two probabilities. The flagged cohort supplies
+**26.3%** of the family's total absolute-gap mass, and **16.5%** of the headline mean (0.2387
+all-in vs 0.1992 clean) is excess from records the collector already knows are invalid. So any
+naive "average CPI-pair cross-venue disagreement" off this family is inflated by ~a sixth.
+
+**Finding 3 — the load-bearing new fact: it is repairable in place.** The record persists the
+differenced THRESHOLDS (`kalshi_inputs`) but not the two `yes_ask` legs, so a violation cannot
+be diagnosed in-family. `tape/econ_prints/` carries the same `KXCPI*` events' full `real_ask`
+ladder, captured in the SAME hourly pass: the join lands **206/206 (100%)** at a median age of
+**4.6 seconds** and reproduces the persisted synthetic value **exactly** (1e-9) on every one
+(family-wide 1,758/1,764; all 6 misses on the one pass whose nearest ladder is 5.91 h away; max
+error **0.0** on any join fresher than 1 h). And it yields a real diagnosis: **196/206**
+inverting rungs have NO resting `yes_bid` at all (median ask-minus-bid **0.97**; dominant
+pattern `yes_ask[0.4]=0.08, yes_ask[0.5]=0.97`, 108/206) — a NOMINAL one-sided quote near $1,
+not a crossed two-sided market.
+
+**Finding 4 — the 07-22 drop-off is under-sampling, not a repair.** Violations run 07-06..07-21
+(176 on 07-14, the sanctioned CPI burst, 101 passes) then read as zero. Measured from the other
+side of the join (L280), on **2026-07-29** and **07-31** the family logged 0 violations from its
+ONE daily pass while the same rungs were inverted in `econ_prints` **22** and **14** times; the
+Polymarket bucket ladder never narrowed (all five `exact` buckets present on all 23 days). A
+zero-flag day is an unsampled day — L283's cadence-not-breadth, one level up.
+
+**Two clean bills, recorded:** the collector's hardcoded 0.1 CPI step matches
+`core.pricing.infer_strike_spacing` read off every one of the 6,769 committed `KXCPI*` ladders
+(L7 — checked, not assumed); and tags are complete (1,764 `synthetic` Kalshi legs, 1,764
+`real_ask` Polymarket legs, 1,764 `real_ask` `econ_prints` rungs, 0 bad-JSON, 0 foreign lines).
+
+**Discipline.** Verdict class DATA-QUALITY: no edge claim, no P&L, no bootstrap CI, no registry
+change, `kb/strategies/00-index.md` untouched, and **no collector write-path change** — the two
+obvious repairs (write `null` for `prob_gap` on a flagged-invalid record; persist the raw
+`yes_ask` legs) are Ryan-lane, the L213/L221/L222/L282 posture, and non-urgent precisely because
+Finding 3 shows the committed history is recoverable. Two-agent rule N/A and not satisfiable
+(no `Task`/subagent tool in this environment); numbers were re-derived through an independently
+written path, which per L279 cannot catch a shared misreading.
+
+**Gates.** `python3 -m pytest -q` **3,076 passed / 0 failed / 0 errors / 0 skipped**
+(junit-verified, 3,861s wall) and `python3 scripts/invariants.py --full` **exit 0**, both taken
+after the last code change (L162). Two gating violations were caught and fixed during the run,
+both in the new script: a docstring line that read as `yes_ask` arithmetic (Hard Rule #3) and a
+raw `datetime.fromisoformat` call site (L136/L150 — now routed through
+`core.timeutil.parse_iso_utc`).
+
+**Artifacts:** `scripts/polymarket_cpi_pairs_monotonicity_audit.py`,
+`tests/test_polymarket_cpi_pairs_monotonicity_audit.py` (37 tests),
+`reports/polymarket_cpi_pairs_monotonicity_audit.json`,
+`findings/2026-08-05-polymarket-cpi-pairs-monotonicity-diagnosability.md`, lesson **L286**
+(renumbered L284 -> L285 -> L286 across two rebases: a concurrent Q51 milestone-3 pre-flight
+run pushed to `main` first and claimed L284, then a concurrent repo-wide duplicate-tape-line
+census run pushed and claimed L285).
+
+**Next:** if the write-path half is ever taken up, the cheap version is `prob_gap: null` on a
+flagged record (L86 shape) plus the two raw legs beside `kalshi_inputs`; neither needs a
+re-capture. Otherwise the family's own cadence (one pass/day) is the binding limit on any
+defect-rate statistic computed from it.
 
 ---
 
