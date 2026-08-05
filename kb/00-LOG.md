@@ -6,6 +6,89 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-05 00:2x ET — IDLE RUN (policy c): the Q51 print-side hole is a CADENCE hole; `universe_sweep` is a rotating census, not a panel
+
+**What happened.** Step 0a (history-integrity) PASS: HEAD == `origin/main` == `29bfc035`, the 5
+most-recently-closed PRs (#289-#293) all ancestors of `main`, newest log entry and newest
+committed tape both 2026-08-05 — no rewind, no staleness gap. Claim-check: 6 open PRs, all old
+Ryan-review-only drafts, none claiming queue work. **Step 0b: nothing new to recover** — 222
+stranded branches remain (Q17's tracked backlog, out of scope for one milestone), but the newest,
+`tape/hourly-20260804T1914Z`, was already folded in by `5da9633` (#292) and every other branch
+predates it. Own full Q0-Q51 rescan (each item's LATEST status, L25): **0 eligible**. Q1/Q32/Q33/
+Q35-BUILD re-checked on disk this run — `tape/odds_api/` and `tape/polymarket_us_pairs/` still do
+not exist, so both credential unblock-signals are still unfired. Q51 milestone 3 stays time-gated
+to 2026-08-10 (today is 08-05). Policy (a) was exercised yesterday (L271); policy (b) is empty
+(Q51 milestone 3's probe script is built and unchanged-and-ready) → **policy (c)**, on the one
+family pair the 08-04 deep-dives did not touch: `universe_sweep` x `kalshi_trades`.
+
+**The control first.** L280's 10.1% print-side figure is the only published number the new
+implementation shares with the old, so `scripts/q51_book_anchor_audit.py` reproduces it before
+reporting anything else: BRACKET criterion over same-day `orderbook_depth` returns **0.101 vs
+published 0.101**, buckets partitioning all 39,698 prints. Test-pinned; had it drifted, the
+discrepancy would have been the finding.
+
+**Finding 1 — the obvious breadth fix is structurally dead.** `tape/universe_sweep/` is 652 MB /
+17 days of full-universe top-of-book *with* `yes_bid_size`/`yes_ask_size` — the natural candidate
+to fill the holes `orderbook_depth` leaves. It covers **0 of 42** print tickers and **0 of 39,698**
+prints, under every criterion, on the print day and both neighbours. The reason is structural and
+had not been measured: **760,000 lines / 723,235 distinct tickers / 686,470 (94.92%) observed
+exactly ONCE ever / max 2 observations of any ticker / 38 of 38 captures at the 20,000-row cap**
+(100% `real_ask`-tagged, 0 parse errors). The cap truncates and the enumeration slice ROTATES — on
+`dt=2026-08-03` the two 20,000-row captures produced 40,000 *distinct* tickers, zero overlap — so
+the family can never supply a second look at anything. `is_panel=False`. The 2026-08-03
+cap-saturation finding measured the same cap's OPERATIONAL consequence (a permanently-saturated
+`completeness_ok` wired into a high-priority pager); what it did not ask is what the cap does to
+the DATA, which is to convert a "full-universe sweep" into a census that is analytically inert for
+any time-series question on 94.92% of its rows.
+
+**Finding 2 — the criterion explains the headline, not the constraint.** L280's rule is a BRACKET
+(>=2 snapshots, print inside `[first, last]`). A resting-maker fill-sim needs something strictly
+weaker: a PRIOR quote to rest against. Under PRIOR, coverage is **93.50%** same-day and **99.85%**
+±1 day — a 10x jump that, read alone, would look like the hole was an artifact. It is not: only
+**1.99%** of prints carry an anchor younger than 15 min (8.26% <60 min, 67.23% <180 min; median
+anchor age 128.6 min, p90 365.8 min). L280's strict-criterion 15-min figure was 0.46%; the weakest
+defensible criterion over every book family the repo owns plus adjacent days moves it to 1.99%.
+**The two criteria agree once you require a quote you would actually rest against.**
+
+**Finding 3 — the constructive half.** Adequacy is decided by resample UNITS, not fractions. At a
+15-min anchor bound the committed tape still yields **791 prints across 21 GAME units** (L6 via
+the shared `game_of`) — **2.1x** the L41 `MIN_UNITS=10` floor; 27 units at <=60 min, 32 at <=180
+min. All 21 are sports GAME markets (KXMLBGAME x6, KXLEAGUESCUPGAME x4, +11 single-game series);
+prints per unit are heavily skewed (328/157/102/56/47/36/15/14/10/4/4/3/…), so 21 is a unit count,
+not an effective sample size. Same-day, ±1 day and the union of both give the **identical** 791/21
+— adding a day of tape and 652 MB of sweep contributes zero fresh anchors.
+
+**What it means.** Stated as an UPPER BOUND that refutes nothing: Q51 milestone 2's sports maker
+re-test returned DATA-INADEQUATE at **n=7** units; this day's fresh-anchored ceiling is **21**, 3x
+higher, so the shortfall is more likely milestone 2's SAMPLING RULE (stride-13 over the first 200
+depth tickers, 3h/9h rest windows) than the tape — and that is a cheap read-only re-check available
+NOW, before the 2026-08-10 gate rather than after it. A fresh anchor is necessary but not
+sufficient (settlement and the rest-window logic still bind), so milestone 2's PROVISIONAL verdict
+is untouched. The firm negative is the more useful half: the binding constraint on the whole WALL-B
+fill-sim program is `orderbook_depth`'s **revisit interval** — not coverage (it already holds 42/42
+print tickers and 39,698/39,698 prints), not breadth, not history. **At present cadence 98.01% of
+executed volume cannot be priced against a quote younger than 15 minutes.** That is the
+print-weighted number behind Q47's `orderbook_delta` WS daemon, which stays BUILD DONE /
+ACTIVATION PENDING, Ryan-gated on a working key.
+
+**Discipline.** Verdict class DATA-ADEQUACY: no edge claim, no P&L, no bootstrap CI, no registry
+change. Two-agent rule N/A (nothing verdict-class) and not satisfiable — no `Task`/subagent tool
+exists in this environment, as recorded on Q19/Q49/Q50 and all three prior Q51 milestones; the
+headline numbers were instead re-derived through a second, independently written implementation
+before being recorded, which per L279 does NOT protect against a shared misreading and is the
+weaker guarantee. One print day only (`dt=2026-08-03`, frozen and `trade_id`-deduped, so the print
+side cannot drift); every book-derived assertion is a directional bound because the book side is
+live tape.
+
+**Artifacts:** `scripts/q51_book_anchor_audit.py`, `tests/test_q51_book_anchor_audit.py` (27
+tests), `reports/q51_book_anchor_audit.json`,
+`findings/2026-08-05-q51-book-anchor-cadence-not-breadth.md`, lesson **L283**.
+
+**Next:** the cheapest genuinely-new read is the one this run scoped but did not run — re-check Q51
+milestone 2's sampling rule against the 21-unit fresh-anchored ceiling on already-committed tape,
+before the 08-10 gate. Failing that, Q51 milestone 3 fires 2026-08-10 (~44 settled markets) with a
+second sweep after 2026-08-24.
+
 ## 2026-08-05 ~00:15 ET (04:15 UTC) — kalshi-edge-hunter nightly (Opus): review CLEAN, Q21 round #23 = 1 registered (S78 collect-and-revisit — first registration since S68, first round with the new trade-print surface)
 
 **Steps 0a/0/0b.** Step 0a fired a real alarm and cleared it: `git pull --rebase` reported a
