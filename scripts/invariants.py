@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import re
 import sqlite3
@@ -2431,6 +2432,150 @@ def orderbook_depth_duplicate_capture_warning(issues: List[Dict[str, object]]) -
     return "\n".join(lines)
 
 
+# ─── Repo-wide byte-identical duplicate tape-LINE advisory (L285, corrects L282) ──────────
+#
+# L282 recorded `tape/orderbook_depth/dt=2026-07-28.jsonl`'s 1,093 duplicate rows and blamed
+# the step-0b stranded-branch sweep (`c4ed31ab`, PR #223) for re-appending a pass that was
+# already on `main`. A repo-wide exact-line census (2026-08-05) FALSIFIES that attribution
+# and WIDENS the incident:
+#   * the sweep commit `c4ed31ab` left the tape duplicate-free — the 1,093 orderbook rows it
+#     added carry `capture_id=20260728T095630Z`, a genuinely-absent capture, and re-running
+#     TODAY's `scripts/tape_branch_sweep.py::per_file_containment` against that commit's own
+#     parent reports exactly the 1,691 lines it committed, 0 size-guard-skipped;
+#   * every one of the duplicates was introduced by ONE later, ORDINARY hourly-pass commit,
+#     `10681abe` ("tape: hourly pass 2026-07-28T13:09:35Z"), whose parent IS `c4ed31ab` and
+#     already contained every duplicated line;
+#   * it hit SIX families at once, not one — each appended region opens with a verbatim
+#     re-append of that morning's whole capture pass before the genuinely-new rows:
+#       orderbook_depth 1,093 · sports_pairs 228 · perp_tape 17 · polymarket_macro_pairs 16
+#       · crypto_hourly 2 · hyperliquid_funding 2  =  1,358 duplicate lines.
+# So the defect belongs to the COMMIT path (a carried-forward local tape commit replayed onto
+# a `main` that had received the same lines by another route), not to any one collector and
+# not to the sweep. The detector is therefore family-agnostic: one exact-line census over
+# every `tape/**/*.jsonl`, which is also the cheapest possible superset of the two per-family
+# advisories above.
+#
+# `TAPE_DUP_LINE_ALLOWLIST` is keyed by the day-file's `dt=` date and names the one known
+# historical incident, so it reports as a KNOWN fact rather than re-flagging every run; any
+# OTHER day is a fresh regression the next `--full` run should surface loudly. A file whose
+# name carries no `dt=` date can never be allowlisted — conservative toward flagging.
+#
+# SCOPE, stated honestly: this detects the BYTE-IDENTICAL class ONLY. L281's
+# `weather_books/meta/` duplicates (same logical `(series, group)` key, DIFFERING
+# `capture_id`/`captured_at`) are invisible here by construction and stay covered by their own
+# per-family advisory. A 0-issue report is evidence about exact re-appends, never a clean bill
+# of health for logical-key duplication (the L155 precision-vs-recall discipline).
+
+TAPE_DUP_LINE_ALLOWLIST = frozenset({"2026-07-28"})
+
+_TAPE_DAY_RE = re.compile(r"^dt=(\d{4}-\d{2}-\d{2})\.jsonl$")
+
+
+def _tape_duplicate_line_issues(
+        tape_root: Path = ROOT / "tape",
+        allowlist: frozenset = TAPE_DUP_LINE_ALLOWLIST) -> List[Dict[str, object]]:
+    """Census every committed `tape/**/*.jsonl` for BYTE-IDENTICAL duplicate lines — the same
+    capture written twice. Tape is append-only and every collector stamps a `capture_id` +
+    `captured_at`, so an exactly-repeated line is never legitimate: it is one capture pass
+    landing on `main` twice. Lines are compared by 16-byte digest so a 760k-line day-file
+    costs bounded memory; the `capture_id` is parsed ONLY off a repeat occurrence.
+
+    Read-only, offline, ~3s over the whole committed tape. Best-effort: any exception yields
+    [], so it can never poison the gate."""
+    if not tape_root.is_dir():
+        return []
+    try:
+        issues: List[Dict[str, object]] = []
+        for path in sorted(tape_root.rglob("*.jsonl")):
+            counts: Dict[bytes, int] = {}
+            dup_captures: Dict[str, int] = {}
+            n_lines = 0
+            n_dup_lines = 0
+            n_dup_groups = 0
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    n_lines += 1
+                    digest = hashlib.blake2b(line.encode("utf-8", "replace"),
+                                             digest_size=16).digest()
+                    seen = counts.get(digest, 0) + 1
+                    counts[digest] = seen
+                    if seen == 1:
+                        continue
+                    n_dup_lines += 1
+                    if seen == 2:
+                        n_dup_groups += 1
+                    capture_id = None
+                    try:
+                        rec = json.loads(line)
+                        if isinstance(rec, dict):
+                            capture_id = rec.get("capture_id")
+                    except Exception:
+                        capture_id = None
+                    key = str(capture_id) if capture_id else "<no capture_id>"
+                    dup_captures[key] = dup_captures.get(key, 0) + 1
+            if not n_dup_lines:
+                continue
+            m = _TAPE_DAY_RE.match(path.name)
+            day = m.group(1) if m else None
+            rel = path.relative_to(tape_root).as_posix()
+            issues.append({
+                "path": f"tape/{rel}",
+                "family": rel.split("/")[0],
+                "day": day,
+                "n_lines": n_lines,
+                "n_duplicate_lines": n_dup_lines,
+                "n_duplicate_groups": n_dup_groups,
+                "capture_ids": dict(sorted(dup_captures.items())),
+                "allowlisted": bool(day) and day in allowlist,
+            })
+        return issues
+    except Exception:
+        return []
+
+
+def tape_duplicate_line_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """Non-gating advisory naming any committed tape day-file carrying byte-identical
+    duplicate lines. Pure. NEVER flips the exit code.
+    See kb/lessons/00-lessons.md L285 (corrects L282, which corrects L84)."""
+    if not issues:
+        return None
+    new = [i for i in issues if not i["allowlisted"]]
+    known = [i for i in issues if i["allowlisted"]]
+    lines: List[str] = []
+    if new:
+        total = sum(int(i["n_duplicate_lines"]) for i in new)
+        lines.append(f"warning (non-gating): {len(new)} committed tape day-file(s) carry "
+                     f"BYTE-IDENTICAL duplicate line(s) ({total} line(s) total) — one capture "
+                     f"pass landed twice — and this is a NEW regression, not the known "
+                     f"2026-07-28 incident:")
+        for issue in sorted(new, key=lambda i: -int(i["n_duplicate_lines"]))[:12]:
+            caps = ", ".join(f"{cid} x{n}"
+                             for cid, n in list(issue["capture_ids"].items())[:4])
+            lines.append(f"  - {issue['path']}: {issue['n_duplicate_lines']} duplicate line(s) "
+                         f"in {issue['n_duplicate_groups']} group(s) of {issue['n_lines']} "
+                         f"line(s) [{caps}]")
+        if len(new) > 12:
+            lines.append(f"  ... and {len(new) - 12} more file(s)")
+        lines.append("  A re-appended capture inflates EVERY per-line statistic computed off "
+                     "the file (density, n_prints, pass ratios, bootstrap population size) "
+                     "and can silently duplicate a bootstrap unit. Check the introducing "
+                     "commit with `git log --numstat -- <path>` before trusting a count. "
+                     "See kb/lessons/00-lessons.md L285 (corrects L282).")
+    if known:
+        total = sum(int(i["n_duplicate_lines"]) for i in known)
+        fams = ", ".join(sorted({str(i["family"]) for i in known}))
+        days = ", ".join(sorted({str(i["day"]) for i in known}))
+        lines.append(f"note (non-gating, known historical incident): {len(known)} day-file(s) "
+                     f"across {len(set(str(i['family']) for i in known))} family(ies) ({fams}) "
+                     f"on dt={days} still carry the L285 duplicate ({total} line(s), the "
+                     f"2026-07-28 morning pass re-appended by commit 10681abe) — append-only "
+                     f"tape, not rewritten. See kb/lessons/00-lessons.md L285 (corrects L282).")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -4262,6 +4407,21 @@ def main() -> int:
                 sys.stderr.write(ob_dup_warning + "\n")
         except BaseException:
             sys.stderr.write("note: orderbook_depth duplicate-capture advisory could not be "
+                             "computed (non-gating; exit code unaffected)\n")
+        # L285 advisory (corrects L282): a REPO-WIDE exact-line census for a capture pass
+        # committed twice. L282 blamed the step-0b sweep for the 2026-07-28 orderbook_depth
+        # duplicate; the sweep was in fact clean, and ONE ordinary hourly-pass commit
+        # (10681abe) re-appended that morning's whole pass in SIX families at once. Family-
+        # agnostic because the defect lives in the COMMIT path, not in any collector.
+        # Non-gating: the known historical incident cannot be un-committed. Wrapped in
+        # `except BaseException` for the L156 DEFECT-1 reason: a raise in the FORMATTER must
+        # not turn a non-gating advisory into a gate.
+        try:
+            dup_line_warning = tape_duplicate_line_warning(_tape_duplicate_line_issues())
+            if dup_line_warning:
+                sys.stderr.write(dup_line_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: repo-wide duplicate-tape-line advisory could not be "
                              "computed (non-gating; exit code unaffected)\n")
         # L138 advisory: production datetime.fromisoformat sites bypassing core.timeutil
         # .parse_iso_utc (a latent Python-3.9 short-fraction/Z crash). Non-gating.

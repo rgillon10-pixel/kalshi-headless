@@ -2770,3 +2770,209 @@ def test_acceptance_l221_real_tape_advisory_fires_on_every_registered_leg():
     assert "settlement_ledger (gate hour 10Z)" in joined
     msg = inv.single_hour_leg_idempotence_warning(issues)
     assert "L221" in msg and "does NOT affect the exit code" in msg
+
+
+# ─── L285: repo-wide byte-identical duplicate tape-LINE advisory (corrects L282) ─────────
+
+
+def _write_tape_lines(tape_root, family, name, lines):
+    fam = tape_root / family
+    fam.mkdir(parents=True, exist_ok=True)
+    with open(fam / name, "w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line + "\n")
+
+
+def _tape_row(capture_id, ticker, extra=""):
+    import json as _json
+    rec = {"capture_id": capture_id, "captured_at": "2026-07-28T06:56:16.273008+00:00",
+           "ticker": ticker, "venue": "kalshi"}
+    if extra:
+        rec["note"] = extra
+    return _json.dumps(rec, sort_keys=True)
+
+
+def test_tape_dup_line_missing_root_is_empty_L285(tmp_path):
+    assert inv._tape_duplicate_line_issues(tmp_path / "nope") == []
+
+
+def test_tape_dup_line_empty_root_is_empty_L285(tmp_path):
+    assert inv._tape_duplicate_line_issues(tmp_path) == []
+
+
+def test_tape_dup_line_clean_family_is_empty_L285(tmp_path):
+    """The normal shape: every line distinct (different ticker, or a different pass)."""
+    _write_tape_lines(tmp_path, "sports_pairs", "dt=2026-07-20.jsonl", [
+        _tape_row("c1", "A"), _tape_row("c1", "B"), _tape_row("c2", "A"),
+    ])
+    assert inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset()) == []
+
+
+def test_tape_dup_line_finds_exact_repeat_L285(tmp_path):
+    """One capture pass committed twice — the L285 incident's shape, in miniature."""
+    _write_tape_lines(tmp_path, "sports_pairs", "dt=2026-08-09.jsonl", [
+        _tape_row("c1", "A"), _tape_row("c1", "B"),
+        _tape_row("c1", "A"), _tape_row("c1", "B"),   # the whole pass, re-appended
+    ])
+    issues = inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset())
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["path"] == "tape/sports_pairs/dt=2026-08-09.jsonl"
+    assert issue["family"] == "sports_pairs"
+    assert issue["day"] == "2026-08-09"
+    assert issue["n_lines"] == 4
+    assert issue["n_duplicate_lines"] == 2
+    assert issue["n_duplicate_groups"] == 2
+    assert issue["capture_ids"] == {"c1": 2}
+    assert issue["allowlisted"] is False
+
+
+def test_tape_dup_line_triple_counts_two_extra_lines_one_group_L285(tmp_path):
+    """Three copies = 2 EXTRA lines but only ONE duplicated group — the two numbers are
+    different questions and the report must not conflate them."""
+    _write_tape_lines(tmp_path, "perp_tape", "dt=2026-08-09.jsonl", [
+        _tape_row("c1", "A"), _tape_row("c1", "A"), _tape_row("c1", "A"),
+    ])
+    issue = inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset())[0]
+    assert issue["n_duplicate_lines"] == 2
+    assert issue["n_duplicate_groups"] == 1
+
+
+def test_tape_dup_line_differing_content_is_not_a_dup_L285(tmp_path):
+    """L281's class — same logical key, DIFFERING content — is deliberately OUT of scope
+    here (it has its own per-family advisory). A 0-issue report is precision evidence about
+    exact re-appends, never a clean bill of health for logical-key duplication."""
+    _write_tape_lines(tmp_path, "weather_books", "dt=2026-08-09.jsonl", [
+        _tape_row("c1", "A", extra="first"), _tape_row("c1", "A", extra="second"),
+    ])
+    assert inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset()) == []
+
+
+def test_tape_dup_line_allowlisted_day_is_flagged_not_new_L285(tmp_path):
+    _write_tape_lines(tmp_path, "sports_pairs", "dt=2026-07-28.jsonl", [
+        _tape_row("c1", "A"), _tape_row("c1", "A"),
+    ])
+    issues = inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset({"2026-07-28"}))
+    assert len(issues) == 1 and issues[0]["allowlisted"] is True
+
+
+def test_tape_dup_line_non_dated_filename_can_never_be_allowlisted_L285(tmp_path):
+    """A `_manifest.jsonl`/`trades.jsonl`-style file carries no `dt=` date, so it has no key
+    the allowlist could match — it must read as a FRESH regression, never be silently
+    excused."""
+    _write_tape_lines(tmp_path, "sports_pairs", "_manifest.jsonl", [
+        _tape_row("c1", "A"), _tape_row("c1", "A"),
+    ])
+    issues = inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset({"2026-07-28"}))
+    assert len(issues) == 1
+    assert issues[0]["day"] is None and issues[0]["allowlisted"] is False
+
+
+def test_tape_dup_line_blank_lines_are_not_duplicates_L285(tmp_path):
+    fam = tmp_path / "anomalies"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-08-09.jsonl").write_text("\n\n" + _tape_row("c1", "A") + "\n\n",
+                                             encoding="utf-8")
+    assert inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset()) == []
+
+
+def test_tape_dup_line_non_json_garbage_still_reports_the_repeat_L285(tmp_path):
+    """A repeated line that is not JSON is still a repeated line — the capture_id is simply
+    unknown, and the check must not crash trying to parse it."""
+    fam = tmp_path / "anomalies"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-08-09.jsonl").write_text("not json at all\nnot json at all\n",
+                                             encoding="utf-8")
+    issue = inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset())[0]
+    assert issue["n_duplicate_lines"] == 1
+    assert issue["capture_ids"] == {"<no capture_id>": 1}
+
+
+def test_tape_dup_line_never_raises_on_binary_L285(tmp_path):
+    fam = tmp_path / "anomalies"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-08-09.jsonl").write_bytes(b"\xff\xfe\x00 junk\n\xff\xfe\x00 junk\n")
+    inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset())  # must not raise
+
+
+def test_tape_dup_line_warning_none_when_empty_L285():
+    assert inv.tape_duplicate_line_warning([]) is None
+
+
+def test_tape_dup_line_warning_new_regression_content_L285(tmp_path):
+    _write_tape_lines(tmp_path, "sports_pairs", "dt=2026-08-09.jsonl", [
+        _tape_row("c1", "A"), _tape_row("c1", "A"),
+    ])
+    issues = inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset())
+    msg = inv.tape_duplicate_line_warning(issues)
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "NEW regression" in msg
+    assert "tape/sports_pairs/dt=2026-08-09.jsonl" in msg
+    assert "L285" in msg
+    assert "known historical incident" not in msg
+
+
+def test_tape_dup_line_warning_known_incident_content_L285(tmp_path):
+    _write_tape_lines(tmp_path, "sports_pairs", "dt=2026-07-28.jsonl", [
+        _tape_row("c1", "A"), _tape_row("c1", "A"),
+    ])
+    issues = inv._tape_duplicate_line_issues(tmp_path, allowlist=frozenset({"2026-07-28"}))
+    msg = inv.tape_duplicate_line_warning(issues)
+    assert msg is not None
+    assert "known historical incident" in msg
+    assert "dt=2026-07-28" in msg
+    assert "10681abe" in msg
+    assert "L282" in msg
+    assert "NEW regression" not in msg
+
+
+def test_tape_dup_line_warning_never_gates_exit_code_L285(monkeypatch, capsys):
+    monkeypatch.setattr(
+        inv, "_tape_duplicate_line_issues",
+        lambda: [{"path": "tape/fake/dt=2026-01-01.jsonl", "family": "fake",
+                  "day": "2026-01-01", "n_lines": 2, "n_duplicate_lines": 1,
+                  "n_duplicate_groups": 1, "capture_ids": {"c1": 1},
+                  "allowlisted": False}])
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "warning (non-gating)" in captured.err
+    assert "tape/fake/dt=2026-01-01.jsonl" in captured.err
+    assert "invariants: all green" in captured.out
+
+
+def test_acceptance_l285_real_tape_reproduces_the_2026_07_28_cross_family_incident():
+    """HARD acceptance against the real committed tape. Pins the MEASURED breadth of the
+    incident this lesson corrects L282 with: byte-identical duplicate tape lines exist on
+    EXACTLY ONE calendar day (dt=2026-07-28) across the WHOLE committed tape, in SIX
+    families, totalling 1,358 lines — not the single family and 1,093 lines L282 recorded.
+    A future commit re-appending a pass in a SEVENTH family (or on any other day) reds this
+    test immediately."""
+    if not (ROOT / "tape").is_dir():
+        pytest.skip("committed tape/ not present")
+    issues = inv._tape_duplicate_line_issues()
+    by_family = {i["family"]: i for i in issues}
+    assert sorted(by_family) == ["crypto_hourly", "hyperliquid_funding", "orderbook_depth",
+                                 "perp_tape", "polymarket_macro_pairs",
+                                 "sports_pairs"], sorted(by_family)
+    assert {i["day"] for i in issues} == {"2026-07-28"}
+    assert all(i["allowlisted"] for i in issues)
+    assert by_family["orderbook_depth"]["n_duplicate_lines"] == 1093
+    assert by_family["sports_pairs"]["n_duplicate_lines"] == 228
+    assert by_family["perp_tape"]["n_duplicate_lines"] == 17
+    assert by_family["polymarket_macro_pairs"]["n_duplicate_lines"] == 16
+    assert by_family["crypto_hourly"]["n_duplicate_lines"] == 2
+    assert by_family["hyperliquid_funding"]["n_duplicate_lines"] == 2
+    assert sum(i["n_duplicate_lines"] for i in issues) == 1358
+    # every duplicated line belongs to ONE morning pass per family (06:54Z-07:04Z), which is
+    # what "a whole capture pass landed twice" means — not scattered per-row repeats.
+    for issue in issues:
+        assert len(issue["capture_ids"]) == 1, (issue["family"], issue["capture_ids"])
+        (cid,) = issue["capture_ids"]
+        assert cid.startswith("20260728T06") or cid.startswith("20260728T07"), cid
+    msg = inv.tape_duplicate_line_warning(issues)
+    assert msg is not None
+    assert "known historical incident" in msg
+    assert "NEW regression" not in msg
