@@ -2105,6 +2105,56 @@ nothing depends on them and no registry row moves. `pytest` 2,647 items green (0
 this diff). See `kb/lessons/00-lessons.md` L255/L258.
 
 ### Q51 — Public executed-trade print tape (`/markets/trades`): the WALL-B unblocker
+Status: MILESTONE 3 STILL TIME-GATED (2026-08-10) — PRE-FLIGHTED, and a FIRING HAZARD in the
+milestone's own command was found and repaired (2026-08-05, research loop IDLE RUN, idle-run
+policy (b): build/offline-test what the next time-gated item needs so it is ready on its day).
+**Q51's own verdict is UNCHANGED: milestone 3 is still TODO and still gated to 08-10. Nothing
+verdict-class; no CI, no P&L, no fill rate quoted as an edge, no registry flip; S13/S23/S29 keep
+the status they already had; still 0 proven edges.** Built `scripts/q51_m3_preflight.py`
+(read-only, fully offline, imports the probe's own population helpers so it cannot drift from it)
++ `tests/test_q51_m3_preflight.py` (20 tests) -> `reports/q51_m3_preflight.json`.
+**(1) The 08-10 firing IS worth firing, and the queue's expected size was wrong.** Projection over
+the 60 sampled sports markets (165 intervals; **57** carry >=1 interval, so **3 can never
+contribute a unit** at any settlement): cumulative GAME units / legs by close day are 08-03 4/22,
+08-04 8/46, 08-06 10/58, 08-07 23/136, 08-08 34/198, 08-09 41/238, **08-10 44/256**, 08-11 48/280,
+08-12 54/316, 08-20 55/322, **08-23 57/330**. So milestone 3's recorded "~57 game units / ~330
+legs" is the **TERMINAL (08-23) row, not the 08-10 row** — an 08-10 firing buys **44 units / 256
+legs** optimistically and **41 / 238** if a full day of settlement lag is allowed, i.e. **4x the
+L41 floor of 10 either way → FIRE ON 08-10 AS GATED**, with the second sweep after 08-24 to reach
+57. Every count is an UPPER BOUND (it assumes a closed market is finalized+binary at the pull
+instant; settlement lag and L52 `scalar` results can only reduce it). Arithmetic independently
+cross-checked: the 08-10 row predicts 128 intervals and the probe's own separate pipeline, run
+against a synthetic 08-10 cache, reports `n_intervals=128` / `n_units_games=44`.
+**(2) THE HAZARD (new lesson L284): the milestone-3 command would have turned `pytest -q` RED on
+the day it fired.** `q51_maker_fillsim.py --build-cache` OVERWRITES
+`tape/q51_settlement_cache/settlement.json` in place, and three HARD acceptance cases in
+`tests/test_q51_maker_fillsim.py` pin milestone-2 numbers read through that DEFAULT path. Measured
+offline against a synthetic post-re-pull cache (population counts only; invented results tagged
+`synthetic`, no outcome-dependent number computed from them): **all five pinned quantities move —
+`n_units_games` 7->44, `n_intervals` 20->128, `n_covered_intervals` 17->62, `drops["unsettled"]`
+145->37, `n_fills` 26->76**. Those tests cite **L191** ("pin to a slice that cannot grow") while
+pointing at a file one of this repo's own planned commands rewrites; the tape day-files they also
+read genuinely cannot shrink, the settlement cache was simply never frozen. Note the 08-05
+edge-hunter run had checked milestone 3 "execute-ready by FILE SHAPE (L25) — tests collect 41
+tests", which was true and did not imply the gate would survive the milestone's own command.
+**REPAIR (minimal; `scripts/q51_maker_fillsim.py` is UNCHANGED, as milestone 3's spec requires):**
+`tape/q51_settlement_cache/settlement-m2-2026-08-04.json` is a byte-identical immutable snapshot
+(`sha256 60d381e5...eba0a`; the live `settlement.json` is NOT modified and NOT deleted —
+append-only), the three pinned cases now pass `cache_path=M2_CACHE` explicitly, the two SHAPE
+cases deliberately stay on the LIVE cache so the post-re-pull report is still structure-checked,
+and a new `::test_acceptance_frozen_m2_cache_is_the_milestone_2_input` pins the snapshot's own
+identity so a later edit cannot swap it and silently re-baseline. **Repair VERIFIED, not asserted:**
+the live cache was temporarily replaced with a simulated 08-10 re-pull, `tests/test_q51_maker_fillsim.py`
+re-ran **42/42 green**, and the live file was restored byte-identical.
+**Revised milestone-3 recipe for 2026-08-10:** (i) `python3 scripts/q51_m3_preflight.py` and
+confirm the conservative unit count still clears the floor; (ii)
+`python3 scripts/q51_maker_fillsim.py --build-cache`; (iii) `python3 scripts/q51_maker_fillsim.py`
+and pin the NEW result against a NEW frozen snapshot dated that day — do not re-baseline the
+milestone-2 pins; (iv) expect ~41-44 units, not 57; plan the second sweep after 2026-08-24.
+**Two-agent rule: N/A** (nothing verdict-class) **and not satisfiable** — no `Task`/subagent tool
+in this environment, as on Q19/Q49/Q50 and both prior Q51 milestones; the cross-check in (1) is a
+redundancy check, NOT a verifier. See
+`findings/2026-08-05-q51-m3-preflight-and-firing-hazard.md`, lesson **L284**.
 Status: MILESTONE 3 STILL TIME-GATED (2026-08-10) — but its BOOK-SIDE constraint is now
 measured, and one BREADTH fix is measured DEAD (2026-08-05, research loop IDLE RUN, policy (c);
 **DATA-ADEQUACY only — no CI, no P&L, no registry flip; two-agent rule N/A and not satisfiable,

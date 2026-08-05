@@ -1,0 +1,369 @@
+{
+ "day": "2026-08-03",
+ "markets": {
+  "KXAFLGAME-26AUG060530NMKBUL-BUL": {
+   "close_time": "2026-08-20T09:30:00Z",
+   "event_ticker": "KXAFLGAME-26AUG060530NMKBUL",
+   "result": "",
+   "status": "active"
+  },
+  "KXAFLGAME-26AUG082310GCSGWS-GWS": {
+   "close_time": "2026-08-23T03:10:00Z",
+   "event_ticker": "KXAFLGAME-26AUG082310GCSGWS",
+   "result": "",
+   "status": "active"
+  },
+  "KXAFLGAME-26AUG090520CFCSKS-SKS": {
+   "close_time": "2026-08-23T09:20:00Z",
+   "event_ticker": "KXAFLGAME-26AUG090520CFCSKS",
+   "result": "",
+   "status": "active"
+  },
+  "KXARGNACBGAME-26AUG01ABOCAC-ABO": {
+   "close_time": "2026-08-04T02:00:00Z",
+   "event_ticker": "KXARGNACBGAME-26AUG01ABOCAC",
+   "result": "",
+   "status": "closed"
+  },
+  "KXARGNACBGAME-26JUL25CHISMT-SMT": {
+   "close_time": "2026-08-03T22:51:02Z",
+   "event_ticker": "KXARGNACBGAME-26JUL25CHISMT",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXARGPREMDIVGAME-26AUG03CCSLA-TIE": {
+   "close_time": "2026-08-04T02:11:31Z",
+   "event_ticker": "KXARGPREMDIVGAME-26AUG03CCSLA",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXARGPREMDIVGAME-26AUG05TIGCAB-CAB": {
+   "close_time": "2026-08-08T06:15:00Z",
+   "event_ticker": "KXARGPREMDIVGAME-26AUG05TIGCAB",
+   "result": "",
+   "status": "active"
+  },
+  "KXASEANGAME-26AUG04MYALAO-MYA": {
+   "close_time": "2026-08-04T12:29:46Z",
+   "event_ticker": "KXASEANGAME-26AUG04MYALAO",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXASEANGAME-26AUG08MASPHI-TIE": {
+   "close_time": "2026-08-10T19:00:00Z",
+   "event_ticker": "KXASEANGAME-26AUG08MASPHI",
+   "result": "",
+   "status": "active"
+  },
+  "KXBOLPDIVGAME-26AUG04ABBCDT-TIE": {
+   "close_time": "2026-08-07T01:00:00Z",
+   "event_ticker": "KXBOLPDIVGAME-26AUG04ABBCDT",
+   "result": "",
+   "status": "active"
+  },
+  "KXBOLPDIVGAME-26AUG05CNPSTR-CNP": {
+   "close_time": "2026-08-08T04:00:00Z",
+   "event_ticker": "KXBOLPDIVGAME-26AUG05CNPSTR",
+   "result": "",
+   "status": "active"
+  },
+  "KXBOLPDIVGAME-26AUG07REACDT-REA": {
+   "close_time": "2026-08-10T05:30:00Z",
+   "event_ticker": "KXBOLPDIVGAME-26AUG07REACDT",
+   "result": "",
+   "status": "active"
+  },
+  "KXBOLPDIVGAME-26AUG09CLUARE-TIE": {
+   "close_time": "2026-08-12T01:00:00Z",
+   "event_ticker": "KXBOLPDIVGAME-26AUG09CLUARE",
+   "result": "",
+   "status": "active"
+  },
+  "KXBRASILEIROBGAME-26AUG08BOTAMG-AMG": {
+   "close_time": "2026-08-11T03:30:00Z",
+   "event_ticker": "KXBRASILEIROBGAME-26AUG08BOTAMG",
+   "result": "",
+   "status": "active"
+  },
+  "KXBRASILEIROBGAME-26AUG09GRNJUV-JUV": {
+   "close_time": "2026-08-12T01:00:00Z",
+   "event_ticker": "KXBRASILEIROBGAME-26AUG09GRNJUV",
+   "result": "",
+   "status": "active"
+  },
+  "KXBRASILEIROCGAME-26AUG08FIGARA-TIE": {
+   "close_time": "2026-08-11T02:00:00Z",
+   "event_ticker": "KXBRASILEIROCGAME-26AUG08FIGARA",
+   "result": "",
+   "status": "active"
+  },
+  "KXBRASILEIROCGAME-26AUG09MRNAMA-AMA": {
+   "close_time": "2026-08-12T01:00:00Z",
+   "event_ticker": "KXBRASILEIROCGAME-26AUG09MRNAMA",
+   "result": "",
+   "status": "active"
+  },
+  "KXBRASILEIROGAME-26AUG08BOTFLU-FLU": {
+   "close_time": "2026-08-11T06:00:00Z",
+   "event_ticker": "KXBRASILEIROGAME-26AUG08BOTFLU",
+   "result": "",
+   "status": "active"
+  },
+  "KXBRASILEIROGAME-26AUG09BAHVDG-VDG": {
+   "close_time": "2026-08-12T01:00:00Z",
+   "event_ticker": "KXBRASILEIROGAME-26AUG09BAHVDG",
+   "result": "",
+   "status": "active"
+  },
+  "KXBRASILEIROGAME-26AUG09SANCAP-CAP": {
+   "close_time": "2026-08-12T03:30:00Z",
+   "event_ticker": "KXBRASILEIROGAME-26AUG09SANCAP",
+   "result": "",
+   "status": "active"
+  },
+  "KXCOPADOBRASILGAME-26AUG04CRSAN-SAN": {
+   "close_time": "2026-08-07T06:30:00Z",
+   "event_ticker": "KXCOPADOBRASILGAME-26AUG04CRSAN",
+   "result": "",
+   "status": "active"
+  },
+  "KXCOPADOBRASILGAME-26AUG05FORPAL-TIE": {
+   "close_time": "2026-08-08T06:30:00Z",
+   "event_ticker": "KXCOPADOBRASILGAME-26AUG05FORPAL",
+   "result": "",
+   "status": "active"
+  },
+  "KXDIMAYORGAME-26AUG02SFEOC-OC": {
+   "close_time": "2026-08-03T03:01:28Z",
+   "event_ticker": "KXDIMAYORGAME-26AUG02SFEOC",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXDIMAYORGAME-26AUG04TOLDIM-TIE": {
+   "close_time": "2026-08-07T05:15:00Z",
+   "event_ticker": "KXDIMAYORGAME-26AUG04TOLDIM",
+   "result": "",
+   "status": "active"
+  },
+  "KXDIMAYORGAME-26JUL25CHICAN-TIE": {
+   "close_time": "2026-08-08T19:00:00Z",
+   "event_ticker": "KXDIMAYORGAME-26JUL25CHICAN",
+   "result": "",
+   "status": "active"
+  },
+  "KXEKSTRAKLASAGAME-26AUG03CRAPSZ-CRA": {
+   "close_time": "2026-08-03T19:02:36Z",
+   "event_ticker": "KXEKSTRAKLASAGAME-26AUG03CRAPSZ",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXKBOGAME-26AUG040530KTWKIA-KIA": {
+   "close_time": "2026-08-06T09:30:00Z",
+   "event_ticker": "KXKBOGAME-26AUG040530KTWKIA",
+   "result": "",
+   "status": "active"
+  },
+  "KXKBOGAME-26AUG050530LGSSG-SSG": {
+   "close_time": "2026-08-07T09:30:00Z",
+   "event_ticker": "KXKBOGAME-26AUG050530LGSSG",
+   "result": "",
+   "status": "active"
+  },
+  "KXLEAGUESCUPGAME-26AUG04MINJUA-MIN": {
+   "close_time": "2026-08-07T06:30:00Z",
+   "event_ticker": "KXLEAGUESCUPGAME-26AUG04MINJUA",
+   "result": "",
+   "status": "active"
+  },
+  "KXLEAGUESCUPGAME-26AUG05LAFCCDG-TIE": {
+   "close_time": "2026-08-08T08:30:00Z",
+   "event_ticker": "KXLEAGUESCUPGAME-26AUG05LAFCCDG",
+   "result": "",
+   "status": "active"
+  },
+  "KXLEAGUESCUPGAME-26AUG06AMESD-AME": {
+   "close_time": "2026-08-09T08:00:00Z",
+   "event_ticker": "KXLEAGUESCUPGAME-26AUG06AMESD",
+   "result": "",
+   "status": "active"
+  },
+  "KXLEAGUESCUPGAME-26AUG06NYCSLA-SLA": {
+   "close_time": "2026-08-09T05:30:00Z",
+   "event_ticker": "KXLEAGUESCUPGAME-26AUG06NYCSLA",
+   "result": "",
+   "status": "active"
+  },
+  "KXLEAGUESCUPGAME-26AUG07CLTATL-TIE": {
+   "close_time": "2026-08-10T05:30:00Z",
+   "event_ticker": "KXLEAGUESCUPGAME-26AUG07CLTATL",
+   "result": "",
+   "status": "active"
+  },
+  "KXLEAGUESCUPGAME-26AUG08ORLLEO-LEO": {
+   "close_time": "2026-08-11T04:30:00Z",
+   "event_ticker": "KXLEAGUESCUPGAME-26AUG08ORLLEO",
+   "result": "",
+   "status": "active"
+  },
+  "KXLEAGUESCUPGAME-26AUG09PHINCX-PHI": {
+   "close_time": "2026-08-12T05:30:00Z",
+   "event_ticker": "KXLEAGUESCUPGAME-26AUG09PHINCX",
+   "result": "",
+   "status": "active"
+  },
+  "KXLIGAMXGAME-26AUG02AMESLA-TIE": {
+   "close_time": "2026-08-03T01:06:06Z",
+   "event_ticker": "KXLIGAMXGAME-26AUG02AMESLA",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXMLBGAME-26AUG032005LADCHC-LAD": {
+   "close_time": "2026-08-04T02:49:33Z",
+   "event_ticker": "KXMLBGAME-26AUG032005LADCHC",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXMLBGAME-26AUG041840NYMCLE-CLE": {
+   "close_time": "2026-08-07T22:40:00Z",
+   "event_ticker": "KXMLBGAME-26AUG041840NYMCLE",
+   "result": "",
+   "status": "active"
+  },
+  "KXMLBGAME-26AUG041940PITMIL-PIT": {
+   "close_time": "2026-08-07T23:40:00Z",
+   "event_ticker": "KXMLBGAME-26AUG041940PITMIL",
+   "result": "",
+   "status": "active"
+  },
+  "KXMLBGAME-26AUG051410TORHOU-HOU": {
+   "close_time": "2026-08-08T18:10:00Z",
+   "event_ticker": "KXMLBGAME-26AUG051410TORHOU",
+   "result": "",
+   "status": "active"
+  },
+  "KXMLBGAME-26AUG051840NYMCLE-NYM": {
+   "close_time": "2026-08-08T22:40:00Z",
+   "event_ticker": "KXMLBGAME-26AUG051840NYMCLE",
+   "result": "",
+   "status": "active"
+  },
+  "KXMLBGAME-26AUG052140DETSEA-SEA": {
+   "close_time": "2026-08-09T01:40:00Z",
+   "event_ticker": "KXMLBGAME-26AUG052140DETSEA",
+   "result": "",
+   "status": "active"
+  },
+  "KXNPBGAME-26AUG030500TOHORI-ORI": {
+   "close_time": "2026-08-03T12:34:36Z",
+   "event_ticker": "KXNPBGAME-26AUG030500TOHORI",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXNPBGAME-26AUG050445HANYOK-YOK": {
+   "close_time": "2026-08-07T08:45:00Z",
+   "event_ticker": "KXNPBGAME-26AUG050445HANYOK",
+   "result": "",
+   "status": "active"
+  },
+  "KXNPBGAME-26AUG060500HOKFUK-FUK": {
+   "close_time": "2026-08-08T09:00:00Z",
+   "event_ticker": "KXNPBGAME-26AUG060500HOKFUK",
+   "result": "",
+   "status": "active"
+  },
+  "KXNWSLGAME-26AUG02DENBOS-TIE": {
+   "close_time": "2026-08-03T03:01:29Z",
+   "event_ticker": "KXNWSLGAME-26AUG02DENBOS",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXSCOTTISHPREMGAME-26AUG03CELDUN-CEL": {
+   "close_time": "2026-08-03T20:21:39Z",
+   "event_ticker": "KXSCOTTISHPREMGAME-26AUG03CELDUN",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXUCLGAME-26AUG04LEVALM-LEV": {
+   "close_time": "2026-08-06T23:30:00Z",
+   "event_ticker": "KXUCLGAME-26AUG04LEVALM",
+   "result": "",
+   "status": "active"
+  },
+  "KXUCLGAME-26AUG04USGBOG-USG": {
+   "close_time": "2026-08-07T00:00:00Z",
+   "event_ticker": "KXUCLGAME-26AUG04USGBOG",
+   "result": "",
+   "status": "active"
+  },
+  "KXUCLWGAME-26AUG05AJABRO-AJA": {
+   "close_time": "2026-08-07T19:00:00Z",
+   "event_ticker": "KXUCLWGAME-26AUG05AJABRO",
+   "result": "",
+   "status": "active"
+  },
+  "KXUCLWGAME-26AUG05FTCPAO-PAO": {
+   "close_time": "2026-08-07T20:30:00Z",
+   "event_ticker": "KXUCLWGAME-26AUG05FTCPAO",
+   "result": "",
+   "status": "active"
+  },
+  "KXUCLWGAME-26AUG05KFVSMY-TIE": {
+   "close_time": "2026-08-08T00:30:00Z",
+   "event_ticker": "KXUCLWGAME-26AUG05KFVSMY",
+   "result": "",
+   "status": "active"
+  },
+  "KXUCLWGAME-26AUG05RFCHJK-HJK": {
+   "close_time": "2026-08-07T23:00:00Z",
+   "event_ticker": "KXUCLWGAME-26AUG05RFCHJK",
+   "result": "",
+   "status": "active"
+  },
+  "KXUCLWGAME-26AUG05SLARFC-SLA": {
+   "close_time": "2026-08-08T00:30:00Z",
+   "event_ticker": "KXUCLWGAME-26AUG05SLARFC",
+   "result": "",
+   "status": "active"
+  },
+  "KXUELGAME-26AUG06BENHOM-TIE": {
+   "close_time": "2026-08-09T01:00:00Z",
+   "event_ticker": "KXUELGAME-26AUG06BENHOM",
+   "result": "",
+   "status": "active"
+  },
+  "KXUELGAME-26AUG06LARIBE-IBE": {
+   "close_time": "2026-08-09T01:00:00Z",
+   "event_ticker": "KXUELGAME-26AUG06LARIBE",
+   "result": "",
+   "status": "active"
+  },
+  "KXUELGAME-26AUG06PAFRBS-RBS": {
+   "close_time": "2026-08-09T01:00:00Z",
+   "event_ticker": "KXUELGAME-26AUG06PAFRBS",
+   "result": "",
+   "status": "active"
+  },
+  "KXUELGAME-26AUG06THUREY-TIE": {
+   "close_time": "2026-08-09T01:00:00Z",
+   "event_ticker": "KXUELGAME-26AUG06THUREY",
+   "result": "",
+   "status": "active"
+  },
+  "KXUSLGAME-26AUG05TULSRP-SRP": {
+   "close_time": "2026-08-08T06:30:00Z",
+   "event_ticker": "KXUSLGAME-26AUG05TULSRP",
+   "result": "",
+   "status": "active"
+  },
+  "KXVENFUTVEGAME-26AUG04TACPOR-TAC": {
+   "close_time": "2026-08-07T04:30:00Z",
+   "event_ticker": "KXVENFUTVEGAME-26AUG04TACPOR",
+   "result": "",
+   "status": "active"
+  }
+ },
+ "price_source_tag": "broker_truth",
+ "pulled_at": "2026-08-04T12:40:44.886624+00:00",
+ "schema_version": "q51_settlement_cache.v1",
+ "source": "public_markets_by_ticker"
+}

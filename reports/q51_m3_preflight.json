@@ -1,0 +1,278 @@
+{
+ "caveats": {
+  "book_side_is_frozen": "the interval count comes from a PAST day (dt=2026-08-03) of tape/orderbook_depth/; a later stranded-branch sweep could legitimately append snapshots for that day and raise it, so downstream assertions on it should be directional bounds",
+  "markets_that_can_never_contribute": 3,
+  "queue_expectation_is_the_full_population": "LOOP-QUEUE's '~57 game units / ~330 legs' is the terminal row of this table (close_day 2026-08-23), NOT what a 2026-08-10 firing yields",
+  "upper_bound_only": "every projected count assumes a closed market is FINALIZED with a BINARY result at the pull instant; settlement lag and L52 non-binary results can only reduce it",
+  "why_they_can_never_contribute": "fewer than 2 depth snapshots on the probe's day, so zero consecutive-pair intervals regardless of how they settle"
+ },
+ "cumulative_by_close_day": [
+  {
+   "clears_l41_floor": false,
+   "close_day": "2026-08-03",
+   "game_units": 4,
+   "intervals": 11,
+   "legs": 22,
+   "markets_closed": 7,
+   "with_intervals": 4
+  },
+  {
+   "clears_l41_floor": false,
+   "close_day": "2026-08-04",
+   "game_units": 8,
+   "intervals": 23,
+   "legs": 46,
+   "markets_closed": 11,
+   "with_intervals": 8
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-06",
+   "game_units": 10,
+   "intervals": 29,
+   "legs": 58,
+   "markets_closed": 13,
+   "with_intervals": 10
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-07",
+   "game_units": 23,
+   "intervals": 68,
+   "legs": 136,
+   "markets_closed": 26,
+   "with_intervals": 23
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-08",
+   "game_units": 34,
+   "intervals": 99,
+   "legs": 198,
+   "markets_closed": 37,
+   "with_intervals": 34
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-09",
+   "game_units": 41,
+   "intervals": 119,
+   "legs": 238,
+   "markets_closed": 44,
+   "with_intervals": 41
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-10",
+   "game_units": 44,
+   "intervals": 128,
+   "legs": 256,
+   "markets_closed": 47,
+   "with_intervals": 44
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-11",
+   "game_units": 48,
+   "intervals": 140,
+   "legs": 280,
+   "markets_closed": 51,
+   "with_intervals": 48
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-12",
+   "game_units": 54,
+   "intervals": 158,
+   "legs": 316,
+   "markets_closed": 57,
+   "with_intervals": 54
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-20",
+   "game_units": 55,
+   "intervals": 161,
+   "legs": 322,
+   "markets_closed": 58,
+   "with_intervals": 55
+  },
+  {
+   "clears_l41_floor": true,
+   "close_day": "2026-08-23",
+   "game_units": 57,
+   "intervals": 165,
+   "legs": 330,
+   "markets_closed": 60,
+   "with_intervals": 57
+  }
+ ],
+ "day": "2026-08-03",
+ "fire_date_projections": {
+  "2026-08-09": {
+   "clears_l41_floor_even_conservatively": true,
+   "conservative_one_day_settlement_lag": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-08",
+    "game_units": 34,
+    "intervals": 99,
+    "legs": 198,
+    "markets_closed": 37,
+    "with_intervals": 34
+   },
+   "optimistic_includes_same_day_closes": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-09",
+    "game_units": 41,
+    "intervals": 119,
+    "legs": 238,
+    "markets_closed": 44,
+    "with_intervals": 41
+   }
+  },
+  "2026-08-10": {
+   "clears_l41_floor_even_conservatively": true,
+   "conservative_one_day_settlement_lag": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-09",
+    "game_units": 41,
+    "intervals": 119,
+    "legs": 238,
+    "markets_closed": 44,
+    "with_intervals": 41
+   },
+   "optimistic_includes_same_day_closes": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-10",
+    "game_units": 44,
+    "intervals": 128,
+    "legs": 256,
+    "markets_closed": 47,
+    "with_intervals": 44
+   }
+  },
+  "2026-08-12": {
+   "clears_l41_floor_even_conservatively": true,
+   "conservative_one_day_settlement_lag": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-11",
+    "game_units": 48,
+    "intervals": 140,
+    "legs": 280,
+    "markets_closed": 51,
+    "with_intervals": 48
+   },
+   "optimistic_includes_same_day_closes": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-12",
+    "game_units": 54,
+    "intervals": 158,
+    "legs": 316,
+    "markets_closed": 57,
+    "with_intervals": 54
+   }
+  },
+  "2026-08-23": {
+   "clears_l41_floor_even_conservatively": true,
+   "conservative_one_day_settlement_lag": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-20",
+    "game_units": 55,
+    "intervals": 161,
+    "legs": 322,
+    "markets_closed": 58,
+    "with_intervals": 55
+   },
+   "optimistic_includes_same_day_closes": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-23",
+    "game_units": 57,
+    "intervals": 165,
+    "legs": 330,
+    "markets_closed": 60,
+    "with_intervals": 57
+   }
+  },
+  "2026-08-24": {
+   "clears_l41_floor_even_conservatively": true,
+   "conservative_one_day_settlement_lag": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-23",
+    "game_units": 57,
+    "intervals": 165,
+    "legs": 330,
+    "markets_closed": 60,
+    "with_intervals": 57
+   },
+   "optimistic_includes_same_day_closes": {
+    "clears_l41_floor": true,
+    "close_day": "2026-08-23",
+    "game_units": 57,
+    "intervals": 165,
+    "legs": 330,
+    "markets_closed": 60,
+    "with_intervals": 57
+   }
+  }
+ },
+ "generated_for_queue_item": "Q51 milestone 3 (time-gated 2026-08-10)",
+ "l41_min_units": 10,
+ "milestone_3_firing_hazard": {
+  "after_column_is_not_an_outcome": true,
+  "after_synthetic_post_repull_cache": {
+   "drops_unsettled": 37,
+   "n_covered_intervals": 62,
+   "n_fills": 76,
+   "n_intervals": 128,
+   "n_units_games": 44
+  },
+  "before_cache_is_the_frozen_m2_snapshot": false,
+  "before_cache_path": "/home/user/kalshi-headless/tape/q51_settlement_cache/settlement.json",
+  "before_committed_cache": {
+   "drops_unsettled": 145,
+   "n_covered_intervals": 17,
+   "n_fills": 26,
+   "n_intervals": 20,
+   "n_units_games": 7
+  },
+  "fire_date_modelled": "2026-08-10",
+  "hazard_confirmed": true,
+  "pinned_quantities_that_move": [
+   "drops_unsettled",
+   "n_covered_intervals",
+   "n_fills",
+   "n_intervals",
+   "n_units_games"
+  ],
+  "pinned_tests": [
+   "tests/test_q51_maker_fillsim.py::test_acceptance_headline_verdict_is_data_inadequate_below_min_units",
+   "tests/test_q51_maker_fillsim.py::test_acceptance_settlement_recency_is_the_binding_constraint_not_the_fill_leg",
+   "tests/test_q51_maker_fillsim.py::test_acceptance_every_real_fill_traces_to_a_broker_truth_trade_id"
+  ],
+  "price_source_tag_of_the_after_column": "synthetic",
+  "repair": {
+   "frozen_snapshot": "tape/q51_settlement_cache/settlement-m2-2026-08-04.json",
+   "frozen_snapshot_present": true,
+   "method": "byte-identical copy of the milestone-2 cache; the live settlement.json is NOT modified and NOT deleted (append-only); the three pinned tests pass `cache_path=` explicitly at the snapshot"
+  },
+  "what_this_shows": "the milestone-2 acceptance pins are functions of a MUTABLE file that `q51_maker_fillsim.py --build-cache` overwrites in place"
+ },
+ "population": {
+  "cache_result_counts": {
+   "": 50,
+   "no": 6,
+   "yes": 4
+  },
+  "cache_status_counts": {
+   "active": 49,
+   "closed": 1,
+   "finalized": 10
+  },
+  "markets_with_at_least_one_interval": 57,
+  "markets_with_zero_intervals": 3,
+  "price_source_tag": "broker_truth",
+  "sports_game_markets_in_sample": 60,
+  "total_intervals": 165
+ },
+ "what_this_is": "PROJECTION, not a measurement. A data-adequacy pre-flight for the TIME-GATED Q51 milestone 3. No mean, no bootstrap, no CI, no P&L, no strategy verdict."
+}

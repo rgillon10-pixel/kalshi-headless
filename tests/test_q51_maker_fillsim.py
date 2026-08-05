@@ -5,6 +5,22 @@ No network. The `test_acceptance_*` cases read the COMMITTED, FROZEN day slice
 `tape/q51_settlement_cache/` (L191: pin acceptance numbers to a slice that cannot grow —
 both day files are for a PAST day, and the trade collector is `trade_id`-deduped) and
 hard-assert rather than skip.
+
+SETTLEMENT-CACHE PIN (2026-08-05, Q51 milestone-3 pre-flight). The three acceptance cases
+that pin milestone-2 POPULATION numbers now read the FROZEN snapshot
+`tape/q51_settlement_cache/settlement-m2-2026-08-04.json` explicitly, not the live
+`settlement.json`. Reason: milestone 3 (time-gated 2026-08-10) re-pulls the live file with
+`q51_maker_fillsim.py --build-cache`, which OVERWRITES it in place and flips ~44 of the 60
+sampled markets from `active` to finalized. `scripts/q51_m3_preflight.py` measured the
+consequence offline — n_units_games 7 -> 44, n_intervals 20 -> 128, drops["unsettled"]
+145 -> 37, n_fills 26 -> 76 — so, left pointed at the mutable file, these tests would go
+RED on the exact day the milestone fires, and the slice they claim to pin was never
+actually frozen (the L191 intent they cite). The snapshot is a byte-identical copy; the
+live `settlement.json` is untouched and undeleted (append-only tape discipline). The two
+SHAPE tests (`test_module_computes_no_queue_position_or_time_to_fill_number`,
+`test_report_states_the_resolution_ceiling_explicitly`) deliberately stay on the live
+cache: they assert report STRUCTURE, which the re-pull does not change, and keeping them
+live means the post-re-pull report is still shape-checked.
 """
 from __future__ import annotations
 
@@ -14,6 +30,11 @@ import pytest
 
 from core.pricing import MAKER_FEE_RATE, TAKER_FEE_RATE, fee_per_contract
 from scripts import q51_maker_fillsim as M
+
+#: The milestone-2 settlement cache, frozen 2026-08-05 as an immutable snapshot so the
+#: milestone-3 re-pull (which overwrites `M.CACHE_PATH` in place) cannot move these pins.
+#: See the module docstring's SETTLEMENT-CACHE PIN note.
+M2_CACHE = M.CACHE_PATH.parent / "settlement-m2-2026-08-04.json"
 
 
 # --------------------------------------------------------------------------- #
@@ -384,7 +405,7 @@ def _rate(side, max_age_s):
 def test_acceptance_headline_verdict_is_data_inadequate_below_min_units():
     """Pins the RECORDED milestone-2 verdict. If this ever changes, the finding and the
     LOOP-QUEUE status line are stale and must be re-derived, not quietly overwritten."""
-    report, rows = M.run(n_boot=2000)
+    report, rows = M.run(n_boot=2000, cache_path=M2_CACHE)
     v = report["verdicts"]["all_intervals"]
     assert v["n_units_games"] == 7
     assert v["n_legs"] == 40 and v["n_filled_legs"] == 26
@@ -400,7 +421,7 @@ def test_acceptance_headline_verdict_is_data_inadequate_below_min_units():
 
 
 def test_acceptance_settlement_recency_is_the_binding_constraint_not_the_fill_leg():
-    report, _rows = M.run(n_boot=100)
+    report, _rows = M.run(n_boot=100, cache_path=M2_CACHE)
     iv = report["intervals"]
     assert iv["n_intervals"] == 20 and iv["n_covered_intervals"] == 17
     assert iv["interval_coverage"] == pytest.approx(0.85)
@@ -410,9 +431,37 @@ def test_acceptance_settlement_recency_is_the_binding_constraint_not_the_fill_le
 
 
 def test_acceptance_every_real_fill_traces_to_a_broker_truth_trade_id():
-    report, rows = M.run(n_boot=100)
+    report, rows = M.run(n_boot=100, cache_path=M2_CACHE)
     assert report["fill_traceability"]["all_fills_traced"] is True
     assert report["fill_traceability"]["n_fills"] == 26
     for r in rows:
         if r["filled"]:
             assert r["fill_trade_id"] and r["fill_price_source_tag"] == "broker_truth"
+
+
+def test_acceptance_frozen_m2_cache_is_the_milestone_2_input():
+    """The frozen snapshot must BE milestone 2's settlement input, not a look-alike.
+
+    EXACT assertions (a past-day, hand-frozen file that nothing writes to): the pull
+    instant, the 60-ticker key set, and the full status/result map. If milestone 3's
+    re-pull, or any later edit, ever swaps this file, every number the three pinned
+    acceptance cases assert becomes unsourced — so this test fails loudly rather than
+    letting them re-baseline silently."""
+    assert M2_CACHE.exists(), (
+        "frozen milestone-2 settlement snapshot missing — the pinned acceptance cases "
+        "have no source of truth")
+    payload = json.loads(M2_CACHE.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "q51_settlement_cache.v1"
+    assert payload["price_source_tag"] == "broker_truth"
+    assert payload["day"] == M.DAY
+    assert payload["pulled_at"].startswith("2026-08-04T")
+    markets = payload["markets"]
+    assert len(markets) == 60
+    statuses = sorted((v.get("status") or "") for v in markets.values())
+    assert statuses.count("active") == 49
+    assert statuses.count("finalized") == 10
+    assert statuses.count("closed") == 1
+    results = sorted((v.get("result") or "") for v in markets.values())
+    assert results.count("yes") == 4 and results.count("no") == 6
+    # every cached result is binary-or-empty on this slice (L52 has nothing to drop here)
+    assert set(results) <= {"", "yes", "no"}
