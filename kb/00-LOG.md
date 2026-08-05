@@ -6,6 +6,91 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-05 ~00:15 ET (04:15 UTC) — kalshi-edge-hunter nightly (Opus): review CLEAN, Q21 round #23 = 1 registered (S78 collect-and-revisit — first registration since S68, first round with the new trade-print surface)
+
+**Steps 0a/0/0b.** Step 0a fired a real alarm and cleared it: `git pull --rebase` reported a
+**forced update on `origin/main`** (`cc5e985…e0cbe2e`), and `cc5e985` was NOT an ancestor of the
+new HEAD — the exact rewind signature. Investigated before acting: the container's clone is
+**shallow** (`.git/shallow`, depth ~50), so the clone's 50-commit window (ending at `cc5e985`,
+2026-07-30) and the freshly-fetched window (08-03..08-05) simply did not overlap, making
+`merge-base` fail spuriously. After `git fetch --deepen=200`, `cc5e985` **IS** an ancestor of
+`origin/main` → **no rewind**, step 0a PASS. Second 0a criterion also PASS (newest `kb/00-LOG.md`
+entry 08-04 vs newest tape 08-05 = 1 day, within the 2-day bound). Step 0 claim-check: 6 open PRs
+(#125/#165/#166/#191/#208/#271) all Ryan-review-only (retro proposals + invariants/collector-
+write-path drafts), none claims an eligible queue item, nothing to merge. Step 0b: 212
+`tape/hourly-*` + 10 `tape/burst-*` remote branches; a full 222-branch union-append sweep is the
+research-loop/calling-session's job and was not duplicated here (edge-hunter run).
+
+**Unit 1 — adversarial review: CLEAN.** The last-24h verdict-class findings are Q37 (weather
+summer maker-NO **DEAD**, verifier-CONFIRMED 08-04) and Q51 milestone-2 (**DATA-INADEQUATE /
+PROVISIONAL**, n=7). Dispatched an independent `verifier` to re-derive the load-bearing numbers
+from committed tape (trust=FALSE). **Q37 CONFIRMED** on all three mandated dimensions: price
+provenance (entry = real resting `no_bid`, tag `real_bid`, no synthetic/midpoint in the P&L path),
+fee (`core.pricing.MAKER_FEE_RATE=0.0175`, single-leg, not hand-rolled), bootstrap unit (calendar
+contract-day via `core.bootstrap.block_bootstrap`, n_units=15 ≥ L41 floor 10); the headline
+reproduced byte-identical (mean −$0.05670, CI [−$0.09598,−$0.03023]) at 9.1s wall-clock, and the
+DEAD decomposes to an exact adverse-selection identity (break-even 9.02% vs realized-on-fills
+14.69%). One benign delta: the gate now reads 22 days (was 21) — one extra unsettled day (08-05)
+that drops out as `settlement_lag` contributing 0 bootstrap units; corroborates the robustness
+claim, not a refutation. **Q51-m2 CONFIRMED** DATA-INADEQUATE (n=7 < 10, no registry flip, 26/26
+fills traced to `broker_truth`, fee 0.0175). **No re-check failed → no GitHub issue opened.**
+
+**Unit 2 — pipeline replenishment: Q21 round #23, 1 registered (S78).** Full Q0–Q51 file-shape
+rescan: **0 eligible** (Q51 milestone-3 TIME-GATED to 08-10; everything else DONE/cred-BLOCKED/
+density-inadequate/on-a-dead-strategy). <2 → round fired. **This is the first Q21 round that is
+NOT the treadmill** the retro (#208) flagged: rounds #20–#22 each recorded "no new tape surface
+since last registration"; that ended when `tape/kalshi_trades/` (public executed-trade prints,
+`broker_truth` + `taker_book_side`) landed 08-04 06:00Z (Q51 m1). Producer proposed S78/S79/S80;
+independent `verifier` attacked before registration (two-agent rule at idea stage). **S78**
+(toxicity-filtered selective maker — the measurable-adverse-selection S11 lane) → **REGISTERED
+`collect-and-revisit`** (verifier verdict: REGISTER, explicitly NOT a kill). The load-bearing claim
+that the trade tape makes realized post-fill markout MEASURABLE holds on committed tape (39,327/
+39,698 = 99.1% of prints have a later same-ticker print ≤30 min; 42/42 trade tickers join
+`orderbook_depth`), which lifts the L68/L106 kill (scoped to `orderbook_depth`-only candidates) for
+this candidate class. It is data-gated (needs multi-day trade tape aimed at book-covered tickers —
+Ryan-gated collector write-path L221/L222, or Q47) and carries 3 mandated tightenings baked into
+the registry line + Q52 (pre-registered collapsed cell design; disjoint train/holdout OOS split;
+≥10-game holdout block-bootstrap CI>0 net maker fee via `core.pricing`). **S79** (retail-buy
+NO-maker) not registered — duplicate of Q51-m2's already-measured NO-leg. **S80** (taker-flow
+momentum) not registered — WALL-A + S22/S24 own the slot. Lesson candidate deferred to
+kb-distiller (a new data surface can lift a standing idea-stage kill for its specific candidate
+class → collect-and-revisit, not a probe; L68/L106 is `orderbook_depth`-scoped). Consumed
+S78/S79/S80 → next free **S81**; Q52 appended. Still **0 proven edges** (a registration is not a
+proof). See `findings/2026-08-05-q21-idea-gen-round.md`.
+
+**Unit 3 — probe-prep: no-op (nothing within 72h).** Q37 already opened + executed to DEAD on
+08-04; Q51 milestone-3 gates 2026-08-10 (>72h), and its spec re-runs `scripts/q51_maker_fillsim.py`
+UNCHANGED — verified execute-ready by FILE SHAPE (L25): script present, `tests/test_q51_maker_fillsim.py`
+collects 41 tests. Nothing to build.
+
+**Housekeeping.** 212 `tape/hourly-*` + 10 `tape/burst-*` = 222 remote branches (was 220 last
+night — still compounding; cleanup is Ryan-gated per the standing two options). Burst triggers
+whose event date has passed, named for deletion (Ryan-side): `kalshi-burst-cpi-0714`,
+`-wcsemi1-0714`, `-wcsemi2-0715`, `-wcfinal-0719` (all already `enabled=None`), and
+`-fomc-0729` (**still `enabled=True` on a `40 17 29 7 *` cron → recurs every July 29**, the one
+genuine standing liability). Open PRs blocked >5 days (#125/#165/#166/#191/#208; #271 is 3 days)
+are all long-standing and already flagged in prior notes/retros — NOT re-flagged (anti-tune-out).
+Observatory pilot at 13 runs / 0 candidates ever (one short of its ≥14 kill-flag threshold; that
+is the observatory/retro's flag, not this leg's).
+
+**Two-agent rule / Stop rules.** No verdict-class flip this run: Unit 1 CONFIRMED existing numbers,
+Unit 2's registration is idea-stage `collect-and-revisit` (no CI, no `live` flip) under producer +
+independent verifier. No credentials, no orders, no demo/live path, `execution/` untouched.
+`kb/strategies/00-index.md` gains one `collect-and-revisit` row (S78); still **0 proven edges**.
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra validation
+only, NOT edge evidence). `scripts/paper_pass.py` idempotent this run (0 newly processed, 272
+deferred(coverage), 300 already-in-ledger; no new tape since the prior ledger update): `paper: 0
+open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional
+$0.00`. No new ledger lines.
+
+**Gates (fresh, taken after this diff's last edit, L162 — docs/findings-only, no code or test file
+changed):** `python scripts/invariants.py --full` → exit 0, all green (only the pre-existing
+non-gating advisories); `python -m pytest -q` → exit 0 (docs-only diff, no code/test file changed
+from the 3,012-passing `main` per the 08-04 18:36 entry → **≥3,012 collected, 0 failed**, stated as
+an L162 floor since the `-q` summary line was not captured). Diff is research/docs-only → PR opened
+and self-merged (squash) per step 6.
+
 ## 2026-08-04 18:36 ET — IDLE RUN (policy c): `orderbook_depth` — L84 falsified a THIRD time (1,093 duplicate rows), plus a measured 6x post-VPS cadence collapse
 
 **What happened.** Step 0a (history-integrity) PASS: `origin/main` HEAD `c724f8d`, no rewind
