@@ -275,6 +275,68 @@ def test_load_implication_families_missing_file_returns_empty(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# the REAL committed config/implication_pairs.yaml (Q55 milestone 2, 2026-08-06):
+# kxmarmadround_progression is the first LIVE (non-time-boxed-closed) family added
+# alongside kxwcround_progression -- these tests exercise the real file, not a
+# synthetic fixture, so a future edit to the yaml that breaks its own regex or rank
+# map fails CI instead of surfacing silently on the next live pass.
+# --------------------------------------------------------------------------- #
+def test_real_config_loads_both_families_with_compilable_regexes():
+    import re as _re
+    families = sweep.load_implication_families()
+    ids = {f["id"] for f in families}
+    assert {"kxwcround_progression", "kxmarmadround_progression"} <= ids
+    for fam in families:
+        assert fam["kind"] == "round_progression"
+        _re.compile(fam["ticker_regex"])  # raises if malformed
+        assert fam["round_order_raw_suffix_to_rank"]
+
+
+def test_kxmarmadround_family_regex_handles_alphanumeric_round_and_hyphenated_entity():
+    fam = next(f for f in sweep.load_implication_families()
+               if f["id"] == "kxmarmadround_progression")
+    import re as _re
+    regex = _re.compile(fam["ticker_regex"])
+    m = regex.match("KXMARMADROUND-27R32-DUKE")
+    assert m and m.group("round_raw") == "27R32" and m.group("entity") == "DUKE"
+    # the one hyphenated entity code observed live (Loyola Chicago)
+    m2 = regex.match("KXMARMADROUND-27T2-L-IL")
+    assert m2 and m2.group("entity") == "L-IL"
+
+
+def test_kxmarmadround_family_generates_full_pair_count_for_two_entities():
+    fam = next(f for f in sweep.load_implication_families()
+               if f["id"] == "kxmarmadround_progression")
+    rounds = ["R32", "R16", "R8", "F4", "T2"]
+    entities = ["DUKE", "L-IL"]
+    markets = [
+        _mk_market(f"KXMARMADROUND-27{r}-{e}", f"KXMARMADROUND-27{r}", None, 0.5, no_ask=0.5)
+        for e in entities for r in rounds
+    ]
+    pairs = sweep._round_progression_pairs(markets, fam)
+    # C(5,2) = 10 ordered (harder, easier) pairs per entity, 2 entities -> 20
+    assert len(pairs) == 20
+    assert ("KXMARMADROUND-27T2-DUKE", "KXMARMADROUND-27R32-DUKE") in {
+        (a["ticker"], b["ticker"]) for a, b in pairs
+    }
+
+
+def test_kxmarmadround_family_flags_a_real_crossing_from_the_committed_config():
+    fam = next(f for f in sweep.load_implication_families()
+               if f["id"] == "kxmarmadround_progression")
+    # T2 (Championship Game, harder) mispriced ABOVE R32 (Round of 32, easier) -> impossible
+    markets = [
+        _mk_market("KXMARMADROUND-27T2-DUKE", "KXMARMADROUND-27T2", None, 0.55, no_ask=0.45),
+        _mk_market("KXMARMADROUND-27R32-DUKE", "KXMARMADROUND-27R32", None, 0.40, no_ask=0.61),
+    ]
+    hits = sweep.check_cross_event_implication(markets, [fam])
+    assert len(hits) == 1
+    assert hits[0]["family_id"] == "kxmarmadround_progression"
+    assert hits[0]["a_ticker"] == "KXMARMADROUND-27T2-DUKE"
+    assert hits[0]["b_ticker"] == "KXMARMADROUND-27R32-DUKE"
+
+
+# --------------------------------------------------------------------------- #
 # fully offline sweep pass
 # --------------------------------------------------------------------------- #
 def test_run_flags_a_true_arb_end_to_end(tmp_path):
