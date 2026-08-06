@@ -6,6 +6,65 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-06 ~21:1x-22:3x UTC — research loop IDLE RUN (a): every detector's zero now carries its own denominator (L296 -> L298)
+
+**What happened.** Re-verified the queue independently before committing to an idle run: every
+item Q0-Q55 reads DONE / BLOCKED / RESERVED / time-gated / data-gated at its CURRENT Status line
+(Q51 milestone 3 time-gated to 2026-08-10 and already pre-flighted 2026-08-05; Q53 fully done
+including its PROVISIONAL milestone-3 verdict; Q55 milestones 1-2 done). Nothing runnable, so
+idle-run policy **(a)**: convert an UNENFORCED lesson into an invariant/test. Picked **L296**,
+whose reading-rule half was filed `UNENFORCED (verdict half) + protocol`: *"`n_hits == 0` and
+`n_candidates_checked == 0` are different claims, and S15 has been reporting the second while its
+registry row was read as the first for a month."* Nothing in the repo made that state visible —
+`scripts/anomaly_sweep.py` persisted three candidate counters and ONE aggregate hit count
+(`n_anomalies`) spanning all three checks, so a zero could not even be attributed to a check.
+
+**Built.** `core/detector_evidence.py` — one shared site (L36/L102, the same shape as
+`core.pricing.is_fillable_ask` and `core.subject_identity.same_subject`). Four values:
+`hits` / `informative_zero` (the ONLY zero readable as absence) / `empty_denominator` /
+`incoherent` (hits over an empty denominator), plus a fifth `counter_absent` for RECORDS,
+because a key the collector never wrote and a key it wrote as 0 are different claims (L289).
+`incoherent` is a returned value rather than a raise on purpose: raising inside a live collector
+would destroy a pass's tape over a bookkeeping contradiction (L86), and raising in replay would
+make an audit unable to COUNT the contradictions. Malformed INPUT still raises. Wired into
+`scripts/anomaly_sweep.py` as `check_evidence` (per check `{n_candidates_checked, n_hits,
+evidence}`, hits counted PER CHECK from each anomaly's own `kind`; additive to
+`anomaly_sweep.v1`, no existing field changed, exit codes untouched), plus a stderr line every
+pass naming any check whose zero is unreadable — the failure went unnoticed for a month because
+nothing said it out loud. `scripts/anomaly_detector_evidence_audit.py` replays all committed
+history through the same predicate (read-only, no network).
+
+**What it found.** Closed window `--max-day 2026-08-04`: 248 passes, 26 capture-days, 0 malformed
+lines. Check 3 (`cross_event_implication`): **243 `empty_denominator` + 5 `counter_absent`**, and
+**0** passes anywhere in committed history whose zero is readable — L296's 243 reproduced exactly
+on an independent code path, with the 5 pre-counter records reported as their own class instead of
+folded into the zero. **New, and not in L296: S3's own checks are not immune.** `bracket_arb` and
+`cross_strike_monotonicity` each show **23 of 248 (9.3%)** `empty_denominator` passes, and all 23
+report `completeness_ok: true`, `fetch_error: null`, and a non-zero `n_markets_scanned` up to the
+full 20,000-market cap — a pass that scanned 20,000 markets, evaluated zero candidate groups, and
+looks clean. 10 of the 23 fall on `dt=2026-07-18`. Beside that: `bracket_arb` has **0** hits over
+all 2,210 group-checks; `cross_strike_monotonicity` 43,038 hits on 137 passes; 0 incoherent
+records; and `n_bracket_groups_checked == n_monotonicity_groups_checked` on **248/248** passes,
+which the code does not guarantee (three `between` rungs increment the first, not the second) —
+pinned as a regression target rather than explained away.
+
+**What it means.** The reading rule is now mechanical: a future run cannot quote a scanner's zero
+without the denominator that makes it readable. It does **not** make S3 or S15 killable — 247/248
+passes remain `markets_truncated` at the 20,000 cap and Q55's `scanned_tickers_sha256` only
+accumulates forward — and it does **not** fix check 3's zero: Q55's new live `KXMARMADROUND`
+family is still beyond the cursor, so the next passes should still read `empty_denominator`, now
+labelled rather than silent. No registry status flipped, no CI computed, no kill proposed; L296's
+verdict half stays PROVISIONAL exactly as filed. Main-context build — this harness exposes no
+`Task`/subagent tool, so no `verifier` was dispatchable (L287/L288/L290/L291/L295 precedent); the
+milestone is tooling + descriptive, so the two-agent rule is N/A.
+
+**Files.** `core/detector_evidence.py`, `scripts/anomaly_detector_evidence_audit.py`,
+`scripts/anomaly_sweep.py`, `tests/test_detector_evidence.py` (22),
+`tests/test_anomaly_detector_evidence_audit.py` (16), `tests/test_anomaly_sweep.py` (+5 -> 70),
+`reports/anomaly_detector_evidence_audit.json`,
+`findings/2026-08-06-detector-evidence-guard.md`, `kb/lessons/00-lessons.md` (**L298**),
+`kb/strategies/00-index.md` (S3/S15 prose only), `LOOP-QUEUE.md` (Q55 Status + Log of runs).
+
 ## 2026-08-06 ~15:0x-15:5x UTC — research loop: Q55 milestone 2 — `KXMARMADROUND` gives `implication_pairs.yaml` its first LIVE, non-time-boxed-closed family
 
 **What happened.** Picked up Q55 milestone 2 where milestone 1 (this run's own log entry just
