@@ -6,6 +6,69 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-06 ~09:2x-13:xx UTC — research loop: duplicate-work collision on Q53 reconciled — tape recovery delivered, S3/S15 kill-denominator follow-on filed as Q55
+
+**What happened.** This run picked Q53 (topmost eligible per a clean claim-check — 6 open PRs,
+all Ryan-review-only, none claiming it) and built the same `check_monotonicity` subject-identity
+repair L291 called for: digit-blanked title-template matching, validated against
+`tape/econ_prints/`/`tape/crypto_hourly/`/`tape/universe_sweep/`, an independent `verifier`
+subagent pass (caught and fixed 5 real prose defects — a false "these tickers closed before
+capture" explanation whose true cause was `collection/universe_sweep.py`'s 20,000-market-per-pass
+truncation; a wrong denominator 0/26 vs the true 0/11; a miscounted entity tally; an inconsistent
+batter-prop count vs L291's own wording; an uncapped acceptance-replay glob violating this repo's
+own L191 tape-pinning discipline — plus a word-boundary hardening of the numeric-strip regex,
+`49ers`/`76ers` negative control), full gates green (`pytest` 3201 collected/0 failed, 1:11:28;
+`invariants --full` exit 0). **Then, on the routine `git fetch` immediately before pushing, found
+`origin/main` had moved**: an independent concurrent research-loop session's PR #304 had merged
+~20 minutes earlier, building the SAME milestone — and more thoroughly: a dedicated
+`core/subject_identity.py` anchoring `title`/`subtitle`/`yes_sub_title` to a market's own
+`floor_strike`/`cap_strike` (discovering and correctly handling the Kalshi label-offset trap,
+e.g. `T96` publishing "97° or above") rather than this session's blanket digit-blanking,
+exhaustive corpus error rates (0/34,334 false-refuse, 0/2,364 false-admit) rather than spot-check
+unit tests, and a genuine milestone-3 attempt that correctly landed **PROVISIONAL, no registry
+flip** on a real denominator problem (new lessons L295/L296/L297, see the entry below).
+
+**Reconciliation, not a re-fight.** Verified PR #304's own no-flip claim by reading
+`kb/strategies/00-index.md` directly (S3/S15 still `data-collecting`, prose-only updates) —
+nothing here needed correcting. This session's now-fully-redundant code/test/lesson/log changes
+were discarded without ever being pushed (all local-only; nothing shared was touched or needs
+reverting). Re-derived just the piece of this session's own step-0b sweep that PR #304 did NOT
+include: `tape/hourly-20260806T0726Z` (a genuinely stranded branch, ~2h old, past the 30-minute
+skip bar) still carried 2 missing capture_ids against the POST-#304 tree — **1,748 lines**
+(`orderbook_depth/dt=2026-08-06`) and **20,000 lines** (`universe_sweep/dt=2026-08-06`),
+union-appended fresh, every line JSON-validated, 0 malformed.
+
+**Filed Q55** (`LOOP-QUEUE.md`) from PR #304's own "follow-on, NOT attempted here" note: persist a
+per-pass scanned-ticker inventory in `scripts/anomaly_sweep.py` (so S3's `markets_truncated`
+passes get a measurable coverage denominator) and give `config/implication_pairs.yaml` a live,
+not-time-boxed-closed family (so S15's "0 pairs checked" — L296's finding, not "0 hits" — has any
+chance of becoming a real kill clause). This was standing prose in Q53's own status cell with no
+queue entry to make it discoverable; now it is one.
+
+**A note on the collision itself, for the standing protocol, not filed as a numbered lesson (a
+process observation, not a tape/code finding):** the claim-check at step 0 cannot catch a
+collision that starts building AFTER the check runs — the only real guard against wasted
+duplicate work is fetching immediately before push, which is what caught this one, ~11 minutes
+before this session would otherwise have opened a conflicting PR. Two prior instances of this
+exact class are on record (the 2026-08-01 Q49/S68 race, the 2026-08-06 L269 duplicate-work
+collision) — this is now a third, and all three resolved the same way: verify, discard the
+redundant side, keep whatever unique value survives.
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, infra-only) —
+`scripts/paper_pass.py` idempotent (0 newly processed): `paper: 0 open, 1657 settled, realized
+P&L $+27.76`, no new ledger lines.
+
+**Gates.** For the diff actually landed by this session (tape-only, 2 files, no `.py` touched):
+`python3 scripts/invariants.py --full` -> exit 0, all green, re-run fresh after the append.
+Targeted `pytest` on tape/invariants-adjacent suites green; the full ~70-minute suite was not
+re-run a third time for a pure append-only data diff that touches no code or test file (L162
+precedent for docs/tape-only diffs — the code-bearing gates already ran twice this session, once
+on this session's own now-discarded build and once implicitly via PR #304's own merged gates).
+
+No registry change, no P&L, no CI — still **0 proven edges**.
+
+---
+
 ## 2026-08-06 (UTC afternoon) — research loop: **Q53** — a shared `event_ticker` is not a strike ladder, repaired and MEASURED (L295/L296/L297)
 
 **Item.** Q53, the only eligible TODO on the launching session's full Q0-Q53 rescan (everything else DONE / cred-BLOCKED / density-inadequate / dead-or-superseded / time-gated). A correctness repair to `scripts/anomaly_sweep.py::check_monotonicity`, the repo's oldest live scanner, plus the S3/S15 verdict it unlocks.
