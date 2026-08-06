@@ -6,6 +6,47 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-06 ~12:3x-13:3x UTC — research loop: Q55 milestone 1 — per-pass scanned-ticker coverage digest lands in `anomaly_sweep.py`
+
+**What happened.** Picked Q55, the topmost genuinely eligible TODO item (Q0-Q54's topmost
+statuses are all DONE / BLOCKED / gated / PROVISIONAL / registered-idea as of this run — Q53
+resolved to a PROVISIONAL milestone-3 verdict last run and spun its own follow-on into Q55).
+Did milestone 1 only: added `scripts/anomaly_sweep.py::scanned_tickers_digest()`, a
+sorted-unique-ticker sha256 persisted as two new additive `anomaly_sweep.v1` fields —
+`n_distinct_tickers_scanned` and `scanned_tickers_sha256` — with no existing field changed.
+
+**Why it matters.** L296 named the actual defect: 247 of 248 committed `tape/anomalies/`
+passes are `markets_truncated` at the 20,000-market cap with no record of WHICH tickers were
+scanned, so "0 arbs in 26 days" can't be turned into a rate — the population it was measured
+against is unknown. Persisting the full ~20,000-ticker list every pass would bloat the tape;
+a content-hash of the sorted-unique set is the compact alternative the item's own text named.
+The digest's actual analytic payoff: if consecutive truncated passes carry the SAME digest,
+that proves the 20,000-market cap has been re-scanning one static slice of the platform every
+pass, not sampling progressively more of it — a WEAKER reading of "26 capture-days of
+coverage" than currently assumed in S3's prose. Differing digests would support the stronger
+reading. That comparison is a follow-on for whichever run next revisits S3/S15 (it needs to
+run against already-committed history, not just future passes) — not attempted here.
+
+**Milestone 2** (giving `config/implication_pairs.yaml` a live, non-time-boxed-closed family,
+so S15's "0 pairs checked" denominator problem can also close) is a curation task — hand-audit
+a real currently-open nesting relationship against its settlement rules text — left TODO.
+
+**Verdict class:** none. No registry flip, no bootstrap CI, no kill decision — a collector/
+schema addition, so the two-agent verifier rule does not bind this milestone (L104/L110/L118/
+L126/L127/L137 precedent for lesson/tooling-class work).
+
+6 new tests in `tests/test_anomaly_sweep.py`. Gates taken fresh after the last code edit:
+`pytest` → **3,229 passed, 0 failed** (93m46s, full suite); `python3 scripts/invariants.py
+--full` → exit **0**, all green, same non-gating advisories as the prior run (none newly
+introduced by this diff). Step 9: `execution/strategy_api.SHADOW_REGISTRY` carries one shadow
+(`s14_ladder_underwriting`); `scripts/paper_pass.py` replay is idempotent over currently
+committed tape — realized P&L unchanged at **$+27.76**, 0 new ledger lines.
+
+Files: `scripts/anomaly_sweep.py`, `tests/test_anomaly_sweep.py`, `LOOP-QUEUE.md`.
+
+**Next:** Q55 milestone 2 (curate a live `implication_pairs.yaml` family), or the S3/S15
+same-digest-across-passes comparison this milestone's own follow-on names.
+
 ## 2026-08-06 ~09:2x-13:xx UTC — research loop: duplicate-work collision on Q53 reconciled — tape recovery delivered, S3/S15 kill-denominator follow-on filed as Q55
 
 **What happened.** This run picked Q53 (topmost eligible per a clean claim-check — 6 open PRs,
