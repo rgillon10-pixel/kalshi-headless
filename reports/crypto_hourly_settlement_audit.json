@@ -1,0 +1,227 @@
+{
+ "capture_cadence": {
+  "first_day": "2026-07-03",
+  "last_day": "2026-08-05",
+  "n_days": 33,
+  "peak_day": "2026-07-14",
+  "peak_passes": 143,
+  "per_day": [
+   {
+    "day": "2026-07-03",
+    "n_lines": 51,
+    "n_passes": 26
+   },
+   {
+    "day": "2026-07-04",
+    "n_lines": 94,
+    "n_passes": 47
+   },
+   {
+    "day": "2026-07-05",
+    "n_lines": 97,
+    "n_passes": 49
+   },
+   {
+    "day": "2026-07-06",
+    "n_lines": 99,
+    "n_passes": 50
+   },
+   {
+    "day": "2026-07-07",
+    "n_lines": 98,
+    "n_passes": 49
+   },
+   {
+    "day": "2026-07-08",
+    "n_lines": 46,
+    "n_passes": 23
+   },
+   {
+    "day": "2026-07-10",
+    "n_lines": 22,
+    "n_passes": 11
+   },
+   {
+    "day": "2026-07-11",
+    "n_lines": 98,
+    "n_passes": 49
+   },
+   {
+    "day": "2026-07-12",
+    "n_lines": 92,
+    "n_passes": 46
+   },
+   {
+    "day": "2026-07-13",
+    "n_lines": 94,
+    "n_passes": 47
+   },
+   {
+    "day": "2026-07-14",
+    "n_lines": 286,
+    "n_passes": 143
+   },
+   {
+    "day": "2026-07-15",
+    "n_lines": 64,
+    "n_passes": 32
+   },
+   {
+    "day": "2026-07-16",
+    "n_lines": 60,
+    "n_passes": 30
+   },
+   {
+    "day": "2026-07-17",
+    "n_lines": 64,
+    "n_passes": 32
+   },
+   {
+    "day": "2026-07-18",
+    "n_lines": 30,
+    "n_passes": 15
+   },
+   {
+    "day": "2026-07-19",
+    "n_lines": 14,
+    "n_passes": 7
+   },
+   {
+    "day": "2026-07-20",
+    "n_lines": 16,
+    "n_passes": 8
+   },
+   {
+    "day": "2026-07-21",
+    "n_lines": 20,
+    "n_passes": 10
+   },
+   {
+    "day": "2026-07-22",
+    "n_lines": 50,
+    "n_passes": 25
+   },
+   {
+    "day": "2026-07-23",
+    "n_lines": 10,
+    "n_passes": 5
+   },
+   {
+    "day": "2026-07-24",
+    "n_lines": 10,
+    "n_passes": 5
+   },
+   {
+    "day": "2026-07-25",
+    "n_lines": 12,
+    "n_passes": 6
+   },
+   {
+    "day": "2026-07-26",
+    "n_lines": 16,
+    "n_passes": 8
+   },
+   {
+    "day": "2026-07-27",
+    "n_lines": 10,
+    "n_passes": 5
+   },
+   {
+    "day": "2026-07-28",
+    "n_lines": 14,
+    "n_passes": 6
+   },
+   {
+    "day": "2026-07-29",
+    "n_lines": 54,
+    "n_passes": 27
+   },
+   {
+    "day": "2026-07-30",
+    "n_lines": 8,
+    "n_passes": 4
+   },
+   {
+    "day": "2026-07-31",
+    "n_lines": 8,
+    "n_passes": 4
+   },
+   {
+    "day": "2026-08-01",
+    "n_lines": 16,
+    "n_passes": 8
+   },
+   {
+    "day": "2026-08-02",
+    "n_lines": 12,
+    "n_passes": 6
+   },
+   {
+    "day": "2026-08-03",
+    "n_lines": 10,
+    "n_passes": 5
+   },
+   {
+    "day": "2026-08-04",
+    "n_lines": 10,
+    "n_passes": 5
+   },
+   {
+    "day": "2026-08-05",
+    "n_lines": 14,
+    "n_passes": 7
+   }
+  ],
+  "recent_7day_mean_passes": 5.571428571428571
+ },
+ "discovery_gap_profile": {
+  "by_day": {
+   "2026-07-03": 4,
+   "2026-07-04": 4,
+   "2026-07-05": 4,
+   "2026-07-06": 8,
+   "2026-07-07": 8,
+   "2026-07-10": 8,
+   "2026-07-11": 4,
+   "2026-07-12": 4,
+   "2026-07-13": 4,
+   "2026-07-14": 4,
+   "2026-07-15": 2,
+   "2026-07-16": 12,
+   "2026-07-17": 2,
+   "2026-07-23": 2,
+   "2026-07-29": 4,
+   "2026-07-30": 2
+  },
+  "by_symbol": {
+   "BTC": 38,
+   "ETH": 38
+  },
+  "frac_gap": 0.0475,
+  "last_gap_day": "2026-07-30",
+  "n_gap": 76,
+  "n_ok": 1523,
+  "n_total": 1599,
+  "reason_counts": {
+   "no_hourly_group_found": 72,
+   "transient_error": 4
+  }
+ },
+ "generated_at": "2026-08-06T00:35:51.267137+00:00",
+ "n_records": 1599,
+ "offline": true,
+ "schema_version": "crypto_hourly_settlement_audit.v1",
+ "settlement_integrity": {
+  "mece_invariant_holds": true,
+  "n_mece_exactly_one_winner_violations": 0,
+  "n_settled": 1483,
+  "n_settled_missing_expiration_value": 0,
+  "status_distribution": {
+   "no_current_group": 76,
+   "not_found": 6,
+   "pending": 34,
+   "settled": 1483
+  },
+  "violation_examples": []
+ }
+}
