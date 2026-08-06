@@ -33,12 +33,13 @@ SIZE — `/markets` carries no `*_ask_size` field (see core.pricing's constant b
      moneylines, which are exhaustive by construction without floor/cap fields) are out of
      scope for this check.
   2. **cross_strike_monotonicity** (S3) — for threshold-type ("greater"/"less") markets
-     sharing an event_ticker, a narrower strike's YES-region is a subset of a wider strike's
-     (e.g. temp>=80 subset of temp>=70), so P(narrower) can never exceed P(wider). The real
-     (not just implied) arb needs both legs REAL-ask fillable: buy YES(wider) + NO(narrower)
-     pays a guaranteed >=$1 (core.pricing.monotonicity_crossing_edge) whenever that costs
-     less than $1 net of both legs' fees — an ask-vs-ask gap alone can be closed by an
-     unfilled quote, a real cost-under-$1 hedge cannot.
+     sharing an event_ticker AND PROVABLY DESCRIBING ONE SUBJECT, a narrower strike's
+     YES-region is a subset of a wider strike's (e.g. temp>=80 subset of temp>=70), so
+     P(narrower) can never exceed P(wider). The real (not just implied) arb needs both legs
+     REAL-ask fillable: buy YES(wider) + NO(narrower) pays a guaranteed >=$1
+     (core.pricing.monotonicity_crossing_edge) whenever that costs less than $1 net of both
+     legs' fees — an ask-vs-ask gap alone can be closed by an unfilled quote, a real
+     cost-under-$1 hedge cannot.
   3. **cross_event_implication** (S15, Q11) — the same nested-subset idea as check 2, but
      across DIFFERENT event_tickers, per a hand-curated implication graph
      (`config/implication_pairs.yaml`, each family audited against both markets' actual
@@ -56,6 +57,23 @@ finishes, so `main()` defaults to `--limit DEFAULT_LIVE_LIMIT` (20,000 markets, 
 resource bound, not a scope judgment call) and every record honestly carries
 `markets_truncated` so a capped pass never masquerades as full coverage. Pass `--limit 0`
 for a genuinely unbounded run (e.g. from the VPS collector, more headroom).
+
+**A shared `event_ticker` does NOT prove nested strikes (lesson L291, enforced 2026-08-06).**
+Kalshi packs MULTIPLE SUBJECTS into one event — two tennis players' game spreads, two batters'
+props, three cities' rain markets all live under one `event_ticker` — and sorting those by
+`floor_strike`/`cap_strike` manufactures a "nested pair" that is really a naked directional bet
+on two different things. Every one of the 13 anomalies that survived the L290 fillability guard
+across 26 committed capture-days was this failure, i.e. 100% of the scanner's post-guard output
+was a premise error rather than an arb. Checks 1 and 2 now prove subject identity through
+`core.subject_identity.same_subject` — the markets' own title/sub-title text, anchored to their
+own strike bounds, never a ticker-suffix heuristic (Q1's build note; the KXFEDDECISION ">25bps
+as 26" trap) — and refuse anything not PROVEN. `UNVERIFIABLE` (no descriptive text, or a
+numeric difference with no strike to attribute it to) is a refusal, not a soft yes: nesting must
+be proven, never merely un-disproven. The two refusal reasons are counted separately
+(`n_cross_subject_pair_refusals`, `n_subject_unverifiable_refusals`) because "these are provably
+different things" and "we could not tell" are different claims. Check 3 is exempt by
+construction: its implication graph is hand-curated against both markets' settlement rules text,
+which is a stronger nesting proof than any text comparison.
 
 Run one pass:
     python scripts/anomaly_sweep.py                # capped at DEFAULT_LIVE_LIMIT markets
@@ -79,6 +97,8 @@ from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
 from core.pricing import (bracket_sum, fee_per_contract, is_fillable_ask,
                           is_material_arb_edge, monotonicity_crossing_edge, true_arb_edge)
+from core.subject_identity import (SUBJECT_PROVEN_SAME, SUBJECT_UNVERIFIABLE,
+                                   all_same_subject, same_subject)
 from validation.v3_market import Kalshi, _load_venue_cfg
 
 TAPE = REPO_ROOT / "tape" / "anomalies"
@@ -161,11 +181,26 @@ def _segment_bounds(m: Dict[str, Any]) -> Optional[Tuple[float, float]]:
 # defect survived 26 days of tape. Callers pass a dict; the checks only ever increment.
 REFUSAL_UNFILLABLE_LEG = "unfillable_leg"
 REFUSAL_RESIDUE_EDGE = "residue_edge"
+# L291's two, added 2026-08-06. Kept SEPARATE on purpose: `cross_subject_pair` is a positive
+# finding ("these are provably two different subjects, the nesting premise is false"), while
+# `subject_unverifiable` is an admission of ignorance ("this market published no text I could
+# check, or a numeric difference I had no strike to attribute"). Collapsing them would let a
+# pass that could not read anything report the same shape as a pass that proved everything
+# clean — the exact misreading L288's `n_anomalies: 0` invited.
+REFUSAL_CROSS_SUBJECT_PAIR = "cross_subject_pair"
+REFUSAL_SUBJECT_UNVERIFIABLE = "subject_unverifiable"
 
 
 def new_refusal_ledger() -> Dict[str, int]:
     """A zeroed refusal ledger — the shape `run()` persists and the checks increment."""
-    return {REFUSAL_UNFILLABLE_LEG: 0, REFUSAL_RESIDUE_EDGE: 0}
+    return {REFUSAL_UNFILLABLE_LEG: 0, REFUSAL_RESIDUE_EDGE: 0,
+            REFUSAL_CROSS_SUBJECT_PAIR: 0, REFUSAL_SUBJECT_UNVERIFIABLE: 0}
+
+
+def _count_subject_refusal(refusals: Optional[Dict[str, int]], verdict: str) -> None:
+    """Route a non-PROVEN subject verdict to its own counter."""
+    _count(refusals, REFUSAL_SUBJECT_UNVERIFIABLE if verdict == SUBJECT_UNVERIFIABLE
+           else REFUSAL_CROSS_SUBJECT_PAIR)
 
 
 def _count(refusals: Optional[Dict[str, int]], key: str) -> None:
@@ -182,7 +217,14 @@ def check_bracket_arb(event_ticker: str, members: List[Dict[str, Any]],
 
     Buying a complete ladder means buying EVERY member, so one unquoted ($0.00) leg makes the
     whole basket unbuyable and its `bracket_sum` an underflow artifact — precisely L105's
-    universe_sweep finding, refused here rather than flagged."""
+    universe_sweep finding, refused here rather than flagged.
+
+    The ladder must also be ONE subject (L291). A "complete" partition assembled from two
+    different subjects' interleaved ladders sums to $1 of payout on neither. Compared on
+    `SUBJECT_FIELDS_CROSS_STRIKE_TYPE` (title only) because a complete ladder spans rung types
+    by construction and the sub-title grammar changes with the rung — comparing whole ladders
+    on the sub-title costs a measured 55.3% false-refuse rate on real weather ladders
+    (`scripts/subject_identity_corpus_audit.py`)."""
     rows: List[Tuple[float, float, float, str]] = []
     for m in members:
         bounds = _segment_bounds(m)
@@ -209,6 +251,10 @@ def check_bracket_arb(event_ticker: str, members: List[Dict[str, Any]],
         if edge > 0:
             _count(refusals, REFUSAL_RESIDUE_EDGE)
         return None
+    subject_verdict, _ = all_same_subject(members)
+    if subject_verdict != SUBJECT_PROVEN_SAME:
+        _count_subject_refusal(refusals, subject_verdict)
+        return None
     return {
         "kind": "bracket_arb",
         "event_ticker": event_ticker,
@@ -227,18 +273,27 @@ def check_bracket_arb(event_ticker: str, members: List[Dict[str, Any]],
 def check_monotonicity(event_ticker: str, members: List[Dict[str, Any]], strike_type: str,
                        *, refusals: Optional[Dict[str, int]] = None
                        ) -> List[Dict[str, Any]]:
-    """Every fee-clearing nested-strike crossing whose BOTH legs are real, buyable asks.
+    """Every fee-clearing nested-strike crossing that is BOTH real-ask fillable on both legs
+    AND provably one subject.
 
     The fillability test is applied per PAIR, not per member: a market whose YES ask is quoted
     but whose NO ask is not can still serve as the outer (YES) leg of some other pair, so
-    dropping it wholesale would refuse arbs that do exist."""
-    rows: List[Tuple[float, float, float, str]] = []  # (order_key, yes_ask, no_ask, ticker)
+    dropping it wholesale would refuse arbs that do exist.
+
+    The subject test (L291) is likewise per PAIR — one event can hold several subjects, each
+    with its own genuine ladder (a real `KXMLBHRR` event holds one batter's 1+/2+/3+/4+ rungs
+    alongside another batter's, and the within-batter pairs are real nested pairs). It runs
+    LAST, after fillability and materiality, so the refusal ledger's funnel matches the
+    published replay of committed tape exactly (L290/L291's 43,038 -> 43,025 -> 13 -> 0), and
+    so `n_cross_subject_pair_refusals` counts pairs that WOULD otherwise have been flagged
+    rather than every cross-subject pair on the platform."""
+    rows: List[Tuple[float, float, float, str, Dict[str, Any]]] = []
     for m in members:
         key = _f(m, "floor_strike") if strike_type == "greater" else _f(m, "cap_strike")
         ask, no_ask = _f(m, "yes_ask_dollars"), _f(m, "no_ask_dollars")
         if key is None or ask is None or no_ask is None:
             continue
-        rows.append((key, ask, no_ask, m.get("ticker", "")))
+        rows.append((key, ask, no_ask, m.get("ticker", ""), m))
     if len(rows) < 2:
         return []
     rows.sort(key=lambda r: r[0])
@@ -261,6 +316,10 @@ def check_monotonicity(event_ticker: str, members: List[Dict[str, Any]], strike_
                 if edge > 0:
                     _count(refusals, REFUSAL_RESIDUE_EDGE)
                 continue
+            subject_verdict, subject_reason = same_subject(outer[4], inner[4])
+            if subject_verdict != SUBJECT_PROVEN_SAME:
+                _count_subject_refusal(refusals, subject_verdict)
+                continue
             anomalies.append({
                 "kind": "cross_strike_monotonicity",
                 "event_ticker": event_ticker,
@@ -268,6 +327,10 @@ def check_monotonicity(event_ticker: str, members: List[Dict[str, Any]], strike_
                 "outer_ticker": outer[3], "inner_ticker": inner[3],
                 "outer_ask": outer_ask, "inner_no_ask": inner_no_ask,
                 "edge": edge,
+                # Additive (2026-08-06): WHY this pair was accepted as nested. A flagged arb
+                # that cannot say what proved its own premise is the L291 defect all over
+                # again, one field short of being auditable from the tape alone.
+                "subject_identity_reason": subject_reason,
                 "price_source_tag": "real_ask",
             })
     return anomalies
@@ -442,6 +505,13 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         # unquoted", not "the market was clean". No existing field changed shape or meaning.
         "n_unfillable_leg_refusals": refusals[REFUSAL_UNFILLABLE_LEG],
         "n_residue_edge_refusals": refusals[REFUSAL_RESIDUE_EDGE],
+        # Additive to anomaly_sweep.v1 (2026-08-06, L291): candidates refused because the
+        # nesting premise could not be PROVEN. A large `cross_subject` count beside
+        # `n_anomalies: 0` reads "this event packs several subjects", a large
+        # `subject_unverifiable` count reads "these markets published no text I could check"
+        # — neither is "the market was clean". No existing field changed shape or meaning.
+        "n_cross_subject_pair_refusals": refusals[REFUSAL_CROSS_SUBJECT_PAIR],
+        "n_subject_unverifiable_refusals": refusals[REFUSAL_SUBJECT_UNVERIFIABLE],
         "anomalies": anomalies,
         "fetch_error": fetch_error,
         "markets_truncated": markets_truncated,
@@ -461,6 +531,8 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
           f"{len(groups)} event groups, {len(anomalies)} anomalies flagged, "
           f"{refusals[REFUSAL_UNFILLABLE_LEG]} refused (unquoted $0.00 leg), "
           f"{refusals[REFUSAL_RESIDUE_EDGE]} refused (sub-tick float residue), "
+          f"{refusals[REFUSAL_CROSS_SUBJECT_PAIR]} refused (cross-subject pair), "
+          f"{refusals[REFUSAL_SUBJECT_UNVERIFIABLE]} refused (subject unverifiable), "
           f"completeness {'ok' if completeness_ok else 'FAIL'}")
 
     return {
@@ -468,6 +540,8 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         "n_markets_scanned": len(markets), "n_anomalies": len(anomalies),
         "n_unfillable_leg_refusals": refusals[REFUSAL_UNFILLABLE_LEG],
         "n_residue_edge_refusals": refusals[REFUSAL_RESIDUE_EDGE],
+        "n_cross_subject_pair_refusals": refusals[REFUSAL_CROSS_SUBJECT_PAIR],
+        "n_subject_unverifiable_refusals": refusals[REFUSAL_SUBJECT_UNVERIFIABLE],
         "markets_truncated": markets_truncated,
         "completeness_ok": completeness_ok, "path": str(out_path),
     }

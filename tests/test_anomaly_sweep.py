@@ -1,6 +1,14 @@
 """scripts.anomaly_sweep — LOOP-QUEUE.md Q6. Both real-ask checks (complete-ladder true
 arb, cross-strike monotonicity) plus a fully offline capture pass (FakeClient, no network)
-with honest completeness. Mirrors tests/test_crypto_hourly.py's fixture style."""
+with honest completeness. Mirrors tests/test_crypto_hourly.py's fixture style.
+
+Q53/L291 (2026-08-06): every fixture market now carries a `title`, because the scanner now
+requires the nesting premise to be PROVEN from the market's own descriptive text
+(`core.subject_identity`). `_mk_market`'s default title is a single-subject threshold ladder
+rung whose label IS its own strike, so the default fixtures exercise the real
+strike-attribution path rather than a degenerate "identical text" shortcut; the cross-subject
+fixtures below pass explicit titles copied from committed `tape/universe_sweep/`.
+"""
 from __future__ import annotations
 
 import json
@@ -9,14 +17,19 @@ import pytest
 
 from core.io import REPO_ROOT
 from core.pricing import is_fillable_ask, is_material_arb_edge, monotonicity_crossing_edge
+from core.subject_identity import SUBJECT_PROVEN_SAME, SUBJECT_UNVERIFIABLE, same_subject
 from scripts import anomaly_sweep as sweep
 
 
 def _mk_market(ticker, event_ticker, strike_type, yes_ask, no_ask=None,
-              floor_strike=None, cap_strike=None):
+              floor_strike=None, cap_strike=None, title=None):
+    strike = floor_strike if floor_strike is not None else cap_strike
+    if title is None:
+        title = (f"What will the value be above {strike}?" if strike is not None
+                 else "What will the value be?")
     return {
         "ticker": ticker, "event_ticker": event_ticker, "strike_type": strike_type,
-        "floor_strike": floor_strike, "cap_strike": cap_strike,
+        "floor_strike": floor_strike, "cap_strike": cap_strike, "title": title,
         "yes_ask_dollars": f"{yes_ask:.4f}" if yes_ask is not None else None,
         "no_ask_dollars": f"{no_ask:.4f}" if no_ask is not None else None,
     }
@@ -424,7 +437,7 @@ def test_monotonicity_still_flags_a_genuine_fillable_crossing_and_refuses_nothin
     refusals = sweep.new_refusal_ledger()
     hits = sweep.check_monotonicity("E", members, "greater", refusals=refusals)
     assert len(hits) == 1 and hits[0]["edge"] > 0.01
-    assert refusals == {sweep.REFUSAL_UNFILLABLE_LEG: 0, sweep.REFUSAL_RESIDUE_EDGE: 0}
+    assert refusals == sweep.new_refusal_ledger()   # every reason still at zero
 
 
 def test_monotonicity_guard_is_per_pair_not_per_member():
@@ -520,6 +533,172 @@ def test_run_reports_zero_refusals_on_a_clean_pass(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# L291 / Q53 — the nesting premise: a shared event_ticker is not a strike ladder
+# --------------------------------------------------------------------------- #
+# Titles copied verbatim from committed `tape/universe_sweep/` so a Kalshi wording change
+# reds these on purpose rather than silently weakening the guard.
+_NAVONE = "Will Mariano Navone win at least 2.5 more games than Jan-Lennard Struff?"
+_STRUFF = "Will Jan-Lennard Struff win at least 1.5 more games than Mariano Navone?"
+_NAVONE_DEEP = "Will Mariano Navone win at least 5.5 more games than Jan-Lennard Struff?"
+
+
+def test_monotonicity_refuses_two_subjects_packed_into_one_event():
+    """THE Q53 repair. Both legs are fillable and the crossing clears the fee floor, so every
+    pre-L291 guard passes it — and it is still not an arb, because YES(Navone by >= 2.5) +
+    NO(Struff by >= 1.5) pays nothing guaranteed. Refused, and counted as a CROSS-SUBJECT
+    refusal rather than an unverifiable one: the scanner proved they are different subjects."""
+    members = [
+        _mk_market("KXATPGSPREAD-26JUL22STRNAV-STR2", "KXATPGSPREAD-26JUL22STRNAV", "greater",
+                   0.40, no_ask=0.55, floor_strike=1.5, title=_STRUFF),
+        _mk_market("KXATPGSPREAD-26JUL22STRNAV-NAV3", "KXATPGSPREAD-26JUL22STRNAV", "greater",
+                   0.30, no_ask=0.55, floor_strike=2.5, title=_NAVONE),
+    ]
+    refusals = sweep.new_refusal_ledger()
+    assert sweep.check_monotonicity("KXATPGSPREAD-26JUL22STRNAV", members, "greater",
+                                    refusals=refusals) == []
+    assert refusals[sweep.REFUSAL_CROSS_SUBJECT_PAIR] == 1
+    assert refusals[sweep.REFUSAL_SUBJECT_UNVERIFIABLE] == 0
+    assert refusals[sweep.REFUSAL_UNFILLABLE_LEG] == 0    # both legs were real, buyable asks
+
+
+def test_monotonicity_still_flags_the_genuine_ladder_inside_that_same_event():
+    """The guard must not be a blanket refusal of hard events: the SAME event holds a real
+    nested pair on ONE player (Navone by >= 5.5 implies Navone by >= 2.5). Anything that
+    refuses this deletes a real arb, which is the other half of the error budget."""
+    members = [
+        _mk_market("KXATPGSPREAD-26JUL22STRNAV-NAV3", "KXATPGSPREAD-26JUL22STRNAV", "greater",
+                   0.30, no_ask=0.55, floor_strike=2.5, title=_NAVONE),
+        _mk_market("KXATPGSPREAD-26JUL22STRNAV-NAV6", "KXATPGSPREAD-26JUL22STRNAV", "greater",
+                   0.10, no_ask=0.55, floor_strike=5.5, title=_NAVONE_DEEP),
+    ]
+    refusals = sweep.new_refusal_ledger()
+    hits = sweep.check_monotonicity("KXATPGSPREAD-26JUL22STRNAV", members, "greater",
+                                    refusals=refusals)
+    assert len(hits) == 1
+    assert hits[0]["outer_ticker"] == "KXATPGSPREAD-26JUL22STRNAV-NAV3"
+    assert hits[0]["subject_identity_reason"] == "numeric_difference_is_strike_attributable"
+    assert refusals[sweep.REFUSAL_CROSS_SUBJECT_PAIR] == 0
+
+
+def test_monotonicity_subject_guard_is_per_pair_not_per_event():
+    """A three-market event holding one player's two rungs plus a second player: exactly one
+    pair survives, two are refused. A per-EVENT guard would throw away the real pair too."""
+    et = "KXATPGSPREAD-26JUL22STRNAV"
+    members = [
+        _mk_market(et + "-STR2", et, "greater", 0.40, no_ask=0.55,
+                   floor_strike=1.5, title=_STRUFF),
+        _mk_market(et + "-NAV3", et, "greater", 0.30, no_ask=0.55,
+                   floor_strike=2.5, title=_NAVONE),
+        _mk_market(et + "-NAV6", et, "greater", 0.10, no_ask=0.55,
+                   floor_strike=5.5, title=_NAVONE_DEEP),
+    ]
+    refusals = sweep.new_refusal_ledger()
+    hits = sweep.check_monotonicity(et, members, "greater", refusals=refusals)
+    assert len(hits) == 1
+    assert (hits[0]["outer_ticker"], hits[0]["inner_ticker"]) == (et + "-NAV3", et + "-NAV6")
+    assert refusals[sweep.REFUSAL_CROSS_SUBJECT_PAIR] == 2
+
+
+def test_monotonicity_refuses_an_untitled_pair_as_UNVERIFIABLE_not_as_an_arb():
+    """A market that publishes no descriptive text cannot prove its own nesting. Refused,
+    and counted in the ignorance bucket — never silently promoted to a flagged arb."""
+    members = [
+        {"ticker": "E-70", "event_ticker": "E", "strike_type": "greater", "floor_strike": 70,
+         "cap_strike": None, "yes_ask_dollars": "0.4000", "no_ask_dollars": "0.6100"},
+        {"ticker": "E-80", "event_ticker": "E", "strike_type": "greater", "floor_strike": 80,
+         "cap_strike": None, "yes_ask_dollars": "0.5500", "no_ask_dollars": "0.4500"},
+    ]
+    refusals = sweep.new_refusal_ledger()
+    assert sweep.check_monotonicity("E", members, "greater", refusals=refusals) == []
+    assert refusals[sweep.REFUSAL_SUBJECT_UNVERIFIABLE] == 1
+    assert refusals[sweep.REFUSAL_CROSS_SUBJECT_PAIR] == 0
+
+
+def test_bracket_arb_refuses_a_ladder_assembled_from_two_subjects():
+    """Check 1's half of the same premise: a partition that bookends the real line and prices
+    under $1 is still not a guaranteed $1 payout if its rungs describe two different cities."""
+    members = _complete_ladder([0.05, 0.30, 0.30, 0.05])
+    members[2]["title"] = "What will the value in Denver be above 60?"
+    refusals = sweep.new_refusal_ledger()
+    assert sweep.check_bracket_arb("E", members, refusals=refusals) is None
+    assert refusals[sweep.REFUSAL_CROSS_SUBJECT_PAIR] == 1
+
+
+def test_bracket_arb_admits_a_real_ladder_whose_rung_labels_move_with_the_strike():
+    """And must NOT refuse the ordinary case, where every rung's label is its own strike."""
+    refusals = sweep.new_refusal_ledger()
+    hit = sweep.check_bracket_arb("E", _complete_ladder([0.05, 0.30, 0.30, 0.05]),
+                                  refusals=refusals)
+    assert hit is not None and hit["edge"] > 0.01
+    assert refusals[sweep.REFUSAL_CROSS_SUBJECT_PAIR] == 0
+    assert refusals[sweep.REFUSAL_SUBJECT_UNVERIFIABLE] == 0
+
+
+def test_subject_guard_runs_after_fillability_so_the_funnel_matches_the_replay():
+    """Ordering is deliberate (see check_monotonicity's docstring): a pair that is BOTH
+    unbuyable and cross-subject is counted once, as unbuyable. That keeps the live ledger's
+    funnel identical to the committed-tape replay's (43,038 -> 43,025 -> 13 -> 0) instead of
+    two decompositions of the same population that never reconcile."""
+    et = "KXATPGSPREAD-26JUL22STRNAV"
+    members = [
+        _mk_market(et + "-STR2", et, "greater", 0.00, no_ask=1.00,
+                   floor_strike=1.5, title=_STRUFF),
+        _mk_market(et + "-NAV3", et, "greater", 0.30, no_ask=0.55,
+                   floor_strike=2.5, title=_NAVONE),
+    ]
+    refusals = sweep.new_refusal_ledger()
+    assert sweep.check_monotonicity(et, members, "greater", refusals=refusals) == []
+    assert refusals[sweep.REFUSAL_UNFILLABLE_LEG] == 1
+    assert refusals[sweep.REFUSAL_CROSS_SUBJECT_PAIR] == 0
+
+
+def test_run_persists_the_two_subject_refusal_counters(tmp_path):
+    et = "KXATPGSPREAD-26JUL22STRNAV"
+    members = [
+        _mk_market(et + "-STR2", et, "greater", 0.40, no_ask=0.55,
+                   floor_strike=1.5, title=_STRUFF),
+        _mk_market(et + "-NAV3", et, "greater", 0.30, no_ask=0.55,
+                   floor_strike=2.5, title=_NAVONE),
+    ]
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path, implication_families=[])
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().strip())
+    assert rec["schema_version"] == "anomaly_sweep.v1"      # additive, no schema break
+    assert rec["n_anomalies"] == 0
+    assert rec["n_cross_subject_pair_refusals"] == 1
+    assert rec["n_subject_unverifiable_refusals"] == 0
+    assert rec["completeness_ok"] is True                   # a refusal is not a failure
+    assert summary["n_cross_subject_pair_refusals"] == 1
+    assert summary["n_subject_unverifiable_refusals"] == 0
+    # every pre-existing field still present and unchanged in meaning
+    for field in ("n_markets_scanned", "n_event_groups", "n_bracket_groups_checked",
+                  "n_monotonicity_groups_checked", "n_implication_pairs_checked",
+                  "n_unfillable_leg_refusals", "n_residue_edge_refusals", "anomalies",
+                  "fetch_error", "markets_truncated", "completeness_ok", "raw_sha256"):
+        assert field in rec
+
+
+def test_new_refusal_ledger_carries_all_four_reasons():
+    assert sweep.new_refusal_ledger() == {
+        sweep.REFUSAL_UNFILLABLE_LEG: 0, sweep.REFUSAL_RESIDUE_EDGE: 0,
+        sweep.REFUSAL_CROSS_SUBJECT_PAIR: 0, sweep.REFUSAL_SUBJECT_UNVERIFIABLE: 0,
+    }
+
+
+def test_checks_still_work_without_a_refusal_ledger():
+    """Back-compat: `refusals` stays optional, so an external caller that predates the ledger
+    keeps working (it just cannot see why nothing was flagged)."""
+    et = "KXATPGSPREAD-26JUL22STRNAV"
+    members = [
+        _mk_market(et + "-STR2", et, "greater", 0.40, no_ask=0.55,
+                   floor_strike=1.5, title=_STRUFF),
+        _mk_market(et + "-NAV3", et, "greater", 0.30, no_ask=0.55,
+                   floor_strike=2.5, title=_NAVONE),
+    ]
+    assert sweep.check_monotonicity(et, members, "greater") == []
+
+
+# --------------------------------------------------------------------------- #
 # acceptance — replay of ALL committed `tape/anomalies/` through the new guards
 #
 # HARD assertions over a CLOSED window (ACCEPTANCE_MAX_DAY), which is what makes them
@@ -533,9 +712,14 @@ _ANOMALIES_DIR = REPO_ROOT / "tape" / "anomalies"
 
 
 def _replay_committed_monotonicity_anomalies():
-    """Every committed `cross_strike_monotonicity` record, re-scored by today's guards."""
+    """Every committed `cross_strike_monotonicity` record, re-scored by today's guards, in
+    the SAME funnel order the live scanner uses: fillability -> edge materiality -> subject
+    identity. `survivors` is the population after the two PRICE guards (L290's published 13);
+    `final_survivors` is what is left after the L291 nesting guard (Q53)."""
     total = n_unfillable = n_residue = n_recompute_disagreements = 0
+    n_subject_cross = n_subject_unverifiable = 0
     survivors = []
+    final_survivors = []
     for path in sorted(_ANOMALIES_DIR.glob("dt=*.jsonl")):
         if path.name[len("dt="):-len(".jsonl")] > ACCEPTANCE_MAX_DAY:
             continue
@@ -557,8 +741,24 @@ def _replay_committed_monotonicity_anomalies():
                     n_residue += 1
                     continue
                 survivors.append((an["outer_ticker"], an["inner_ticker"], outer, inner))
+                # The persisted record carries ONLY tickers — no title, no strike bounds —
+                # because the scanner did not record why it believed the pair was nested.
+                # Replaying it therefore cannot prove subject identity, and the honest
+                # verdict is UNVERIFIABLE, not a retroactive guess either way.
+                verdict, _ = same_subject({"ticker": an["outer_ticker"]},
+                                          {"ticker": an["inner_ticker"]})
+                if verdict == SUBJECT_UNVERIFIABLE:
+                    n_subject_unverifiable += 1
+                elif verdict != SUBJECT_PROVEN_SAME:
+                    n_subject_cross += 1
+                else:
+                    final_survivors.append(
+                        (an["outer_ticker"], an["inner_ticker"], outer, inner))
     return {"total": total, "n_unfillable": n_unfillable, "n_residue": n_residue,
-            "n_recompute_disagreements": n_recompute_disagreements, "survivors": survivors}
+            "n_recompute_disagreements": n_recompute_disagreements, "survivors": survivors,
+            "n_subject_cross_subject": n_subject_cross,
+            "n_subject_unverifiable": n_subject_unverifiable,
+            "final_survivors": final_survivors}
 
 
 @pytest.fixture(scope="module")
@@ -597,15 +797,37 @@ def test_acceptance_only_thirteen_records_survive_both_guards(replay):
     assert len(set(replay["survivors"])) == 7                # distinct (pair, price) rows
 
 
-def test_acceptance_every_survivor_is_a_cross_entity_pair_not_a_nested_ladder(replay):
-    """THE second finding (2026-08-06): after the $0.00 legs are gone, 100% of what is left
-    is a premise failure, not an arb. `check_monotonicity` assumes markets sharing an
-    event_ticker + strike_type are nested strikes on ONE underlying; Kalshi also packs
-    MULTIPLE SUBJECTS into one event (two players' game spreads, two batters' props, several
-    cities' rain). Buying YES(subject A) + NO(subject B) is a naked directional bet, not a
-    guaranteed >= $1 payout. Pinned as a REGRESSION TARGET: when the nesting premise is
-    repaired (queue item Q53) this list must shrink to zero, and this test must be updated in
-    the same commit that repairs it."""
+def test_acceptance_no_survivor_remains_once_the_nesting_premise_is_ENFORCED(replay):
+    """Q53's regression target, now at ZERO. Before this commit, 13 records / 6 ticker pairs
+    survived both price guards, and 100% of them paired two DIFFERENT SUBJECTS under one
+    `event_ticker` (L291): two tennis players' game spreads, three batters' props, three
+    cities' rain markets. `check_monotonicity` sorted them by floor/cap strike as if they
+    were rungs of one ladder, so buying YES(subject A) + NO(subject B) was recorded as a
+    guaranteed >= $1 payout when it is a naked directional bet.
+
+    Read the mechanism honestly, because it is not "the guard proved these 6 pairs are
+    cross-subject": a committed anomaly record persists only `outer_ticker`/`inner_ticker`,
+    with no title and no strike bounds, so the replay CANNOT prove or disprove subject
+    identity from the tape. All 13 are therefore refused as UNVERIFIABLE — absence of
+    evidence, recorded as such. That is the correct verdict for a record that never wrote
+    down why it believed its own premise, and it is why every anomaly flagged from now on
+    carries a `subject_identity_reason` field. The proof that the guard genuinely SEPARATES
+    these classes is fixture-side (`test_monotonicity_refuses_two_subjects_packed_into_one_event`
+    admits the real within-player ladder in the same event) and corpus-side
+    (`tests/test_subject_identity.py`: 0 false admits over 2,364 labeled cross-subject pairs,
+    0 false refusals over 34,334 genuine-ladder pairs).
+    """
+    assert replay["final_survivors"] == []
+    assert replay["n_subject_unverifiable"] == 13
+    assert replay["n_subject_cross_subject"] == 0     # unprovable from tickers alone, not 0-by-luck
+    assert (replay["n_subject_unverifiable"] + replay["n_subject_cross_subject"]
+            + len(replay["final_survivors"])) == len(replay["survivors"])
+
+
+def test_acceptance_the_pre_repair_survivor_population_is_still_six_cross_subject_pairs(replay):
+    """The historical population L291 measured, kept as a named record of WHAT the premise
+    failure looked like. These six pairs are the reason `core/subject_identity.py` exists;
+    the test above is the reason they no longer reach the tape."""
     pairs = sorted({s[:2] for s in replay["survivors"]})
     assert pairs == sorted([
         # two different tennis players' game-spread markets in one event
@@ -621,7 +843,6 @@ def test_acceptance_every_survivor_is_a_cross_entity_pair_not_a_nested_ladder(re
         ("KXRAIN-26JUL23-NYC", "KXRAIN-26JUL23-NOLA"),
         ("KXRAIN-26JUL23-NYC", "KXRAIN-26JUL23-DEN"),
     ])
-    # every survivor pair names two DIFFERENT subjects (entity/city), never one strike ladder
     for outer, inner in pairs:
         assert outer != inner
 
@@ -631,5 +852,7 @@ def test_acceptance_the_scanner_has_never_recorded_a_verified_fillable_arb(repla
     needs the two-agent rule): 43,038 recorded anomalies over 26 committed capture-days ->
     43,025 unbuyable legs -> 13 cross-subject false positives -> ZERO verified fillable
     arbs."""
-    survivors_that_are_nested_ladders = 0   # measured above: none of the 13 are
-    assert survivors_that_are_nested_ladders == 0
+    assert replay["total"] == 43038
+    assert replay["n_unfillable"] == 43025
+    assert len(replay["survivors"]) == 13
+    assert replay["final_survivors"] == []    # nothing survives all three guards
