@@ -46,6 +46,49 @@ families:
       2026 ends 2026-07-19, after which this family stops generating live pairs (its own
       markets settle/purge).
 
+  # LOOP-QUEUE Q55 milestone 2 (2026-08-06): a LIVE, non-time-boxed-closed family, added
+  # so S15's 60-day kill clause has a real window to fire in (KXWCROUND alone was
+  # unfireable for weeks after the 2026-07-19 World Cup close, per L296).
+  - id: kxmarmadround_progression
+    kind: round_progression
+    series: KXMARMADROUND
+    # Confirmed live 2026-08-06 via GET /markets?series_ticker=KXMARMADROUND&status=open:
+    # 560 markets, ticker grammar KXMARMADROUND-<round_raw>-<entity>, e.g.
+    # KXMARMADROUND-27R32-DUKE / -27F4-DUKE / -27T2-DUKE. round_raw's suffix (after the
+    # leading 2-digit year token) is alphanumeric (R32/R16/R8 carry digits, unlike
+    # KXWCROUND's QUAR/SEMI/FINAL), and one entity code observed live is hyphenated
+    # (L-IL, Loyola Chicago) -- both need a wider char class than the KXWCROUND family's.
+    ticker_regex: '^(?P<series>[A-Z0-9]+)-(?P<round_raw>\d{2}[A-Z0-9]+)-(?P<entity>[A-Z0-9-]+)$'
+    round_order_raw_suffix_to_rank:
+      R32: 1
+      R16: 2
+      R8: 3
+      F4: 4
+      T2: 5
+    audit: >
+      Read live 2026-08-06 via GET /markets/{ticker} rules_primary text for one team
+      (Duke) across all 5 rounds: "If Duke qualifies for the 2027 Men's College
+      Basketball Round of 32/Round of 16/Round of 8/Semifinals/Championship Game, then
+      the market resolves to Yes" -- identical phrasing shape and settlement source
+      (the 2027 NCAA Division I Men's Basketball Championship, a single-elimination
+      68-team bracket) across every round, confirmed for a second team (Loyola Chicago,
+      the hyphenated L-IL code) at Round of 32. For a fixed team, qualifying for the
+      Championship Game (T2) is a strict superset of qualifying for the Semifinals (F4)
+      is a strict superset of Round of 8 is a strict superset of Round of 16 is a strict
+      superset of Round of 32 -- a single-elimination bracket cannot let a team skip a
+      round, so no settlement-term mismatch is possible within one entity/series (the
+      same argument that grounds kxwcround_progression above). Not time-boxed: these are
+      2027-tournament futures, close_time 2027-05-02 -- about 9 months out from this
+      audit, so the 60-day kill window this family exists to unblock (L296 / Q55) has
+      room to actually run, unlike KXWCROUND which stopped generating pairs the week
+      after S15's registration. First live dry-run (offline, against a direct
+      series_ticker=KXMARMADROUND fetch, not the capped whole-universe sweep) generated
+      1120 pairs from the 560 open markets (112 entities x C(5,2)=10 round-pairs each);
+      the number `anomaly_sweep.py`'s own capped pass actually reports on a real run may
+      be lower if KXMARMADROUND isn't fully within that pass's 20,000-market cap (the
+      exact truncation risk L296/milestone-1's `scanned_tickers` fields exist to make
+      visible, not a new problem this family introduces).
+
   # Deliberately left empty for now: Q11's own illustrative second example ("wins
   # presidency" ⇒ "wins nomination") needs its own per-pair rules-text audit before
   # it can be added -- no matching Kalshi series confirmed live yet. Add as a `kind:

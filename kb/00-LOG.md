@@ -6,6 +6,69 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-06 ~15:0x-15:5x UTC — research loop: Q55 milestone 2 — `KXMARMADROUND` gives `implication_pairs.yaml` its first LIVE, non-time-boxed-closed family
+
+**What happened.** Picked up Q55 milestone 2 where milestone 1 (this run's own log entry just
+below) left it: `config/implication_pairs.yaml` had exactly one `round_progression` family,
+`kxwcround_progression`, and it stopped generating pairs the week after the 2026-07-19 World
+Cup closed — so S15's "kill if 0 fee-clearing hits in 60 days" clause has been silently
+unfireable for weeks (L296). Searched Kalshi's live `/series` listing for another currently-open
+single-elimination bracket with the same "does `<entity>` reach round `<X>`" shape, and found
+`KXMARMADROUND` (2027 NCAA Men's Basketball Championship qualification futures): 560 open
+markets, 112 teams x 5 rounds (Round of 32 / Round of 16 / Round of 8 / Semifinals /
+Championship Game), `close_time` 2027-05-02 — about 9 months out, plenty of runway for a real
+60-day window.
+
+**Audit.** Read `rules_primary` live for 2 teams (Duke, and the one hyphenated entity code
+`L-IL` / Loyola Chicago) across all 5 rounds: identical phrasing shape and settlement source
+per round ("If `<team>` qualifies for the 2027 Men's College Basketball `<round>`, then the
+market resolves to Yes"), one single-elimination 68-team bracket, so the same nesting argument
+`kxwcround_progression` already relies on holds — a team cannot skip a round, so reaching a
+later round is a strict superset of reaching every earlier one.
+
+**What changed.** Added `kxmarmadround_progression` to `config/implication_pairs.yaml`. Its
+`ticker_regex` needed a wider character class than the World Cup family's: `round_raw`'s suffix
+carries digits (`R32`/`R16`/`R8`, not just letters like `QUAR`/`SEMI`/`FINAL`), and the
+`L-IL` entity code is hyphenated. Both are now regression-pinned. 5 new tests in
+`tests/test_anomaly_sweep.py` exercise the REAL committed config (not just a synthetic
+fixture): both families load with compilable regexes, the new regex parses the
+alphanumeric-round/hyphenated-entity ticker shapes, full pair generation is C(5,2)=10 pairs per
+entity, and a synthetic real-priced crossing is correctly flagged.
+
+**The number this milestone exists to make honest.** Milestone 1's own text asked for the new
+family's generated-pair count on its first live pass, "so '0 pairs checked' cannot recur
+silently for a different reason." Two numbers, deliberately kept distinct: (1) an offline
+dry-run fetching `KXMARMADROUND` directly (bypassing the capped whole-universe sweep) generated
+the expected **1,120 pairs** from all 560 open markets — proof the family itself is correctly
+wired. (2) The first REAL `scripts/anomaly_sweep.py` live pass, committed to
+`tape/anomalies/dt=2026-08-06.jsonl`, reports **`n_implication_pairs_checked: 0`**,
+`markets_truncated: true` — the 20,000-market default cap's cursor was unexhausted before
+reaching `KXMARMADROUND` in that pass's ordering. This is exactly the truncation risk
+milestone 1's `scanned_tickers_sha256`/`n_distinct_tickers_scanned` fields were built to make
+diagnosable rather than silent: today's "0 pairs checked" is a coverage artifact, not a dead
+family — the opposite of `kxwcround_progression`'s eventual fate, and now distinguishable from
+it on-record instead of by memory.
+
+**Verdict class:** none. Config/collector-curation addition, no registry flip, no bootstrap CI,
+no kill decision — two-agent rule N/A per this item's own milestone-1 precedent
+(L104/L110/L118/L126/L127/L137).
+
+Gates taken fresh after the last code edit: `pytest` → **3,239 passed, 0 failed** (4682.95s /
+1:18:02, full suite); `python3 scripts/invariants.py --full` → exit **0**, all green, same
+non-gating advisories as the prior run (none newly introduced by this diff). Step 9:
+`execution/strategy_api.SHADOW_REGISTRY` carries one shadow (`s14_ladder_underwriting`);
+`scripts/paper_pass.py` replay is idempotent over currently committed tape — realized P&L
+unchanged at **$+27.76**, 0 new ledger lines.
+
+Files: `config/implication_pairs.yaml`, `tests/test_anomaly_sweep.py`,
+`tape/anomalies/dt=2026-08-06.jsonl`, `LOOP-QUEUE.md`.
+
+**Next:** Q55 is now fully DONE (both milestones). The S3/S15 same-digest-across-passes
+comparison milestone 1 named, or a future run giving `anomaly_sweep.py` a way to bias its
+cursor toward under-scanned series (so families like `KXMARMADROUND` aren't perpetually at the
+mercy of pagination order) would be the natural next step toward an actual S15 kill/no-kill
+verdict.
+
 ## 2026-08-06 ~12:3x-13:3x UTC — research loop: Q55 milestone 1 — per-pass scanned-ticker coverage digest lands in `anomaly_sweep.py`
 
 **What happened.** Picked Q55, the topmost genuinely eligible TODO item (Q0-Q54's topmost
