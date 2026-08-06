@@ -145,6 +145,24 @@ def _fetch_all_open_markets_raw(client: Kalshi, limit: Optional[int] = None
     return markets, raw_pages, truncated
 
 
+def scanned_tickers_digest(markets: List[Dict[str, Any]]) -> Tuple[int, str]:
+    """(n_distinct_tickers, sha256 digest of the sorted-unique ticker list) — Q55 milestone 1.
+
+    A capped pass's `n_markets_scanned` alone can't answer "was this the SAME ~20,000
+    markets every truncated pass, or a rotating slice?" (L296: 247/248 committed
+    `tape/anomalies/` passes are `markets_truncated`, with no record of WHICH tickers were
+    actually scanned, so "0 arbs in 26 days" can't be turned into a rate — the population
+    it was measured against is unknown). Persisting the FULL ticker list would bloat every
+    record (~20,000 tickers/pass); a content-hash of the sorted-unique set is enough to let
+    a future replay tell identical-population passes from rotating-population passes without
+    the bloat — matching pass-to-pass digests mean the truncation cap is re-scanning the same
+    population, not sampling a wider one, which is itself the honest denominator finding.
+    De-duplicated (`set`) so a ticker appearing twice in one pull can't silently double-count
+    the population."""
+    tickers = sorted({m.get("ticker", "") for m in markets})
+    return len(tickers), sha256_hex(canonical_json(tickers))
+
+
 def _group_by_event(markets: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for m in markets:
@@ -490,10 +508,17 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
     # signals — a capped sweep isn't a fetch failure, but it isn't "swept everything"
     # either; both surface, neither is silently absorbed into the other.
     completeness_ok = fetch_error is None
+    n_distinct_tickers_scanned, scanned_tickers_sha256 = scanned_tickers_digest(markets)
     record = {
         "schema_version": "anomaly_sweep.v1",
         "capture_id": capture_id, "captured_at": captured_at, "venue": "kalshi",
         "n_markets_scanned": len(markets),
+        # Additive (2026-08-06, Q55 milestone 1): the true per-pass coverage population,
+        # content-addressed rather than fully enumerated (see scanned_tickers_digest). Lets a
+        # replay compute the real denominator behind "0 arbs in N passes" instead of assuming
+        # platform-wide scope from a capped, cursor-ordered pull. No existing field changed.
+        "n_distinct_tickers_scanned": n_distinct_tickers_scanned,
+        "scanned_tickers_sha256": scanned_tickers_sha256,
         "n_event_groups": len(groups),
         "n_bracket_groups_checked": n_bracket_groups_checked,
         "n_monotonicity_groups_checked": n_monotonicity_groups_checked,
@@ -538,6 +563,8 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
     return {
         "capture_id": capture_id, "day": day, "captured_at": captured_at,
         "n_markets_scanned": len(markets), "n_anomalies": len(anomalies),
+        "n_distinct_tickers_scanned": n_distinct_tickers_scanned,
+        "scanned_tickers_sha256": scanned_tickers_sha256,
         "n_unfillable_leg_refusals": refusals[REFUSAL_UNFILLABLE_LEG],
         "n_residue_edge_refusals": refusals[REFUSAL_RESIDUE_EDGE],
         "n_cross_subject_pair_refusals": refusals[REFUSAL_CROSS_SUBJECT_PAIR],

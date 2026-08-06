@@ -678,6 +678,65 @@ def test_run_persists_the_two_subject_refusal_counters(tmp_path):
         assert field in rec
 
 
+def test_scanned_tickers_digest_dedupes_and_ignores_order():
+    a = [_mk_market("X-1", "E", "greater", 0.5, floor_strike=1),
+         _mk_market("X-2", "E", "greater", 0.5, floor_strike=2)]
+    b = list(reversed(a)) + [_mk_market("X-1", "E", "greater", 0.5, floor_strike=1)]  # dup
+    n_a, digest_a = sweep.scanned_tickers_digest(a)
+    n_b, digest_b = sweep.scanned_tickers_digest(b)
+    assert n_a == n_b == 2
+    assert digest_a == digest_b
+
+
+def test_scanned_tickers_digest_changes_with_the_population():
+    a = [_mk_market("X-1", "E", "greater", 0.5, floor_strike=1)]
+    b = [_mk_market("X-2", "E", "greater", 0.5, floor_strike=1)]
+    _, digest_a = sweep.scanned_tickers_digest(a)
+    _, digest_b = sweep.scanned_tickers_digest(b)
+    assert digest_a != digest_b
+
+
+def test_scanned_tickers_digest_of_empty_pass_is_deterministic():
+    n, digest = sweep.scanned_tickers_digest([])
+    assert n == 0
+    assert digest == sweep.scanned_tickers_digest([])[1]
+
+
+def test_run_persists_the_scanned_tickers_coverage_digest(tmp_path):
+    members = [_mk_market("A-1", "A", "greater", 0.5, no_ask=0.5, floor_strike=10),
+               _mk_market("A-2", "A", "greater", 0.3, no_ask=0.7, floor_strike=20)]
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path)
+    expect_n, expect_digest = sweep.scanned_tickers_digest(members)
+    assert summary["n_distinct_tickers_scanned"] == expect_n == 2
+    assert summary["scanned_tickers_sha256"] == expect_digest
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    assert rec["n_distinct_tickers_scanned"] == expect_n
+    assert rec["scanned_tickers_sha256"] == expect_digest
+    # pre-existing fields untouched by the addition
+    assert rec["n_markets_scanned"] == 2
+
+
+def test_run_two_passes_over_the_same_population_share_a_digest(tmp_path):
+    """The honest denominator finding this milestone unblocks: if a capped pass keeps
+    re-scanning the SAME population pass after pass, the digest says so directly instead of
+    requiring a future analyst to assume it from equal `n_markets_scanned` counts alone —
+    and a differently-populated pass (next test) proves the digest actually discriminates."""
+    members = [_mk_market("A-1", "A", "greater", 0.5, no_ask=0.5, floor_strike=10),
+               _mk_market("A-2", "A", "greater", 0.3, no_ask=0.7, floor_strike=20)]
+    s1 = sweep.run(client=FakeClient(pages=[members]), tape_dir=tmp_path)
+    s2 = sweep.run(client=FakeClient(pages=[members]), tape_dir=tmp_path)
+    assert s1["scanned_tickers_sha256"] == s2["scanned_tickers_sha256"]
+
+
+def test_run_digest_differs_when_the_scanned_population_differs(tmp_path):
+    m1 = [_mk_market("A-1", "A", "greater", 0.5, no_ask=0.5, floor_strike=10)]
+    m2 = [_mk_market("A-2", "A", "greater", 0.5, no_ask=0.5, floor_strike=10)]
+    s1 = sweep.run(client=FakeClient(pages=[m1]), tape_dir=tmp_path)
+    s2 = sweep.run(client=FakeClient(pages=[m2]), tape_dir=tmp_path)
+    assert s1["scanned_tickers_sha256"] != s2["scanned_tickers_sha256"]
+
+
 def test_new_refusal_ledger_carries_all_four_reasons():
     assert sweep.new_refusal_ledger() == {
         sweep.REFUSAL_UNFILLABLE_LEG: 0, sweep.REFUSAL_RESIDUE_EDGE: 0,
