@@ -243,7 +243,7 @@ An earlier draft of the S15 finding asserted a *chronology* — that check 3 and
 shipped on 2026-08-02, after the World Cup ended — derived from `git log -S`. **That inference
 was wrong and is withdrawn.** This working copy is a **shallow clone** (50 commits, earliest
 2026-08-02), so `git log -S` reports the truncation boundary, not the fact. Every S15 claim above
-is derived from committed tape and config text only. The failure mode is now L294.
+is derived from committed tape and config text only. The failure mode is now L297.
 
 ---
 

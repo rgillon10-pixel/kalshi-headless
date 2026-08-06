@@ -6,7 +6,7 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
-## 2026-08-06 (UTC afternoon) — research loop: **Q53** — a shared `event_ticker` is not a strike ladder, repaired and MEASURED (L292/L293/L294)
+## 2026-08-06 (UTC afternoon) — research loop: **Q53** — a shared `event_ticker` is not a strike ladder, repaired and MEASURED (L295/L296/L297)
 
 **Item.** Q53, the only eligible TODO on the launching session's full Q0-Q53 rescan (everything else DONE / cred-BLOCKED / density-inadequate / dead-or-superseded / time-gated). A correctness repair to `scripts/anomaly_sweep.py::check_monotonicity`, the repo's oldest live scanner, plus the S3/S15 verdict it unlocks.
 
@@ -22,11 +22,11 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 **Milestone 3 — S3/S15, a DATA-ADEQUACY verdict, not a kill.** Exposure over 26 capture-days / 248 passes: 4,908,300 market-observations, 2,210 monotonicity group-checks, **0** verified fillable arbs -> rule-of-three 95% upper bound **<= 3/26 = 0.115 per capture-day** (unit = capture-day, per L221), corroborated by L287's independent econ screen (0 fillable in 849,958 nested pairs, best -$0.02 net). **Not killable, and the reason is the denominator rather than the numerator:** 247/248 passes are `markets_truncated` at the 20,000-market cap with no scanned-ticker manifest, so platform coverage is unmeasurable and a rate with an unknown denominator falsifies nothing. **S15 is the sharper finding: all 243 committed records carrying `n_implication_pairs_checked` read 0 — that is 0 pairs CHECKED, not 0 hits over N checks**, so its "kill if 0 fee-clearing hits in 60 days" clause can never fire meaningfully. The row's claimed "38 pairs / 40 open markets" validation is not reproducible from tape; the only curated family is time-boxed by its own `audit` field to a World Cup that ended 2026-07-19; and `tape/polymarket_pairs/` holds 48 distinct `KXWCROUND` tickers (07-06..07-14) of which **48/48 match the family's own regex + rank map** — the graph would have generated pairs had they been inside the scanned slice.
 
-**One retraction, recorded rather than quietly dropped (L294).** An earlier draft of the S15 finding dated check 3's introduction to 2026-08-02 from `git log -S`, and read its zero as chronological. That was an artifact: this working copy is a **shallow clone** (50 commits, earliest 2026-08-02, `.git/shallow` present), so `git log -S` reports the graft boundary, not the fact. It was caught before publication by a cross-source contradiction — the S15 row cites a 2026-07-05 live validation, which cannot coexist with a 2026-08-02 introduction — and every S15 claim was re-derived from committed tape and config text only.
+**One retraction, recorded rather than quietly dropped (L297).** An earlier draft of the S15 finding dated check 3's introduction to 2026-08-02 from `git log -S`, and read its zero as chronological. That was an artifact: this working copy is a **shallow clone** (50 commits, earliest 2026-08-02, `.git/shallow` present), so `git log -S` reports the graft boundary, not the fact. It was caught before publication by a cross-source contradiction — the S15 row cites a 2026-07-05 live validation, which cannot coexist with a 2026-08-02 introduction — and every S15 claim was re-derived from committed tape and config text only.
 
 **What was deliberately NOT done.** No registry flip (S3/S15 stay `data-collecting`, PROVISIONAL prose notes only). Nothing wired into `scripts/invariants.py --full` — the property is enforced at the write path itself, so a standing advisory would only re-measure frozen history (the L210/L280/L290 posture). The follow-on repair this run's milestone 3 points at — persist a per-pass scanned event/ticker inventory so the coverage denominator becomes measurable, and give `config/implication_pairs.yaml` a live family — is collector-lane work and needs its own queue item; it was not attempted.
 
-See `findings/2026-08-06-q53-subject-identity-nesting-repair.md`, `kb/lessons/00-lessons.md` L292/L293/L294, `reports/subject_identity_corpus_audit.json`.
+See `findings/2026-08-06-q53-subject-identity-nesting-repair.md`, `kb/lessons/00-lessons.md` L295/L296/L297, `reports/subject_identity_corpus_audit.json`.
 
 ---
 
