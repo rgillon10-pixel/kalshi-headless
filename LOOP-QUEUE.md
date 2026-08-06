@@ -2377,12 +2377,83 @@ build note warns against — prefer a structural confirmation (title/subtitle su
 the ladder's own strike-grammar), and say plainly which the implementation actually uses.
 (2) Wire it into `check_monotonicity` behind the same counted-refusal discipline the L290 guard
 uses (a new refusal key, persisted, additive to `anomaly_sweep.v1`), and update
-`tests/test_anomaly_sweep.py::test_acceptance_every_survivor_is_a_cross_entity_pair_not_a_nested_ladder`
-in the SAME commit — that pin exists to go to zero. (3) ONLY THEN is an S3/S15 verdict on the
+`tests/test_anomaly_sweep.py::test_acceptance_no_survivor_remains_once_the_nesting_premise_is_ENFORCED`
+in the SAME commit — that pin exists to go to zero. (Citation repaired 2026-08-06 per L205 when
+this milestone landed and renamed the pin; it was written as
+`test_acceptance_every_survivor_is_a_cross_entity_pair_not_a_nested_ladder`.) (3) ONLY THEN is an S3/S15 verdict on the
 table: 26 committed capture-days with zero verified fillable arbs is a frequency observation,
 and turning it into a kill requires the two-agent rule (producer + independent `verifier`).
 **Not blocked on anything.** Offline-testable end to end over committed tape; no network, no
 credentials, no execution lane.
+Status: MILESTONES 1-2 DONE, MILESTONE 3 DELIVERED AS A **PROVISIONAL DATA-ADEQUACY VERDICT**
+(2026-08-06, research loop, main-context build — the harness exposed no `Task`/subagent tool, so
+no independent `verifier` was dispatchable and NO registry status was flipped; the L287/L288/
+L290/L291 precedent). **(1) Built `core/subject_identity.py`** — three-valued
+(`PROVEN_SAME_SUBJECT` / `DIFFERENT_SUBJECT` / `UNVERIFIABLE`, the last two both REFUSALS at the
+call site, because nesting must be proven and not merely un-disproven). It reads the market's own
+`title`/`subtitle`/`yes_sub_title` anchored to its own `floor_strike`/`cap_strike` and parses **no
+ticker suffix at all**; verdict = text-SKELETON equality (which is what discriminates — subjects
+differ in WORDS) AND every differing numeric token explainable by a SHARED offset
+`a_token == a_strike + d`, `b_token == b_strike + d`. The offset is real and non-zero on tape
+(`KXHIGHNY-...-T96` publishes `97° or above`, **+1**; `KXTEMPNYCH-...-T81.99` publishes
+`82° or above`, **+0.01**; `KXCPICORE` publishes `0.3` for `floor_strike 0.3`, **0**) — a
+label==strike rule would refuse EVERY weather ladder on committed tape, the KXFEDDECISION
+'>25bps as 26' trap one family over. **Both error rates, closed window `dt <= 2026-08-04`,
+exhaustive (0 classes sampled), via `scripts/subject_identity_corpus_audit.py` ->
+`reports/subject_identity_corpus_audit.json`: FALSE-REFUSE 0 / 34,334** genuine-ladder
+monotonicity-shaped pairs (econ_prints 2,348/0, weather_books 31,986/0; crypto_hourly contributes
+0 pairs BY CONSTRUCTION — one `greater` + one `less` per event — reported, not hidden in a total)
+and **FALSE-ADMIT 0 / 2,364** pairs a ground-truth player-name regex (computed independently of
+the predicate) labels cross-subject, with **0 / 151** false refusals of the genuine within-player
+ladders sitting in the SAME events. Platform-wide over 1,190,426 `tape/universe_sweep/`
+within-event pairs: 932,965 (78.37%) decided-refuse, **15** decided-admit — all 15 verified
+CORRECT (`KXATPGTOTAL` total-games rungs of one match) — 257,446 (21.63%) INDETERMINATE because
+that family persists no strike fields, a corpus limit enumerated (24,094 skeletons, dominated by
+`KXMVE*` parlays that carry no `strike_type` and by genuine `KXGOLDH`/`KXSILVERH`/`KXWTIH`
+ladders) rather than assumed away. The measurement forced a design change: scoring a whole MECE
+ladder on the sub-title refuses **880/1,591 (55.3%)** genuine single-city weather ladders, since
+one city's ladder carries three sub-title GRAMMARS — hence `DESCRIPTIVE_FIELDS` (same
+`strike_type`) vs `SUBJECT_FIELDS_CROSS_STRIKE_TYPE` (title only, cross-type). **(2) Wired** into
+`check_monotonicity` AND `check_bracket_arb` behind L290's counted-refusal discipline: two new
+keys `n_cross_subject_pair_refusals` / `n_subject_unverifiable_refusals` (additive to
+`anomaly_sweep.v1`, no existing field changed, kept SEPARATE so 'provably different things' can
+never be misread as 'could not tell'), plus a new `subject_identity_reason` on every flagged
+anomaly so a future replay can audit why a premise was accepted. The guard runs LAST in
+`check_monotonicity` so the live ledger's funnel matches the published replay exactly. Committed
+replay now runs **43,038 -> 43,025 unbuyable -> 13 -> 0**, and
+the pin formerly named `test_acceptance_every_survivor_is_a_cross_entity_pair_not_a_nested_ladder`
+(bare name on purpose — it no longer exists, so a node-id citation here would dangle, L205) was
+replaced in the SAME commit by
+`tests/test_anomaly_sweep.py::test_acceptance_no_survivor_remains_once_the_nesting_premise_is_ENFORCED` (the 6 named pairs
+are retained beside it as the historical population). Read the mechanism honestly: a committed
+anomaly record persists only tickers, so the replay CANNOT prove subject identity from tape and
+all 13 are refused as `UNVERIFIABLE` — the discrimination proof is fixture-side and corpus-side.
+**(3) Milestone 3 — S3/S15 DATA-ADEQUACY verdict, PROVISIONAL, no registry flip.** Exposure over
+26 capture-days / 248 passes: 4,908,300 market-observations, 2,210 monotonicity group-checks, 0
+verified fillable arbs -> rule-of-three 95% bound <= 3/26 = **0.115 per capture-day**;
+corroborated by L287's independent econ screen (0 fillable in 849,958 nested pairs, best
+-$0.02 net). **Not killable — the denominator, not the numerator:** 247/248 passes are
+`markets_truncated` at the 20,000 cap with no scanned-ticker manifest, so platform coverage is
+unmeasurable. **S15 is worse and is the sharper finding: all 243 records carrying
+`n_implication_pairs_checked` read 0 — that is 0 pairs CHECKED, not 0 hits over N checks**, so its
+'kill if 0 hits in 60 days' clause can never fire; the row's claimed '38 pairs / 40 open markets'
+validation is not reproducible from tape, its only family is time-boxed to a World Cup that ended
+2026-07-19, and `tape/polymarket_pairs/` holds 48 `KXWCROUND` tickers (07-06..07-14) of which
+48/48 match the family's own regex — the graph would have generated pairs had they been in the
+scanned slice. **A retraction is recorded in the finding rather than quietly dropped:** an earlier
+draft dated check 3's introduction from `git log -S`, which is an artifact of this working copy
+being a SHALLOW clone (50 commits, earliest 2026-08-02, `.git/shallow` present) — caught before
+publication by a cross-source contradiction with the S15 row's own 2026-07-05 date, now L294.
+New lessons **L292** (the repair + both error rates + the label-offset trap + the field-set
+split), **L293** (`n_hits == 0` vs `n_candidates_checked == 0`; the S3/S15 denominator), **L294**
+(shallow-clone git archaeology). Files: `core/subject_identity.py`,
+`scripts/subject_identity_corpus_audit.py`, `reports/subject_identity_corpus_audit.json`,
+`tests/test_subject_identity.py`, `scripts/anomaly_sweep.py`, `tests/test_anomaly_sweep.py`,
+`findings/2026-08-06-q53-subject-identity-nesting-repair.md`, `kb/lessons/00-lessons.md`,
+`kb/strategies/00-index.md` (S3/S15 prose only — status columns untouched), `kb/00-LOG.md`.
+**Follow-on, NOT attempted here (collector lane, needs its own item):** persist a per-pass scanned
+event/ticker inventory so the coverage denominator becomes measurable, and give
+`config/implication_pairs.yaml` a live family — both are the standing blocker on any S3/S15 kill.
 
 ### Q54 — S79 aggressor-flow continuation taker (signed `taker_book_side` flow) — COLLECT-AND-REVISIT
 Status: REGISTERED idea-stage `collect-and-revisit` (2026-08-06, kalshi-edge-hunter Q21 round #24,
@@ -2448,6 +2519,7 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
+- 2026-08-06T~1x:xx-1x:xxZ (research loop, protocol v3) · **Q53 milestones 1-2 DONE + milestone 3 as a PROVISIONAL DATA-ADEQUACY verdict: `check_monotonicity`'s nesting premise is now PROVEN from the market's own title/sub-title anchored to its own strike, never a ticker suffix — FALSE-REFUSE 0/34,334 genuine-ladder pairs, FALSE-ADMIT 0/2,364 labelled cross-subject pairs, and the committed replay goes 43,038 -> 43,025 unbuyable -> 13 -> 0.** Built `core/subject_identity.py` (three-valued; `UNVERIFIABLE` is a refusal, not a soft yes) + `scripts/subject_identity_corpus_audit.py`; wired into checks 1 AND 2 behind L290's counted-refusal discipline (`n_cross_subject_pair_refusals` / `n_subject_unverifiable_refusals`, additive to `anomaly_sweep.v1`) with a new `subject_identity_reason` on every flagged anomaly; L291's 6-pair regression pin replaced in the same commit and now reads ZERO. Measurement forced a design change (scoring a whole MECE ladder on the sub-title false-refuses 880/1,591 = 55.3% of real weather ladders) and survived the Kalshi label-offset trap (`T96` publishes `97° or above`). **Milestone 3: no kill, and the reason is the denominator** — 247/248 passes are `markets_truncated` with no scanned-ticker manifest, and S15's committed '0' is **0 pairs CHECKED** across all 243 records that carry the counter, so its 60-day kill clause can never fire. **Two-agent rule: NOT satisfiable — this harness exposed no `Task`/subagent tool despite the launching session's brief, so the run fell back to full re-derivation on an independent code path and flipped NO registry status** (S3/S15 stay `data-collecting`, PROVISIONAL prose only). One retraction recorded rather than dropped: an S15 chronology claim from `git log -S` was an artifact of a SHALLOW clone (50 commits, `.git/shallow`), caught pre-publication by a cross-source contradiction -> L294. New lessons L292/L293/L294. Gates fresh after the last edit. Research/docs-only; no network orders, no credentials, `execution/` untouched.
 - 2026-08-06T~00:2x-03:0xZ (research loop, protocol v3) · **IDLE RUN, policy (c): `crypto_hourly` settlement data-quality audit — MECE invariant clean 1,483/1,483, new lesson L289 (self-caught status-vs-value near-miss); step 0b recovered 5,718 stranded lines across 7 families from 3 branches.** Q0-Q52 rescan agreed with 08-05's runs: 0 eligible (Q51 m3 gated 08-10, Q52 data-gated); `n_open_unenforced=4` (L213/L221/L222/L282) all explicitly Ryan-lane/DO-NOT-BUILD per their own rows — policy (a) exhausted; Q51 prep already thorough — policy (b) exhausted. Built `scripts/crypto_hourly_settlement_audit.py` (+16 tests): settlement MECE check 100% clean via `core.settlement.filter_binary_results_map` (own first draft tripped L52/L155's bare-`=="yes"` advisory, fixed same run); cadence 46-50→5.6 passes/day (confirms, doesn't newly diagnose, the already-known VPS/cloud outage); discovery gaps (4.75%) closed after 07-30, zero August recurrence. Step 0b (full sweep, no `--limit`, 231 branches): 3 carried real appendable content (`hourly-20260805T1305Z`/`1615Z`/`2210Z` → crypto_hourly/polymarket_macro_pairs/sports_pairs/orderbook_depth/weather_books/hyperliquid_funding/perp_tape), validated zero-duplicate post-append. Step 9 paper: `s14_ladder_underwriting` idempotent, realized P&L $+27.76 unchanged. Two-agent rule N/A (data-quality, not verdict-class). Rebased onto concurrently-merged PR #299 (econ_prints audit) — lesson renumbered L287→L289 to avoid an ID collision, no content conflict. Gates (fresh, post-rebase): `pytest -q` **3,158 collected, 0 failed** (dot-count-verified floor, summary line lost to a log-capture artifact); `invariants.py --full` exit 0, all green. See `findings/2026-08-06-crypto-hourly-settlement-data-quality-audit.md`, `kb/lessons/00-lessons.md` L289.
 - 2026-08-05T~18:2x-20:1xZ (research loop, protocol v3) · **IDLE RUN, policy (a): repaired L128's own dangling test-citation (flagged by L205 on 2026-07-28, deliberately deferred as a kb-text judgment call for a week).** 6th firing on 2026-08-05; own Q0-Q52 rescan agreed with the day's prior runs: 0 eligible TODO/IN-PROGRESS (Q51 m3 gated 08-10, Q52 data-gated, `n_open_unenforced=4` all Ryan-gated per L213/L221/L222/L282's own rows). Read all 4 of L205's flagged dangling citations and adjudicated: **L128**'s enforcement cell cited a test node id **L134** (2026-07-22) had already renamed (`..._join_stale` → `..._forward_refreshed_catches_freeze_via_stale`) and its "candidate (a) stays OPEN" claim was also stale (L134 closed it) — both corrected in place per the L152 own-row-update rule, lesson text unchanged. The other 3 hits (`kb/00-LOG.md` x2, `findings/2026-07-26-issue-205-...md:11`) are the detector's documented blind spot, not staleness — correct historical narrative of the pre-fix test name — left untouched, `kb/00-LOG.md` append-only by its own header. Live-verified: dangling-citation advisory 4 → 3 hits. Step 0b: newest stranded branch `tape/hourly-20260805T1615Z` (~2h old) carried **643 genuinely missing lines** across 5 families (crypto_hourly +2, hyperliquid_funding +2, perp_tape +17, polymarket_macro_pairs +21, sports_pairs +601), JSON-validated and union-appended, counts matched exactly. Step 9 paper: `s14_ladder_underwriting` idempotent post-append, realized P&L $+27.76 unchanged, no new ledger lines. Two-agent rule N/A (kb-text repair + tape sweep, not verdict-class). Gates (fresh, post-edit): `pytest -q` **3113 passed, 0 failed** (6597.20s / 1:49:57 — slower than the day's earlier runs, CPU-bound throughout, no hang); `invariants.py --full` exit 0, all green. See `kb/00-LOG.md` 2026-08-05 16:1x ET, `kb/lessons/00-lessons.md` (L128, L205).
 - 2026-08-05T~07:20-11:5xZ (research loop, protocol v3) · **IDLE RUN, policy (b): Q51 milestone-3 pre-flight — 08-10 firing clears L41 4x over (44 units/256 legs, not the queue's terminal ~57/~330) AND its own `--build-cache` command would have turned `pytest -q` RED on the gate day (new lesson L284; renumbered from L283 on rebase — PR #295, landed concurrently, claimed L283 first).** Built `scripts/q51_m3_preflight.py` (+20 tests) → `reports/q51_m3_preflight.json`, read-only/offline, no verdict-class output. Repair: byte-identical frozen settlement snapshot `tape/q51_settlement_cache/settlement-m2-2026-08-04.json`, three milestone-2 acceptance tests repointed via `cache_path=`, one new identity test — verified by simulating the 08-10 re-pull and confirming `tests/test_q51_maker_fillsim.py` still 42/42 green, then restoring the live cache byte-identical. Two-agent rule N/A (nothing verdict-class) and not satisfiable (no `Task`/subagent tool in this environment). Step 0b: `scripts/tape_branch_sweep.py` re-run over all 228 stranded `tape/hourly-*`/`tape/burst-*` branches — 0 need recovery (215 fully contained, 13 carry only unappendable git-conflict-marker/non-JSONL junk per L247); all are delete-eligible but `git push origin --delete` 403'd (confirmed live — same permission boundary as pushing to main), so cleanup stays Ryan/VPS-side. Step 9 paper: `s14_ladder_underwriting` idempotent, realized P&L $+27.76 unchanged, no new ledger lines. Gates green (`pytest -q` 3033/3033 pass incl. post-rebase re-run pulling in PR #295's new files; `invariants.py --full` exit 0); pushed directly to `main` (`361cd84e`). See `findings/2026-08-05-q51-m3-preflight-and-firing-hazard.md`, `kb/lessons/00-lessons.md` L284.
