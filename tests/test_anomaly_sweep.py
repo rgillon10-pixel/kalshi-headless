@@ -977,3 +977,94 @@ def test_acceptance_the_scanner_has_never_recorded_a_verified_fillable_arb(repla
     assert replay["n_unfillable"] == 43025
     assert len(replay["survivors"]) == 13
     assert replay["final_survivors"] == []    # nothing survives all three guards
+
+
+# --------------------------------------------------------------------------- #
+# L296 — every check's zero must be persisted with its own denominator
+# --------------------------------------------------------------------------- #
+def test_run_persists_per_check_evidence_with_its_own_denominator(tmp_path):
+    """An end-to-end pass carries `check_evidence` for ALL THREE checks, each pairing the
+    candidate count with that check's OWN hit count — not the aggregate `n_anomalies`, which
+    spans three checks with three different denominators (L296)."""
+    members = _complete_ladder([0.05, 0.30, 0.30, 0.05])
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path)
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+
+    ev = rec["check_evidence"]
+    assert set(ev) == {"bracket_arb", "cross_strike_monotonicity", "cross_event_implication"}
+    for blk in ev.values():
+        assert set(blk) == {"n_candidates_checked", "n_hits", "evidence"}
+
+    # the bracket check fired; its hit count is its own, not the pass total
+    assert ev["bracket_arb"] == {"n_candidates_checked": 1, "n_hits": 1, "evidence": "hits"}
+    # the ladder is less/between/greater so no strike_type has 2 members: nothing was checked
+    assert ev["cross_strike_monotonicity"]["n_candidates_checked"] == 0
+    assert ev["cross_strike_monotonicity"]["evidence"] == "empty_denominator"
+    # no implication family passed in => the check evaluated no pair at all
+    assert ev["cross_event_implication"]["evidence"] == "empty_denominator"
+    assert summary["check_evidence"] == ev
+
+
+def test_run_labels_a_checked_but_clean_pass_as_an_informative_zero(tmp_path):
+    """The distinction that matters: a monotonicity group WAS evaluated and found clean, so
+    this zero is readable — unlike the empty-denominator zero above."""
+    members = [_mk_market("A-1", "A", "greater", 0.30, no_ask=0.70, floor_strike=10),
+               _mk_market("A-2", "A", "greater", 0.20, no_ask=0.80, floor_strike=20)]
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path)
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    ev = rec["check_evidence"]["cross_strike_monotonicity"]
+    assert ev["n_candidates_checked"] == 1
+    assert ev["n_hits"] == 0
+    assert ev["evidence"] == "informative_zero"
+    from core.detector_evidence import zero_is_informative
+    assert zero_is_informative(ev["evidence"]) is True
+    assert zero_is_informative(rec["check_evidence"]["cross_event_implication"]["evidence"]) is False
+
+
+def test_run_evidence_counts_hits_per_check_not_from_the_aggregate(tmp_path):
+    """A pass with a monotonicity crossing must NOT credit those hits to the other two checks
+    — the aggregate `n_anomalies` is exactly the number that made L296's confusion possible."""
+    members = [_mk_market("B-1", "B", "greater", 0.50, no_ask=0.50, floor_strike=10),
+               _mk_market("B-2", "B", "greater", 0.90, no_ask=0.10, floor_strike=20)]
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path)
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    ev = rec["check_evidence"]
+    assert rec["n_anomalies"] >= 1
+    assert ev["cross_strike_monotonicity"]["n_hits"] == rec["n_anomalies"]
+    assert ev["bracket_arb"]["n_hits"] == 0
+    assert ev["cross_event_implication"]["n_hits"] == 0
+
+
+def test_run_evidence_block_is_additive_and_changes_no_existing_field(tmp_path):
+    """`check_evidence` restates pairings the record already carried; the pre-existing scalar
+    counters must still read exactly as before (additive-schema discipline)."""
+    members = _complete_ladder([0.05, 0.30, 0.30, 0.05])
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path)
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    assert rec["schema_version"] == "anomaly_sweep.v1"
+    ev = rec["check_evidence"]
+    assert ev["bracket_arb"]["n_candidates_checked"] == rec["n_bracket_groups_checked"]
+    assert (ev["cross_strike_monotonicity"]["n_candidates_checked"]
+            == rec["n_monotonicity_groups_checked"])
+    assert (ev["cross_event_implication"]["n_candidates_checked"]
+            == rec["n_implication_pairs_checked"])
+    assert sum(b["n_hits"] for b in ev.values()) == rec["n_anomalies"]
+
+
+def test_run_evidence_marks_a_live_implication_family_as_checked(tmp_path):
+    """The Q55 family's own regression guard, one level up: once a family generates pairs, the
+    implication check's zero stops being empty and becomes readable."""
+    members = [
+        _mk_market("KXWCROUND-26FINAL-USA", "KXWCROUND-26FINAL", None, 0.10, no_ask=0.92),
+        _mk_market("KXWCROUND-26QUAR-USA", "KXWCROUND-26QUAR", None, 0.40, no_ask=0.61),
+    ]
+    client = FakeClient(pages=[members])
+    summary = sweep.run(client=client, tape_dir=tmp_path, implication_families=[_WC_FAMILY])
+    rec = json.loads((tmp_path / f"dt={summary['day']}.jsonl").read_text().splitlines()[0])
+    ev = rec["check_evidence"]["cross_event_implication"]
+    assert ev["n_candidates_checked"] >= 1
+    assert ev["evidence"] in ("informative_zero", "hits")

@@ -21,6 +21,15 @@ candidate leg was unquoted must say which of the two it was. The guard cannot co
 a leg with no resting offer cannot be bought at any price. It is also NOT a proof of fillable
 SIZE — `/markets` carries no `*_ask_size` field (see core.pricing's constant block).
 
+**Every zero must carry its own denominator (lesson L296, enforced 2026-08-06).** Each pass
+persists `check_evidence`: per check, the candidate count actually evaluated, the hit count for
+that check alone, and the resulting class from `core.detector_evidence`. Only an
+`informative_zero` (>= 1 candidate checked, 0 hits) may be read as evidence of absence; an
+`empty_denominator` means the check evaluated nothing and its zero says nothing. Check 3
+(`cross_event_implication`) recorded exactly that on 243/243 committed passes carrying the
+counter, while S15's registry row was read as "0 hits" for a month and its own kill clause
+could never fire. The class is also printed to stderr on every pass, so the state is loud.
+
   1. **bracket_arb** — a COMPLETE, mutually-exclusive-and-exhaustive strike ladder under one
      event_ticker (a "less" catch-all + contiguous "between" bands + a "greater" catch-all,
      the same shape Q2 found on KXBTC/KXETH) whose yes_asks sum to less than $1 net of the
@@ -86,7 +95,7 @@ import argparse
 import json
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -94,6 +103,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from core.canonical import canonical_json, sha256_hex
+from core.detector_evidence import evidence_block, summarize_evidence
 from core.io import REPO_ROOT
 from core.pricing import (bracket_sum, fee_per_contract, is_fillable_ask,
                           is_material_arb_edge, monotonicity_crossing_edge, true_arb_edge)
@@ -509,6 +519,23 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
     # either; both surface, neither is silently absorbed into the other.
     completeness_ok = fetch_error is None
     n_distinct_tickers_scanned, scanned_tickers_sha256 = scanned_tickers_digest(markets)
+
+    # Additive (2026-08-06, L296 via core.detector_evidence): pair every check's HIT count with
+    # its OWN candidate denominator, at the write path, and label the pair. `n_hits == 0` and
+    # `n_candidates_checked == 0` are different claims; check 3 recorded the second on 243/243
+    # committed passes while its strategy row was read as the first for a month, which made its
+    # own kill clause unfireable. Hits are counted PER CHECK from each anomaly's `kind` — the
+    # aggregate `n_anomalies` spans three checks with three different denominators, which is the
+    # structural reason that confusion was possible at all.
+    hits_by_kind = Counter(a.get("kind") for a in anomalies)
+    check_evidence = {
+        "bracket_arb": evidence_block(
+            n_bracket_groups_checked, hits_by_kind["bracket_arb"]),
+        "cross_strike_monotonicity": evidence_block(
+            n_monotonicity_groups_checked, hits_by_kind["cross_strike_monotonicity"]),
+        "cross_event_implication": evidence_block(
+            n_implication_pairs_checked, hits_by_kind["cross_event_implication"]),
+    }
     record = {
         "schema_version": "anomaly_sweep.v1",
         "capture_id": capture_id, "captured_at": captured_at, "venue": "kalshi",
@@ -537,6 +564,11 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         # — neither is "the market was clean". No existing field changed shape or meaning.
         "n_cross_subject_pair_refusals": refusals[REFUSAL_CROSS_SUBJECT_PAIR],
         "n_subject_unverifiable_refusals": refusals[REFUSAL_SUBJECT_UNVERIFIABLE],
+        # Additive to anomaly_sweep.v1 (2026-08-06, L296): per-check
+        # {n_candidates_checked, n_hits, evidence}. The existing scalar counters above are
+        # unchanged in shape and meaning; this block only makes their PAIRING explicit, so a
+        # zero can never again be quoted without the denominator that makes it readable.
+        "check_evidence": check_evidence,
         "anomalies": anomalies,
         "fetch_error": fetch_error,
         "markets_truncated": markets_truncated,
@@ -559,6 +591,7 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
           f"{refusals[REFUSAL_CROSS_SUBJECT_PAIR]} refused (cross-subject pair), "
           f"{refusals[REFUSAL_SUBJECT_UNVERIFIABLE]} refused (subject unverifiable), "
           f"completeness {'ok' if completeness_ok else 'FAIL'}")
+    print(f"[anomaly_sweep] evidence: {summarize_evidence(check_evidence)}", file=sys.stderr)
 
     return {
         "capture_id": capture_id, "day": day, "captured_at": captured_at,
@@ -569,6 +602,7 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         "n_residue_edge_refusals": refusals[REFUSAL_RESIDUE_EDGE],
         "n_cross_subject_pair_refusals": refusals[REFUSAL_CROSS_SUBJECT_PAIR],
         "n_subject_unverifiable_refusals": refusals[REFUSAL_SUBJECT_UNVERIFIABLE],
+        "check_evidence": check_evidence,
         "markets_truncated": markets_truncated,
         "completeness_ok": completeness_ok, "path": str(out_path),
     }
