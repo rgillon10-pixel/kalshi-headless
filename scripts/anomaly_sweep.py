@@ -9,6 +9,18 @@ ONLY violations that clear the taker fee floor (core.pricing.fee_per_contract) �
 implied-probability curiosity is not the same as a real fillable arb, and this project's
 prime directive is "prove edge at real asks", not at raw quotes.
 
+**Every leg must be a price that EXISTS (lessons L105/L288, enforced 2026-08-06).** All three
+checks route each leg through `core.pricing.is_fillable_ask` and each computed edge through
+`core.pricing.is_material_arb_edge` before flagging anything. A $0.00 ask is the absence of a
+resting offer, not a free contract; a `> 0` admission test on a cent-grid edge also lets
+binary-float residue (8.67e-18) through. Before this guard, 43,025 of the 43,038 anomalies this
+scanner had ever recorded priced a $0.00 leg while carrying `price_source_tag: "real_ask"`
+(L288). Refusals are COUNTED and persisted (`n_unfillable_leg_refusals`,
+`n_residue_edge_refusals`), never silently dropped — a scanner that finds nothing because every
+candidate leg was unquoted must say which of the two it was. The guard cannot cost a real arb:
+a leg with no resting offer cannot be bought at any price. It is also NOT a proof of fillable
+SIZE — `/markets` carries no `*_ask_size` field (see core.pricing's constant block).
+
   1. **bracket_arb** — a COMPLETE, mutually-exclusive-and-exhaustive strike ladder under one
      event_ticker (a "less" catch-all + contiguous "between" bands + a "greater" catch-all,
      the same shape Q2 found on KXBTC/KXETH) whose yes_asks sum to less than $1 net of the
@@ -65,7 +77,8 @@ import yaml
 
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
-from core.pricing import bracket_sum, fee_per_contract, monotonicity_crossing_edge, true_arb_edge
+from core.pricing import (bracket_sum, fee_per_contract, is_fillable_ask,
+                          is_material_arb_edge, monotonicity_crossing_edge, true_arb_edge)
 from validation.v3_market import Kalshi, _load_venue_cfg
 
 TAPE = REPO_ROOT / "tape" / "anomalies"
@@ -143,15 +156,41 @@ def _segment_bounds(m: Dict[str, Any]) -> Optional[Tuple[float, float]]:
     return None
 
 
-def check_bracket_arb(event_ticker: str, members: List[Dict[str, Any]]
+# Refusal ledger keys. A refusal is a CORRECT decision, not a failure — but an uncounted
+# refusal is indistinguishable from "there was nothing to find", which is exactly how L288's
+# defect survived 26 days of tape. Callers pass a dict; the checks only ever increment.
+REFUSAL_UNFILLABLE_LEG = "unfillable_leg"
+REFUSAL_RESIDUE_EDGE = "residue_edge"
+
+
+def new_refusal_ledger() -> Dict[str, int]:
+    """A zeroed refusal ledger — the shape `run()` persists and the checks increment."""
+    return {REFUSAL_UNFILLABLE_LEG: 0, REFUSAL_RESIDUE_EDGE: 0}
+
+
+def _count(refusals: Optional[Dict[str, int]], key: str) -> None:
+    if refusals is not None:
+        refusals[key] = refusals.get(key, 0) + 1
+
+
+def check_bracket_arb(event_ticker: str, members: List[Dict[str, Any]],
+                      *, refusals: Optional[Dict[str, int]] = None
                       ) -> Optional[Dict[str, Any]]:
     """None if the ladder can't be proven complete (missing bounds, no open-ended tails,
-    or a gap/overlap past `_CONTIGUITY_TOL`) or shows no arb; else the flagged anomaly."""
+    or a gap/overlap past `_CONTIGUITY_TOL`), if ANY leg is unbuyable, or if it shows no arb;
+    else the flagged anomaly.
+
+    Buying a complete ladder means buying EVERY member, so one unquoted ($0.00) leg makes the
+    whole basket unbuyable and its `bracket_sum` an underflow artifact — precisely L105's
+    universe_sweep finding, refused here rather than flagged."""
     rows: List[Tuple[float, float, float, str]] = []
     for m in members:
         bounds = _segment_bounds(m)
         ask = _f(m, "yes_ask_dollars")
         if bounds is None or ask is None:
+            return None
+        if not is_fillable_ask(ask):
+            _count(refusals, REFUSAL_UNFILLABLE_LEG)
             return None
         rows.append((bounds[0], bounds[1], ask, m.get("ticker", "")))
 
@@ -166,7 +205,9 @@ def check_bracket_arb(event_ticker: str, members: List[Dict[str, Any]]
     bsum = bracket_sum(asks)
     total_fees = sum(fee_per_contract(a) for a in asks)
     edge = true_arb_edge(bsum, total_fees)
-    if edge <= 0:
+    if not is_material_arb_edge(edge):
+        if edge > 0:
+            _count(refusals, REFUSAL_RESIDUE_EDGE)
         return None
     return {
         "kind": "bracket_arb",
@@ -183,8 +224,14 @@ def check_bracket_arb(event_ticker: str, members: List[Dict[str, Any]]
 # --------------------------------------------------------------------------- #
 # check 2 — cross-strike monotonicity (S3): real bid/ask-crossing arb only
 # --------------------------------------------------------------------------- #
-def check_monotonicity(event_ticker: str, members: List[Dict[str, Any]], strike_type: str
+def check_monotonicity(event_ticker: str, members: List[Dict[str, Any]], strike_type: str,
+                       *, refusals: Optional[Dict[str, int]] = None
                        ) -> List[Dict[str, Any]]:
+    """Every fee-clearing nested-strike crossing whose BOTH legs are real, buyable asks.
+
+    The fillability test is applied per PAIR, not per member: a market whose YES ask is quoted
+    but whose NO ask is not can still serve as the outer (YES) leg of some other pair, so
+    dropping it wholesale would refuse arbs that do exist."""
     rows: List[Tuple[float, float, float, str]] = []  # (order_key, yes_ask, no_ask, ticker)
     for m in members:
         key = _f(m, "floor_strike") if strike_type == "greater" else _f(m, "cap_strike")
@@ -206,17 +253,23 @@ def check_monotonicity(event_ticker: str, members: List[Dict[str, Any]], strike_
             else:  # "less": lower cap_strike = narrower (inner); higher = wider (outer)
                 inner, outer = rows[i], rows[j]
             outer_ask, inner_no_ask = outer[1], inner[2]
+            if not (is_fillable_ask(outer_ask) and is_fillable_ask(inner_no_ask)):
+                _count(refusals, REFUSAL_UNFILLABLE_LEG)
+                continue
             edge = monotonicity_crossing_edge(outer_ask, inner_no_ask)
-            if edge > 0:
-                anomalies.append({
-                    "kind": "cross_strike_monotonicity",
-                    "event_ticker": event_ticker,
-                    "strike_type": strike_type,
-                    "outer_ticker": outer[3], "inner_ticker": inner[3],
-                    "outer_ask": outer_ask, "inner_no_ask": inner_no_ask,
-                    "edge": edge,
-                    "price_source_tag": "real_ask",
-                })
+            if not is_material_arb_edge(edge):
+                if edge > 0:
+                    _count(refusals, REFUSAL_RESIDUE_EDGE)
+                continue
+            anomalies.append({
+                "kind": "cross_strike_monotonicity",
+                "event_ticker": event_ticker,
+                "strike_type": strike_type,
+                "outer_ticker": outer[3], "inner_ticker": inner[3],
+                "outer_ask": outer_ask, "inner_no_ask": inner_no_ask,
+                "edge": edge,
+                "price_source_tag": "real_ask",
+            })
     return anomalies
 
 
@@ -272,7 +325,9 @@ def _round_progression_pairs(markets: List[Dict[str, Any]], family: Dict[str, An
 
 
 def check_cross_event_implication(markets: List[Dict[str, Any]],
-                                  families: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                                  families: List[Dict[str, Any]],
+                                  *, refusals: Optional[Dict[str, int]] = None
+                                  ) -> List[Dict[str, Any]]:
     """Check every family's generated (A, B) pairs, A ⇒ B, for a fee-clearing arb: buy
     YES(B) + NO(A) (core.pricing.monotonicity_crossing_edge — identical fee-floor math to
     check 2, just across two different event_tickers instead of one)."""
@@ -285,20 +340,26 @@ def check_cross_event_implication(markets: List[Dict[str, Any]],
             b_ask = _f(market_b, "yes_ask_dollars")
             if a_no_ask is None or b_ask is None:
                 continue
+            if not (is_fillable_ask(b_ask) and is_fillable_ask(a_no_ask)):
+                _count(refusals, REFUSAL_UNFILLABLE_LEG)
+                continue
             edge = monotonicity_crossing_edge(b_ask, a_no_ask)
-            if edge > 0:
-                anomalies.append({
-                    "kind": "cross_event_implication",
-                    "family_id": family.get("id"),
-                    "a_ticker": market_a.get("ticker", ""),
-                    "a_event_ticker": market_a.get("event_ticker", ""),
-                    "b_ticker": market_b.get("ticker", ""),
-                    "b_event_ticker": market_b.get("event_ticker", ""),
-                    "a_no_ask": a_no_ask,
-                    "b_ask": b_ask,
-                    "edge": edge,
-                    "price_source_tag": "real_ask",
-                })
+            if not is_material_arb_edge(edge):
+                if edge > 0:
+                    _count(refusals, REFUSAL_RESIDUE_EDGE)
+                continue
+            anomalies.append({
+                "kind": "cross_event_implication",
+                "family_id": family.get("id"),
+                "a_ticker": market_a.get("ticker", ""),
+                "a_event_ticker": market_a.get("event_ticker", ""),
+                "b_ticker": market_b.get("ticker", ""),
+                "b_event_ticker": market_b.get("event_ticker", ""),
+                "a_no_ask": a_no_ask,
+                "b_ask": b_ask,
+                "edge": edge,
+                "price_source_tag": "real_ask",
+            })
     return anomalies
 
 
@@ -331,6 +392,7 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
 
     groups = _group_by_event(markets)
     anomalies: List[Dict[str, Any]] = []
+    refusals = new_refusal_ledger()
     n_bracket_groups_checked = 0
     n_monotonicity_groups_checked = 0
 
@@ -344,7 +406,7 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         strike_typed = by_type.get("less", []) + by_type.get("between", []) + by_type.get("greater", [])
         if len(strike_typed) >= 2:
             n_bracket_groups_checked += 1
-            hit = check_bracket_arb(et, strike_typed)
+            hit = check_bracket_arb(et, strike_typed, refusals=refusals)
             if hit:
                 anomalies.append(hit)
 
@@ -352,13 +414,14 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
             grp = by_type.get(st, [])
             if len(grp) >= 2:
                 n_monotonicity_groups_checked += 1
-                anomalies.extend(check_monotonicity(et, grp, st))
+                anomalies.extend(check_monotonicity(et, grp, st, refusals=refusals))
 
     n_implication_pairs_checked = sum(
         len(_round_progression_pairs(markets, fam))
         for fam in implication_families if fam.get("kind") == "round_progression"
     )
-    anomalies.extend(check_cross_event_implication(markets, implication_families))
+    anomalies.extend(check_cross_event_implication(markets, implication_families,
+                                                   refusals=refusals))
 
     # fetch success (no exception) and full-coverage (no truncation) are DISTINCT honest
     # signals — a capped sweep isn't a fetch failure, but it isn't "swept everything"
@@ -373,6 +436,12 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
         "n_monotonicity_groups_checked": n_monotonicity_groups_checked,
         "n_implication_pairs_checked": n_implication_pairs_checked,
         "n_anomalies": len(anomalies),
+        # Additive to anomaly_sweep.v1 (2026-08-06): counts of candidates REFUSED by the
+        # L105/L288 fillability + residue guards. Zero on a pass that had nothing to refuse;
+        # a large number beside `n_anomalies: 0` is the honest reading "the candidates were
+        # unquoted", not "the market was clean". No existing field changed shape or meaning.
+        "n_unfillable_leg_refusals": refusals[REFUSAL_UNFILLABLE_LEG],
+        "n_residue_edge_refusals": refusals[REFUSAL_RESIDUE_EDGE],
         "anomalies": anomalies,
         "fetch_error": fetch_error,
         "markets_truncated": markets_truncated,
@@ -390,11 +459,15 @@ def run(limit: Optional[int] = None, min_interval: float = 0.2,
               f"(limit={limit}) — more were available (cursor unexhausted)", file=sys.stderr)
     print(f"[anomaly_sweep] {capture_id}: {len(markets)} markets scanned, "
           f"{len(groups)} event groups, {len(anomalies)} anomalies flagged, "
+          f"{refusals[REFUSAL_UNFILLABLE_LEG]} refused (unquoted $0.00 leg), "
+          f"{refusals[REFUSAL_RESIDUE_EDGE]} refused (sub-tick float residue), "
           f"completeness {'ok' if completeness_ok else 'FAIL'}")
 
     return {
         "capture_id": capture_id, "day": day, "captured_at": captured_at,
         "n_markets_scanned": len(markets), "n_anomalies": len(anomalies),
+        "n_unfillable_leg_refusals": refusals[REFUSAL_UNFILLABLE_LEG],
+        "n_residue_edge_refusals": refusals[REFUSAL_RESIDUE_EDGE],
         "markets_truncated": markets_truncated,
         "completeness_ok": completeness_ok, "path": str(out_path),
     }

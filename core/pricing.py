@@ -206,6 +206,81 @@ def book_notional_at_touch(price_dollars: float, size: float,
     return notional
 
 
+# ─── Fillable-ask floor (lessons L105 / L288 / L27 — the $0.00 no-offer leg) ──────────────
+# A Kalshi ask of $0.00 is NOT a free contract: the venue's minimum quotable price is 1 cent,
+# so a zero ask is the ABSENCE of a resting offer, rendered as a number. Treating it as a
+# buyable price is the pt1 / prime-directive violation CLAUDE.md forbids ("a synthetic raw_prob
+# is NEVER a fill price" — a nominal $0.00 is worse: nothing rests there at all).
+#
+# L105 ledgered this class for `tape/universe_sweep/` (1,565 sub-$1 groups, 0 fillable, 1,537
+# all-zeros). L288 then measured it INSIDE this repo's own arb scanner: 43,025 of the 43,038
+# `cross_strike_monotonicity` anomalies `scripts/anomaly_sweep.py` has ever recorded price an
+# `outer_ask == 0.00` leg, each persisted with `price_source_tag: "real_ask"`. This predicate is
+# the single shared site those checks now route through, so the next scanner cannot re-derive
+# the mistake privately.
+#
+# NECESSARY, NOT SUFFICIENT — read this before calling it a fill. `is_fillable_ask` proves only
+# that a price sits on the tradeable cent grid. It CANNOT prove size rests there: Kalshi's
+# `/markets` listing carries no `*_ask_size` field at all, and where size IS observable
+# (`tape/universe_sweep/`, L96/L105) ~96% of nonzero asks still show `yes_ask_size == 0`. A
+# caller that has size must check it too; a caller that does not must say so in its finding.
+MIN_FILLABLE_ASK_DOLLARS = 0.01   # Kalshi's minimum quotable tick — 1 cent, in dollars
+
+# Float-comparison slack for the cent grid. Kalshi prices arrive as `_dollars` strings on a
+# 1-cent grid (L90), so a legitimate ask is never within 1e-9 of the floor without being ON it;
+# this epsilon only protects `0.01` from its own binary representation.
+_FILLABLE_ASK_EPS = 1e-9
+
+# Materiality floor for a computed arb edge, in dollars. Prices AND Kalshi's round-up-to-cent
+# fee both live on the cent grid, so a real edge is a multiple of a cent; anything strictly
+# between 0 and this floor is binary-float residue, not money. L288 measured 1,480 recorded
+# anomalies carrying `edge == 8.673617379884035e-18` — exactly $0.00 in decimal ($0.00 outer ask
+# + $0.99 inner NO ask), admitted only because a bare `edge > 0` reads one ULP above zero as
+# profit. Same magnitude and intent as `core.bootstrap.SUB_TICK_RESIDUE_FLOOR` (L236), kept here
+# because this is the pricing-side gate; it is a residue filter, NOT L27's economic-significance
+# gate (that one compares an estimate against the 1-cent tick and belongs to a verdict, not to a
+# scanner's admission test).
+ARB_EDGE_RESIDUE_FLOOR_DOLLARS = 1e-9
+
+
+def is_fillable_ask(price: Optional[float]) -> bool:
+    """True iff `price` is a price a taker could actually LIFT on Kalshi.
+
+    False for `None` (no field), for anything non-numeric, for NaN, and for any price below
+    Kalshi's 1-cent minimum tick — most importantly $0.00, which means "nobody is offering",
+    never "free". Deliberately NOT capped above: an ask over $1.00 cannot exist on Kalshi and
+    could never produce a positive edge anyway (every consumer subtracts it from $1.00), so
+    refusing it here would add a second, untested failure mode for no protection.
+
+    See the constant block above for the necessary-not-sufficient (size) caveat.
+    """
+    if price is None:
+        return False
+    try:
+        p = float(price)
+    except (TypeError, ValueError):
+        return False
+    if math.isnan(p):
+        return False
+    return p >= MIN_FILLABLE_ASK_DOLLARS - _FILLABLE_ASK_EPS
+
+
+def is_material_arb_edge(edge: float) -> bool:
+    """True iff a computed dollar edge is real money rather than binary-float residue.
+
+    Replaces the bare `edge > 0` admission test in the arb scanners (L288's second defect).
+    Strictly greater than `ARB_EDGE_RESIDUE_FLOOR_DOLLARS`, so an exact $0.00 edge that floats
+    one ULP above zero is refused while every genuine >= $0.01 edge passes untouched.
+    """
+    try:
+        e = float(edge)
+    except (TypeError, ValueError):
+        return False
+    if math.isnan(e):
+        return False
+    return e > ARB_EDGE_RESIDUE_FLOOR_DOLLARS
+
+
 def true_arb_edge(bracket_sum_value: float, total_fees: float) -> float:
     """Dollar edge of buying every YES in a COMPLETE, mutually-exclusive bracket ladder:
     guaranteed $1 payout costs `bracket_sum_value + total_fees`. Positive means a true arb
