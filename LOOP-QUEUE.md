@@ -2106,6 +2106,47 @@ nothing depends on them and no registry row moves. `pytest` 2,647 items green (0
 this diff). See `kb/lessons/00-lessons.md` L255/L258.
 
 ### Q51 — Public executed-trade print tape (`/markets/trades`): the WALL-B unblocker
+Status: TOOLING ONLY (2026-08-07, research loop IDLE RUN, idle-run policy (a): **L292**'s
+`UNENFORCED` -> `test`) — **Q51's own state is UNCHANGED: milestone 3 is still TODO and still
+time-gated to 2026-08-10; no CI, no P&L, no fill rate quoted as an edge, no registry flip, no kill
+decision; S78/S79 keep the status they already had; still 0 proven edges.** Queue re-verified
+drained first at each item's CURRENT Status line (Q0-Q55 all DONE / BLOCKED / RESERVED /
+time-gated / data-gated; `tape/kalshi_trades/` still holds exactly ONE committed day, so Q52 and
+Q54 stay data-gated; Q53's only outstanding milestone is its PROVISIONAL milestone-3 verdict,
+which is **verdict-class** and needs an independent `verifier` — **no `Task`/subagent tool exists
+in this harness** (Read/Grep/Glob/Bash only), so it was not satisfiable, per the
+L287/L288/L290/L291/L295 precedent). The standing UNENFORCED work queue, recomputed with the
+repo's own detector, held **6** open rows; five are Ryan-lane or verifier-gated (**L213**
+Ryan-action, **L221** write-path with a cell that says DO NOT BUILD, **L222** write-path,
+**L282** step-0b workflow, **L296** verdict half), leaving **L292** as the only buildable in-lane
+artifact. Built `scripts/kalshi_trades_ticker_inventory.py` (read-only, fully offline:
+`trade_tape_inventory` / `series_of` / `series_coverage` / `named_series_tokens`, three-valued
+`COVERED`/`ABSENT`/`UNKNOWN_NO_TAPE` so an un-collected family can never render as an absent one,
+L289/L296) + the non-gating `scripts/invariants.py::kalshi_trades_registration_surface_warning`,
+which reads every `kb/strategies/00-index.md` row anchored on `kalshi_trades` and classifies its
+named KX series tokens into three never-merged classes (`uncovered` / `unscoped` / `covered`).
+**Measured, CLOSED window `--max-day 2026-08-03`:** L292's published inventory reproduces exactly
+on this independent code path — **39,698** prints / **42** tickers / **20** series / **1** day /
+**0** malformed, every series sports (`*GAME`) or crypto (`KXBTC` 47, `KXETH` 10), and
+`KXCPI`/`KXCPICORE`/`KXNFP`/`KXGDP`/`KXFED`/`KXPCE` all **ABSENT** (pinned). **New, and not in
+L292:** of the **2** registry rows anchored on the trade tape (**S78**, **S79**), **0 are
+uncovered and 2 are `unscoped` — neither names a KX series token at all**, so the discipline L292
+asks for had no input on either row as written; that class is reported separately and explicitly
+NOT as a defect (both are legitimately generic designs), per L289's never-merge rule. Honesty
+caveats ride in the tool's own output: the universe is COMMITTED TAPE, so `ABSENT` reads
+"unmeasurable from committed tape today" and never "Kalshi has no prints there" or "the collector
+cannot capture it" (`collection/kalshi_trades.py` is ticker-scoped by construction and its cadence
+is Ryan-gated, L221/L222); prefix matching is generous, so the check can under-report an absence
+and can never invent one (L155). 30 tests in `tests/test_kalshi_trades_ticker_inventory.py`,
+including the load-bearing
+`tests/test_kalshi_trades_ticker_inventory.py::test_acceptance_the_s81_shape_is_flagged_from_a_synthetic_registry`
+(the exact registration L292 folded by hand on 2026-08-06). New lesson **L299** (an enforcement
+cell that declares itself unmechanizable is a claim, not a disposition). Not verdict-class
+(tooling), so the two-agent rule is N/A. Gates AFTER the last code change: see the Log-of-runs
+line below. Files: `scripts/kalshi_trades_ticker_inventory.py`, `scripts/invariants.py`,
+`tests/test_kalshi_trades_ticker_inventory.py`,
+`findings/2026-08-07-l292-trade-tape-registration-surface-guard.md`, `kb/lessons/00-lessons.md`
+(L292 cell moved, new L299), `LOOP-QUEUE.md`, `kb/00-LOG.md`.
 Status: MILESTONE 3 STILL TIME-GATED (2026-08-10) — PRE-FLIGHTED, and a FIRING HAZARD in the
 milestone's own command was found and repaired (2026-08-05, research loop IDLE RUN, idle-run
 policy (b): build/offline-test what the next time-gated item needs so it is ready on its day).
