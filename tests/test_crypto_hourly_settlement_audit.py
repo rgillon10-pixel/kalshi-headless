@@ -195,13 +195,21 @@ def test_acceptance_real_tape_cadence_report_shape():
     assert r["recent_7day_mean_passes"] < r["peak_passes"]
 
 
-def test_acceptance_real_tape_discovery_gaps_are_a_closed_july_episode():
+def test_acceptance_real_tape_discovery_gaps_recurred_in_august_L302():
+    """AMENDED 2026-08-07 (L302). This pin used to assert `last_gap_day < "2026-08-01"` —
+    "a closed July episode, no August recurrence" — and that was an AVAILABILITY artifact,
+    not a fact about the collector. The 2026-08-06 06:56Z pass DID hit
+    `no_hourly_group_found` on both BTC and ETH, but its push to `main` failed and it sat on
+    `tape/hourly-20260806T0657Z` until this run's step-0b sweep recovered it. A conclusion
+    computed over committed tape is conditioned on the pass having successfully pushed, and a
+    pass that fails is not independent of a pass that fails to push. The pin now asserts the
+    recurrence so it can never silently un-recur."""
     records = A._iter_records(A.TAPE_DIR)
     r = A.discovery_gap_profile(records)
-    assert r["n_gap"] >= 76
-    assert r["reason_counts"].get("no_hourly_group_found", 0) >= 72
-    # last observed gap day is in July — no recurrence in the committed August tape
-    assert r["last_gap_day"] < "2026-08-01"
+    assert r["n_gap"] >= 78
+    assert r["reason_counts"].get("no_hourly_group_found", 0) >= 74
+    assert r["last_gap_day"] == "2026-08-06"
+    assert r["by_day"]["2026-08-06"] == 2   # BTC + ETH, capture 20260806T065616Z
 
 
 def test_acceptance_build_report_end_to_end():

@@ -2227,9 +2227,12 @@ def test_acceptance_l281_real_tape_reproduces_the_2026_07_27_incident():
     assert issue["n_keys"] == 48
     n_content_differs = sum(1 for d in issue["duplicates"] if d["differing_fields"])
     assert n_content_differs == 5
-    # every OTHER committed day-file must be clean — a second incident would be new information
+    # Every OTHER committed day-file must be clean, with exactly ONE documented exception:
+    # dt=2026-08-07, created by this repo's own step-0b recovery of the day's first (stranded)
+    # meta write on 2026-08-07 — same mechanism, different cause (L301). A THIRD day here
+    # would be new information and must fail this pin.
     other_days_dirty = [i["day"] for i in issues if i["day"] != "2026-07-27"]
-    assert other_days_dirty == [], other_days_dirty
+    assert other_days_dirty == ["2026-08-07"], other_days_dirty
     msg = inv.weather_books_meta_duplicate_warning(issues)
     assert msg is not None
     assert "known historical incident" in msg
@@ -2976,3 +2979,27 @@ def test_acceptance_l285_real_tape_reproduces_the_2026_07_28_cross_family_incide
     assert msg is not None
     assert "known historical incident" in msg
     assert "NEW regression" not in msg
+
+
+# ─── L301: the 2026-08-07 weather_books-meta duplicate is a RECOVERY artifact ────────────
+def test_weather_books_meta_allowlist_names_the_two_known_incident_days_L301():
+    """2026-07-27 (two racing live writers, L281) and 2026-08-07 (this repo's own step-0b
+    recovery of the day's FIRST meta write, whose push had failed). Both are real captures
+    with distinct capture_ids that append-only tape cannot un-commit; neither is a collector
+    regression. A third day appearing here must be argued for, not added quietly."""
+    assert inv.WEATHER_BOOKS_META_DUP_ALLOWLIST == frozenset({"2026-07-27", "2026-08-07"})
+
+
+def test_acceptance_real_tape_20260807_meta_duplicate_reads_as_known_not_new_L301():
+    """HARD, against real committed tape: dt=2026-08-07 carries 48 duplicated (series,group)
+    keys from two genuine captures, and the advisory must report it as a known incident."""
+    meta = ROOT / "tape" / "weather_books" / "meta" / "dt=2026-08-07.jsonl"
+    if not meta.exists():
+        pytest.skip("weather_books meta tape absent")
+    issues = inv._weather_books_meta_duplicate_issues()
+    day = [i for i in issues if i["day"] == "2026-08-07"]
+    assert day, "expected the recovered 2026-08-07 meta duplicate to be detected"
+    assert day[0]["allowlisted"] is True
+    msg = inv.weather_books_meta_duplicate_warning(issues)
+    assert msg is None or "dt=2026-08-07" not in msg.split("NEW regression")[-1].split(
+        "known historical incident")[0]
