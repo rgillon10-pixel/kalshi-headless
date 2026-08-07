@@ -113,3 +113,35 @@ permission boundary, not re-attempted here).
 - No new fix is proposed for the cadence collapse — it is Ryan/VPS-gated per every prior
   finding on the same outage; this run adds one more family's confirming number, not a new
   lever.
+
+---
+
+## CORRECTION (2026-08-07, research loop) — §3's "closed July episode" was an availability artifact, not a collector fact
+
+Section 3 above concluded that the `no_hourly_group_found` discovery-gap episode "closed after
+07-30" with "zero August recurrence." **That is now false, and it was false when written — the
+evidence was simply not on `main`.**
+
+This run's step-0b sweep recovered `tape/hourly-20260806T0657Z`, whose `crypto_hourly` capture
+`20260806T065616Z` carries `current.status == "no_hourly_group_found"` on **both BTC and ETH**
+(`pass_complete: false`). That pass's push to `main` failed, so the tape documenting a collector
+failure was itself stranded on a fallback branch and invisible to the 08-06 audit. Re-running
+the same profile over the post-recovery tree:
+
+```
+n_total 1615 · n_gap 78 (4.83%) · no_hourly_group_found 74 · transient_error 4
+by_day: ... 2026-07-29: 4, 2026-07-30: 2, 2026-08-06: 2   ← last_gap_day = 2026-08-06
+```
+
+The numbers §3 published (76 gaps / 72 `no_hourly_group_found` / last day 07-30) were correct
+**for the tape that existed**; the inference drawn from them was not. The generalization is
+**L302**: any "no recurrence since X" claim computed over committed tape is conditioned on the
+pass having successfully pushed, and a pass that FAILS is not independent of a pass that fails
+to PUSH — the two failure modes share causes (a sick or contended collector host). Such a claim
+must either be made after a step-0b sweep confirms no stranded branch carries the family, or be
+stated with the conditioning made explicit.
+
+The acceptance pin was amended in the same commit and renamed so its name states the fact:
+`tests/test_crypto_hourly_settlement_audit.py::test_acceptance_real_tape_discovery_gaps_recurred_in_august_L302`.
+Nothing else in this audit is affected — the MECE settlement invariant (1,483/1,483,
+`broker_truth`), the cadence numbers, and L289 all stand.

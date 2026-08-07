@@ -6,6 +6,110 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-07 ~06:3x-08:xx UTC — research loop (idle run, policy (a)): a data-gate that named the wrong wall (L300) and a "recovered" branch that wasn't (L301)
+
+**What happened.** Queue drained (every item Q0–Q55 reads DONE / BLOCKED / RESERVED /
+time-gated / data-gated at its current Status line; Q51 milestone 3 is time-gated to
+2026-08-10), so this is an IDLE RUN under step 3, policy **(a)** — convert an open lesson-class
+gap into an invariant/test. Two gaps, both surfaced by this run's own step-0b sweep and by the
+08-07 edge-hunter's open GitHub issue #310.
+
+**Step 0b — 24,351 stranded lines recovered, and one of them was already "recovered".** Three
+branches carried tape `main` did not have: `hourly-20260806T0657Z` (+643),
+`hourly-20260806T0726Z` (+438) and `hourly-20260807T0115Z` (+23,270 — including the ENTIRE
+`tape/universe_sweep/dt=2026-08-07.jsonl`, 20,000 lines, which `main` was missing outright).
+The 0726Z branch is the sharp one: PR #305 (08-06) was titled *"recover hourly-20260806T0726Z
+stranded lines"*, recovered that branch's two bulk families (orderbook_depth 1,748 +
+universe_sweep 20,000), and left six other capture_ids on it — `20260806T065616Z`, `065625Z`,
+`065433Z`, `072313Z`, `072308Z`, `072315Z`, **1,081 lines** — verified absent from every
+`tape/*/dt=2026-08-06.jsonl` on `main` (0 grep hits, all six) before appending. Nothing
+re-triaged the branch after that append, so nothing could notice → **L301**. Enforcement built
+and used the same run: `scripts/tape_branch_sweep.py --assert-contained BRANCH[,...]` re-triages
+only the named branches against `--base-ref` and exits 2 unless every one is contained with zero
+missing lines AND zero missing capture_ids (an unfetched commit, a size-guard-skipped file, or a
+typo'd branch name all FAIL — an unverifiable claim is not a verified one). Against this run's
+own commit: all 3 CONTAINED, exit 0. Against `origin/main`: 0726Z STILL MISSING 1,081 lines,
+exit 2. Pinned by 12 tests incl. `::test_partial_recovery_still_fails_the_check`, PR #305's
+exact shape.
+
+**Corollary, kept and labelled rather than quietly dropped.** Recovering the 0115Z pass created
+a NEW **L281**-class duplicate: `tape/weather_books/meta/dt=2026-08-07.jsonl` now holds two full
+48-key captures (`20260807T010616Z`, the stranded pass, and `20260807T040557Z`, the one that
+landed), 5 keys differing in content. Not a collector regression — `_existing_meta_series` is
+write-once-per-DAY, so recovering the day's FIRST pass necessarily produces two. Both are real
+captures with distinct `capture_id`s and were KEPT (dropping real tape to quiet a warning is the
+wrong trade); `2026-08-07` added to `WEATHER_BOOKS_META_DUP_ALLOWLIST` with the reason in-line,
+and the L281 real-tape acceptance pin amended in the same commit to expect exactly this one
+extra day and fail on a third.
+
+**The recovery falsified a claim nobody could have checked (L302).** The recovered
+`crypto_hourly` capture `20260806T065616Z` carries `current.status == "no_hourly_group_found"`
+on BOTH BTC and ETH (`pass_complete: false`) — an AUGUST recurrence of the discovery-gap
+episode the 08-06 data-quality audit had called "a closed July episode, zero August
+recurrence." That claim was already false when written; the tape proving it was stranded on the
+same push-fallback branch. Post-recovery: **78 gaps / 74 `no_hourly_group_found` / last_gap_day
+2026-08-06** (was 76 / 72 / 07-30). The bias is not random — a host sick enough to fail
+discovery is the same host likely to fail its push, so the missing observations are exactly the
+refuting ones. Discovery mechanism worth noting: the audit's own real-tape acceptance pin went
+RED by itself the moment the stranded pass landed. The 08-06 finding gets a dated CORRECTION
+section (append-only, original claim not rewritten) and the pin was renamed to state the fact.
+
+**Policy-(a) unit — L300, the settlement-source registry.** The 08-06 S79 registration recorded
+its blocker as *"no settlement coverage of the trade day, `settlement_ledger` 07-07→07-22 only"*.
+The 08-07 edge-hunter round #25 caught that as false and filed issue #310 rather than rewriting
+history. Re-derived here a THIRD time, independently, before any code was written:
+`tape/q51_settlement_cache/settlement.json` (`broker_truth`, day 2026-08-03, 60 markets, 10
+`finalized`) covers the day — **42 distinct traded tickers → 38 listed → 9 with a binary result
+→ 9 distinct `event_ticker`s (games)**, `settlement_ledger` contributing **0**, and the 4
+leftovers (KXBTC/KXETH hourly brackets) listed by NO settlement family at all. So S79's
+settlement blocker is **`below_min_units`, 9 games < the L41 floor of 10** — a one-game data
+wait, not a missing collector. The general defect: this repo has **NINE** settlement-bearing
+surfaces and a data-gate is only as strong as the set of families the asserting run looked at;
+three of the nine (`crypto_hourly.previous_settlement`, `weather_actuals.settled_markets`,
+`econ_prints.recent_settlement`) are EMBEDDED in another family's schema and invisible to any
+directory-name scan. Built `core/settlement_sources.py` (the one registry;
+`resolve_market_results` keeps `resolved` / `non_binary` / `listed_unsettled` separate — a
+`"scalar"` is never scored as a loss, L52, and *listed is not settled*) +
+`scripts/settlement_coverage_audit.py` → `reports/settlement_coverage_audit.json`. The recall
+limit is published in the module and PROVEN by a test that constructs an undetectable embedded
+family rather than asserting the prose (L155/L189).
+
+**Bookkeeping.** S79's registry row and Q54's Status both carry a dated DATA-GATE CORRECTION;
+**status columns untouched** — S79 stays `collect-and-revisit`, no flip, no CI, no kill, and the
+gate still holds on its other (unchanged) halves: the 4-captures/day `orderbook_depth` exit-book
+cadence wall and the multi-day `kalshi_trades` requirement. Two-agent rule: neither half is
+verdict-class, and no `Task`/subagent tool exists in this harness so no independent `verifier`
+was dispatchable (L287/L288/L290/L291/L295 precedent) — every number was computed on a code path
+independent of the one that first reported it, and the settlement figure now has three
+independent derivations. Step 9 paper: `s14_ladder_underwriting` idempotent, 0 processed, 274
+deferred(coverage), 300 already-in-ledger, no new ledger lines —
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open
+notional $0.00`. Still **0 proven edges**.
+
+**Gates + rebase.** `origin/main` advanced mid-run and a CONCURRENT research-loop run claimed
+**L299**, so this run's three lessons were renumbered to **L300/L301/L302** (pure ID
+reassignment, the 2026-08-06 L289->L290/L291 precedent); `dt=2026-08-07` tape day-files were
+re-merged by LINE UNION (main's content first, then this run's recovered lines, deduped by exact
+line, JSON-validated) and both runs' log/lesson entries were kept. One real post-rebase failure,
+fixed rather than worked around: this run's S79 correction had quoted the four unresolved crypto
+TICKERS inside the registry row, which made the other run's new `_kalshi_trades_registration_issues`
+guard read a SPORTS candidate as crypto-scoped — the tickers moved to the finding and the row now
+says `BTC/ETH hourly crypto brackets`, which is also the more accurate scope. Gates fresh on the
+rebased tree after the last change (L162): `pytest -o addopts='' -q` over 4 disjoint shards
+covering all 113 test files — **3,371 tests, 0 failed, 0 errors, 0 skipped** (junit-verified;
+equals the 3,371 `--collect-only` count exactly; shards 1-3 re-run a second time after a final 3-token label renumber in `scripts/tape_branch_sweep.py`, still all green); `scripts/invariants.py --full` **exit 0, all
+green** (19 non-gating advisories: 18 pre-existing + the other run's new registration-surface
+line; none introduced by this diff).
+
+**Artifacts.** `core/settlement_sources.py`, `scripts/settlement_coverage_audit.py`,
+`scripts/tape_branch_sweep.py` (`--assert-contained`), `scripts/invariants.py` (allowlist),
+`tests/test_settlement_sources.py` (35), `tests/test_settlement_coverage_audit.py` (10),
+`tests/test_tape_branch_sweep.py` (+12), `tests/test_invariants.py` (+2, 1 amended),
+`reports/settlement_coverage_audit.json`,
+`findings/2026-08-07-settlement-source-registry-and-recovery-verification.md`,
+`tests/test_crypto_hourly_settlement_audit.py` (pin renamed/re-pinned),
+`findings/2026-08-06-crypto-hourly-settlement-data-quality-audit.md` (CORRECTION section),
+`kb/lessons/00-lessons.md` L300/L301/L302.
 ## 2026-08-07 ~03:2x-06:4x UTC — research loop IDLE RUN (a): the trade tape's registration surface is now an assert, not a grep (L292 -> L299)
 
 **What happened.** Re-verified the queue independently rather than trusting the prior run's

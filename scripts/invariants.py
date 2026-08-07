@@ -2404,7 +2404,20 @@ def econ_prints_settlement_regression_warning(issues: List[Dict[str, object]]) -
 # it is reported as a KNOWN fact, not re-flagged as new every run; any OTHER day hitting this
 # is a genuine fresh regression the next `--full` run should surface loudly.
 
-WEATHER_BOOKS_META_DUP_ALLOWLIST = frozenset({"2026-07-27"})
+# `2026-08-07` (added 2026-08-07, research-loop idle run): a SECOND instance of the same
+# mechanism, created deliberately and knowingly by this repo's own step-0b recovery rather
+# than by two racing live writers. `tape/hourly-20260807T0115Z` carried the day's FIRST
+# weather_books meta write (capture `20260807T010616Z`, 48 keys) and its push to `main`
+# failed; the 03:57Z pass then wrote the same 48 keys (capture `20260807T040557Z`) and DID
+# land. Union-appending the stranded pass (24,351 lines across 9 families, incl. a whole
+# 20,000-line `universe_sweep` day-file main never had) necessarily re-created the duplicate:
+# `_existing_meta_series` is write-once-per-DAY, so whichever pass runs first owns the meta,
+# and recovering the earlier one always produces two. The duplicate rows are REAL captures
+# with distinct `capture_id`s and are kept — dropping real tape to quiet a warning is the
+# wrong trade — so the day is allowlisted to be reported as a KNOWN fact rather than
+# re-flagged as a fresh collector regression every run. See L301 and
+# `findings/2026-08-07-settlement-source-registry-and-recovery-verification.md`.
+WEATHER_BOOKS_META_DUP_ALLOWLIST = frozenset({"2026-07-27", "2026-08-07"})
 
 
 def _weather_books_meta_duplicate_issues(

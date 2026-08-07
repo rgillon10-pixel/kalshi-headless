@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from scripts.tape_branch_sweep import (
+    ASSERT_CONTAINED_EXIT_CODE,
     BULK_CAPTURE_ID_FAMILIES,
     CANONICAL_NAME_RE,
     BranchTriage,
@@ -22,7 +23,9 @@ from scripts.tape_branch_sweep import (
     list_remote_tape_branches,
     list_tree_files,
     main,
+    assert_contained_report,
     missing_line_is_appendable,
+    resolve_branch_sha,
     parse_ls_remote,
     per_file_containment,
     read_blob_lines,
@@ -730,3 +733,154 @@ class TestUnionAppendabilityTriage:
         assert t.unappendable_files == {"tape/econ_prints/dt=2026-07-18.jsonl": 1}
         assert t.all_missing_unappendable is False   # one genuine line IS worth sweeping
 
+
+
+class TestAssertContainedPostRecoveryCheck:
+    """L301 (2026-08-07): a commit that says it recovered a branch's stranded tape must
+    prove it against its OWN post-append tree.
+
+    The real recurrence this pins: PR #305 (2026-08-06) was titled "recover
+    hourly-20260806T0726Z stranded lines", union-appended that branch's two bulk families
+    (orderbook_depth 1,748 + universe_sweep 20,000) and stopped — six other capture_ids the
+    same branch carried (crypto_hourly 065616Z, polymarket_macro_pairs 065625Z, sports_pairs
+    065433Z, hyperliquid_funding 072313Z, perp_tape 072308Z, weather_books 072315Z, 1,081
+    lines) stayed stranded for a day, under a merged PR whose title said otherwise. Nothing
+    re-triaged the branch after the append, so nothing could notice.
+    """
+
+    def test_branch_with_missing_lines_exits_nonzero_and_names_the_files(
+            self, main_repo, monkeypatch, capsys):
+        clone, _remote = main_repo
+        monkeypatch.chdir(clone)
+        rc = main(["--remote", "origin", "--assert-contained",
+                   "tape/hourly-20260725T0500Z"])
+        assert rc == ASSERT_CONTAINED_EXIT_CODE
+        out = capsys.readouterr().out
+        assert "STILL MISSING tape/hourly-20260725T0500Z" in out
+        assert "tape/sports_pairs/dt=2026-07-25.jsonl: 1 line(s)" in out
+        assert "NOT recovered" in out
+
+    def test_contained_branch_exits_zero(self, main_repo, monkeypatch, capsys):
+        clone, _remote = main_repo
+        monkeypatch.chdir(clone)
+        rc = main(["--remote", "origin", "--assert-contained",
+                   "tape/hourly-20260725T0406Z"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "CONTAINED    tape/hourly-20260725T0406Z" in out
+        assert "all named branches contained" in out
+
+    def test_the_check_flips_to_green_only_after_the_lines_are_actually_appended(
+            self, main_repo, monkeypatch, capsys):
+        """The whole workflow in one test: red before the union-append, green after."""
+        clone, _remote = main_repo
+        monkeypatch.chdir(clone)
+        assert main(["--remote", "origin", "--assert-contained",
+                     "tape/hourly-20260725T0500Z"]) == ASSERT_CONTAINED_EXIT_CODE
+        capsys.readouterr()
+
+        target = clone / "tape/sports_pairs/dt=2026-07-25.jsonl"
+        target.write_text(target.read_text() + '{"b": 2}\n')
+        _git(clone, "add", "tape/sports_pairs/dt=2026-07-25.jsonl")
+        _git(clone, "commit", "-q", "-m", "tape: recover stranded line")
+
+        rc = main(["--remote", "origin", "--assert-contained",
+                   "tape/hourly-20260725T0500Z"])
+        assert rc == 0
+        assert "CONTAINED" in capsys.readouterr().out
+
+    def test_partial_recovery_still_fails_the_check(self, main_repo, monkeypatch, capsys):
+        """PR #305's exact shape: recover SOME of a branch's stranded lines, claim the
+        branch. A second stranded file is appended to the branch, only the first is
+        recovered locally — the check must stay red on the remainder."""
+        clone, remote = main_repo
+        _git(remote, "checkout", "-q", "tape/hourly-20260725T0500Z")
+        (remote / "tape/weather_books/dt=2026-07-25.jsonl").parent.mkdir(
+            parents=True, exist_ok=True)
+        (remote / "tape/weather_books/dt=2026-07-25.jsonl").write_text('{"w": 9}\n')
+        _git(remote, "add", "tape/weather_books/dt=2026-07-25.jsonl")
+        _git(remote, "commit", "-q", "-m", "second stranded family")
+        _git(remote, "checkout", "-q", "main")
+
+        monkeypatch.chdir(clone)
+        target = clone / "tape/sports_pairs/dt=2026-07-25.jsonl"
+        target.write_text(target.read_text() + '{"b": 2}\n')
+        _git(clone, "add", "tape/sports_pairs/dt=2026-07-25.jsonl")
+        _git(clone, "commit", "-q", "-m", "tape: recover ONE family only")
+
+        rc = main(["--remote", "origin", "--assert-contained",
+                   "tape/hourly-20260725T0500Z"])
+        assert rc == ASSERT_CONTAINED_EXIT_CODE
+        out = capsys.readouterr().out
+        assert "tape/weather_books/dt=2026-07-25.jsonl: 1 line(s)" in out
+        assert "tape/sports_pairs" not in out.split("STILL MISSING", 1)[1].split(
+            "VERDICT", 1)[0]
+
+    def test_name_may_omit_the_tape_prefix(self, main_repo, monkeypatch, capsys):
+        clone, _remote = main_repo
+        monkeypatch.chdir(clone)
+        rc = main(["--remote", "origin", "--assert-contained", "hourly-20260725T0406Z"])
+        assert rc == 0
+        assert "tape/hourly-20260725T0406Z" in capsys.readouterr().out
+
+    def test_several_branches_one_bad_fails_the_whole_check(self, main_repo, monkeypatch,
+                                                             capsys):
+        clone, _remote = main_repo
+        monkeypatch.chdir(clone)
+        rc = main(["--remote", "origin", "--assert-contained",
+                   "tape/hourly-20260725T0406Z,tape/hourly-20260725T0500Z"])
+        assert rc == ASSERT_CONTAINED_EXIT_CODE
+        out = capsys.readouterr().out
+        assert "CONTAINED    tape/hourly-20260725T0406Z" in out
+        assert "STILL MISSING tape/hourly-20260725T0500Z" in out
+
+    def test_a_branch_the_remote_does_not_have_is_a_failure_not_a_pass(
+            self, main_repo, monkeypatch, capsys):
+        """An unverifiable claim is not a verified one — a typo must never read green."""
+        clone, _remote = main_repo
+        monkeypatch.chdir(clone)
+        rc = main(["--remote", "origin", "--assert-contained", "hourly-20260725T9999Z"])
+        assert rc == ASSERT_CONTAINED_EXIT_CODE
+        out = capsys.readouterr().out
+        assert "NOT ON REMOTE tape/hourly-20260725T9999Z" in out
+        assert "NOT recovered" in out
+
+    def test_resolve_branch_sha_returns_none_for_an_unknown_name(self, main_repo,
+                                                                  monkeypatch):
+        clone, _remote = main_repo
+        monkeypatch.chdir(clone)
+        assert resolve_branch_sha("hourly-20260725T9999Z", "origin") is None
+        assert resolve_branch_sha("hourly-20260725T0406Z", "origin") is not None
+
+    def test_report_treats_an_unfetched_branch_as_unverifiable(self):
+        t = BranchTriage(name="tape/hourly-20260725T0406Z", sha="deadbeefcafe",
+                         malformed=False, fetched=False, contained=None, commit_date=None)
+        text, ok = assert_contained_report([t])
+        assert ok is False
+        assert "UNVERIFIABLE" in text
+
+    def test_report_treats_a_size_guard_skip_as_unverified(self):
+        """A file the size guard never read is 'not checked', never 'checked and clean'
+        (L216) — so it cannot certify a recovery either."""
+        t = BranchTriage(name="tape/hourly-20260725T0406Z", sha="deadbeefcafe",
+                         malformed=False, fetched=True, contained=True, commit_date=None,
+                         skipped_files={"tape/universe_sweep/dt=2026-07-25.jsonl": 9_000_000})
+        text, ok = assert_contained_report([t])
+        assert ok is False
+        assert "size-guard-skipped" in text
+
+    def test_report_counts_a_missing_capture_id_as_not_recovered(self):
+        t = BranchTriage(name="tape/hourly-20260725T0406Z", sha="deadbeefcafe",
+                         malformed=False, fetched=True, contained=False, commit_date=None,
+                         capture_id_checked_files={"tape/universe_sweep/dt=2026-07-25.jsonl": 3})
+        text, ok = assert_contained_report([t])
+        assert ok is False
+        assert "3 capture_id(s)" in text
+
+    def test_capture_id_only_containment_is_labelled_not_hidden(self):
+        t = BranchTriage(name="tape/hourly-20260725T0406Z", sha="deadbeefcafe",
+                         malformed=False, fetched=True, contained=True, commit_date=None,
+                         capture_id_checked_files={"tape/universe_sweep/dt=2026-07-25.jsonl": 0})
+        text, ok = assert_contained_report([t])
+        assert ok is True
+        assert "capture_id-level only" in text

@@ -1,0 +1,213 @@
+{
+  "embedded_result_families": [
+    "crypto_hourly",
+    "weather_actuals",
+    "econ_prints"
+  ],
+  "n_listed_unsettled": 29,
+  "n_non_binary": 0,
+  "n_resolved": 9,
+  "n_unresolved": 33,
+  "non_binary": {},
+  "per_source_hits": {
+    "crypto_hourly": 0,
+    "econ_prints": 0,
+    "q26_settlement_cache": 0,
+    "q27_settlement_cache": 0,
+    "q29_settlement_cache": 0,
+    "q30_settlement_cache": 0,
+    "q51_settlement_cache": 9,
+    "settlement_ledger": 0,
+    "weather_actuals": 0
+  },
+  "recall_note": "undeclared_settlement_dirs() detects only settlement-NAMED directories; a family that embeds results inside another schema (see EMBEDDED_RESULT_FAMILIES) is undetectable by name. A 0-issue result is precision evidence, never recall (L155/L189/L299).",
+  "requested": 42,
+  "resolved": {
+    "KXARGPREMDIVGAME-26AUG03CCSLA-TIE": {
+      "price_source_tag": "broker_truth",
+      "result": "no",
+      "source": "q51_settlement_cache"
+    },
+    "KXASEANGAME-26AUG04MYALAO-MYA": {
+      "price_source_tag": "broker_truth",
+      "result": "yes",
+      "source": "q51_settlement_cache"
+    },
+    "KXDIMAYORGAME-26AUG02SFEOC-OC": {
+      "price_source_tag": "broker_truth",
+      "result": "no",
+      "source": "q51_settlement_cache"
+    },
+    "KXEKSTRAKLASAGAME-26AUG03CRAPSZ-CRA": {
+      "price_source_tag": "broker_truth",
+      "result": "no",
+      "source": "q51_settlement_cache"
+    },
+    "KXLIGAMXGAME-26AUG02AMESLA-TIE": {
+      "price_source_tag": "broker_truth",
+      "result": "no",
+      "source": "q51_settlement_cache"
+    },
+    "KXMLBGAME-26AUG032005LADCHC-LAD": {
+      "price_source_tag": "broker_truth",
+      "result": "no",
+      "source": "q51_settlement_cache"
+    },
+    "KXNPBGAME-26AUG030500TOHORI-ORI": {
+      "price_source_tag": "broker_truth",
+      "result": "yes",
+      "source": "q51_settlement_cache"
+    },
+    "KXNWSLGAME-26AUG02DENBOS-TIE": {
+      "price_source_tag": "broker_truth",
+      "result": "yes",
+      "source": "q51_settlement_cache"
+    },
+    "KXSCOTTISHPREMGAME-26AUG03CELDUN-CEL": {
+      "price_source_tag": "broker_truth",
+      "result": "yes",
+      "source": "q51_settlement_cache"
+    }
+  },
+  "sources": [
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "ledger_rows",
+      "n_files_present": 2,
+      "name": "settlement_ledger",
+      "note": "Q45 harvester. Pre-filtered to binary results at collection time (core/settlement.py docstring). Only two day-files exist (07-17, 07-22).",
+      "path_glob": "settlement_ledger/dt=*.jsonl",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "cache_markets_map",
+      "n_files_present": 1,
+      "name": "q26_settlement_cache",
+      "note": "S22/Q26 probe cache. RAW payload: carries result=='scalar' rows (L52).",
+      "path_glob": "q26_settlement_cache/settlement.json",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "cache_markets_map",
+      "n_files_present": 1,
+      "name": "q27_settlement_cache",
+      "note": "S23/Q27 probe cache. RAW payload: carries result=='scalar' rows (L52).",
+      "path_glob": "q27_settlement_cache/settlement.json",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "cache_markets_map",
+      "n_files_present": 1,
+      "name": "q29_settlement_cache",
+      "note": "S28/Q29 probe cache. RAW payload: carries result=='scalar' rows (L52).",
+      "path_glob": "q29_settlement_cache/settlement.json",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "cache_markets_map",
+      "n_files_present": 1,
+      "name": "q30_settlement_cache",
+      "note": "S29/Q30 probe cache. RAW payload: carries result=='scalar' rows (L52).",
+      "path_glob": "q30_settlement_cache/settlement.json",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 9,
+      "kind": "cache_markets_map",
+      "n_files_present": 2,
+      "name": "q51_settlement_cache",
+      "note": "Q51 milestone-2/3 cache \u2014 the ONLY family covering the 2026-08-03 kalshi_trades day. Rows carry `status`; only `finalized` ones have a result.",
+      "path_glob": "q51_settlement_cache/settlement*.json",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "record_results",
+      "n_files_present": 35,
+      "name": "crypto_hourly",
+      "note": "EMBEDDED: each capture carries the PRIOR hour's settled ladder. Invisible to any directory-name scan for 'settlement'.",
+      "path_glob": "crypto_hourly/dt=*.jsonl",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "event_list_results",
+      "n_files_present": 9,
+      "name": "weather_actuals",
+      "note": "EMBEDDED: `settled_markets.events[].results` is a full per-ticker yes/no map.",
+      "path_glob": "weather_actuals/dt=*.jsonl",
+      "resolves": "market_result"
+    },
+    {
+      "declared_tag": "broker_truth",
+      "hits": 0,
+      "kind": "record_results",
+      "n_files_present": 25,
+      "name": "econ_prints",
+      "note": "EMBEDDED: `recent_settlement.results` per settled CPI/payrolls/GDP ladder.",
+      "path_glob": "econ_prints/dt=*.jsonl",
+      "resolves": "market_result"
+    }
+  ],
+  "sources_absent_on_disk": [],
+  "sources_scanned": [
+    "settlement_ledger",
+    "q26_settlement_cache",
+    "q27_settlement_cache",
+    "q29_settlement_cache",
+    "q30_settlement_cache",
+    "q51_settlement_cache",
+    "crypto_hourly",
+    "weather_actuals",
+    "econ_prints"
+  ],
+  "summary_line": "42 requested / 9 resolved / 0 non-binary / 33 unresolved; hits: q51_settlement_cache=9",
+  "undeclared_settlement_dirs": [],
+  "unresolved": [
+    "KXAFLGAME-26AUG060530NMKBUL-BUL",
+    "KXARGNACBGAME-26AUG01ABOCAC-ABO",
+    "KXARGPREMDIVGAME-26AUG05TIGCAB-CAB",
+    "KXBRASILEIROGAME-26AUG08BOTFLU-FLU",
+    "KXBRASILEIROGAME-26AUG09SANCAP-CAP",
+    "KXBTC-26AUG0221-B63650",
+    "KXBTC-26AUG0300-B62550",
+    "KXBTC-26AUG0312-B63950",
+    "KXCOPADOBRASILGAME-26AUG04CRSAN-SAN",
+    "KXCOPADOBRASILGAME-26AUG05FORPAL-TIE",
+    "KXDIMAYORGAME-26AUG04TOLDIM-TIE",
+    "KXDIMAYORGAME-26JUL25CHICAN-TIE",
+    "KXETH-26AUG0300-B1842",
+    "KXKBOGAME-26AUG040530KTWKIA-KIA",
+    "KXKBOGAME-26AUG050530LGSSG-SSG",
+    "KXLEAGUESCUPGAME-26AUG04MINJUA-MIN",
+    "KXLEAGUESCUPGAME-26AUG05LAFCCDG-TIE",
+    "KXLEAGUESCUPGAME-26AUG06AMESD-AME",
+    "KXLEAGUESCUPGAME-26AUG06NYCSLA-SLA",
+    "KXLEAGUESCUPGAME-26AUG08ORLLEO-LEO",
+    "KXLEAGUESCUPGAME-26AUG09PHINCX-PHI",
+    "KXMLBGAME-26AUG041840NYMCLE-CLE",
+    "KXMLBGAME-26AUG041940PITMIL-PIT",
+    "KXMLBGAME-26AUG051410TORHOU-HOU",
+    "KXMLBGAME-26AUG051840NYMCLE-NYM",
+    "KXMLBGAME-26AUG052140DETSEA-SEA",
+    "KXUCLGAME-26AUG04LEVALM-LEV",
+    "KXUCLGAME-26AUG04USGBOG-USG",
+    "KXUELGAME-26AUG06BENHOM-TIE",
+    "KXUELGAME-26AUG06LARIBE-IBE",
+    "KXUELGAME-26AUG06PAFRBS-RBS",
+    "KXUELGAME-26AUG06THUREY-TIE",
+    "KXUSLGAME-26AUG05TULSRP-SRP"
+  ]
+}

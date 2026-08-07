@@ -64,7 +64,7 @@ import json
 import re
 import subprocess
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 CANONICAL_NAME_RE = re.compile(r"^tape/hourly-[0-9]{8}T[0-9]{4}Z$")
 
@@ -610,6 +610,81 @@ def format_report(triage: List[BranchTriage], base_ref: str = "HEAD") -> str:
     return "\n".join(lines)
 
 
+ASSERT_CONTAINED_EXIT_CODE = 2
+
+
+def resolve_branch_sha(name: str, remote: str = "origin",
+                        run_git: GitRunner = default_git_runner,
+                        cwd: Optional[str] = None) -> Optional[str]:
+    """SHA of a remote tape branch by name, or None if the remote does not have it."""
+    full = name if name.startswith("tape/") else f"tape/{name}"
+    out = run_git(["ls-remote", "--heads", remote, f"refs/heads/{full}"], cwd)
+    for sha, listed in parse_ls_remote(out):
+        if listed == full:
+            return sha
+    return None
+
+
+def assert_contained_report(triages: List[BranchTriage],
+                             not_on_remote: Sequence[str] = ()) -> Tuple[str, bool]:
+    """Render the post-recovery self-check (L301). Returns (text, ok).
+
+    `ok` is True only when EVERY named branch triages contained with zero missing lines and
+    zero missing capture_ids — the exact claim a "stranded lines recovered" commit message
+    makes. A branch the remote does not have, or one whose commit is not fetched, is a
+    FAILURE of the check, never a silent pass: an unverifiable claim is not a verified one.
+    """
+    lines = ["post-recovery containment check (L301):"]
+    ok = True
+    for t in triages:
+        n_missing = sum(t.missing_files.values())
+        n_cids = sum(t.capture_id_checked_files.values())
+        if not t.fetched:
+            lines.append(f"  UNVERIFIABLE {t.name}: commit {t.sha[:12]} not fetched locally")
+            ok = False
+        elif t.contained and not n_missing and not n_cids:
+            note = " (capture_id-level only)" if t.capture_id_only else ""
+            skipped = "" if t.fully_verified else " (WARNING: >=1 file size-guard-skipped)"
+            if not t.fully_verified:
+                ok = False
+            lines.append(f"  CONTAINED    {t.name}{note}{skipped}")
+        else:
+            lines.append(f"  STILL MISSING {t.name}: {n_missing} line(s), "
+                         f"{n_cids} capture_id(s)")
+            for f, n in sorted(t.missing_files.items()):
+                lines.append(f"      - {f}: {n} line(s)")
+            for f, n in sorted(t.capture_id_checked_files.items()):
+                if n:
+                    lines.append(f"      - {f}: {n} capture_id(s)")
+            ok = False
+    for full in not_on_remote:
+        lines.append(f"  NOT ON REMOTE {full} (nothing to verify - name typo?)")
+        ok = False
+    lines.append("  VERDICT: " + ("all named branches contained"
+                                  if ok else "NOT recovered - do not claim recovery"))
+    return "\n".join(lines), ok
+
+
+def _run_assert_contained(args) -> int:
+    names = [n.strip() for n in args.assert_contained.split(",") if n.strip()]
+    pairs: List[Tuple[str, str]] = []
+    missing_names: List[str] = []
+    for n in names:
+        sha = resolve_branch_sha(n, args.remote)
+        full = n if n.startswith("tape/") else f"tape/{n}"
+        if sha is None:
+            missing_names.append(full)
+        else:
+            pairs.append((sha, full))
+    if not args.no_fetch and pairs:
+        fetch_branches(pairs, args.remote)
+    max_bytes = None if args.no_size_guard else args.max_file_bytes
+    triage = sweep(pairs, base_ref=args.base_ref, path=args.path, max_file_bytes=max_bytes)
+    text, ok = assert_contained_report(triage, missing_names)
+    print(text)
+    return 0 if ok else ASSERT_CONTAINED_EXIT_CODE
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--remote", default="origin")
@@ -624,6 +699,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--no-size-guard", action="store_true",
                          help="disable the size guard entirely (checks every file "
                               "regardless of size — can be very slow on bulk families)")
+    parser.add_argument("--assert-contained", default=None, metavar="BRANCH[,BRANCH...]",
+                         help="POST-RECOVERY SELF-CHECK (L301). Re-triage only the named "
+                              "branch(es) against --base-ref and exit 2 if ANY of them still "
+                              "carries a genuinely-missing line or capture_id. A run that "
+                              "union-appends a branch's stranded tape must call this against "
+                              "its own post-append commit before claiming the branch is "
+                              "recovered: PR #305 was titled 'recover hourly-20260806T0726Z "
+                              "stranded lines', recovered that branch's two bulk families "
+                              "only, and left six other capture_ids on the branch for a day. "
+                              "Names may be given with or without the 'tape/' prefix.")
     parser.add_argument("--limit", type=int, default=None,
                          help="only triage the first N listed branches (per-file checks are "
                               "one-or-more git subprocesses per file, so a full historical "
@@ -631,6 +716,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                               "a single run make bounded, incremental progress). Skipped "
                               "branches are counted and reported, never silently dropped.")
     args = parser.parse_args(argv)
+
+    if args.assert_contained:
+        return _run_assert_contained(args)
 
     branches = list_remote_tape_branches(args.remote)
     total_listed = len(branches)
