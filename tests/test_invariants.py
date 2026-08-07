@@ -2227,8 +2227,33 @@ def test_acceptance_l281_real_tape_reproduces_the_2026_07_27_incident():
     assert issue["n_keys"] == 48
     n_content_differs = sum(1 for d in issue["duplicates"] if d["differing_fields"])
     assert n_content_differs == 5
-    # every OTHER committed day-file must be clean — a second incident would be new information
-    other_days_dirty = [i["day"] for i in issues if i["day"] != "2026-07-27"]
+    msg = inv.weather_books_meta_duplicate_warning(issues)
+    assert msg is not None
+    assert "known historical incident" in msg
+
+
+def test_acceptance_l300_real_tape_reproduces_the_2026_08_07_incident():
+    """HARD acceptance against the real committed tape: dt=2026-08-07 carries a SECOND,
+    independent instance of L281's mechanism — the research loop's own step-0b sweep
+    recovering a genuinely-stranded branch (tape/hourly-20260807T0115Z) reproduced the same
+    race, this time with ALL 48 of 48 (series,group) keys duplicated, the same 5
+    hourly-directional families differing in content (L300, folded into L281). Every OTHER
+    committed day-file (beyond these two known incidents) must stay clean — a THIRD incident
+    would be new information the next `--full` run should surface loudly."""
+    fam = ROOT / "tape" / "weather_books" / "meta"
+    if not fam.is_dir():
+        pytest.skip("committed tape/weather_books/meta/ not present")
+    issues = inv._weather_books_meta_duplicate_issues()
+    by_day = {i["day"]: i for i in issues}
+    assert "2026-08-07" in by_day, by_day
+    issue = by_day["2026-08-07"]
+    assert issue["allowlisted"] is True
+    assert issue["n_duplicate_keys"] == 48
+    assert issue["n_keys"] == 48
+    n_content_differs = sum(1 for d in issue["duplicates"] if d["differing_fields"])
+    assert n_content_differs == 5
+    # every OTHER committed day-file must be clean — a third incident would be new information
+    other_days_dirty = [i["day"] for i in issues if i["day"] not in ("2026-07-27", "2026-08-07")]
     assert other_days_dirty == [], other_days_dirty
     msg = inv.weather_books_meta_duplicate_warning(issues)
     assert msg is not None

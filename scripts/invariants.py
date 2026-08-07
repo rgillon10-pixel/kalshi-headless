@@ -2400,11 +2400,21 @@ def econ_prints_settlement_regression_warning(issues: List[Dict[str, object]]) -
 # hourly-directional contract instances). Non-gating: the historical duplicate lines cannot
 # be un-committed (append-only tape) and the sweep's own line-level containment check cannot
 # collapse them (the rows genuinely differ in `capture_id`/`captured_at`, so they are not the
-# same line). `WEATHER_BOOKS_META_DUP_ALLOWLIST` names the one known historical incident so
-# it is reported as a KNOWN fact, not re-flagged as new every run; any OTHER day hitting this
+# same line). `WEATHER_BOOKS_META_DUP_ALLOWLIST` names the known historical incidents so
+# they are reported as a KNOWN fact, not re-flagged as new every run; any OTHER day hitting this
 # is a genuine fresh regression the next `--full` run should surface loudly.
+#
+# A SECOND incident (L300, 2026-08-07): the research-loop's own step-0b sweep recovering a
+# genuinely-stranded `tape/hourly-20260807T0115Z` branch (its 00:56Z pass never saw main's
+# 03:56Z/07:08Z passes) reproduced the exact L281 mechanism — `dt=2026-08-07.jsonl` carries
+# ALL 48 of its `(series, group)` keys TWICE, the same 5 hourly-directional families
+# (KXTEMPAUSH/KXTEMPCHIH/KXTEMPDCH/KXTEMPLAXH/KXTEMPNYCH) differing in
+# `rules_primary`/`sample_ticker`. This confirms L281's general rule (a working-tree-local
+# write-once guarantee does not survive a branch-fallback push path) rather than adding new
+# information about the mechanism, so it is folded into the allowlist rather than given its
+# own root-cause writeup.
 
-WEATHER_BOOKS_META_DUP_ALLOWLIST = frozenset({"2026-07-27"})
+WEATHER_BOOKS_META_DUP_ALLOWLIST = frozenset({"2026-07-27", "2026-08-07"})
 
 
 def _weather_books_meta_duplicate_issues(
@@ -2472,9 +2482,10 @@ def weather_books_meta_duplicate_warning(issues: List[Dict[str, object]]) -> Opt
     known = [i for i in issues if i["allowlisted"]]
     lines: List[str] = []
     if new:
+        known_days = ", ".join(sorted(WEATHER_BOOKS_META_DUP_ALLOWLIST)) or "none"
         lines.append(f"warning (non-gating): {len(new)} tape/weather_books/meta/dt=*.jsonl "
                      f"day(s) violate the write-once-per-(series,group) contract and are a "
-                     f"NEW regression (not the known 2026-07-27 incident):")
+                     f"NEW regression (not the known {known_days} incident(s)):")
         for issue in new:
             n_content = sum(1 for d in issue["duplicates"] if d["differing_fields"])
             lines.append(f"  - dt={issue['day']}: {issue['n_duplicate_keys']} duplicated "
