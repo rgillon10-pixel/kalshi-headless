@@ -6,6 +6,91 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-07 ~03:2x-06:4x UTC — research loop IDLE RUN (a): the trade tape's registration surface is now an assert, not a grep (L292 -> L299)
+
+**What happened.** Re-verified the queue independently rather than trusting the prior run's
+summary: every item Q0-Q55 reads DONE / BLOCKED / RESERVED / time-gated / data-gated at its
+CURRENT Status line. Q51 milestone 3 is time-gated to **2026-08-10** (3 days out, pre-flighted
+08-05). Q52 and Q54 are data-gated on multi-day `tape/kalshi_trades/` and that family still holds
+exactly **one** committed day (`dt=2026-08-03`). Q53's only outstanding milestone is its
+PROVISIONAL milestone-3 S3/S15 data-adequacy verdict — which is **verdict-class**, so by the
+two-agent rule it needs an independent `verifier`, and **this harness exposes no `Task`/subagent
+tool** (Read/Grep/Glob/Bash only), exactly as on Q19/Q49/Q50/Q51/Q53/Q55. So: idle run, policy
+**(a)**.
+
+**Which lesson, and why that one.** The standing UNENFORCED work queue, recomputed with the
+repo's own detector (`invariants.py::_parse_lesson_rows` + `_lesson_disposed_ids` +
+`_UNENFORCED_MARKER_RE`), held **6** open rows. Five are structurally not a research run's to
+build: **L213** (Ryan-action half), **L221** (collector write path, and its own cell says DO NOT
+BUILD — duplicate of open PR #165), **L222** (collector write path), **L282** (Ryan-lane step-0b
+sweep workflow), **L296** (verdict half, needs the unavailable verifier). That left **L292** as
+the only buildable in-lane artifact in the ledger.
+
+L292: *"A `tape/kalshi_trades/`-anchored maker/taker candidate must name its target tickers'
+PRESENCE on the trade tape at proposal time."* Its cell closed with *"no machine-checkable
+artifact fits it ... the check is a one-line ticker-inventory grep the proposing run must run."*
+Both halves of that sentence are true and the conclusion still does not follow — a grep every
+proposing run must REMEMBER to run is the exact thing CLAUDE.md's third prime directive says to
+convert. That is the new lesson **L299**.
+
+**Built.** `scripts/kalshi_trades_ticker_inventory.py` — read-only, fully offline, no network,
+never imported by a collector: `series_of` / `trade_tape_inventory` / `series_coverage` /
+`named_series_tokens`, with a `--max-day` window freeze (L140) and a three-valued coverage verdict
+`COVERED` / `ABSENT` / `UNKNOWN_NO_TAPE`, so an un-collected family can never render as an absent
+one (L289/L296). Wired into `scripts/invariants.py --full` as the non-gating
+`kalshi_trades_registration_surface_warning` over `_kalshi_trades_registration_issues`: it reads
+every `kb/strategies/00-index.md` row anchored on `kalshi_trades`, extracts the KX series tokens
+that row names, and reports three classes that are never merged (L289) — `uncovered` (names a
+series with no committed print: **the S81 shape**), `unscoped` (anchors on the trade tape but
+names no series token, so coverage cannot be checked), `covered`. Non-gating permanently: an
+uncovered family is the honest data-gated posture S55/S78/S79 already carry, and the trade
+collector's cadence is Ryan-gated (L221/L222). `BaseException`-wrapped at the call site so a
+formatter raise can never turn an advisory into a gate (L156 DEFECT-1).
+
+**What it found.** Closed window `--max-day 2026-08-03`. L292's published inventory reproduces
+exactly on this independent code path: **39,698** prints / **42** tickers / **20** series / **1**
+committed day / **0** malformed lines; every series is sports (`*GAME`, 18 of them — KXNWSLGAME
+10,156, KXMLBGAME 7,756, KXNPBGAME 5,462, KXDIMAYORGAME 5,453) or crypto (KXBTC 47, KXETH 10);
+`KXCPI` / `KXCPICORE` / `KXNFP` / `KXGDP` / `KXFED` / `KXPCE` are **ABSENT**, all six, each pinned.
+**New, and not in L292:** of the **2** registry rows anchored on the trade tape (**S78**, **S79**),
+**0 are uncovered and 2 are `unscoped` — neither names a KX series token at all**. So the
+discipline L292 asks for could not have been applied to either row as written: the grep has no
+input. That class is reported separately and explicitly NOT as a defect — S78's "series x
+price-bucket x regime" and S79's "wide-spread sports moneylines" are legitimately generic designs,
+and merging `unscoped` into the uncovered count would manufacture two violations out of a coverage
+limit.
+
+**What it means.** Honesty caveats ride in the tool's own output rather than in a reader's memory:
+the universe is COMMITTED TAPE, so `ABSENT` reads "unmeasurable from committed tape today" and
+never "Kalshi has no prints there" or "the collector cannot capture it"
+(`collection/kalshi_trades.py` is ticker-scoped by construction — venue-wide density is ~1e6
+prints/day); an absence measured over one day is a floor statement, so `n_days` rides on every
+verdict; prefix matching is deliberately generous, so the check can under-report an absence and can
+never invent one (L155). **It changes nothing about the edge search**: no bootstrap CI, no P&L, no
+fill rate quoted as an edge, no registry status flipped, no kill. It does not revive S78/S79, does
+not make Q52/Q54 runnable, and does not add a committed trade day. It bounds one class of mistake
+the nightly idea-gen leg can make, mechanically. Still **0 proven edges**.
+
+**Two-agent status.** N/A — tooling, not verdict-class. And not satisfiable in any case: no
+`Task`/subagent tool exists in this harness, so no `verifier` was dispatchable (the
+L287/L288/L290/L291/L295 precedent). The one redundancy available was used: the tool re-derives
+L292's inventory on a code path that shares nothing with the round that published it, and the
+numbers match to the digit.
+
+**Gates AFTER the last code change (L162).** `pytest -q` -> **3,312 collected / 3,312 passed, 0 failed**
+(~6,956s; the detached run reached [100%] and its trailing summary line was lost when the process's stdout buffer was not flushed at exit, so the count is stated from the progress-character census — **3,312 progress characters, every one a `.`**, 0 `F`/`E`/`s` — cross-checked against `pytest --collect-only -q` = **3,312** collected, per L162's floor clause); `python3 scripts/invariants.py --full` -> exit **0**, all green, advisories
+unchanged apart from the one this run adds. Step 9 (paper sub-pass, `SHADOW_REGISTRY` non-empty):
+`s14_ladder_underwriting` idempotent over committed tape — 0 processed, 274 deferred(coverage),
+300 already-in-ledger, **no new ledger lines**; `paper: 0 open position(s), 1657 settled
+contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00`.
+
+**Files.** `scripts/kalshi_trades_ticker_inventory.py`, `scripts/invariants.py`,
+`tests/test_kalshi_trades_ticker_inventory.py` (30 tests),
+`findings/2026-08-07-l292-trade-tape-registration-surface-guard.md`, `kb/lessons/00-lessons.md`
+(L292 cell moved `UNENFORCED` -> `test`; new **L299**), `LOOP-QUEUE.md`, `kb/00-LOG.md`.
+
+---
+
 ## 2026-08-07 ~04:1x-05:xx UTC — kalshi-edge-hunter (nightly, Opus): review CLEAN on 4 findings, Q21 round #25 = 0 registered, but caught a wrong data-gate in the 08-06 S79 registration (issue #310)
 
 **What happened.** Nightly thinking-seat run. Steps 0a/0/0b clean (all 5 recent merge commits are
@@ -68,6 +153,8 @@ a fresh 78-min full re-run on an unchanged tree is not practical for a docs-only
 **Files.** `findings/2026-08-07-q21-idea-gen-round.md`, `LOOP-QUEUE.md` (Q21 round #25 status +
 Log-of-runs line), `kb/00-LOG.md` (this entry). GitHub issue #310. No registry status change, no
 lesson committed (candidate deferred to kb-distiller).
+
+---
 
 ## 2026-08-06 ~21:1x-22:3x UTC — research loop IDLE RUN (a): every detector's zero now carries its own denominator (L296 -> L298)
 
