@@ -1,0 +1,552 @@
+{
+ "availability_window": {
+  "n_all": 2273,
+  "n_excluded_kickoff_outside_window": 637,
+  "n_reached": 1636,
+  "window_end": "2026-08-07T12:55:00.209755+00:00",
+  "window_start": "2026-07-12T21:23:03.072875+00:00"
+ },
+ "cadence_null": {
+  "frac_gap_within_one_cadence": 0.485665,
+  "gap_over_cadence_percentiles": {
+   "p100": 32.203,
+   "p25": 0.482,
+   "p50": 1.029,
+   "p75": 1.575,
+   "p90": 2.194,
+   "p99": 8.189
+  },
+  "local_cadence_min_percentiles": {
+   "p25": 60.0,
+   "p50": 179.8,
+   "p75": 180.6
+  },
+  "lookback_hours": 12,
+  "mean_ratio_within_one_cadence": 0.5001,
+  "n_games_scored": 1151,
+  "null_rejected": true,
+  "observed_near_close_frac": 0.126846,
+  "predicted_near_close_frac_under_null": 0.518959,
+  "shortfall_ratio": 4.0912,
+  "uniform_null_mean_ratio_reference": 0.5
+ },
+ "capture_cadence": {
+  "missing_calendar_days": [
+   "2026-07-09"
+  ],
+  "n_days": 35,
+  "passes_by_day": {
+   "2026-07-03": 25,
+   "2026-07-04": 47,
+   "2026-07-05": 48,
+   "2026-07-06": 49,
+   "2026-07-07": 49,
+   "2026-07-08": 23,
+   "2026-07-10": 9,
+   "2026-07-11": 48,
+   "2026-07-12": 46,
+   "2026-07-13": 47,
+   "2026-07-14": 45,
+   "2026-07-15": 32,
+   "2026-07-16": 30,
+   "2026-07-17": 32,
+   "2026-07-18": 15,
+   "2026-07-19": 7,
+   "2026-07-20": 8,
+   "2026-07-21": 10,
+   "2026-07-22": 25,
+   "2026-07-23": 5,
+   "2026-07-24": 5,
+   "2026-07-25": 6,
+   "2026-07-26": 8,
+   "2026-07-27": 5,
+   "2026-07-28": 6,
+   "2026-07-29": 3,
+   "2026-07-30": 4,
+   "2026-07-31": 4,
+   "2026-08-01": 8,
+   "2026-08-02": 6,
+   "2026-08-03": 5,
+   "2026-08-04": 5,
+   "2026-08-05": 7,
+   "2026-08-06": 6,
+   "2026-08-07": 4
+  },
+  "peak_day": "2026-07-06",
+  "peak_passes": 49,
+  "recent_7day_mean_passes": 5.86
+ },
+ "close_proximity": {
+  "by_series": [
+   {
+    "median_gap_min": 100.4,
+    "n_games": 292,
+    "n_le_near_close": 66,
+    "series": "KXMLBGAME"
+   },
+   {
+    "median_gap_min": 261.1,
+    "n_games": 154,
+    "n_le_near_close": 0,
+    "series": "KXUECLGAME"
+   },
+   {
+    "median_gap_min": 185.2,
+    "n_games": 103,
+    "n_le_near_close": 21,
+    "series": "KXNPBGAME"
+   },
+   {
+    "median_gap_min": 185.9,
+    "n_games": 95,
+    "n_le_near_close": 22,
+    "series": "KXKBOGAME"
+   },
+   {
+    "median_gap_min": 140.5,
+    "n_games": 52,
+    "n_le_near_close": 1,
+    "series": "KXUCLGAME"
+   },
+   {
+    "median_gap_min": 95.7,
+    "n_games": 51,
+    "n_le_near_close": 3,
+    "series": "KXMLSGAME"
+   },
+   {
+    "median_gap_min": 185.6,
+    "n_games": 45,
+    "n_le_near_close": 0,
+    "series": "KXARGPREMDIVGAME"
+   },
+   {
+    "median_gap_min": 95.8,
+    "n_games": 43,
+    "n_le_near_close": 4,
+    "series": "KXUSLGAME"
+   },
+   {
+    "median_gap_min": 305.6,
+    "n_games": 41,
+    "n_le_near_close": 2,
+    "series": "KXARGNACBGAME"
+   },
+   {
+    "median_gap_min": 125.8,
+    "n_games": 41,
+    "n_le_near_close": 1,
+    "series": "KXECULPGAME"
+   },
+   {
+    "median_gap_min": 425.5,
+    "n_games": 38,
+    "n_le_near_close": 0,
+    "series": "KXUELGAME"
+   },
+   {
+    "median_gap_min": 155.5,
+    "n_games": 34,
+    "n_le_near_close": 0,
+    "series": "KXBRASILEIROBGAME"
+   },
+   {
+    "median_gap_min": 65.9,
+    "n_games": 33,
+    "n_le_near_close": 9,
+    "series": "KXWNBAGAME"
+   },
+   {
+    "median_gap_min": 185.6,
+    "n_games": 32,
+    "n_le_near_close": 0,
+    "series": "KXBRASILEIROGAME"
+   },
+   {
+    "median_gap_min": 125.7,
+    "n_games": 32,
+    "n_le_near_close": 2,
+    "series": "KXNWSLGAME"
+   },
+   {
+    "median_gap_min": 170.5,
+    "n_games": 32,
+    "n_le_near_close": 0,
+    "series": "KXSCOCUPGAME"
+   },
+   {
+    "median_gap_min": 156.0,
+    "n_games": 29,
+    "n_le_near_close": 4,
+    "series": "KXAFLGAME"
+   },
+   {
+    "median_gap_min": 140.6,
+    "n_games": 28,
+    "n_le_near_close": 0,
+    "series": "KXPERLIGA1GAME"
+   },
+   {
+    "median_gap_min": 97.0,
+    "n_games": 27,
+    "n_le_near_close": 3,
+    "series": "KXLIGAMXGAME"
+   },
+   {
+    "median_gap_min": 185.6,
+    "n_games": 26,
+    "n_le_near_close": 1,
+    "series": "KXDIMAYORGAME"
+   },
+   {
+    "median_gap_min": 157.0,
+    "n_games": 25,
+    "n_le_near_close": 0,
+    "series": "KXELITESERIENGAME"
+   },
+   {
+    "median_gap_min": 100.9,
+    "n_games": 24,
+    "n_le_near_close": 0,
+    "series": "KXCHNSLGAME"
+   },
+   {
+    "median_gap_min": 215.9,
+    "n_games": 24,
+    "n_le_near_close": 0,
+    "series": "KXKLEAGUEGAME"
+   },
+   {
+    "median_gap_min": 183.3,
+    "n_games": 23,
+    "n_le_near_close": 0,
+    "series": "KXALLSVENSKANGAME"
+   },
+   {
+    "median_gap_min": 171.4,
+    "n_games": 23,
+    "n_le_near_close": 0,
+    "series": "KXUCLWGAME"
+   },
+   {
+    "median_gap_min": 156.2,
+    "n_games": 22,
+    "n_le_near_close": 2,
+    "series": "KXBOLPDIVGAME"
+   },
+   {
+    "median_gap_min": 171.4,
+    "n_games": 19,
+    "n_le_near_close": 2,
+    "series": "KXLIGAEXPGAME"
+   },
+   {
+    "median_gap_min": 97.0,
+    "n_games": 19,
+    "n_le_near_close": 3,
+    "series": "KXURYPDGAME"
+   },
+   {
+    "median_gap_min": 260.8,
+    "n_games": 18,
+    "n_le_near_close": 0,
+    "series": "KXAPFDDHGAME"
+   },
+   {
+    "median_gap_min": 125.8,
+    "n_games": 18,
+    "n_le_near_close": 2,
+    "series": "KXBIG3GAME"
+   },
+   {
+    "median_gap_min": 140.3,
+    "n_games": 18,
+    "n_le_near_close": 0,
+    "series": "KXLEAGUESCUPGAME"
+   },
+   {
+    "median_gap_min": 155.9,
+    "n_games": 16,
+    "n_le_near_close": 1,
+    "series": "KXCHLLDPGAME"
+   },
+   {
+    "median_gap_min": 170.8,
+    "n_games": 16,
+    "n_le_near_close": 0,
+    "series": "KXCONMEBOLSUDGAME"
+   },
+   {
+    "median_gap_min": 155.3,
+    "n_games": 16,
+    "n_le_near_close": 1,
+    "series": "KXCOPADOBRASILGAME"
+   },
+   {
+    "median_gap_min": 185.2,
+    "n_games": 15,
+    "n_le_near_close": 0,
+    "series": "KXEKSTRAKLASAGAME"
+   },
+   {
+    "median_gap_min": 186.0,
+    "n_games": 14,
+    "n_le_near_close": 0,
+    "series": "KXASEANGAME"
+   },
+   {
+    "median_gap_min": 178.4,
+    "n_games": 14,
+    "n_le_near_close": 0,
+    "series": "KXPLLGAME"
+   },
+   {
+    "median_gap_min": 125.9,
+    "n_games": 14,
+    "n_le_near_close": 3,
+    "series": "KXVENFUTVEGAME"
+   },
+   {
+    "median_gap_min": 155.7,
+    "n_games": 13,
+    "n_le_near_close": 0,
+    "series": "KXBRASILEIROCGAME"
+   },
+   {
+    "median_gap_min": 37.0,
+    "n_games": 10,
+    "n_le_near_close": 9,
+    "series": "KXBSNGAME"
+   },
+   {
+    "median_gap_min": 215.6,
+    "n_games": 10,
+    "n_le_near_close": 0,
+    "series": "KXDENSUPERLIGAGAME"
+   },
+   {
+    "median_gap_min": 1902.0,
+    "n_games": 7,
+    "n_le_near_close": 0,
+    "series": "KXMILBGAME"
+   },
+   {
+    "median_gap_min": 289.4,
+    "n_games": 6,
+    "n_le_near_close": 0,
+    "series": "KXSCOTTISHPREMGAME"
+   },
+   {
+    "median_gap_min": 185.6,
+    "n_games": 6,
+    "n_le_near_close": 0,
+    "series": "KXSWISSLEAGUEGAME"
+   },
+   {
+    "median_gap_min": 215.6,
+    "n_games": 5,
+    "n_le_near_close": 0,
+    "series": "KXHNLGAME"
+   },
+   {
+    "median_gap_min": 82.0,
+    "n_games": 4,
+    "n_le_near_close": 1,
+    "series": "KXNZNBLGAME"
+   },
+   {
+    "median_gap_min": 111.4,
+    "n_games": 4,
+    "n_le_near_close": 0,
+    "series": "KXWCGAME"
+   },
+   {
+    "median_gap_min": 335.6,
+    "n_games": 3,
+    "n_le_near_close": 0,
+    "series": "KXEFLCUPGAME"
+   },
+   {
+    "median_gap_min": 97.0,
+    "n_games": 2,
+    "n_le_near_close": 0,
+    "series": "KXVBAGAME"
+   }
+  ],
+  "n_games_no_pre_kickoff_capture": 0,
+  "n_games_scored": 1636,
+  "n_games_with_post_kickoff_capture": 63,
+  "near_close_min": 60,
+  "proximity_buckets": {
+   "le_120_min": {
+    "frac": 0.372861,
+    "n": 610
+   },
+   "le_15_min": {
+    "frac": 0.01956,
+    "n": 32
+   },
+   "le_180_min": {
+    "frac": 0.543399,
+    "n": 889
+   },
+   "le_30_min": {
+    "frac": 0.031785,
+    "n": 52
+   },
+   "le_360_min": {
+    "frac": 0.84291,
+    "n": 1379
+   },
+   "le_5_min": {
+    "frac": 0.002445,
+    "n": 4
+   },
+   "le_60_min": {
+    "frac": 0.099633,
+    "n": 163
+   },
+   "le_720_min": {
+    "frac": 0.96088,
+    "n": 1572
+   }
+  },
+  "terminal_gap_min_percentiles": {
+   "p0": 3.3,
+   "p10": 61.4,
+   "p100": 3065.6,
+   "p25": 80.6,
+   "p5": 37.0,
+   "p50": 155.7,
+   "p75": 245.9,
+   "p90": 399.6,
+   "p95": 605.7
+  }
+ },
+ "field_hazards": {
+  "completeness_ok": {
+   "True": 147036
+  },
+  "frac_game_date_disagrees": 0.448497,
+  "frac_odds_matched": 0.001632,
+  "frac_records_without_game_start": 0.411573,
+  "game_date_minus_game_start_utc_date_days": {
+   "0": 47716,
+   "1": 38804
+  },
+  "n_game_date_disagrees_with_utc_kickoff_date": 38804,
+  "n_odds_matched": 240,
+  "odds_leg_status": {
+   "blocked_key": 104457,
+   "matched": 240,
+   "not_selected": 15753,
+   "unmapped_series": 17848,
+   "unmatched": 8738
+  },
+  "price_source_tags": {
+   "real_ask": 379664
+  },
+  "schema_versions": {
+   "sports_pairs.v1": 60516,
+   "sports_pairs.v2": 86520
+  },
+  "utc_hour_of_disagreeing_kickoffs": {
+   "0": 3416,
+   "1": 6286,
+   "2": 10880,
+   "3": 9151,
+   "4": 4253,
+   "5": 3077,
+   "6": 1741
+  }
+ },
+ "generated_by": "scripts/sports_pairs_close_proximity_audit.py",
+ "load": {
+  "duplicate_lines_by_day_file": {
+   "dt=2026-07-28.jsonl": 228
+  },
+  "n_day_files": 35,
+  "n_duplicate_lines_dropped": 228,
+  "n_json_invalid": 0,
+  "n_lines_read": 147264,
+  "non_canonical_entries": [
+   "_manifest.jsonl",
+   "dt=2026-07-02/",
+   "dt=2026-07-09/",
+   "dt=2026-07-10/"
+  ]
+ },
+ "n_passes": 682,
+ "n_records": 147036,
+ "pre_kickoff_dropout": {
+  "admissible_causes": [
+   "event absent from /markets?status=open (collection.sports_pairs._fetch_open_markets_raw)",
+   "group no longer satisfies collection.sports_pairs.is_moneyline_group"
+  ],
+  "drop_lead_lower_bound_min_percentiles": {
+   "p100": 2885.8,
+   "p25": 5.8,
+   "p50": 15.9,
+   "p75": 37.0,
+   "p90": 53.0
+  },
+  "examples": [
+   {
+    "drop_lead_lower_bound_min": 7.0,
+    "event_ticker": "KXAFLGAME-26JUL160530SKSGEE",
+    "first_missed_pass": "20260716T122302Z",
+    "game_start": "2026-07-16T12:30:00+00:00",
+    "last_capture": "2026-07-16T11:23:02.043892+00:00",
+    "n_missed_passes": 1,
+    "series": "KXAFLGAME"
+   },
+   {
+    "drop_lead_lower_bound_min": 16.0,
+    "event_ticker": "KXAFLGAME-26JUL310610BULFRE",
+    "first_missed_pass": "20260731T125358Z",
+    "game_start": "2026-07-31T13:10:00+00:00",
+    "last_capture": "2026-07-31T09:53:43.642830+00:00",
+    "n_missed_passes": 1,
+    "series": "KXAFLGAME"
+   },
+   {
+    "drop_lead_lower_bound_min": 5.6,
+    "event_ticker": "KXALLSVENSKANGAME-26AUG01HACKAL",
+    "first_missed_pass": "20260801T155422Z",
+    "game_start": "2026-08-01T16:00:00+00:00",
+    "last_capture": "2026-08-01T12:56:40.641660+00:00",
+    "n_missed_passes": 1,
+    "series": "KXALLSVENSKANGAME"
+   },
+   {
+    "drop_lead_lower_bound_min": 65.7,
+    "event_ticker": "KXALLSVENSKANGAME-26JUL17IFKBRO",
+    "first_missed_pass": "20260717T185415Z",
+    "game_start": "2026-07-17T20:00:00+00:00",
+    "last_capture": "2026-07-17T18:23:02.216652+00:00",
+    "n_missed_passes": 2,
+    "series": "KXALLSVENSKANGAME"
+   },
+   {
+    "drop_lead_lower_bound_min": 36.9,
+    "event_ticker": "KXALLSVENSKANGAME-26JUL17MJAVAS",
+    "first_missed_pass": "20260717T192304Z",
+    "game_start": "2026-07-17T20:00:00+00:00",
+    "last_capture": "2026-07-17T18:54:15.666716+00:00",
+    "n_missed_passes": 1,
+    "series": "KXALLSVENSKANGAME"
+   }
+  ],
+  "excluded_cause_hollow_book": "run() appends a record per confirmed group unconditionally",
+  "frac_provably_dropped": 0.285452,
+  "missed_passes_per_dropped_game": {
+   "max": 14,
+   "median": 1.0,
+   "p90": 2.0
+  },
+  "n_cadence_limited_only": 1169,
+  "n_games_scored": 1636,
+  "n_provably_dropped_pre_kickoff": 467
+ },
+ "tape_dir": "/home/user/kalshi-headless/tape/sports_pairs"
+}

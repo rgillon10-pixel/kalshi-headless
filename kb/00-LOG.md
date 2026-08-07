@@ -6,6 +6,135 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-07 ~15:3x-16:5x UTC — research loop (idle run, policy (c)): the biggest tape family stops watching a game before the game starts (L304/L305)
+
+**What happened.** Queue drained again (every item Q0–Q55 reads DONE / BLOCKED / RESERVED /
+time-gated / data-gated at its own most-recent Status line; Q51 milestone 3 stays time-gated to
+2026-08-10 and is already pre-flighted). Steps 0a/0/0b were done by the calling session —
+history-integrity PASS, one open PR (#315, Q53 milestone-3 verdict, claiming work this run did
+not touch), and 22,974 stranded lines from `hourly-20260807T1257Z` recovered and
+`--assert-contained`-verified in a separate commit. **Idle-run policy (a) re-verified exhausted**
+against the ledger itself, not against the prior run's word: the 5 open `UNENFORCED` rows are
+L213 (Ryan action), L221/L222 (collector write-path, the row itself says DO NOT BUILD), L282
+(step-0b workflow discipline, not a cloud-buildable artifact) and L296 (the verdict half needs a
+`verifier` this harness cannot dispatch). **Policy (b) checked and also empty:** the only
+calendar/event gates left are Q51 m3 (probe `scripts/q51_m3_preflight.py` built + tested 08-05)
+and Q48/S55, whose probe has been built and hardened since 07-26/07-27 and whose real gate is a
+Ryan-side burst trigger for the next FOMC — there is no gated item with an unbuilt probe. So:
+**policy (c)**, a data-quality deep-dive on one under-examined family.
+
+**Family chosen, and why it was overdue.** `tape/sports_pairs/` is the repo's **largest** family
+— 35 canonical day-files, 147,264 lines, 682 passes, 2026-07-03 → 2026-08-07 — and the substrate
+under every sports strategy the project has run. Recent idle-run(c) passes went to
+`crypto_hourly` (08-06), `econ_prints` (08-05), `polymarket_cpi_pairs` (08-05), `kalshi_trades`
+(08-04), `weather_books` (08-04), `orderbook_depth` (08-04); `sports_pairs` had not been looked
+at in 19 days, and its only dedicated finding (2026-07-19) measured a different question over the
+first 16 days and the now-superseded `sports_pairs.v1` schema. The v2 schema (first record
+2026-07-12T21:23:03Z) added `game_start` — and only with that field does the question worth
+asking become answerable at all: **how close to its own kickoff does this tape actually observe a
+game?** Every near-close sports entry rule is silently conditioned on the answer, and L251 is the
+standing warning that a rule which looks temporal can be selecting on a collector artifact.
+
+**The availability correction came first, before any headline (L302's class, one day old).** Of
+2,273 v2 games publishing a `game_start`, **637 have a kickoff AFTER the tape's last pass** —
+Kalshi lists games days ahead, so the family is full of markets for games that have not happened,
+whose terminal gap measures when we stopped collecting rather than how the collector behaves.
+Scoring them anyway would have reported a median terminal gap of 216.1 min and a p90 of 4,745
+min; corrected to the 1,636 games whose kickoff falls inside the window, it is **155.7 min** and
+**399.6 min**. The same condition (`game_start <= last pass`) is what guarantees the gap is
+uncensored, since it means a pass ran at or after kickoff.
+
+**Finding 1 — a near-close observation is the exception, not the rule.** Availability-corrected,
+1,636 games, every price `real_ask` (379,664/379,664 tagged outcomes, 0 untagged): **163 = 9.96%**
+have any observation within 60 min of kickoff, **52 = 3.18%** within 30 min, **4 = 0.24%** within
+5 min. Even p5 of the gap distribution is 37.0 min.
+
+**Finding 2 — cadence does not explain it, and the null says so by 4.09x.** The obvious reading
+is "the collector is only 3-hourly now" (it is: peak 49 passes/day on 07-06, recent-7-day mean
+5.86). Stated falsifiably: if a game were captured on every pass until kickoff, its terminal gap
+would be ~U(0, C) for C the local cadence, giving mean(min(1, 60/C)) = **0.5190** — observed
+**0.1268**, a **4.09x shortfall, null REJECTED**. The null's *shape* is right where it applies
+(mean gap/C = **0.5001** against the U(0,1) reference of 0.500, among the 48.6% of games inside
+one cadence interval); its *support* is wrong — full-sample median gap/C is **1.029**, so the
+typical game's last observation is more than a whole extra pass early.
+
+**Finding 3 — 467 of 1,636 games (28.55%) are PROVABLY dropped before their own kickoff.** Not
+inferred from a distribution: a game counts only when at least one pass that **did capture the
+game's own `series`** ran strictly between its last observation and kickoff without it (the
+same-series condition is what stops a series-level fetch error from manufacturing dropouts).
+Median 1 missed pass, max 14; drop-lead **lower bound** p50 15.9 / p90 53.0 min (a lower bound
+because the true drop instant lies between the last observation and the first missed pass, and
+the tape cannot resolve it finer than its own cadence). Worked example in the report:
+`KXAFLGAME-26JUL160530SKSGEE`, kickoff 12:30:00Z, last captured 11:23:02Z, and pass
+`20260716T122302Z` — 7.0 min before kickoff — captured `KXAFLGAME` without it. **Mechanism
+narrowed but deliberately not resolved:** `_fetch_open_markets_raw` queries `/markets` with
+`status: "open"` only, and `discover_groups` additionally requires `is_moneyline_group`; a record
+persists neither market `status` nor `close_time`, so the family cannot answer its own dropout
+question — **L222's shape, one family over**. What IS excluded by measurement is the hollow-book
+reading: `run()` appends a record per confirmed group unconditionally, and `completeness_ok` is
+True on 147,036/147,036. **Why it matters beyond hygiene:** if the drop is Kalshi-side, part of
+the last hour before kickoff is not tradeable at all and a near-close entry rule is partly
+unfillable — a prime-directive question, not a collection one; if it is collector-side, the tape
+understates a real fillable window. This run does **not** decide between them, and nothing should
+be priced off either reading until a `status`/`close_time` passthrough settles it. That
+passthrough is the write-path lane L221/L222 says DO NOT BUILD without Ryan, so it was not built.
+
+**Finding 4 — a live join hazard (L305).** `game_date` is parsed from the **ticker** and is NOT
+the UTC kickoff date: it disagrees on **38,804/86,520 = 44.85%** of v2 records, always by exactly
++1 day, always for a kickoff in UTC hours 00-06 (peak 02Z, n=10,880). It is a timezone
+convention, not corruption — which is exactly why it is dangerous: any probe bucketing or joining
+on `game_date` as the UTC kickoff day mis-dates nearly half the largest family with no parse
+error to warn it. Also: **41.16%** of the family (60,516 v1 records) carries no `game_start` at
+all, so Findings 1-3 are structurally unanswerable there (reported as a denominator, L296's
+rule); and the S7/S11 sharp-odds anchor is still absent in fact — `odds_leg.status` is
+`matched` on **240/147,036 = 0.163%**.
+
+**Already-known things re-reported so the denominators are honest, not re-attributed:** the 228
+byte-identical duplicate lines (all `dt=2026-07-28.jsonl`, all one pass `20260728T065420Z` landed
+twice) are L285's row and the same 07-28 double-landing incident L282 diagnosed for
+`orderbook_depth` — deduplicated before scoring, and they move no number here (the independent
+re-derivation, which dedupes separately, returned 1,636 / 155.7 / 163 / 467 identically); the
+missing canonical `dt=2026-07-09.jsonl` and the three non-canonical directories are the L25
+debris the 2026-07-19 audit already named; the ~8x cadence decay has its cause diagnosed in the
+07-25 and 08-03 VPS/cloud-slot findings and is not re-derived here.
+
+**What this is not.** No CI, no P&L, no registry flip, no kill — `kb/strategies/00-index.md` is
+untouched and every sports strategy keeps the verdict it already carries; S79 stays
+`collect-and-revisit`. **Two-agent rule N/A by class** (descriptive data-adequacy, nothing
+verdict-class), and this harness exposes no `Task`/subagent tool so no `verifier` was dispatchable
+in any case — the L287/L288/L290/L291/L295 precedent. In its place every headline number was
+re-derived by a throwaway stdlib-only parser (own ISO parser, own line-dedup, zero imports from
+`core/` or `scripts/`) and matched bit-for-bit; that is a producer-side robustness check and is
+labelled as one, not a verdict.
+
+**Build note.** The audit's first draft defined the availability window's end from v2 game
+captures alone, which right-censored any game whose kickoff followed the last v2 capture — caught
+by five of its own tests failing, not by inspection; `reached_games` now takes an explicit
+`window_end` (the family's true last pass, including v1 records that carry no `game_start`).
+Numbers on committed tape were unchanged, because the two instants coincide there.
+
+**Gates, fresh AFTER the last code change (L162).** `python3 -m pytest -o addopts='' -q` run as
+4 disjoint file shards partitioning all 114 test files (asserted a partition before running; a
+single-process full run does not fit this sandbox's wall clock — `tests/test_invariants.py` alone
+is 324 tests / 59m18s): **3,395 tests, 0 failed, 0 errors, 0 skipped**, every shard exit 0,
+junit-XML-verified per shard. That total equals the `--collect-only` count of 3,395 exactly, so
+the sharding dropped nothing, and it is the prior run's 3,371 plus exactly this run's 24 new
+tests. `python3 scripts/invariants.py --full` → **exit 0, all green**; advisories unchanged by
+this diff — in particular the L152 stale-UNENFORCED census still reads 5 open `UNENFORCED` rows
+and the L268 mid-cell census still reads `[L168, L270, L286, L288]` (L304/L305 lead with `test`
+and note their unbuilt collector-side half in plain text, deliberately not as a bold mid-cell
+marker), and the 3 dangling node-id citations the L205 advisory reports are the 3 pre-existing
+`test_recovery_dwell_advisory` ones — every node-id cited by this run resolves.
+
+Files: `scripts/sports_pairs_close_proximity_audit.py`,
+`tests/test_sports_pairs_close_proximity_audit.py`,
+`reports/sports_pairs_close_proximity_audit.json`,
+`findings/2026-08-07-sports-pairs-close-proximity-and-pre-kickoff-dropout.md`,
+`kb/lessons/00-lessons.md` (L304/L305 — numbered from L304 because open PR #315 claims L303),
+`LOOP-QUEUE.md` (Log of runs).
+
+---
+
 ## 2026-08-07 ~12:3x-16:0x UTC — research loop (idle run, policy (a)): L228's fee-schedule dataflow check, AST-based not lexical (45 false positives caught before shipping)
 
 **What happened.** Steps 0a/0: `origin/main` HEAD `71b1a06` (PR #314, merged), no rewind — newest `kb/00-LOG.md` entry and newest `tape/*/dt=*` file both dated 2026-08-07, within the 2-day check. Claim-check found PR #313 (`research-loop-sweep-20260807`, the step-0b stranded-tape sweep + its own L300) already open; while verifying its gates it was independently closed by a concurrent session as **superseded by #314** (same tape recovery, same `WEATHER_BOOKS_META_DUP_ALLOWLIST` fix, different lesson numbering — theirs landed first) — nothing left to carry forward from it. Queue Q0-Q55 re-verified drained (every item DONE/BLOCKED/RESERVED/time-gated/data-gated at its current Status line; Q51 milestone 3 gated to 2026-08-10, already pre-flighted). No `Task`/subagent tool exists in this harness (Read/Grep/Glob/Bash/Agent-tool-for-workers only, no `verifier` dispatchable), so this run picks the same idle-run lane the recent string of runs has used.
