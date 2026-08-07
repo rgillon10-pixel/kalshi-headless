@@ -198,8 +198,8 @@ def test_nested_function_uses_its_own_innermost_scope(tmp_path):
         '    return edge - poly_fee, inner\n'
     )
     sites = _sites(tmp_path, "probe.py", body)
-    assert "probe.py:6" in sites          # inner()'s own unbound parameter
-    assert "probe.py:7" not in sites      # outer's poly_fee IS bound in outer's own scope
+    assert "probe.py:7" in sites          # inner()'s own unbound parameter
+    assert "probe.py:8" not in sites      # outer's poly_fee IS bound in outer's own scope
 
 
 # ─── KNOWN BLIND SPOTS: genuine violations the rule deliberately MISSES ────
