@@ -4168,6 +4168,245 @@ def handrolled_binary_result_warning(sites: List[str]) -> Optional[str]:
     )
 
 
+# ─── Fee-schedule dataflow advisory (L228, 2026-08-07) ───────────────────────
+#
+# `inv_no_handrolled_fee_rate` (L5) catches a banned fee-RATE LITERAL bound to a fee/rate-named
+# identifier. It does NOT catch the different L228 shape: a fee-DOLLAR-AMOUNT scalar (an
+# identifier whose own LAST name segment is `fee`, e.g. `poly_fee`/`kalshi_fee`) that gets
+# added/subtracted into a net-edge/P&L expression without ever having been produced by a
+# `core.pricing` fee-schedule function. `scripts/s17_leadlag_probe.py`'s burst dislocation scan
+# charged the Polymarket leg a flat `--poly-fee` CLI parameter (defaulting to 0.0) for 16 days
+# after the sibling `s9_leadlag_probe.py` was corrected to route through
+# `core.pricing.polymarket_fee_per_contract` — the stale literal was wrong in BOTH directions
+# (0.0 under-charges and manufactures phantom dislocations; a naive flat 0.05 over-charges ~4x
+# at mid prices vs the real `rate*p*(1-p)` schedule) and it was LOAD-BEARING on the verdict: one
+# identical tape gave 0 / 34 / 49 fee-clearing captures under the three fee views. That one file
+# is fixed; this advisory is the general rule L228 itself named as still open.
+#
+# AST-based (deliberately NOT a lexical/regex proxy like the L52 sibling above — a first draft
+# of this check as a `[+-]\s*fee` line-regex flagged 45 sites, and every single one was a
+# hyphen inside a STRING, not arithmetic: f-string prose ("(pre-fee)"), argparse flag names
+# ("--poly-fee-model"), a printed bullet line ("- fee floor: {}"). A regex cannot see inside a
+# string literal; the AST simply never visits one as an operand). A HIT is an `ast.Name` used
+# as either operand of a `+`/`-` `BinOp`, or as the target/value of a `+=`/`-=` `AugAssign`,
+# whose identifier's LAST underscore-token is exactly `fee` (so `poly_fee`/`kalshi_fee`/bare
+# `fee` match, but `poly_fee_rate` — a RATE, not a dollar amount — does not). A hit is
+# SANCTIONED (dropped) when the SAME identifier is bound anywhere in its innermost enclosing
+# function (module scope for a top-level hit) to a call to `core.pricing.fee_per_contract` /
+# `core.pricing.polymarket_fee_per_contract` — i.e. it actually came from the fee schedule
+# rather than a hand-rolled/CLI/hard-coded scalar.
+# Deliberate blind spots (regression-tested as MISSES, same posture as L52/L155): (a) a fee
+# helper IMPORTED FROM ANOTHER FILE (`_locally_sanctioned_fee_helpers` only reads function defs
+# in the SAME module — `scripts/q30_draw_aversion_maker_probe.py`'s `maker_fee` is actually
+# `scripts/q27_favorite_underpricing_fillsim.py`'s clean helper, re-exported by import, and this
+# check cannot see across that boundary); (b) a fee value threaded through a chain of local
+# helpers deeper than one call. Both read as unsanctioned even when the chain is in fact clean.
+FEE_NAME_RE = re.compile(r'(?i)^(?:[a-z][a-z0-9]*_)*fee$')
+FEE_SCHEDULE_CALL_NAMES = ("fee_per_contract", "polymarket_fee_per_contract")
+HANDROLLED_FEE_SUBTRACTION_EXEMPT = ("core/pricing.py",)
+# The rate CONSTANTS `core.pricing` exports (see that module's own docstring). A probe's local
+# fee helper very often re-derives the schedule formula itself (e.g.
+# `taker_fee(p) = roundup_cent(FEE_COEFF * p * (1-p))`) instead of calling
+# `fee_per_contract` directly — that is an EQUALLY sanctioned pattern as long as the rate it
+# multiplies by traces back to one of these names, so a local helper referencing any of them
+# (directly, or via a module-level alias like `FEE_COEFF = TAKER_FEE_RATE`) counts as clean.
+SANCTIONED_RATE_CONST_NAMES = (
+    "TAKER_FEE_RATE", "MAKER_FEE_RATE", "SP500_NDX_FEE_RATE",
+    "POLYMARKET_US_TAKER_RATE", "POLYMARKET_SPORTS_TAKER_RATE",
+    "POLYMARKET_SPORTS_TAKER_RATE_OPTIMISTIC",
+)
+
+
+def _fee_scope_source_segments(tree: ast.AST, source: str) -> List[Tuple[int, int, str]]:
+    """(start_line, end_line, source_text) for every function scope in `tree`, INNERMOST first
+    (smallest line-span first), so a nested-function lookup never lands on its outer parent.
+    Best-effort: a node whose source segment cannot be recovered is simply omitted, which only
+    ever WIDENS the caller's fallback to module scope, never hides a real sanctioned call."""
+    scopes: List[Tuple[int, int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        seg = ast.get_source_segment(source, node)
+        if seg is None:
+            continue
+        end = getattr(node, "end_lineno", None) or node.lineno
+        scopes.append((node.lineno, end, seg))
+    scopes.sort(key=lambda t: (t[1] - t[0]))
+    return scopes
+
+
+def _module_rate_aliases(tree: ast.AST) -> Set[str]:
+    """Module-level names transitively assigned from one of `SANCTIONED_RATE_CONST_NAMES`
+    (directly, or via a `core.pricing.NAME` / `pricing.NAME` attribute access) — e.g.
+    `FEE_COEFF = TAKER_FEE_RATE`. A small fixpoint over top-level `Assign` nodes only (capped
+    at 5 rounds; a module-level alias chain is never deeper than that in practice). Pure."""
+    assigns: Dict[str, ast.AST] = {}
+    for node in getattr(tree, "body", []):
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)):
+            assigns[node.targets[0].id] = node.value
+    aliases: Set[str] = set(SANCTIONED_RATE_CONST_NAMES)
+    for _ in range(5):
+        changed = False
+        for name, rhs in assigns.items():
+            if name in aliases:
+                continue
+            refs = {n.id for n in ast.walk(rhs) if isinstance(n, ast.Name)}
+            refs |= {n.attr for n in ast.walk(rhs) if isinstance(n, ast.Attribute)}
+            if refs & aliases:
+                aliases.add(name)
+                changed = True
+        if not changed:
+            break
+    return aliases
+
+
+def _locally_sanctioned_fee_helpers(tree: ast.AST, source: str) -> Set[str]:
+    """Names of module-level functions whose OWN body either calls a `core.pricing`
+    fee-schedule function directly, or references a name in `SANCTIONED_RATE_CONST_NAMES` /
+    `_module_rate_aliases()` — i.e. a local fee helper that is itself schedule-derived, the
+    dominant pattern this codebase's probes actually use (`member_fee`/`maker_fee`/`taker_fee`
+    wrapping `fee_per_contract`, or re-deriving `coeff*p*(1-p)` off an aliased rate constant)."""
+    rate_names = _module_rate_aliases(tree)
+    helpers: Set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        seg = ast.get_source_segment(source, node)
+        if seg is None:
+            continue
+        if any(re.search(rf'\b{re.escape(n)}\b', seg)
+               for n in (FEE_SCHEDULE_CALL_NAMES + tuple(rate_names))):
+            helpers.add(node.name)
+    return helpers
+
+
+def _fee_identifier_is_sanctioned(name: str, lineno: int, scopes: List[Tuple[int, int, str]],
+                                   whole_source: str, local_helpers: Set[str]) -> bool:
+    """True if `name` is bound (via `=`) OR incremented/decremented (via `+=`/`-=`, e.g. a
+    per-loop fee accumulator) anywhere in the innermost function scope containing `lineno` (or
+    the whole module, if no function contains it) by a call to a `core.pricing` fee-schedule
+    function — through ANY dotted import alias (`core.pricing.fee_per_contract(`,
+    `pricing.fee_per_contract(`, or a bare `fee_per_contract(`) — or to a locally-sanctioned fee
+    helper (see `_locally_sanctioned_fee_helpers`). See the module-level block above for the
+    exact rule."""
+    callee_names = FEE_SCHEDULE_CALL_NAMES + tuple(local_helpers)
+    pat = re.compile(
+        rf'(?i)\b{re.escape(name)}\b\s*(?::\s*[a-zA-Z_][a-zA-Z0-9_.\[\], ]*)?\s*[+\-]?=\s*'
+        rf'(?:[a-zA-Z_][a-zA-Z0-9_]*\.)*(?:{"|".join(re.escape(n) for n in callee_names)})\s*\('
+    )
+    for start, end, seg in scopes:
+        if start <= lineno <= end:
+            return bool(pat.search(seg))
+    return bool(pat.search(whole_source))
+
+
+def _fee_arith_name_hits(tree: ast.AST) -> List[Tuple[int, str]]:
+    """(lineno, name) for every `ast.Name` used as an operand of a `+`/`-` `BinOp`, or as the
+    target/value of a `+=`/`-=` `AugAssign`, whose identifier's last underscore-token is exactly
+    `fee`. See the module-level block above for why this is AST-based, not lexical. Pure."""
+    def _is_fee_name(node: ast.AST) -> bool:
+        return isinstance(node, ast.Name) and bool(FEE_NAME_RE.match(node.id))
+
+    hits: List[Tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+            for operand in (node.left, node.right):
+                if _is_fee_name(operand):
+                    hits.append((operand.lineno, operand.id))
+        elif isinstance(node, ast.AugAssign) and isinstance(node.op, (ast.Add, ast.Sub)):
+            if _is_fee_name(node.target):
+                hits.append((node.target.lineno, node.target.id))
+            if _is_fee_name(node.value):
+                hits.append((node.value.lineno, node.value.id))
+    return hits
+
+
+def _handrolled_fee_subtraction_sites(root: Path = ROOT) -> List[str]:
+    """Production lines that add/subtract a `*_fee`-named scalar into an expression without
+    that identifier ever being bound, in its own scope, to a `core.pricing` fee-schedule call
+    (L228). See the module-level block above for the exact HIT rule and blind spot. `tests/` is
+    skipped (fixtures construct the bad shape on purpose) and
+    `HANDROLLED_FEE_SUBTRACTION_EXEMPT` exempts the sanctioned helper module itself.
+
+    Best-effort/offline: no network, no git, no subprocess; any per-file exception (including an
+    unparseable file) skips that file and can never poison the gate. Returns sorted
+    `relpath:line` labels."""
+    out: List[str] = []
+    try:
+        for p in _iter_source_files(root, exts=(".py",)):
+            try:
+                rel = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
+            except Exception:
+                continue
+            if rel in HANDROLLED_FEE_SUBTRACTION_EXEMPT or rel.split("/", 1)[0] == "tests":
+                continue
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+                if "fee" not in text.lower():
+                    continue
+                try:
+                    tree = ast.parse(text)
+                except Exception:
+                    continue
+                hits = _fee_arith_name_hits(tree)
+                if not hits:
+                    continue
+                scopes = _fee_scope_source_segments(tree, text)
+                local_helpers = _locally_sanctioned_fee_helpers(tree, text)
+                seen_lines: Set[int] = set()
+                for lineno, name in hits:
+                    if lineno in seen_lines:
+                        continue
+                    if _fee_identifier_is_sanctioned(name, lineno, scopes, text, local_helpers):
+                        continue
+                    out.append(f"{rel}:{lineno}")
+                    seen_lines.add(lineno)
+            except Exception:
+                continue
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def handrolled_fee_subtraction_warning(sites: List[str]) -> Optional[str]:
+    """Non-gating advisory when production code adds/subtracts a `*_fee`-named scalar into an
+    expression without that identifier ever being produced by a `core.pricing` fee-schedule
+    call, in its own function/module scope (L228), else None.
+
+    States its TESTED shape set and its known blind spot, not its intent: a LOW count is
+    evidence of PRECISION only, never of RECALL (L155)."""
+    if not sites:
+        return None
+    n = len(sites)
+    examples = ", ".join(sites[:3]) + (", ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} production site(s) add/subtract a `*_fee`-named scalar "
+        f"into an expression without that identifier ever being bound, in its own "
+        f"function/module scope, to a `core.pricing.fee_per_contract`/"
+        f"`polymarket_fee_per_contract` call (e.g. {examples}). L228: a flat, non-schedule "
+        f"Polymarket fee parameter defaulting to 0.0 survived 16 days in "
+        f"scripts/s17_leadlag_probe.py after its sibling was corrected, and was load-bearing "
+        f"on the verdict (0 / 34 / 49 fee-clearing captures under three fee views on one "
+        f"identical tape). "
+        f"COVERAGE (AST-based, per-function-scoped proxy, tested shapes only): an `ast.Name` "
+        f"operand of a `+`/`-` `BinOp`, or the target/value of a `+=`/`-=` `AugAssign`, whose "
+        f"LAST underscore-token is exactly `fee` (so `poly_fee`/`kalshi_fee` match but "
+        f"`poly_fee_rate` — a rate, not a dollar amount — does not); `tests/` and "
+        f"`core/pricing.py` itself are skipped. Deliberately AST-based rather than lexical: a "
+        f"line-regex draft of this check flagged 45 sites that were all hyphens inside STRING "
+        f"literals (argparse help text, printed prose), never real arithmetic — the AST cannot "
+        f"see inside a string at all. "
+        f"KNOWN BLIND SPOTS (deliberate, regression-tested as misses in "
+        f"tests/test_fee_subtraction_advisory.py): a fee helper imported from ANOTHER file "
+        f"(only same-module helper defs are resolved), and a fee value threaded through a "
+        f"chain of local helpers deeper than one call. A low or zero count is PRECISION "
+        f"evidence, not RECALL (L155). "
+        f"Advisory only — does NOT affect the exit code. See kb/lessons/00-lessons.md L228, "
+        f"L155."
+    )
+
+
 # ─── Tape conflict-marker gate (GATING, not advisory) ────────────────────────
 #
 # Real incident (2026-07-23): tape/econ_prints/dt=2026-07-18.jsonl and
@@ -4684,6 +4923,18 @@ def main() -> int:
                 sys.stderr.write(binres_warning + "\n")
         except BaseException:
             sys.stderr.write("note: binary-settlement-result advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L228 advisory: a production site subtracting a `*_fee`-named scalar into an
+        # expression without that identifier ever coming from a `core.pricing` fee-schedule
+        # call in its own scope (the s17 flat-Polymarket-fee incident). Non-gating — stderr
+        # only, wrapped like the sibling advisories above so a raise in the detector or the
+        # formatter can never reach the exit code (the L156 DEFECT-1 lesson).
+        try:
+            fee_sub_warning = handrolled_fee_subtraction_warning(_handrolled_fee_subtraction_sites())
+            if fee_sub_warning:
+                sys.stderr.write(fee_sub_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: fee-subtraction advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
