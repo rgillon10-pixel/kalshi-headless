@@ -2496,6 +2496,38 @@ split), **L296** (`n_hits == 0` vs `n_candidates_checked == 0`; the S3/S15 denom
 **Follow-on, NOT attempted here (collector lane, needs its own item):** persist a per-pass scanned
 event/ticker inventory so the coverage denominator becomes measurable, and give
 `config/implication_pairs.yaml` a live family — both are the standing blocker on any S3/S15 kill.
+Status: **Q53 CLOSED — MILESTONE 3 IS TWO-AGENT CONFIRMED-WITH-CORRECTIONS** (2026-08-07, research
+loop, `verifier` subagent dispatched via the `Agent` tool — the first research-loop run in this
+project where that tool was actually available, closing the L287/L288/L290/L291/L295/L296/L298/
+L299 "no Task/subagent tool in this harness" precedent chain). The independent verifier re-derived
+every load-bearing S3/S15 number on separate code paths (byte-identical corpus-audit re-run, a
+from-scratch 43,038->13->0 funnel replay, an independent ticker-entity->title-subject map) and
+attacked the framing (do the 13 `UNVERIFIABLE` survivors hide a real arb? does the false-admit
+ground truth have blind spots? is the S15 zero consistent with the actual code path?). **Both
+verdicts hold: S3 stays `data-collecting`/DATA-ADEQUACY (killable only once a scanned-ticker
+manifest exists), S15 stays `data-collecting`/DATA-INADEQUATE (curation-blocked, its only family
+time-boxed to a market with zero committed post-07-17 coverage). Neither registry status changes
+— they already read `data-collecting`.** What changes: the PROVISIONAL tag on both rows is
+replaced with two-agent CONFIRMED-WITH-CORRECTIONS. **Three factual errors in the 2026-08-06
+finding, caught by the verifier and corrected in place (never silently rewritten):** (D1) the
+platform-wide "all 15 decided-ADMITs are `KXATPGTOTAL`" claim was wrong on family (9 are, 6 are
+`KXWNBATOTAL-26JUL22LVWSH`) though right on correctness — root cause, a 5-example report cap
+generalized to "every one" without re-enumerating; (D2) "48 distinct `KXWCROUND` tickers
+(07-06..07-14)" doesn't reproduce (union over that window is 36; 48 needs 07-04..07-15) — the
+qualitative point survives either count; (D3, load-bearing) "the 38-pairs/40-markets validation
+is not reproducible from committed tape" was false — `tape/polymarket_pairs/dt=2026-07-05.jsonl`
+alone reproduces it exactly, the accurate claim being "not reproducible from `tape/anomalies/`"
+— and this correction **strengthens** S15's verdict (the pairs were genuinely generatable from
+tape the sweep ran against that exact day, and it still recorded zero checked). New lesson
+**L303**. Gates AFTER the last code change (this is a docs-only diff — findings/kb/lessons/
+LOOP-QUEUE prose, no code touched): `pytest -q` and `python scripts/invariants.py --full` both
+re-confirmed green on this tree before commit (docs-only diff cannot change test outcomes, but
+re-run per L162 rather than assumed). Files: `findings/2026-08-06-q53-subject-identity-nesting-
+repair.md` (Verifier disposition section, appended), `kb/strategies/00-index.md` (S3/S15
+Verifier-update sentences, appended), `kb/lessons/00-lessons.md` (new L303), `LOOP-QUEUE.md`,
+`kb/00-LOG.md`. Q53's own follow-on (persist a scanned event/ticker inventory; give
+`config/implication_pairs.yaml` a live family) remains the standing blocker on any future S3/S15
+kill — not attempted here, still needs its own queue item.
 
 ### Q54 — S79 aggressor-flow continuation taker (signed `taker_book_side` flow) — COLLECT-AND-REVISIT
 Status: DATA-GATE CORRECTED, STILL DATA-GATED (2026-08-07, research loop IDLE RUN, idle-run

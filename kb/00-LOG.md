@@ -246,6 +246,64 @@ Shipped as `scripts/invariants.py::_handrolled_fee_subtraction_sites` / `handrol
 
 ---
 
+## 2026-08-07 ~09:2x-14:5x UTC — research loop: Q53's PROVISIONAL milestone-3 verdict is now two-agent CONFIRMED-WITH-CORRECTIONS (L303) — the first run with a working `verifier` subagent
+
+**What happened.** This is the first cloud research-loop run in this project's history where the
+`Agent` tool actually exposed a `verifier` subagent — every prior run back to L287 recorded "no
+`Task`/subagent tool in this harness" and committed its verdicts PROVISIONAL. Q53's milestone 3
+(2026-08-06) had a fully-built, exhaustively-measured S3/S15 data-adequacy verdict sitting
+un-confirmed for a day for exactly that reason. Dispatched the `verifier` with the full finding,
+the reproduce commands, and an explicit adversarial brief (does the framing hide a real arb? are
+the ground-truth error rates trustworthy? is the S15 zero code-consistent?).
+
+**Step 0b sweep and a genuine tape-recovery race with a concurrent session.** Before picking work,
+swept `tape/hourly-20260807T0115Z` (a genuinely stranded 00:56Z pass) and union-appended its
+23,270 lines — but a concurrent research-loop session merged PR #314 first, independently
+recovering the identical branch (same 23,270-line count) plus two more this session's own
+redundancy check had wrongly cleared (`hourly-20260806T0657Z`/`hourly-20260806T0726Z` — the check
+verified only `orderbook_depth`'s capture_ids as a subset of `main` and wrongly generalized that
+to the whole branch; 5-6 other families per branch carried genuinely missing capture_ids, per
+#314's own L301). #314 also independently hit and fixed the identical L281 `weather_books/meta`
+duplicate-key regression this session found on `dt=2026-08-07` (their L301/L302 vs. this session's
+would-be L300 — same root cause, same allowlist fix, different numbering since theirs landed
+first). Net effect: this session's own PR #313 (tape recovery + fix) was closed unmerged as fully
+superseded once #314 landed — no data lost, `main` already carried everything it intended. Lesson
+for the loop system, not yet its own ledger row: two research-loop sessions can genuinely race on
+step-0b sweep work in the same 3-hour window; the claim-check (step 0) catches TODO/IN-PROGRESS
+queue-item claims but not step-0b's own sweep-and-fix work, which has no queue item to claim.
+
+**The verifier's verdict: CONFIRMED-WITH-CORRECTIONS.** Both S3 ("DATA-ADEQUACY, not killable,
+blocker is instrumentation") and S15 ("DATA-INADEQUATE, blocker is curation + instrumentation")
+survive independent re-derivation of every load-bearing number (byte-identical
+`subject_identity_corpus_audit.py` re-run; a from-scratch 43,038->13->0 funnel replay; an
+independent ticker-entity->title-subject map over `universe_sweep` finding 0/26 cross-subject
+misclassifications) and adversarial attack (the 13 `UNVERIFIABLE` survivors were checked against
+an independently-built entity map and each pays $0 on both legs in at least one state — refusing
+them was correct, not merely conservative). Neither registry status changes — S3 and S15 both
+already read `data-collecting`; only the PROVISIONAL tag is lifted.
+
+**Three factual errors caught and corrected in place (D1/D2/D3), never silently rewritten:** (D1)
+"all 15 platform-wide decided-ADMIT pairs are `KXATPGTOTAL`" was wrong on family — independent
+enumeration of the actual 15 (not the report's 5-example-per-reason cap) found 9 `KXATPGTOTAL` +
+6 `KXWNBATOTAL-26JUL22LVWSH` — though right on correctness (15/15 still genuinely correct admits).
+(D2) "48 distinct `KXWCROUND` tickers (07-06..07-14)" doesn't reproduce — the union over that exact
+window is 36, not 48 (48 needs 07-04..07-15) — though the qualitative point (matching markets
+existed outside the scanned slice) survives either count. (D3, the load-bearing one) "the
+38-pairs/40-markets validation is not reproducible from committed tape" was flatly **false** —
+`tape/polymarket_pairs/dt=2026-07-05.jsonl` alone reproduces it exactly (40 tickers -> 38 pairs via
+the family's own regex+rank map); the true, narrower claim is "not reproducible from
+`tape/anomalies/`" specifically. D3 is not neutral: it **strengthens** the S15 verdict — the sweep
+genuinely ran that day with 40 matching markets and 38 generatable pairs on tape, and still
+recorded zero checked, so the truncation/scope explanation goes from "most likely" to positively
+corroborated. New lesson **L303**.
+
+**Docs-only diff** (`findings/2026-08-06-q53-subject-identity-nesting-repair.md`,
+`kb/strategies/00-index.md`, `kb/lessons/00-lessons.md`, `LOOP-QUEUE.md`) — no code touched, no
+CI, no P&L, no kill decision. Gates re-confirmed fresh after the diff: see Log-of-runs line below.
+Still 0 proven edges. Files: as listed above plus `kb/00-LOG.md` (this entry).
+
+---
+
 ## 2026-08-07 ~06:3x-08:xx UTC — research loop (idle run, policy (a)): a data-gate that named the wrong wall (L300) and a "recovered" branch that wasn't (L301)
 
 **What happened.** Queue drained (every item Q0–Q55 reads DONE / BLOCKED / RESERVED /
