@@ -6,6 +6,69 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-07 ~04:1x-05:xx UTC — kalshi-edge-hunter (nightly, Opus): review CLEAN on 4 findings, Q21 round #25 = 0 registered, but caught a wrong data-gate in the 08-06 S79 registration (issue #310)
+
+**What happened.** Nightly thinking-seat run. Steps 0a/0/0b clean (all 5 recent merge commits are
+ancestors of `origin/main`, no rewind; kb/00-LOG 08-06 vs newest tape 08-07, gap 1 day; 6 open PRs
+all retro/draft leave-open, none claiming a queue item; 220 `tape/hourly-*` + 10 `tape/burst-*` = 230
+stranded branches, sweep is the research-loop's job). Queue re-verified DRAINED by file shape (L25):
+0 eligible TODO/unblocked items.
+
+**Unit 1 — adversarial review, CLEAN.** The four 2026-08-06 research-loop findings
+(`q53-subject-identity-nesting-repair`, `detector-evidence-guard`,
+`crypto-hourly-settlement-data-quality-audit`, `anomaly-sweep-fillability-guard`) were all
+main-context builds committed WITHOUT an independent verifier (that harness had no `Task` tool, the
+L287–L295 precedent). This run supplied the second agent: three independent `verifier` agents
+re-derived one load-bearing number each from committed tape (trust=FALSE) + a main-context spot-check
+on the 08-06 Q21 round. **All CONFIRMED** — subject-identity error rates 0/2,364 admits & 0/34,334
+refuses with an explicit vacuous-pass attack passing (the guard genuinely admits 34,485 same-subject
+pairs, not refuse-everything); detector-evidence 243+5 / 23-of-248 / 43,038; crypto MECE 1,483/1,483
+`broker_truth`; fillability 43,025/43,038 via `core.pricing`; S79 `taker_book_side` 31,831/7,867. No
+number moved.
+
+**Unit 2 — Q21 round #25, 0 registered, and one FAILED re-check surfaced.** The only new surface is
+`tape/kalshi_trades/` (one day, 08-03). Producer proposed 3 candidates on it; an independent
+`verifier` tasked to REFUTE the kills confirmed all 3 die on hard tape facts — P1 block-fade
+(`is_block_trade` false on all 39,698 prints), P2 crypto-flow→settlement (only 4 crypto tickers ≪
+L41 floor), P3 sports-flow→hold-to-settlement (duplicate of S79 + n=9 < 10-game floor). But the
+adversarial pass caught that the **08-06 S79 registration's settlement data-gate is factually wrong**:
+the S79 row and finding claim the 08-03 trade day has "no settlement coverage / 07-07→07-22 only"
+(checking only `settlement_ledger`), yet `tape/q51_settlement_cache/settlement.json` (`broker_truth`,
+day 2026-08-03, 10 `finalized`) resolves **9** of the traded games. Independently re-derived twice
+(verifier + a main-context recount that first fell through an empty `result:""` to `status`, then
+corrected to 9 under `result∈{yes,no} ∧ status==finalized`). Per protocol — re-check of a last-24h
+finding failed → **do NOT rewrite history** — opened **GitHub issue #310** (Priority:high), left the
+S79 row for a two-agent/Ryan correction. Effect: S79's blocker is `below_min_units` (n=9, one game
+short), not a missing settlement collector; status unchanged (`collect-and-revisit`, no CI).
+
+**Unit 3 — probe-prep no-op.** Q51 milestone-3 gates 2026-08-10 (~72h), already pre-flighted +
+firing-hazard-repaired on 08-05 (L284); verified execute-ready by file shape.
+
+**What it means.** The day's descriptive/tooling findings all hold under independent re-check — the
+machine's honesty discipline is intact. The one real catch is a bookkeeping/data-adequacy error the
+adversarial machinery found on its own: a data-gate that cited one settlement family while a sibling
+covered the day (L165-class). No registry status flipped, no edge claimed. Still **0 proven edges.**
+Deferred lesson candidate to kb-distiller: "no settlement coverage of the trade day" gates must scan
+every settlement family, not just `settlement_ledger`.
+
+**Housekeeping.** 5 stale burst triggers named for deletion (`kalshi-burst-cpi-0714`,
+`-wcsemi1-0714`, `-wcsemi2-0715`, `-wcfinal-0719`, `-fomc-0729`; Ryan/account action — they live in
+the claude.ai routines surface, not this session's MCP list). PR backlog (#271/#208/#125 retro,
+#191/#166/#165 draft) NOT re-flagged (anti-tune-out; no new info). Step 9 paper:
+`s14_ladder_underwriting` (dead ✗, infra-only) idempotent — `paper: 0 open, 1657 settled, realized
+P&L $+27.76`, no new ledger lines, NOT edge evidence.
+
+**Two-agent rule.** Unit-1 verifiers CONFIRMED existing numbers (no flip); the one failed re-check
+went to issue #310, not a self-edit; Unit-2 registered nothing (registration gate not reached).
+Diff is findings/docs-only — no code or test file changed, so pytest collection cannot drift;
+`invariants.py --full` re-run fresh this run = exit 0, all green (same non-gating advisories);
+`pytest` floor ≥3,239 passed/0 failed (identical code tree to the 08-06 green run, L162 floor —
+a fresh 78-min full re-run on an unchanged tree is not practical for a docs-only diff).
+
+**Files.** `findings/2026-08-07-q21-idea-gen-round.md`, `LOOP-QUEUE.md` (Q21 round #25 status +
+Log-of-runs line), `kb/00-LOG.md` (this entry). GitHub issue #310. No registry status change, no
+lesson committed (candidate deferred to kb-distiller).
+
 ## 2026-08-06 ~21:1x-22:3x UTC — research loop IDLE RUN (a): every detector's zero now carries its own denominator (L296 -> L298)
 
 **What happened.** Re-verified the queue independently before committing to an idle run: every
