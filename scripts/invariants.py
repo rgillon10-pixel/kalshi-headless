@@ -1837,6 +1837,164 @@ def hollow_crypto_ladder_warning(issues: List[Dict[str, object]]) -> Optional[st
     return "\n".join(lines)
 
 
+# ─── kalshi_trades registration-surface advisory (L292: non-gating) ────────────
+#
+# L292 (2026-08-06, producer + independent `verifier`): a candidate whose load-bearing
+# measurement is a `tape/kalshi_trades/` markout / toxicity / signed-flow statistic on a family
+# the trade tape does not actually cover is UNMEASURABLE, and must not earn a registry slot
+# until the collector is confirmed capturing that family. The only committed trade day
+# (dt=2026-08-03) is 39,698 prints / 42 tickers / 20 series, ALL sports or crypto — 0 econ
+# prints — which is why S81 (post-release econ-print spread-capture maker) had to be folded by
+# hand into S78's data-gated tail on the day it was proposed.
+#
+# That row's enforcement cell called itself unmechanizable ("the check is a one-line
+# ticker-inventory grep the proposing run must run"). A discipline that lives only in a lesson
+# row is the failure mode CLAUDE.md's third prime directive names by name — the assert prevents
+# the NEXT variant, a memory file does not. This advisory is that assert's non-gating half: it
+# reads `kb/strategies/00-index.md`, finds every registry row anchored on `kalshi_trades`, and
+# reports each KX series token that row names against the committed trade-tape inventory.
+#
+# THREE CLASSES, REPORTED SEPARATELY AND NEVER MERGED (the L289 rule — an absent key and a
+# present zero are different claims):
+#   * `uncovered`  — the row names >=1 series token with NO committed print. The S81 shape.
+#   * `unscoped`   — the row anchors on `kalshi_trades` but names no series token at all, so
+#                    its measurement surface cannot be coverage-checked from tape. NOT a
+#                    defect claim: S78 ("series x price-bucket x regime") and S79 ("wide-spread
+#                    sports moneylines") are both legitimately generic. It is a COVERAGE limit
+#                    of this detector, reported so a silent zero is never read as a clean bill.
+#   * `covered`    — every named token has committed prints. Counted, not printed.
+#
+# NON-GATING, deliberately and permanently: this reads a KNOWLEDGE-BASE document about
+# collection state that no cloud run can repair (the trade collector's cadence is Ryan-gated,
+# L221/L222), and a registered `collect-and-revisit` candidate on an uncovered family is not a
+# correctness violation — it is exactly the honest data-gated posture S55/S78/S79 already
+# carry. Same posture as the L210/L152/L205 ledger advisories: it PRINTS, it never gates.
+_KALSHI_TRADES_INVENTORY_PATH = ROOT / "scripts" / "kalshi_trades_ticker_inventory.py"
+KALSHI_TRADES_ANCHOR_TOKEN = "kalshi_trades"
+
+
+def _load_kalshi_trades_inventory(path: Path = _KALSHI_TRADES_INVENTORY_PATH):
+    """Import scripts/kalshi_trades_ticker_inventory.py by path (scripts/ is not a package).
+    Returns None on ANY failure so this advisory can never poison the gate."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_inv_kt_inventory", path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+def _registry_rows(registry_path: Path) -> List[Tuple[str, str]]:
+    """[(strategy_id, full row text)] for every `| **Sxx** | ... |` row in the registry table.
+
+    Rows are matched on the bolded id cell only, so the table's header/separator rows and the
+    long prose sections beneath it are never mistaken for candidates."""
+    rows: List[Tuple[str, str]] = []
+    try:
+        text = registry_path.read_text(errors="replace")
+    except Exception:
+        return rows
+    for line in text.splitlines():
+        m = re.match(r"^\|\s*\*\*(S\d+)\*\*\s*\|", line)
+        if m:
+            rows.append((m.group(1), line))
+    return rows
+
+
+def _kalshi_trades_registration_issues(
+        registry_path: Path = ROOT / "kb" / "strategies" / "00-index.md",
+        tape_root: Path = ROOT / "tape",
+        max_day: Optional[str] = None) -> Dict[str, object]:
+    """Coverage verdicts for every `kalshi_trades`-anchored registry row. Read-only, offline.
+
+    Best-effort: any failure returns the empty report, which the formatter renders as no
+    advisory at all — never a fabricated clean bill, because `n_anchored == 0` is printed
+    nowhere and the caller cannot mistake silence for a pass."""
+    empty: Dict[str, object] = {"n_anchored": 0, "inventory": None,
+                                "uncovered": [], "unscoped": [], "n_covered": 0}
+    try:
+        mod = _load_kalshi_trades_inventory()
+        if mod is None:
+            return empty
+        inv = mod.trade_tape_inventory(tape_root, max_day)
+        rows = _registry_rows(registry_path)
+        anchored = [(sid, line) for sid, line in rows
+                    if KALSHI_TRADES_ANCHOR_TOKEN in line]
+        uncovered: List[Dict[str, object]] = []
+        unscoped: List[str] = []
+        n_covered = 0
+        for sid, line in anchored:
+            tokens = mod.named_series_tokens(line)
+            if not tokens:
+                unscoped.append(sid)
+                continue
+            verdicts = [mod.series_coverage(inv, t) for t in tokens]
+            missing = [v for v in verdicts if v["verdict"] != mod.COVERED]
+            if missing:
+                uncovered.append({
+                    "strategy": sid,
+                    "missing": [(str(v["token"]), str(v["verdict"])) for v in missing],
+                    "named": tokens,
+                })
+            else:
+                n_covered += 1
+        return {"n_anchored": len(anchored), "inventory": inv,
+                "uncovered": uncovered, "unscoped": unscoped, "n_covered": n_covered}
+    except Exception:
+        return empty
+
+
+def kalshi_trades_registration_surface_warning(report: Dict[str, object]) -> Optional[str]:
+    """Non-gating advisory for L292. Pure. NEVER flips the exit code.
+
+    Prints when there is anything to say (an uncovered row OR an unscoped one). A silent run
+    means every `kalshi_trades`-anchored registry row named a series and every named series
+    has committed prints — the only reading under which silence is informative."""
+    if not report or not report.get("n_anchored"):
+        return None
+    uncovered = list(report.get("uncovered") or [])
+    unscoped = list(report.get("unscoped") or [])
+    if not uncovered and not unscoped:
+        return None
+    inv = report.get("inventory") or {}
+    n_days = inv.get("n_days", 0) if isinstance(inv, dict) else 0
+    days = inv.get("days", []) if isinstance(inv, dict) else []
+    n_series = inv.get("n_series", 0) if isinstance(inv, dict) else 0
+    n_prints = inv.get("n_lines", 0) if isinstance(inv, dict) else 0
+    parts = []
+    if uncovered:
+        parts.append(f"{len(uncovered)} name a series with NO committed print")
+    if unscoped:
+        parts.append(f"{len(unscoped)} name no series token at all")
+    lines = [f"warning (non-gating): of {report.get('n_anchored')} registry candidate(s) "
+             f"anchored on `tape/kalshi_trades/`, {' and '.join(parts)} — a markout / "
+             f"toxicity / signed-flow statistic on a family the committed trade tape does "
+             f"not carry is UNMEASURABLE, so such a candidate is data-gated, never "
+             f"registerable-as-measured (L292):"]
+    for item in uncovered:
+        miss = ", ".join(f"{t} [{v}]" for t, v in item["missing"])  # type: ignore[index]
+        lines.append(f"  - {item['strategy']}: names {miss}; committed trade tape has none")
+    if unscoped:
+        lines.append(f"  - names no KX series token, so coverage cannot be checked from tape "
+                     f"(reported, NOT called a defect — a generic cross-family design is "
+                     f"legitimate): {', '.join(unscoped)}")
+    lines.append(f"  Committed trade tape: {n_prints} print(s) across {n_series} series over "
+                 f"{n_days} day(s) {days}. ABSENT means 'unmeasurable from committed tape', "
+                 f"never 'Kalshi has no prints there' and never 'the collector cannot capture "
+                 f"it' — collection/kalshi_trades.py is ticker-scoped by construction and its "
+                 f"cadence is Ryan-gated (L221/L222). Prefix matching is generous, so this can "
+                 f"under-report an absence and can never invent one; a low count is precision "
+                 f"evidence, not recall (L155).")
+    lines.append("  Computed from committed tape only via "
+                 "scripts/kalshi_trades_ticker_inventory.py. Advisory only — does NOT affect "
+                 "the exit code. See kb/lessons/00-lessons.md L292.")
+    return "\n".join(lines)
+
+
 # ─── Capped-pagination span-vs-cadence advisory (L185: non-gating) ─────────────
 #
 # L185: a capped, newest-first-paginated harvest with NO time-window request parameter has a
@@ -4308,6 +4466,18 @@ def main() -> int:
         except BaseException:
             sys.stderr.write("note: hollow crypto-ladder advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
+        # L292 advisory: a registry candidate anchored on `tape/kalshi_trades/` that names a
+        # series the committed trade tape does not carry (the S81 shape). Non-gating, same
+        # BaseException-wrapped posture as its siblings — the detector self-guards, but a raise
+        # in the FORMATTER would otherwise reach the exit code (L156 DEFECT-1).
+        try:
+            kt_warning = kalshi_trades_registration_surface_warning(
+                _kalshi_trades_registration_issues())
+            if kt_warning:
+                sys.stderr.write(kt_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: kalshi_trades registration-surface advisory could not be "
+                             "computed (non-gating; exit code unaffected)\n")
         # L185 advisory: a capped, newest-first-paginated collector whose per-pass captured
         # event-time window is far narrower than its own firing interval (settlement_ledger:
         # 5000 rows, no min/max_close_ts, ~1.3-3.8h reached per 24h fire). Non-gating — the
