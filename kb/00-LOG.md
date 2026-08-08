@@ -6,6 +6,89 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-08 ~06:0x-07:0xZ UTC — research loop IDLE RUN policy (b): Q51 milestone-3 fill projection (L308/L309)
+
+**Steps 0a/0/0b.** History-integrity check PASSED (5 most recently merged PRs #319/#315/#318/#317/
+#316 all ancestors of `origin/main`; newest `kb/00-LOG.md` entry 2026-08-08 is not stale against
+the newest `tape/*/dt=*`). Claim-check: only stale/Ryan-review-only PRs open (#271, #208 weekly-retro
+docs; #191/#166/#165/#125 old worktree branches), none names a currently-TODO queue item.
+**Stranded-tape sweep: 0 lines recovered** — the three newest un-swept branches
+(`tape/hourly-20260807T2156Z`, `-20260807T1611Z`, `-20260807T0115Z`) were checked line-by-line
+against `main`'s per-day files and every line is already present (`not_in_main=0` on all 16
+day-files across the three branches). The ~233-branch deletion backlog is Q17's reserved
+diagnosis, deliberately not touched.
+
+**Queue re-verified drained** at each item's CURRENT status line (Q0-Q55 all DONE / BLOCKED /
+RESERVED / time-gated / data-gated; `tape/kalshi_trades/` still holds exactly ONE committed day so
+Q52 and Q54 stay data-gated; Q51 milestone 3 is time-gated to 2026-08-10, two days out) -> IDLE
+RUN. Policy (a) was checked first and had no buildable target: `_stale_unenforced_scan()` reports
+**5** open `UNENFORCED` rows and all five are out of a research run's lane (**L213** Ryan-action
+trigger prompt, **L221** write-path with a cell that says DO NOT BUILD, **L222** collector
+write-path, **L282** whose remaining half L285 already corrected and covered with a repo-wide
+`tape_duplicate_line_warning`, **L296** a verdict half that is both data-gated and verifier-gated).
+So policy **(b)**: build + offline-test what the NEXT time-gated item needs so it fires correctly
+on its day.
+
+**No `Task`/subagent tool exists in this harness** (Read/Grep/Glob/Bash only), so no `verifier`,
+`edge-prober` or `kb-distiller` was dispatchable — the L287/L288/L290/L291/L295 precedent — and
+this was built in main context. Nothing produced here is verdict-class, so the two-agent rule is
+N/A rather than unsatisfied.
+
+**The gap.** `scripts/q51_m3_preflight.py` (08-05) settled milestone 3's POPULATION question — an
+08-10 firing buys 44 game units / 128 intervals / 256 legs, 4x the L41 floor. Nothing had asked how
+many of those 256 legs can ever FILL. That is answerable today and **outcome-independently**,
+because `q51_maker_fillsim.py`'s fill predicates read BOOK + PRINTS only and never touch the
+settlement cache; settlement decides only which legs are scored and whether one WON.
+
+**Built** `scripts/q51_m3_fill_projection.py` (read-only, fully offline, imports the probe so the
+projection cannot drift from what will run, reads settlement for `close_time` ONLY) +
+`tests/test_q51_m3_fill_projection.py` (29 tests) -> `reports/q51_m3_fill_projection.json`.
+
+**Measured** (`real_bid` rest price / `broker_truth` fill evidence / `broker_truth` `close_time`;
+committed `dt=2026-08-03` slice + the FROZEN `settlement-m2-2026-08-04.json`): headline
+`all_intervals` fill rate **0.6739 -> 0.2969** from milestone 2's population to the 08-10 firing
+(**2.27x compression**), while the conditional-on-coverage rate falls only **0.7750 -> 0.6129**
+(1.26x). The collapse is a COVERAGE effect (0.870 -> 0.484), not a change in fill behaviour:
+milestone 2's settled markets were the games PLAYED on 08-03, i.e. exactly the markets that TRADED
+on 08-03. Since an unfilled leg contributes an exact 0.0, `mean_over_all_legs ==
+(n_fills/n_legs) * mean_over_FILLED_legs` is an identity, so **180 of 256 legs (70.3%) contribute
+zero by construction** and any per-fill edge is compressed 2.27x BEFORE the L27 tick gate sees it
+(**L308**). The product of that multiplier with any edge is deliberately NOT computed — it would
+be a P&L forecast, and outcome-independence is pinned by two acceptance tests. Second result:
+**76 of the 79 fills the committed tape will ever supply are already in the 08-10 population** —
+waiting to 08-23 adds 74 legs and 3 fills, so the planned post-08-24 sweep buys resample units, not
+fill evidence. Third: the `covered_intervals` SENSITIVITY branch clears the L41 floor for the first
+time at 08-10 (**26 units**, up from milestone 2's 6), so both branches become admissible by unit
+count and both must be read. Side split at 08-10: YES-bid 22/128 = 17.2%, NO-bid 54/128 = 42.2%,
+the same ~2.5x asymmetry milestone 2 saw, scaled by the common coverage factor (L279's flow split).
+
+**Cross-checks that had to hold and did:** the 08-10 row reproduces the pre-flight's 44/128/256
+exactly, and its `n_covered_intervals=62` / `n_fills=76` reproduce exactly the two quantities L284
+measured from a different direction against a synthetic cache. Independent redundancy path (integer
+cents, own window convention, orientation passed as arguments): **330/330 legs, 0 disagreements** —
+a redundancy check, NOT a verifier, and reported as such, since both paths share L279's premise.
+The `close_day <= fire_date` proxy's own error is MEASURED against the committed milestone-2 report
+rather than asserted: every delta non-negative (intervals +3, covered +3, legs +6, fills +5, units
++1) = **over-inclusive**, which is what an upper bound must look like; the code reports a negative
+delta as `MIXED` and a test pins that path.
+
+**Secondary defect found and deliberately NOT repaired (L309):** `build_rows`'s `drops` dict mixes
+units — five keys count INTERVALS, `single_snapshot` counts TICKERS — so milestone 2's published
+`{single_snapshot: 3, unsettled: 145}` is 3 tickers plus 145 intervals and `sum(drops.values())`
+counts nothing. Milestone 3 requires the probe UNCHANGED, so the audit is surfaced in the new
+report instead; revisit after the 08-10 firing.
+
+**No registry change, no CI, no P&L, no kill.** S13/S23/S29 keep the status they already had; still
+0 proven edges. **Paper sub-pass:** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`);
+`scripts/paper_pass.py` advanced deterministically over committed tape and booked nothing new
+(0 processed, 0 deferred(caps), 274 deferred(coverage), 300 already-in-ledger), so no ledger lines
+were appended. Summary: `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76,
+cash $+27.76, open notional $0.00`.
+
+See `findings/2026-08-08-q51-m3-fill-projection.md`, lessons **L308** and **L309**.
+
+---
+
 ## 2026-08-08 ~01:2x-05:0xZ UTC — research loop: PR #315 merged (Q53 verdict, L303) + idle run policy (a): L307 UNENFORCED -> test + tool
 
 **Step 0 claim-check.** PR #315 (Q53's two-agent CONFIRMED-WITH-CORRECTIONS verdict, L303) had
