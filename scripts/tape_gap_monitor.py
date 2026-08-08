@@ -372,6 +372,53 @@ EXPECTED_COLLECTOR_BUCKETS: Dict[str, Dict[str, str]] = {
 # arises rather than re-deriving the detector.
 JOIN_CRITICAL_ONE_SHOT: Dict[str, Dict[str, Any]] = {}
 
+# FIELD-HEALTH detector (L307, 2026-08-08).
+# ------------------------------------------------------------------------------------
+# A family can pass every STALE/UNDER-CAPTURE/JOIN-STALENESS check above while a
+# join-critical SUB-FIELD inside its own records is 100% dead for weeks: none of those
+# detectors can see it, since a file's mtime, its line count, and its inter-pass gap are
+# the only three things they observe, and a dead sub-field changes none of the three.
+# ``tape/sports_pairs/`` is exactly this case — registered in FAMILY_CONFIG, passing
+# every check, cadence normal, not stale — while its ``odds_leg`` sub-object (the S7/S11
+# external sharp-odds fair-anchor join) has produced ZERO ``matched`` rows on any day
+# since 2026-07-19, invisible to every detector registered before this one.
+#
+# Each entry:
+#   json_path                : dotted path to the field inside each record.
+#   healthy_predicate         : callable(value) -> bool, judging a PRESENT field value
+#                               only. The field being entirely ABSENT on a record (a
+#                               schema the record never carried) is never fed to this
+#                               predicate — it is its own day-class (``field_absent``),
+#                               per L289/L298's counter-absent-vs-empty-denominator rule;
+#                               collapsing "never had the field" into "unhealthy" would
+#                               let a schema change read as an instant outage.
+#   max_consecutive_bad_days : the trailing consecutive-BAD-DAY run length that ALERTS
+#                              (``field_degraded``). Measured per DAY, not per pass —
+#                              L307's design constraint: a single bad pass is noise,
+#                              N straight days is an outage.
+#
+# sports_pairs -> odds_leg.status: healthy = ``matched`` (the only status that actually
+# feeds the anchor; ``blocked_key``/``unmapped_series``/``not_selected``/``unmatched`` are
+# all live refusals, not signal-free days). Calibrated against committed tape: every day
+# in the one week the anchor ever worked (2026-07-12..07-18) carries >=1 ``matched`` row
+# (6/48/45/25/48/48/20); every day since (2026-07-19 onward, verified through 2026-08-07)
+# carries exactly 0 — so ``max_consecutive_bad_days=7`` catches the real outage at roughly
+# a third of its true length (it reached 20 straight days before this detector existed)
+# while never firing during the healthy week itself.
+FIELD_HEALTH_FAMILIES: Dict[str, Dict[str, Any]] = {
+    "sports_pairs": {
+        "json_path": ("odds_leg", "status"),
+        "healthy_predicate": lambda v: v == "matched",
+        "max_consecutive_bad_days": 7,
+        "note": ("L307: the S7/S11 external sharp-odds fair-anchor join. Every day of the "
+                 "one week the anchor ever worked carries >=1 `matched` row; every day "
+                 "since 2026-07-19 carries 0 (measured through 2026-08-07: 20 straight "
+                 "days) while the family itself reads perfectly healthy on every "
+                 "existing cadence/staleness check."),
+    },
+}
+FIELD_HEALTH_DEFAULT_MAX_BAD_DAYS = 7
+
 # Retrospective-list family coverage map (L171, 2026-07-26). See module
 # docstring. ``list_key``: the record field holding the embedded observation
 # list. ``time_key``: the per-item epoch-milliseconds timestamp field.
@@ -2554,6 +2601,167 @@ def status_regression_by_key(tape_root: Path,
     }
 
 
+def field_health_by_day(tape_root: Path,
+                        family: str,
+                        days: Optional[List[str]] = None,
+                        config: Optional[Dict[str, Any]] = None,
+                        max_consecutive_bad_days: Optional[int] = None
+                        ) -> Dict[str, Any]:
+    """Per-day health of one join-critical SUB-FIELD for FAMILY (L307). Read-only.
+
+    Raises ``ValueError`` for a family with no ``FIELD_HEALTH_FAMILIES`` entry and no
+    injected ``config`` — an unaudited family is reported as such by the caller, never
+    silently scored clean.
+
+    Each committed day-file gets exactly one of three classes:
+    ``field_absent`` (every record that day lacks the field entirely — a schema the
+    day never carried, e.g. before the field existed), ``healthy`` (>=1 record that day
+    satisfies ``healthy_predicate``), or ``degraded`` (>=1 record carries the field, but
+    none satisfy the predicate). ``field_absent`` days are excluded from the
+    consecutive-day run scan entirely — same treatment as a ``neutral`` status in
+    ``status_regression_by_key`` (design point 1): they carry no signal either way, so
+    they neither extend nor break a run.
+
+    ``current_bad_day_run`` is the trailing run of ``degraded`` days (most recent day
+    backward, skipping over any ``field_absent`` days in between). ``degraded`` (bool)
+    is True once that run reaches ``max_consecutive_bad_days``. Closed episodes (a
+    degraded run bounded by a healthy day on both sides) are kept on the record even
+    after recovery — L223's "a recovered hole must stay visible" rule, one level up.
+    """
+    cfg = dict(config) if config is not None else dict(FIELD_HEALTH_FAMILIES.get(family, {}))
+    if not cfg:
+        raise ValueError(
+            f"family {family!r} has no FIELD_HEALTH_FAMILIES entry; add one (json_path, "
+            "healthy_predicate, max_consecutive_bad_days) rather than guessing whether "
+            "a sub-field's silence is benign"
+        )
+    json_path = tuple(cfg["json_path"])
+    healthy_predicate = cfg["healthy_predicate"]
+    threshold = int(max_consecutive_bad_days if max_consecutive_bad_days is not None
+                    else cfg.get("max_consecutive_bad_days", FIELD_HEALTH_DEFAULT_MAX_BAD_DAYS))
+
+    day_filter = set(days) if days else None
+    by_day: Dict[str, Dict[str, Any]] = {}
+    n_rows = 0
+    n_malformed = 0
+    files_read: List[str] = []
+
+    for _d, path in _family_files(tape_root, family):
+        if day_filter is not None and path.stem not in day_filter:
+            continue
+        files_read.append(path.name)
+        day_key = path.stem  # "dt=YYYY-MM-DD"
+        counts = by_day.setdefault(day_key, {"n_rows": 0, "n_absent": 0,
+                                             "n_present": 0, "n_healthy": 0})
+        try:
+            fh = open(path, "r", encoding="utf-8")
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    n_malformed += 1
+                    continue
+                if not isinstance(rec, dict):
+                    n_malformed += 1
+                    continue
+                n_rows += 1
+                counts["n_rows"] += 1
+                value = _dig_path(rec, json_path)
+                if value is _MISSING:
+                    counts["n_absent"] += 1
+                    continue
+                counts["n_present"] += 1
+                if healthy_predicate(value):
+                    counts["n_healthy"] += 1
+
+    for day_key, counts in by_day.items():
+        if counts["n_present"] == 0:
+            day_class = "field_absent"
+        elif counts["n_healthy"] > 0:
+            day_class = "healthy"
+        else:
+            day_class = "degraded"
+        counts["day_class"] = day_class
+
+    ordered_days = sorted(by_day.keys())
+    # design point 1 (mirrors status_regression_by_key): field_absent days carry no
+    # signal and are excluded from the run-scanning sequence entirely.
+    seq = [d for d in ordered_days if by_day[d]["day_class"] != "field_absent"]
+
+    episodes: List[Dict[str, Any]] = []
+    leading_bad = 0
+    current_run: List[str] = []
+    prev_healthy: Optional[str] = None
+    i = 0
+    while i < len(seq):
+        if by_day[seq[i]]["day_class"] == "degraded":
+            j = i
+            while j < len(seq) and by_day[seq[j]]["day_class"] == "degraded":
+                j += 1
+            run = seq[i:j]
+            if prev_healthy is None:
+                leading_bad += len(run)
+            elif j < len(seq):
+                episodes.append({
+                    "last_healthy_before_day": prev_healthy,
+                    "start_day": run[0],
+                    "end_day": run[-1],
+                    "n_days": len(run),
+                    "recovered_day": seq[j],
+                })
+            else:
+                current_run = run
+            i = j
+        else:
+            prev_healthy = seq[i]
+            i += 1
+
+    run_days = len(current_run)
+    degraded = run_days >= threshold
+    n_days = len(by_day)
+    n_field_absent = sum(1 for v in by_day.values() if v["day_class"] == "field_absent")
+    n_healthy_days = sum(1 for v in by_day.values() if v["day_class"] == "healthy")
+    n_degraded_days = sum(1 for v in by_day.values() if v["day_class"] == "degraded")
+
+    if degraded:
+        verdict = "FIELD_DEGRADED"
+    elif episodes:
+        verdict = "RECOVERED_EPISODES_ON_RECORD"
+    elif n_days:
+        verdict = "CLEAN"
+    else:
+        verdict = "NO_DAYS"
+
+    return {
+        "family": family,
+        "json_path": ".".join(json_path),
+        "max_consecutive_bad_days": threshold,
+        "note": cfg.get("note"),
+        "days_filter": sorted(day_filter) if day_filter else None,
+        "n_files_read": len(files_read),
+        "n_rows": n_rows,
+        "n_malformed_lines": n_malformed,
+        "n_days": n_days,
+        "n_field_absent_days": n_field_absent,
+        "n_healthy_days": n_healthy_days,
+        "n_degraded_days": n_degraded_days,
+        "current_bad_day_run": run_days,
+        "current_bad_day_run_started": current_run[0] if current_run else None,
+        "leading_bad_days": leading_bad,
+        "degraded": degraded,
+        "n_closed_episodes": len(episodes),
+        "closed_episodes": episodes,
+        "verdict": verdict,
+        "by_day": by_day,
+    }
+
+
 def _scan_file_max_captured_at(path: Path, now: datetime) -> Optional[datetime]:
     """Newest captured_at <= now in one file (streaming, O(1) extra memory)."""
     newest: Optional[datetime] = None
@@ -2767,6 +2975,23 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
                 f"silently truncates at this date"
             )
 
+    # FIELD-HEALTH detector (L307). Structurally independent of every check above: a
+    # family can be perfectly on-cadence (STALE/UNDER-CAPTURE both silent) while a
+    # join-critical SUB-FIELD inside its records is dead, since none of those detectors
+    # ever look inside a record. Only runs when `tape_root` is given (this function is
+    # also called with tape_root=None from tests/callers building a record straight off
+    # an aggregate — never fabricated in that path) and the family is registered.
+    field_health = None
+    if tape_root is not None and agg.family in FIELD_HEALTH_FAMILIES:
+        field_health = field_health_by_day(tape_root, agg.family)
+        if field_health["degraded"]:
+            reasons.append(
+                f"field_degraded: {field_health['json_path']} unhealthy for "
+                f"{field_health['current_bad_day_run']} consecutive day(s) "
+                f"(>= {field_health['max_consecutive_bad_days']} threshold), "
+                f"since {field_health['current_bad_day_run_started']}"
+            )
+
     # A family with NO capture at or before `now` is "dark": either not yet
     # launched at this reference time, config added ahead of deploy, or genuinely
     # never ran. Tape alone can't tell these apart, so we SHOW it (never hide) but
@@ -2860,6 +3085,7 @@ def evaluate_family(agg: FamilyAggregate, now: datetime,
         "collector_diagnosis": collector_diagnosis,
         "retrospective_coverage": retro_coverage,
         "capped_pagination_span": capped_span,
+        "field_health": field_health,
     }
 
 
@@ -3062,6 +3288,22 @@ def main(argv: Optional[List[str]] = None) -> int:
                          f"passes (default: the family's own min_run_passes, "
                          f"else {STATUS_REGRESSION_MIN_RUN_PASSES}). The three-state "
                          "classification itself is threshold-independent.")
+    ap.add_argument("--field-health", default=None, metavar="FAMILY",
+                    help="print ONLY the L307 join-critical sub-field health audit for "
+                         "FAMILY (one of FIELD_HEALTH_FAMILIES, e.g. sports_pairs; "
+                         "read-only, no notify) and exit. Answers 'is the sub-field this "
+                         "family's live join actually depends on still producing healthy "
+                         "values', per DAY — the check no STALE/UNDER-CAPTURE/cadence "
+                         "detector can see, since none of them look inside a record.")
+    ap.add_argument("--field-health-days", default=None,
+                    help="comma-separated dt= day stems to restrict --field-health to "
+                         "(e.g. dt=2026-07-19,dt=2026-08-07). Pins a FROZEN slice, per "
+                         "L191. Default: every committed day-file the family has.")
+    ap.add_argument("--field-health-max-bad-days", type=int, default=None, metavar="N",
+                    help="the trailing consecutive-BAD-DAY run length that ALERTS "
+                         "(default: the family's own max_consecutive_bad_days, else "
+                         f"{FIELD_HEALTH_DEFAULT_MAX_BAD_DAYS}). The per-day "
+                         "classification itself is threshold-independent.")
     ap.add_argument("--burst-liveness", default=None, metavar="TRIGGER_NAME",
                     help="print ONLY the L227 burst-window liveness audit for TRIGGER_NAME "
                          "(one of BURST_TRIGGER_WINDOWS, e.g. kalshi-burst-fomc-0729; "
@@ -3124,6 +3366,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             out = status_regression_by_key(Path(args.tape_root), args.status_regression,
                                            days=days,
                                            min_run_passes=args.status_regression_min_run)
+        except ValueError as exc:
+            print(f"[tape_gap_monitor] {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+
+    if args.field_health:
+        days = ([d.strip() for d in args.field_health_days.split(",") if d.strip()]
+                if args.field_health_days else None)
+        try:
+            out = field_health_by_day(Path(args.tape_root), args.field_health,
+                                      days=days,
+                                      max_consecutive_bad_days=args.field_health_max_bad_days)
         except ValueError as exc:
             print(f"[tape_gap_monitor] {exc}", file=sys.stderr)
             return 2

@@ -2767,3 +2767,262 @@ def test_acceptance_22_l223_the_other_econ_series_are_the_negative_control():
         assert k["n_closed_episodes"] == 0, other
         assert k["current_null_run_passes"] == 0, other
         assert k["n_null"] == 0, other
+
+
+# --------------------------------------------------------------------------- #
+# L307 — join-critical sub-field health detector (per-day, not per-pass)
+# --------------------------------------------------------------------------- #
+
+_L307_CFG = {
+    "json_path": ("leg", "status"),
+    "healthy_predicate": lambda v: v == "matched",
+    "max_consecutive_bad_days": 3,
+}
+
+
+def _field_row(cid, captured_at, status=None, *, omit=False):
+    r = {"capture_id": cid, "captured_at": captured_at}
+    if not omit:
+        r["leg"] = {"status": status}
+    return r
+
+
+def _field_day(tape_root, day, statuses, *, family="synthetic_field_family", omit=False):
+    """One pass per entry; hour index makes captured_at monotone within the day."""
+    recs = []
+    for i, st in enumerate(statuses):
+        recs.append(_field_row(f"{day}T{i:02d}00", f"{day}T{i:02d}:00:00+00:00", st, omit=omit))
+    _write_lines(tape_root, family, day, recs)
+
+
+def test_l307_day_partition_is_exact(tmp_path):
+    _field_day(tmp_path, "2026-07-05", ["matched", "blocked_key", "blocked_key"])
+    _field_day(tmp_path, "2026-07-06", ["blocked_key", "blocked_key"])
+    _field_day(tmp_path, "2026-07-07", [None, None], omit=True)
+    r = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG)
+    assert r["n_days"] == 3
+    assert (r["n_healthy_days"], r["n_degraded_days"], r["n_field_absent_days"]) == (1, 1, 1)
+    assert r["n_healthy_days"] + r["n_degraded_days"] + r["n_field_absent_days"] == r["n_days"]
+    assert r["by_day"]["dt=2026-07-05"]["day_class"] == "healthy"
+    assert r["by_day"]["dt=2026-07-06"]["day_class"] == "degraded"
+    assert r["by_day"]["dt=2026-07-07"]["day_class"] == "field_absent"
+
+
+def test_l307_field_absent_day_neither_extends_nor_breaks_a_run(tmp_path):
+    """A field-absent day sits BETWEEN two degraded days — the run must read through it,
+    since an absent field carries no signal (design point 1, mirrors L223's `neutral`)."""
+    _field_day(tmp_path, "2026-07-05", ["matched"])
+    _field_day(tmp_path, "2026-07-06", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-07", [None], omit=True)
+    _field_day(tmp_path, "2026-07-08", ["blocked_key"])
+    r = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG)
+    assert r["current_bad_day_run"] == 2
+    assert r["current_bad_day_run_started"] == "dt=2026-07-06"
+
+
+def test_l307_leading_bad_run_before_any_healthy_day_is_not_flagged(tmp_path):
+    """Design point (mirrors L223's leading-null rule): a field that has NEVER been
+    healthy is not a REGRESSION — there is nothing to regress from. Deliberately distinct
+    from a field that WAS healthy and then went bad (the real L307 case)."""
+    _field_day(tmp_path, "2026-07-05", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-06", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-07", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-08", ["blocked_key"])
+    r = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG)
+    assert r["leading_bad_days"] == 4
+    assert r["current_bad_day_run"] == 0
+    assert r["degraded"] is False
+    assert r["verdict"] == "CLEAN"
+
+
+def test_l307_alert_threshold_is_separate_from_day_classification(tmp_path):
+    _field_day(tmp_path, "2026-07-05", ["matched"])
+    _field_day(tmp_path, "2026-07-06", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-07", ["blocked_key"])
+    below = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG,
+                                    max_consecutive_bad_days=3)
+    assert below["current_bad_day_run"] == 2 and below["degraded"] is False
+    at = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG,
+                                 max_consecutive_bad_days=2)
+    assert at["current_bad_day_run"] == 2 and at["degraded"] is True
+    assert at["verdict"] == "FIELD_DEGRADED"
+
+
+def test_l307_recovery_keeps_the_closed_episode_visible(tmp_path):
+    _field_day(tmp_path, "2026-07-05", ["matched"])
+    _field_day(tmp_path, "2026-07-06", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-07", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-08", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-09", ["matched"])
+    r = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG)
+    assert r["degraded"] is False
+    assert r["current_bad_day_run"] == 0
+    assert r["n_closed_episodes"] == 1
+    ep = r["closed_episodes"][0]
+    assert ep["start_day"] == "dt=2026-07-06" and ep["end_day"] == "dt=2026-07-08"
+    assert ep["n_days"] == 3
+    assert ep["recovered_day"] == "dt=2026-07-09"
+    assert ep["last_healthy_before_day"] == "dt=2026-07-05"
+    assert r["verdict"] == "RECOVERED_EPISODES_ON_RECORD"
+
+
+def test_l307_malformed_line_is_counted_never_scored(tmp_path):
+    fam = tmp_path / "synthetic_field_family"
+    fam.mkdir(parents=True)
+    (fam / "dt=2026-07-05.jsonl").write_text('{"not json\n', encoding="utf-8")
+    r = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG)
+    assert r["n_malformed_lines"] == 1
+    assert r["n_rows"] == 0 and r["n_days"] == 1
+    assert r["by_day"]["dt=2026-07-05"]["day_class"] == "field_absent"
+
+
+def test_l307_unaudited_family_raises_rather_than_scoring_clean(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        tgm.field_health_by_day(tmp_path, "perp_tape")
+    assert "FIELD_HEALTH_FAMILIES" in str(exc.value)
+
+
+def test_l307_sports_pairs_is_registered_with_the_documented_predicate():
+    cfg = tgm.FIELD_HEALTH_FAMILIES["sports_pairs"]
+    assert cfg["json_path"] == ("odds_leg", "status")
+    assert cfg["healthy_predicate"]("matched") is True
+    for bad in ("blocked_key", "unmapped_series", "not_selected", "unmatched"):
+        assert cfg["healthy_predicate"](bad) is False
+    assert cfg["max_consecutive_bad_days"] == 7
+
+
+def test_l307_days_filter_pins_a_frozen_slice(tmp_path):
+    _field_day(tmp_path, "2026-07-05", ["matched"])
+    _field_day(tmp_path, "2026-07-06", ["blocked_key"])
+    _field_day(tmp_path, "2026-07-07", ["blocked_key"])
+    full = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG)
+    assert full["current_bad_day_run"] == 2
+    frozen = tgm.field_health_by_day(tmp_path, "synthetic_field_family", config=_L307_CFG,
+                                     days=["dt=2026-07-05", "dt=2026-07-06"])
+    assert frozen["days_filter"] == ["dt=2026-07-05", "dt=2026-07-06"]
+    assert frozen["current_bad_day_run"] == 1
+    assert frozen["n_files_read"] == 2
+
+
+def test_l307_cli_emits_json_and_rejects_an_unaudited_family(tmp_path, capsys):
+    _field_day(tmp_path, "2026-07-05", ["matched", "blocked_key"])
+    rc = tgm.main(["--tape-root", str(tmp_path), "--field-health", "sports_pairs"])
+    # sports_pairs IS registered, but the fixture tape has no sports_pairs family dir —
+    # 0 days is a legitimate empty read, not an error.
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["family"] == "sports_pairs" and payload["n_days"] == 0
+    rc2 = tgm.main(["--tape-root", str(tmp_path), "--field-health", "perp_tape"])
+    assert rc2 == 2
+
+
+# --- Threading into evaluate_family (mirrors the L127 join_stale wiring test) ------- #
+
+def test_field_degraded_alerts_via_evaluate_family_independent_of_cadence(tmp_path, monkeypatch):
+    """The L307 thesis, proven under a CONTROLLED fixture (not real tape, whose collector
+    cadence drifts over time and would make a hard "no other reason fires" pin flaky): a
+    family with a perfectly healthy hourly-dual cadence — STALE and UNDER-CAPTURE both
+    silent — still alerts on `field_degraded` alone, because that detector looks INSIDE
+    each record where the other two structurally cannot."""
+    fam = "synthetic_field_family"
+    monkeypatch.setitem(tgm.FIELD_HEALTH_FAMILIES, fam,
+                        {"json_path": ("leg", "status"),
+                         "healthy_predicate": lambda v: v == "matched",
+                         "max_consecutive_bad_days": 2})
+    monkeypatch.setitem(tgm.FAMILY_CONFIG, fam,
+                        {"interval_h": 1.0, "passes_per_day": 48, "kind": "hourly-dual"})
+    # Full hourly-dual cadence (minute :23 + :53, matching the real collector signature)
+    # on each of 3 days, healthy on 07-05 and degraded (never `matched`) on 07-06/07.
+    for day, status in (("2026-07-05", "matched"), ("2026-07-06", "blocked_key"),
+                       ("2026-07-07", "blocked_key")):
+        recs = []
+        for h in range(24):
+            for m in (23, 53):
+                cid = f"{day}T{h:02d}{m:02d}"
+                ca = f"{day}T{h:02d}:{m:02d}:00+00:00"
+                recs.append(_field_row(cid, ca, status))
+        _write_lines(tmp_path, fam, day, recs)
+    now = _dt(2026, 7, 7, 23, 30)
+    rec = tgm.evaluate_family(tgm.aggregate_family(tmp_path, fam, now), now, tape_root=tmp_path)
+    assert rec["alert"] is True
+    assert "field_degraded" in rec["alert_reason"]
+    assert "stale" not in rec["alert_reason"]
+    assert "under_capture" not in rec["alert_reason"]
+    assert rec["field_health"]["degraded"] is True
+    assert rec["field_health"]["current_bad_day_run"] == 2
+
+
+def test_field_health_omitted_without_tape_root(tmp_path):
+    """Never fabricated: without tape_root, evaluate_family cannot read tape/ at all, so
+    field_health must be None rather than silently absent-as-clean."""
+    fam = "synthetic_field_family"
+    _field_day(tmp_path, "2026-07-05", ["blocked_key"], family=fam)
+    now = _dt(2026, 7, 5, 1, 0)
+    agg = tgm.aggregate_family(tmp_path, fam, now)
+    rec = tgm.evaluate_family(agg, now)  # tape_root=None default
+    assert rec["field_health"] is None
+
+
+def test_field_health_untracked_family_is_none(tmp_path):
+    now = _dt(2026, 7, 5, 1, 0)
+    agg = tgm.aggregate_family(tmp_path, "perp_tape", now)
+    rec = tgm.evaluate_family(agg, now, tape_root=tmp_path)
+    assert rec["field_health"] is None
+    assert rec["alert"] is False
+
+
+# --- HARD acceptance over the REAL committed tape ------------------------- #
+
+@_real
+def test_acceptance_23_l307_sports_pairs_healthy_week_reads_clean():
+    """The one week the S7/S11 anchor ever worked (2026-07-12..07-18): every day carries
+    >=1 `matched` row, so the field-health detector must read CLEAN throughout — the
+    positive control for the predicate itself."""
+    days = [f"dt=2026-07-{d:02d}" for d in range(12, 19)]
+    r = tgm.field_health_by_day(_REAL_TAPE, "sports_pairs", days=days)
+    assert r["n_days"] == 7
+    assert r["n_healthy_days"] == 7
+    assert r["n_degraded_days"] == 0
+    assert r["degraded"] is False
+    assert r["verdict"] == "CLEAN"
+
+
+@_real
+def test_acceptance_24_l307_sports_pairs_odds_leg_20_day_outage_reproduces_L306_L307():
+    """L306/L307's own headline, re-derived here on a frozen slice: `odds_leg.status`
+    reads 0 `matched` on every single day from 2026-07-19 through the last day audited
+    (2026-08-07) — 20 straight days, vastly past the 7-day alert threshold. dt=2026-07-18
+    (the last healthy day) is included so the run reads as a genuine REGRESSION (current
+    run) rather than a leading run with nothing to regress from (see the leading-bad-run
+    fixture test above) — the days-filter is a frozen slice, not the detector's default
+    unrestricted read, so this is a deliberate scoping choice, not a default."""
+    days = (["dt=2026-07-18"]
+            + [f"dt=2026-07-{d:02d}" for d in range(19, 32)]
+            + [f"dt=2026-08-{d:02d}" for d in range(1, 8)])
+    assert len(days) == 21
+    r = tgm.field_health_by_day(_REAL_TAPE, "sports_pairs", days=days)
+    assert r["n_days"] == 21
+    assert r["n_degraded_days"] == 20
+    assert r["n_healthy_days"] == 1
+    assert r["current_bad_day_run"] == 20
+    assert r["current_bad_day_run_started"] == "dt=2026-07-19"
+    assert r["degraded"] is True
+    assert r["verdict"] == "FIELD_DEGRADED"
+
+
+@_real
+def test_acceptance_25_l307_sports_pairs_alerts_via_evaluate_family_on_real_tape():
+    """The field-health alert reaches the live `evaluate_family` record on real committed
+    tape, not just the standalone `field_health_by_day` reading. This does NOT assert
+    the OTHER detectors' state (STALE/UNDER-CAPTURE) — real collector cadence drifts
+    over time and pinning it here would make the test flaky on unrelated tape growth;
+    the fixture test above proves independence-from-cadence under a controlled cadence,
+    which is the property that matters and the one that's stable to assert."""
+    now = _dt(2026, 8, 7, 22, 30)
+    agg = tgm.aggregate_family(_REAL_TAPE, "sports_pairs", now)
+    rec = tgm.evaluate_family(agg, now, tape_root=_REAL_TAPE)
+    assert rec["field_health"] is not None
+    assert rec["field_health"]["degraded"] is True
+    assert rec["field_health"]["current_bad_day_run"] >= 7
+    assert rec["alert"] is True
+    assert "field_degraded" in rec["alert_reason"]
