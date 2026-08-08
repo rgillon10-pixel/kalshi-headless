@@ -6,6 +6,58 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-08 ~09:0x-09:3xZ UTC — research loop IDLE RUN policy (a): L296's verdict half was already resolved — formal disposition (L310)
+
+Step 0a clean (last 5 merged PRs #315-#320 all confirmed ancestors of `origin/main` via the
+GitHub API's own `merged`/`merged_at` fields — local `.git` is a shallow clone (`.git/shallow`
+present, 50 commits, per L297's own caution against trusting `git log -S` here) so ancestry was
+checked remotely, not by local git archaeology; `kb/00-LOG.md` newest entry and newest
+`tape/*/dt=*` file both current to 2026-08-08). Step 0 claim-check: 6 open PRs (#271/#208/#125
+retro docs LEAVE-OPEN-for-Ryan, #191/#166/#165 stale draft worktree branches), none claiming any
+queue TODO item. Step 0b: none of the three newest un-swept `tape/hourly-*`/`tape/burst-*`
+branches were younger than 30 minutes or unaccounted for; nothing to sweep this run.
+
+Queue re-verified drained: Q0-Q55's topmost statuses are all DONE/BLOCKED/RESERVED/time-gated/
+data-gated (Q51 milestone 3 gated to 2026-08-10). Idle-run policy (a) first: re-derived the
+machine-checked open-`UNENFORCED` set directly (`scripts.invariants._parse_lesson_rows` +
+`_lesson_disposed_ids`, not the stale prose count carried between runs) — exactly
+`{L213, L221, L222, L282, L296, L309}`. L213/L221/L222/L282 are genuinely out of a research-loop
+run's lane (Ryan-action trigger / explicit DO-NOT-BUILD write-paths / a Ryan-lane sweep-workflow
+change) and L309 is deliberately deferred until after the 2026-08-10 Q51 firing. **L296 turned
+out to be stale, not open:** its "verdict half" was PROVISIONAL only because no `Task`/subagent
+tool existed in the harness that wrote it — but the very next day (2026-08-07), Q53's own run
+had that tool, dispatched an independent `verifier`, and produced L303's two-agent
+CONFIRMED-WITH-CORRECTIONS verdict on the exact same S3/S15 claims (confirmed against
+`kb/strategies/00-index.md`'s S3/S15 "Verifier update (2026-08-07...)" sentences and
+`LOOP-QUEUE.md`'s "Q53 CLOSED" status line). L303's own enforcement marker reads `DISPOSES:
+verdict` — `verdict` doesn't match the `L\d+` grammar `_lesson_disposed_ids` requires, so it
+disposed nothing syntactically and L296 sat machine-visible as open for a day. Added **L310**,
+a formal `DISPOSES: L296` row recording that already-resolved verdict in the machine-checked
+ledger; before writing it, dispatched an independent `verifier` subagent (Agent tool available
+in this harness) to re-read all four cited files and confirm the claim rather than trust the
+paraphrase — CONFIRMED, with one correction folded in (L303 does not itself dispose L296;
+this row is the first thing that does). No registry status changes: S3 and S15 both stay
+`data-collecting`, unchanged before and after this row — the PROVISIONAL→CONFIRMED transition
+already happened on 2026-08-07, not repeated here. Not verdict-class itself (no CI, no P&L, no
+kill, no registry flip) so the two-agent rule doesn't bind on the disposition action itself; the
+verifier dispatch was extra rigor, not a protocol requirement. Machine effect verified directly:
+`_lesson_disposed_ids` grew from 35→36 IDs and the open-`UNENFORCED` set shrank from 6→5
+(`{L213, L221, L222, L282, L309}`), reproduced via the same one-line census command both before
+and after the edit. Gates AFTER the last edit (L162): `pytest -q` run as 4 disjoint file shards
+verified to partition all 117 test files exactly (30+29+29+29, union == full `--collect-only`
+list, no overlap) → 819+1,133+981+588 = **3,521 collected, 3,521 passed, 0 failed**, every shard
+exit 0, no `FAILED`/`ERROR` in any shard log (shard 2, `test_invariants.py`, was the long pole
+at 57m29s; running the 4 shards concurrently rather than serially kept total wall clock to
+~1h instead of the ~1.5h+ a single-process full run has taken in recent prior runs);
+`python3 scripts/invariants.py --full` → exit **0**, "invariants: all green" (same
+pre-existing non-gating advisories as base `main`, none newly introduced; the stale-unenforced
+advisory's own open-row count moved 6→5 by design). Step 9: `SHADOW_REGISTRY`
+non-empty (`s14_ladder_underwriting`); `scripts/paper_pass.py` advanced idempotently over
+committed tape, 0 newly processed — realized P&L unchanged at $+27.76.
+
+Files: `kb/lessons/00-lessons.md` (L310), `LOOP-QUEUE.md` (Log-of-runs), `kb/00-LOG.md`. No
+`execution/` change beyond the routine paper sub-pass check; no network orders, no credentials.
+
 ## 2026-08-08 ~06:0x-07:0xZ UTC — research loop IDLE RUN policy (b): Q51 milestone-3 fill projection (L308/L309)
 
 **Steps 0a/0/0b.** History-integrity check PASSED (5 most recently merged PRs #319/#315/#318/#317/
