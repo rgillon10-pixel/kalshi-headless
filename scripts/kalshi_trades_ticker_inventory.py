@@ -91,7 +91,16 @@ def _day_of(path: Path) -> Optional[str]:
     return stem.split("=", 1)[1] if stem.startswith("dt=") else None
 
 
-def _family_files(tape_root: Path, max_day: Optional[str] = None) -> List[Path]:
+def _family_files(tape_root: Path, max_day: Optional[str] = None,
+                  min_day: Optional[str] = None) -> List[Path]:
+    """Committed day-files of the trade family, optionally windowed on BOTH ends.
+
+    `min_day` added 2026-08-08 (L316). A one-sided `max_day` closes L140's time-bomb only
+    against tape that grows FORWARD. `tape/kalshi_trades/` has no scheduled writer (L313), so
+    the way it actually grows is a BACKFILL — the 2026-08-08 phase-1 pull added
+    dt=2026-07-07..07-12, all of which sit UNDER an 08-03 `max_day` and silently entered every
+    window that had been frozen against exactly this kind of drift.
+    """
     d = tape_root / TRADE_FAMILY
     if not d.is_dir():
         return []
@@ -102,21 +111,26 @@ def _family_files(tape_root: Path, max_day: Optional[str] = None) -> List[Path]:
             continue
         if max_day is not None and day > max_day:
             continue
+        if min_day is not None and day < min_day:
+            continue
         out.append(p)
     return out
 
 
 def trade_tape_inventory(tape_root: Path = ROOT / "tape",
-                         max_day: Optional[str] = None) -> Dict[str, Any]:
+                         max_day: Optional[str] = None,
+                         min_day: Optional[str] = None) -> Dict[str, Any]:
     """Per-series inventory of `tape/kalshi_trades/`. Read-only; no network.
 
-    `max_day` freezes the window at a `dt=` string (L140's time-bomb discipline — a test that
-    pins real numbers must be able to close its window, or it rots as new tape lands).
+    `max_day`/`min_day` freeze the window at `dt=` strings (L140's time-bomb discipline — a
+    test that pins real numbers must be able to close its window, or it rots as new tape
+    lands). BOTH ends matter (L316): this family grows by backfill, so a day newer than
+    nothing and older than `max_day` can still appear after a pin was written.
 
     Returns `n_days == 0` with an empty `series` map when the family is absent. That is an
     honest "no claim": every downstream verdict is `UNKNOWN_NO_TAPE`, never `ABSENT`, because
     an un-collected family and a collected-but-empty one are different claims (L289/L296)."""
-    files = _family_files(tape_root, max_day)
+    files = _family_files(tape_root, max_day, min_day)
     per_series_prints: Dict[str, int] = defaultdict(int)
     per_series_tickers: Dict[str, set] = defaultdict(set)
     per_series_days: Dict[str, set] = defaultdict(set)
@@ -230,6 +244,9 @@ def named_series_tokens(text: str) -> List[str]:
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--tape-root", default=str(ROOT / "tape"))
+    ap.add_argument("--min-day", default=None,
+                    help="freeze the window's OLDER end at a dt= day (L316: this family grows "
+                         "by backfill, so a max-day-only window does not stay frozen)")
     ap.add_argument("--max-day", default=None,
                     help="restrict to dt=<=DAY (freeze the window; L140)")
     ap.add_argument("--check", nargs="*", default=None, metavar="KXSERIES",
@@ -237,7 +254,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--json", action="store_true", help="emit the raw report as JSON")
     args = ap.parse_args(argv)
 
-    inv = trade_tape_inventory(Path(args.tape_root), args.max_day)
+    inv = trade_tape_inventory(Path(args.tape_root), args.max_day, args.min_day)
     checks = [series_coverage(inv, t) for t in (args.check or [])]
     if args.json:
         print(json.dumps({"inventory": inv, "checks": checks}, indent=2, sort_keys=True))

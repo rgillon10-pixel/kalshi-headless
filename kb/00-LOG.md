@@ -6,6 +6,106 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-08 ~18:1x-19:5xZ UTC — the phase-1 trade-print backfill ran: S79's data gate is OPEN (24 units vs a floor of 10) (L314, L315)
+
+Steps 0a/0/0b were established by the orchestrating session before this leg: history-integrity PASS
+(the 5 most recently merged PRs #323/#322/#321/#320/#319 are exactly `origin/main`'s tip and recent
+ancestors, HEAD `ee50cae`; newest `kb/00-LOG.md` entry and newest `tape/*/dt=*` both current to
+2026-08-08), claim-check found only the stale Ryan-review-only PRs (#271/#208/#191/#166/#165/#125)
+claiming no queue item, and the stranded-tape sweep found the three newest `tape/hourly-*`/`burst-*`
+branches strict subsets of `main` (zero new lines).
+
+**Queue re-read at each item's LATEST-dated status** (the file mixes newest-first and oldest-first
+status ordering, so position is not status): Q0-Q51 all DONE / BLOCKED(Ryan-or-credential) /
+RESERVED / on a dead strategy; **Q51 milestone 3 time-gated to 2026-08-10** (two days out, not open);
+Q53 closed; Q55 milestones 1-2 done with m3 truncation-data-gated. That left **Q52 (S78) and Q54
+(S79)** — the only two live candidates — both `collect-and-revisit`, and both with a named,
+in-lane unblock action sitting un-run since the 15:0xZ leg the same day: **the bounded phase-1
+backfill L313 proposed but deliberately did not execute.** This run executed it. That is a
+collector milestone serving the topmost non-DONE items, not an idle-run policy branch.
+
+**No `Task`/subagent tool exists in this harness** (Read/Grep/Glob/Bash only), so no
+`collector-engineer`, `edge-prober`, `verifier` or `kb-distiller` was dispatchable — the
+L287/L288/L290/L291/L295/L308/L313 precedent. The milestone was therefore chosen to be
+non-verdict-class and built in main context; the two-agent rule is N/A rather than unsatisfied, and
+everything produced is recorded PROVISIONAL.
+
+**Built.** `scripts/q52_q54_trades_backfill_phase1.py` + `tests/test_q52_q54_trades_backfill_phase1.py`
+(23 offline tests, injectable runner/resolver, no network in any test path) ->
+`reports/q52_q54_trades_backfill_phase1_selection.json` (the cap-bound selection pass) and
+`reports/q52_q54_trades_backfill_phase1_repair.json` (the truncation repair). Selection is computed
+from committed tape only; the pull itself goes through `collection.kalshi_trades.run` so the
+existing `trade_id` dedupe, append-only writer and honest `completeness_ok` are reused rather than
+reimplemented.
+
+**The population, re-derived independently of L313's own numbers** (L313 measured 611 tickers / 338
+games over 31 book days; this run's 8-day phase-1 window is the subset): 1,240 sports-game tickers
+with >=2 `orderbook_depth` snapshots in 2026-07-07..07-14 -> **601 tickers / 328 games / 1,430
+(day, ticker) pairs** carrying a binary `broker_truth` outcome from the nine declared settlement
+families.
+
+**Pulled.** 17 games / 24 tickers / **89,217 new executed prints** / 5 new day-files
+(`dt=2026-07-07/08/10/11/12`) / **51.37 MB**; 128,915 of 128,915 lines in the family tagged
+`price_source_tag: broker_truth`; 0 duplicate `trade_id`s appended.
+
+**The selection rule is the finding, not a footnote (L315).** Phase 1 could afford 17 of 328 games,
+so *which* 17 is a research decision: games ordered by **round-robin over series** (a plain
+`sorted()` prefix would have been one league's alphabet — a single-competition sample presented as
+cross-sport; the realized 17 games are 17 DIFFERENT leagues), **whole games only** (a half-pulled
+game is a silently biased unit), stop at a **declared 40MB cap** enforced on measured on-disk bytes
+and checked before each game. The cap fired at game 18 with 43.9MB realized — the overshoot is
+whole-game atomicity on one heavy game, reported rather than hidden. The sample is outcome-BLIND (no
+settlement *result* was ever read, only the boolean "does a declared family resolve this ticker")
+but NOT random, and that shape is now part of any future S79 CI's provenance.
+
+**The truncation the first pass found (L314).** At `max_calls=20`, `KXMLBGAME-26JUL061915NYMATL`
+hit the cap on both outcome tickers, committing **40,000 prints of a measured 52,937** (true depth
+25,405 + 27,532, needing 26 and 28 calls). `truncated=True` is honest but lives in the pass summary,
+not on the tape line — so a later signed-flow join would read a time-ordered PREFIX of the day as
+the day, a systematic distortion rather than noise. Cap raised 20 -> 60 (~2x the measured worst
+case) and a repair pass completed the game (+12,937 lines, +7.46MB, **0 games with an incomplete
+query**). Total realized growth 51.37MB = 43.9 (selection, cap 40) + 7.5 (repair), stated that way
+rather than as a single number inside the proposed band.
+
+**Result — measured outcome-blind through the sealed probe's own adequacy path**
+(`outcome_map()`/`score_rows()` never called; `scripts/q54_s79_flow_continuation_probe.py` is
+unmodified, the L311 seal intact): trade days 1 -> 6, sports `*GAME` tickers with prints 38 -> 62,
+entry candidates 82 -> 148, scoreable 67 -> 133, **bootstrap units 8 -> 24** (floor 10, L41),
+**minority-side units 0 -> 2** (floor 2, L312), `gate_reasons` `[below_min_units,
+no_sign_variation]` -> `[]`, `admissible` false -> **true**. Both halves of Q54's gate are open for
+the first time since S79 was registered.
+
+**What this run deliberately did NOT do.** It did not run the scoring half. That is verdict-class,
+the two-agent rule is unsatisfiable here, and S79's own BINDING MANDATE bites hardest exactly at
+this margin: the entry split is 131 YES / 2 NO, so the minority arm clears by EXACTLY zero and an
+ALIVE reading would be inadmissible on the headline CI alone — it needs the always-majority-side
+benchmark decomposition with a paired per-unit block-bootstrap CI > 0. **No registry flip, no
+bootstrap CI, no P&L, no kill — S78 and S79 keep `collect-and-revisit`; still 0 proven edges.**
+
+**Honest limits:** 311 of 328 identified games un-pulled and 07-13/07-14 uncovered; day-files are a
+ticker-scoped backfill, NOT complete venue days (join against the manifest); the ~3h book cadence
+(L283) still leaves S78's queue position and sub-3h adverse selection unmeasurable no matter how
+many prints land; and the redundancy here (an ad-hoc independent computation of the funnel agreeing
+with the driver's dry run) is redundancy, not verification.
+
+**Paper sub-pass (protocol v3 step 9).** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`);
+`scripts/paper_pass.py` advanced deterministically over committed tape and booked nothing new
+(0 processed / 0 deferred(caps) / 274 deferred(coverage) / 300 already-in-ledger), so no `paper/`
+lines were appended — `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76,
+cash $+27.76, open notional $0.00`. **Why the ledger is stale, named rather than shrugged at:** the
+274 coverage deferrals are not a broker failure — `scripts/paper_pass.py` requires a committed
+candle summary for EVERY ordered member (`tape/s14_ladder_fillsim/`), and that cache stops at
+`dt=2026-07-13` while `tape/crypto_hourly/` runs through `dt=2026-08-08`. So the shadow's ledger is
+blocked on an un-run candle pull, exactly the L313 shape (a gate described as a wait that is really
+work nobody has run). Recorded here as the next obvious paper-tier milestone; not executed this
+run, which had its own milestone.
+
+Files: `scripts/q52_q54_trades_backfill_phase1.py`, `tests/test_q52_q54_trades_backfill_phase1.py`,
+`reports/q52_q54_trades_backfill_phase1{,_selection,_repair}.json`,
+`tape/kalshi_trades/dt=2026-07-{07,08,10,11,12}.jsonl`,
+`findings/2026-08-08-q52-q54-phase1-trade-print-backfill.md`, `kb/lessons/00-lessons.md` (L314,
+L315), `LOOP-QUEUE.md` (Q52/Q54), `kb/00-LOG.md`.
+
 ## 2026-08-08 ~15:0x-16:5xZ UTC — research loop IDLE RUN policy (c): the S78/S79 "collect-and-revisit" gate is an UN-RUN BACKFILL, not a calendar wait (L313)
 
 Steps 0a/0/0b were established by the orchestrating session before this leg ran: history-integrity
