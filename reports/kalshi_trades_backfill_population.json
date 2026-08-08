@@ -1,0 +1,427 @@
+{
+  "funnel": {
+    "aggregate": {
+      "n_days": 31,
+      "n_eligible_union": 45495,
+      "n_sports_eligible_settled_union": 611,
+      "n_sports_eligible_union": 6837,
+      "n_sports_games_eligible_union": 2575,
+      "n_sports_games_settled_union": 338,
+      "n_tickers_union": 107033
+    },
+    "per_day": [
+      {
+        "day": "2026-07-07",
+        "n_eligible": 5464,
+        "n_eligible_two_sided": 511,
+        "n_sports_eligible": 467,
+        "n_sports_eligible_settled": 342,
+        "n_sports_games_eligible": 195,
+        "n_sports_games_settled": 169,
+        "n_tickers": 6273
+      },
+      {
+        "day": "2026-07-08",
+        "n_eligible": 2913,
+        "n_eligible_two_sided": 557,
+        "n_sports_eligible": 546,
+        "n_sports_eligible_settled": 344,
+        "n_sports_games_eligible": 224,
+        "n_sports_games_settled": 189,
+        "n_tickers": 3439
+      },
+      {
+        "day": "2026-07-10",
+        "n_eligible": 1356,
+        "n_eligible_two_sided": 573,
+        "n_sports_eligible": 567,
+        "n_sports_eligible_settled": 224,
+        "n_sports_games_eligible": 221,
+        "n_sports_games_settled": 158,
+        "n_tickers": 1619
+      },
+      {
+        "day": "2026-07-11",
+        "n_eligible": 6655,
+        "n_eligible_two_sided": 645,
+        "n_sports_eligible": 606,
+        "n_sports_eligible_settled": 237,
+        "n_sports_games_eligible": 238,
+        "n_sports_games_settled": 163,
+        "n_tickers": 6655
+      },
+      {
+        "day": "2026-07-12",
+        "n_eligible": 5504,
+        "n_eligible_two_sided": 561,
+        "n_sports_eligible": 507,
+        "n_sports_eligible_settled": 154,
+        "n_sports_games_eligible": 195,
+        "n_sports_games_settled": 110,
+        "n_tickers": 6819
+      },
+      {
+        "day": "2026-07-13",
+        "n_eligible": 5856,
+        "n_eligible_two_sided": 400,
+        "n_sports_eligible": 333,
+        "n_sports_eligible_settled": 68,
+        "n_sports_games_eligible": 128,
+        "n_sports_games_settled": 34,
+        "n_tickers": 6398
+      },
+      {
+        "day": "2026-07-14",
+        "n_eligible": 5667,
+        "n_eligible_two_sided": 458,
+        "n_sports_eligible": 407,
+        "n_sports_eligible_settled": 61,
+        "n_sports_games_eligible": 157,
+        "n_sports_games_settled": 28,
+        "n_tickers": 6469
+      },
+      {
+        "day": "2026-07-15",
+        "n_eligible": 2758,
+        "n_eligible_two_sided": 661,
+        "n_sports_eligible": 654,
+        "n_sports_eligible_settled": 5,
+        "n_sports_games_eligible": 251,
+        "n_sports_games_settled": 3,
+        "n_tickers": 6703
+      },
+      {
+        "day": "2026-07-16",
+        "n_eligible": 1897,
+        "n_eligible_two_sided": 840,
+        "n_sports_eligible": 845,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 323,
+        "n_sports_games_settled": 0,
+        "n_tickers": 5851
+      },
+      {
+        "day": "2026-07-17",
+        "n_eligible": 2318,
+        "n_eligible_two_sided": 746,
+        "n_sports_eligible": 740,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 284,
+        "n_sports_games_settled": 0,
+        "n_tickers": 6806
+      },
+      {
+        "day": "2026-07-18",
+        "n_eligible": 1291,
+        "n_eligible_two_sided": 762,
+        "n_sports_eligible": 765,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 297,
+        "n_sports_games_settled": 0,
+        "n_tickers": 6215
+      },
+      {
+        "day": "2026-07-19",
+        "n_eligible": 664,
+        "n_eligible_two_sided": 658,
+        "n_sports_eligible": 664,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 259,
+        "n_sports_games_settled": 0,
+        "n_tickers": 3652
+      },
+      {
+        "day": "2026-07-20",
+        "n_eligible": 634,
+        "n_eligible_two_sided": 634,
+        "n_sports_eligible": 634,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 245,
+        "n_sports_games_settled": 0,
+        "n_tickers": 4065
+      },
+      {
+        "day": "2026-07-21",
+        "n_eligible": 674,
+        "n_eligible_two_sided": 670,
+        "n_sports_eligible": 674,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 256,
+        "n_sports_games_settled": 0,
+        "n_tickers": 5147
+      },
+      {
+        "day": "2026-07-22",
+        "n_eligible": 3409,
+        "n_eligible_two_sided": 965,
+        "n_sports_eligible": 969,
+        "n_sports_eligible_settled": 1,
+        "n_sports_games_eligible": 360,
+        "n_sports_games_settled": 1,
+        "n_tickers": 10260
+      },
+      {
+        "day": "2026-07-23",
+        "n_eligible": 976,
+        "n_eligible_two_sided": 976,
+        "n_sports_eligible": 976,
+        "n_sports_eligible_settled": 1,
+        "n_sports_games_eligible": 356,
+        "n_sports_games_settled": 1,
+        "n_tickers": 2086
+      },
+      {
+        "day": "2026-07-24",
+        "n_eligible": 811,
+        "n_eligible_two_sided": 811,
+        "n_sports_eligible": 811,
+        "n_sports_eligible_settled": 1,
+        "n_sports_games_eligible": 302,
+        "n_sports_games_settled": 1,
+        "n_tickers": 2275
+      },
+      {
+        "day": "2026-07-25",
+        "n_eligible": 0,
+        "n_eligible_two_sided": 0,
+        "n_sports_eligible": 0,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 0,
+        "n_sports_games_settled": 0,
+        "n_tickers": 1224
+      },
+      {
+        "day": "2026-07-26",
+        "n_eligible": 437,
+        "n_eligible_two_sided": 434,
+        "n_sports_eligible": 437,
+        "n_sports_eligible_settled": 1,
+        "n_sports_games_eligible": 170,
+        "n_sports_games_settled": 1,
+        "n_tickers": 3031
+      },
+      {
+        "day": "2026-07-27",
+        "n_eligible": 513,
+        "n_eligible_two_sided": 513,
+        "n_sports_eligible": 513,
+        "n_sports_eligible_settled": 2,
+        "n_sports_games_eligible": 193,
+        "n_sports_games_settled": 2,
+        "n_tickers": 2961
+      },
+      {
+        "day": "2026-07-28",
+        "n_eligible": 1093,
+        "n_eligible_two_sided": 605,
+        "n_sports_eligible": 605,
+        "n_sports_eligible_settled": 3,
+        "n_sports_games_eligible": 228,
+        "n_sports_games_settled": 3,
+        "n_tickers": 3047
+      },
+      {
+        "day": "2026-07-29",
+        "n_eligible": 0,
+        "n_eligible_two_sided": 0,
+        "n_sports_eligible": 0,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 0,
+        "n_sports_games_settled": 0,
+        "n_tickers": 1382
+      },
+      {
+        "day": "2026-07-30",
+        "n_eligible": 1119,
+        "n_eligible_two_sided": 1119,
+        "n_sports_eligible": 1119,
+        "n_sports_eligible_settled": 3,
+        "n_sports_games_eligible": 405,
+        "n_sports_games_settled": 3,
+        "n_tickers": 2611
+      },
+      {
+        "day": "2026-07-31",
+        "n_eligible": 997,
+        "n_eligible_two_sided": 997,
+        "n_sports_eligible": 997,
+        "n_sports_eligible_settled": 8,
+        "n_sports_games_eligible": 361,
+        "n_sports_games_settled": 8,
+        "n_tickers": 2007
+      },
+      {
+        "day": "2026-08-01",
+        "n_eligible": 1511,
+        "n_eligible_two_sided": 1023,
+        "n_sports_eligible": 1023,
+        "n_sports_eligible_settled": 10,
+        "n_sports_games_eligible": 369,
+        "n_sports_games_settled": 10,
+        "n_tickers": 3000
+      },
+      {
+        "day": "2026-08-02",
+        "n_eligible": 863,
+        "n_eligible_two_sided": 863,
+        "n_sports_eligible": 863,
+        "n_sports_eligible_settled": 10,
+        "n_sports_games_eligible": 315,
+        "n_sports_games_settled": 10,
+        "n_tickers": 3317
+      },
+      {
+        "day": "2026-08-03",
+        "n_eligible": 729,
+        "n_eligible_two_sided": 729,
+        "n_sports_eligible": 729,
+        "n_sports_eligible_settled": 7,
+        "n_sports_games_eligible": 271,
+        "n_sports_games_settled": 7,
+        "n_tickers": 2713
+      },
+      {
+        "day": "2026-08-04",
+        "n_eligible": 1692,
+        "n_eligible_two_sided": 1688,
+        "n_sports_eligible": 1692,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 593,
+        "n_sports_games_settled": 0,
+        "n_tickers": 2978
+      },
+      {
+        "day": "2026-08-05",
+        "n_eligible": 1740,
+        "n_eligible_two_sided": 1736,
+        "n_sports_eligible": 1740,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 608,
+        "n_sports_games_settled": 0,
+        "n_tickers": 2987
+      },
+      {
+        "day": "2026-08-06",
+        "n_eligible": 1764,
+        "n_eligible_two_sided": 1764,
+        "n_sports_eligible": 1764,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 620,
+        "n_sports_games_settled": 0,
+        "n_tickers": 2538
+      },
+      {
+        "day": "2026-08-07",
+        "n_eligible": 1788,
+        "n_eligible_two_sided": 1782,
+        "n_sports_eligible": 1788,
+        "n_sports_eligible_settled": 0,
+        "n_sports_games_eligible": 622,
+        "n_sports_games_settled": 0,
+        "n_tickers": 2930
+      }
+    ],
+    "settlement": {
+      "days_with_zero_settled_sports_games": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20",
+        "2026-07-21",
+        "2026-07-25",
+        "2026-07-29",
+        "2026-08-04",
+        "2026-08-05",
+        "2026-08-06",
+        "2026-08-07"
+      ],
+      "n_listed_unsettled": 50,
+      "n_non_binary": 9,
+      "n_resolved_any_family": 35663,
+      "n_unresolved": 9832,
+      "note": "Settlement coverage is lumpy because it was harvested per-probe, not systematically; a zero day means nobody cached those markets, not that they did not settle. It is fetched by an unauthenticated public GET /markets/{ticker} (q51_maker_fillsim.build_settlement_cache), so it is a pull too.",
+      "per_source_hits": {
+        "crypto_hourly": 35052,
+        "econ_prints": 0,
+        "q26_settlement_cache": 0,
+        "q27_settlement_cache": 0,
+        "q29_settlement_cache": 0,
+        "q30_settlement_cache": 0,
+        "q51_settlement_cache": 10,
+        "settlement_ledger": 601,
+        "weather_actuals": 0
+      },
+      "price_source_tag": "broker_truth",
+      "requested": 45495,
+      "sources_absent_on_disk": [],
+      "sources_scanned": [
+        "settlement_ledger",
+        "q26_settlement_cache",
+        "q27_settlement_cache",
+        "q29_settlement_cache",
+        "q30_settlement_cache",
+        "q51_settlement_cache",
+        "crypto_hourly",
+        "weather_actuals",
+        "econ_prints"
+      ]
+    }
+  },
+  "gate": {
+    "gate_class": "backfill",
+    "l41_floor": 10,
+    "multiple_of_floor": 33.8,
+    "n_units_available_from_committed_tape": 338,
+    "reading": "population already exists in committed tape; only an un-run pull stands between it and a testable join. Waiting adds nothing.",
+    "waiting_adds_days": false
+  },
+  "generated_by": "scripts/kalshi_trades_backfill_population_audit.py",
+  "not_computed": [
+    "mean",
+    "ci95",
+    "pnl",
+    "fill_rate",
+    "edge",
+    "won"
+  ],
+  "offline": true,
+  "projection": {
+    "basis": "42/200 sampled tickers with >=1 print on dt=2026-08-03 (Q51 milestone 1, findings/2026-08-04-q51-trade-print-surface-wall-b-half-broken.md); a whole-universe stride-13 sample, NOT a sports-only rate",
+    "caveat": "A game unit survives if ANY of its tickers printed, so a ticker-level rate applied to game units is a LOWER-bound-flavoured heuristic, not an unbiased estimate. Reported to bound the order of magnitude only.",
+    "input_units": 338,
+    "is_projection": true,
+    "l41_floor": 10,
+    "price_source_tag": "synthetic",
+    "projected_multiple_of_floor": 7.098000000000001,
+    "projected_units": 70.98,
+    "ticker_print_rate": 0.21
+  },
+  "schema_version": "kalshi_trades_backfill_population_audit.v1",
+  "trade_tape": {
+    "days": [
+      "2026-08-03"
+    ],
+    "n_days": 1,
+    "n_distinct_tickers": 42,
+    "n_distinct_trade_ids": 39698,
+    "n_duplicate_trade_ids": 0,
+    "n_lines": 39698,
+    "n_malformed_lines": 0,
+    "price_source_tag_census": {
+      "broker_truth": 39698
+    }
+  },
+  "verdict_class": "data_adequacy_only",
+  "writer_census": {
+    "callers_absent": [],
+    "callers_referencing": [],
+    "callers_scanned": [
+      "collection/hourly_pass.py",
+      "collection/burst_capture.py"
+    ],
+    "family": "kalshi_trades",
+    "has_scheduled_writer": false,
+    "note": "A False here means waiting adds zero days: the only writer is a manual `python -m collection.kalshi_trades` invocation."
+  }
+}
