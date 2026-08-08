@@ -1,0 +1,591 @@
+{
+ "backfill_lane": {
+  "sports_clv": {
+   "captured_at_max": "2026-07-04T00:12:27.654177+00:00",
+   "captured_at_min": "2026-07-03T20:17:04.231075+00:00",
+   "exists": true,
+   "files": [
+    "dt=2026-07-03.jsonl",
+    "dt=2026-07-04.jsonl"
+   ],
+   "n_records": 104,
+   "out_of_vocabulary_tags": {
+    "price_source_tag=mixed": {
+     "degrades_to": "synthetic",
+     "n": 104
+    }
+   },
+   "record_source_tags": {
+    "price_source_tag=mixed": 104
+   },
+   "schema_versions": {
+    "sports_clv_join.v1": 104
+   }
+  },
+  "sports_clv_s7": {
+   "captured_at_max": null,
+   "captured_at_min": null,
+   "exists": true,
+   "files": [
+    "summary.json",
+    "trades.jsonl"
+   ],
+   "n_records": 167,
+   "out_of_vocabulary_tags": {},
+   "record_source_tags": {
+    "price_source_tag_kalshi=real_ask": 167,
+    "price_source_tag_odds=synthetic": 167
+   },
+   "schema_versions": {
+    "sports_clv_s7.v0": 167
+   }
+  },
+  "sports_history": {
+   "captured_at_max": "2026-07-04T00:11:38.551257+00:00",
+   "captured_at_min": "2026-07-03T15:19:31.920546+00:00",
+   "exists": true,
+   "files": [
+    "dt=2026-07-03.jsonl",
+    "dt=2026-07-04.jsonl"
+   ],
+   "n_records": 308,
+   "out_of_vocabulary_tags": {},
+   "record_source_tags": {},
+   "schema_versions": {
+    "sports_history_espn.v1": 141,
+    "sports_history_kalshi.v1": 167
+   }
+  },
+  "sports_history_s7": {
+   "captured_at_max": "2026-07-10T10:28:17.450810+00:00",
+   "captured_at_min": "2026-07-10T10:28:17.450810+00:00",
+   "exists": true,
+   "files": [
+    "worldcup2026-odds-source-20260710T102817Z.xlsx",
+    "worldcup2026.jsonl"
+   ],
+   "n_records": 97,
+   "out_of_vocabulary_tags": {},
+   "record_source_tags": {
+    "price_source_tag_kalshi=real_ask": 97
+   },
+   "schema_versions": {
+    "sports_history_s7.v0": 97
+   }
+  },
+  "sports_maker_fillsim": {
+   "captured_at_max": "2026-07-04T20:45:56.349851+00:00",
+   "captured_at_min": "2026-07-04T20:43:09.782078+00:00",
+   "exists": true,
+   "files": [
+    "dt=2026-07-04.jsonl"
+   ],
+   "n_records": 237,
+   "out_of_vocabulary_tags": {},
+   "record_source_tags": {
+    "price_source_tag=real_ask": 237
+   },
+   "schema_versions": {
+    "sports_maker_fillsim_candle_summary.v1": 237
+   }
+  }
+ },
+ "clv_anchor_span": {
+  "kickoff_max": "2026-07-03T22:00Z",
+  "kickoff_min": "2026-06-04T00:30Z",
+  "n_distinct_events": 80,
+  "n_markets_fair_prob_le_020": 80,
+  "n_markets_yes_ask_le_020": 83,
+  "n_outcome_rows": 309,
+  "n_records": 104
+ },
+ "clv_depth_overlap": {
+  "n_clv_events": 80,
+  "n_depth_events": 3203,
+  "n_overlap": 0,
+  "overlap": []
+ },
+ "live_lane": {
+  "anchor_bookmakers": {
+   "pinnacle": 240
+  },
+  "anchor_days": [
+   "2026-07-12",
+   "2026-07-13",
+   "2026-07-14",
+   "2026-07-15",
+   "2026-07-16",
+   "2026-07-17",
+   "2026-07-18"
+  ],
+  "anchor_events": [
+   "KXWCGAME-26JUL14FRAESP",
+   "KXWCGAME-26JUL15ENGARG",
+   "KXWCGAME-26JUL18FRAENG",
+   "KXWCGAME-26JUL19ESPARG"
+  ],
+  "anchor_price_source_tags": {
+   "synthetic": 240
+  },
+  "last_anchor_day": "2026-07-18",
+  "n_anchor_events": 4,
+  "n_consecutive_trailing_all_blocked_days": 16,
+  "n_days": 35,
+  "n_distinct_events": 2836,
+  "n_records": 148463,
+  "per_day": {
+   "2026-07-03": {
+    "blocked_key": 4351
+   },
+   "2026-07-04": {
+    "blocked_key": 7844
+   },
+   "2026-07-05": {
+    "blocked_key": 9003
+   },
+   "2026-07-06": {
+    "blocked_key": 8995
+   },
+   "2026-07-07": {
+    "blocked_key": 8287
+   },
+   "2026-07-08": {
+    "blocked_key": 4719
+   },
+   "2026-07-10": {
+    "blocked_key": 1094,
+    "unmatched": 874
+   },
+   "2026-07-11": {
+    "blocked_key": 4669,
+    "unmatched": 4735
+   },
+   "2026-07-12": {
+    "blocked_key": 3129,
+    "matched": 6,
+    "not_selected": 144,
+    "unmapped_series": 170,
+    "unmatched": 3129
+   },
+   "2026-07-13": {
+    "blocked_key": 2769,
+    "matched": 48,
+    "not_selected": 1502,
+    "unmapped_series": 1333
+   },
+   "2026-07-14": {
+    "blocked_key": 2985,
+    "matched": 45,
+    "not_selected": 1828,
+    "unmapped_series": 1528
+   },
+   "2026-07-15": {
+    "blocked_key": 1770,
+    "matched": 25,
+    "not_selected": 2277,
+    "unmapped_series": 2975
+   },
+   "2026-07-16": {
+    "blocked_key": 1649,
+    "matched": 48,
+    "not_selected": 2875,
+    "unmapped_series": 3580
+   },
+   "2026-07-17": {
+    "blocked_key": 2146,
+    "matched": 48,
+    "not_selected": 3460,
+    "unmapped_series": 2867
+   },
+   "2026-07-18": {
+    "blocked_key": 1252,
+    "matched": 20,
+    "not_selected": 1430,
+    "unmapped_series": 1229
+   },
+   "2026-07-19": {
+    "blocked_key": 1682
+   },
+   "2026-07-20": {
+    "blocked_key": 1871
+   },
+   "2026-07-21": {
+    "blocked_key": 1935,
+    "not_selected": 206,
+    "unmapped_series": 246
+   },
+   "2026-07-22": {
+    "blocked_key": 2320,
+    "not_selected": 2031,
+    "unmapped_series": 3920
+   },
+   "2026-07-23": {
+    "blocked_key": 1747
+   },
+   "2026-07-24": {
+    "blocked_key": 1486
+   },
+   "2026-07-25": {
+    "blocked_key": 1542
+   },
+   "2026-07-26": {
+    "blocked_key": 1363
+   },
+   "2026-07-27": {
+    "blocked_key": 955
+   },
+   "2026-07-28": {
+    "blocked_key": 1562
+   },
+   "2026-07-29": {
+    "blocked_key": 984
+   },
+   "2026-07-30": {
+    "blocked_key": 1368
+   },
+   "2026-07-31": {
+    "blocked_key": 1490
+   },
+   "2026-08-01": {
+    "blocked_key": 2865
+   },
+   "2026-08-02": {
+    "blocked_key": 1806
+   },
+   "2026-08-03": {
+    "blocked_key": 1657
+   },
+   "2026-08-04": {
+    "blocked_key": 2978
+   },
+   "2026-08-05": {
+    "blocked_key": 4233
+   },
+   "2026-08-06": {
+    "blocked_key": 3692
+   },
+   "2026-08-07": {
+    "blocked_key": 3686
+   }
+  },
+  "status_totals": {
+   "blocked_key": 105884,
+   "matched": 240,
+   "not_selected": 15753,
+   "unmapped_series": 17848,
+   "unmatched": 8738
+  },
+  "trailing_all_blocked_days": [
+   "2026-07-23",
+   "2026-07-24",
+   "2026-07-25",
+   "2026-07-26",
+   "2026-07-27",
+   "2026-07-28",
+   "2026-07-29",
+   "2026-07-30",
+   "2026-07-31",
+   "2026-08-01",
+   "2026-08-02",
+   "2026-08-03",
+   "2026-08-04",
+   "2026-08-05",
+   "2026-08-06",
+   "2026-08-07"
+  ]
+ },
+ "max_day": "2026-08-07",
+ "monitor_coverage": {
+  "families": {
+   "sports_clv": {
+    "can_alert_on_staleness": false,
+    "in_family_config": false,
+    "in_registered_caller_families": false
+   },
+   "sports_clv_s7": {
+    "can_alert_on_staleness": false,
+    "in_family_config": false,
+    "in_registered_caller_families": false
+   },
+   "sports_history": {
+    "can_alert_on_staleness": false,
+    "in_family_config": false,
+    "in_registered_caller_families": false
+   },
+   "sports_history_s7": {
+    "can_alert_on_staleness": false,
+    "in_family_config": false,
+    "in_registered_caller_families": false
+   },
+   "sports_maker_fillsim": {
+    "can_alert_on_staleness": false,
+    "in_family_config": false,
+    "in_registered_caller_families": false
+   },
+   "sports_pairs": {
+    "can_alert_on_staleness": true,
+    "in_family_config": true,
+    "in_registered_caller_families": true
+   }
+  },
+  "family_config_keys": [
+   "anomalies",
+   "crypto_hourly",
+   "econ_prints",
+   "hyperliquid_funding",
+   "orderbook_depth",
+   "perp_tape",
+   "polymarket_cpi_pairs",
+   "polymarket_macro_pairs",
+   "polymarket_pairs",
+   "settlement_ledger",
+   "sports_pairs",
+   "weather_actuals",
+   "weather_books"
+  ],
+  "monitors_the_odds_leg_subfield": false,
+  "n_unmonitored_backfill_families": 5
+ },
+ "retest_population": {
+  "clears_l41_floor": false,
+  "events_passing_both_gates": [
+   "KXWCGAME-26JUL14FRAESP"
+  ],
+  "l41_min_units": 10,
+  "n_anchor_events": 4,
+  "n_joinable_to_depth": 4,
+  "n_passing_both_gates": 1,
+  "n_with_settlement": 1,
+  "per_event": {
+   "KXWCGAME-26JUL14FRAESP": {
+    "depth_days": [
+     "2026-07-10",
+     "2026-07-11",
+     "2026-07-12",
+     "2026-07-13",
+     "2026-07-14"
+    ],
+    "has_settlement": true,
+    "joinable_to_depth": true,
+    "n_depth_days": 5,
+    "settlement_surfaces": [
+     "tape/q30_settlement_cache/settlement.json",
+     "tape/settlement_ledger/dt=2026-07-17.jsonl"
+    ]
+   },
+   "KXWCGAME-26JUL15ENGARG": {
+    "depth_days": [
+     "2026-07-12",
+     "2026-07-13",
+     "2026-07-14",
+     "2026-07-15"
+    ],
+    "has_settlement": false,
+    "joinable_to_depth": true,
+    "n_depth_days": 4,
+    "settlement_surfaces": []
+   },
+   "KXWCGAME-26JUL18FRAENG": {
+    "depth_days": [
+     "2026-07-15",
+     "2026-07-16",
+     "2026-07-17",
+     "2026-07-18"
+    ],
+    "has_settlement": false,
+    "joinable_to_depth": true,
+    "n_depth_days": 4,
+    "settlement_surfaces": []
+   },
+   "KXWCGAME-26JUL19ESPARG": {
+    "depth_days": [
+     "2026-07-15",
+     "2026-07-16",
+     "2026-07-17",
+     "2026-07-18",
+     "2026-07-19"
+    ],
+    "has_settlement": false,
+    "joinable_to_depth": true,
+    "n_depth_days": 5,
+    "settlement_surfaces": []
+   }
+  }
+ },
+ "schema_version": "sports_anchor_substrate_audit.v0",
+ "starvation_diagnosis": {
+  "default_sports": [
+   "soccer_fifa_world_cup",
+   "americanfootball_nfl",
+   "basketball_nba"
+  ],
+  "keyed_days": [
+   "2026-07-10",
+   "2026-07-11",
+   "2026-07-12",
+   "2026-07-13",
+   "2026-07-14",
+   "2026-07-15",
+   "2026-07-16",
+   "2026-07-17",
+   "2026-07-18",
+   "2026-07-21",
+   "2026-07-22"
+  ],
+  "last_anchor_day": "2026-07-18",
+  "n_mapped_series": 16,
+  "n_mapped_series_reachable_by_default": 3,
+  "post_anchor_keyed_days": [
+   "2026-07-21",
+   "2026-07-22"
+  ],
+  "selector_forfeiture": {
+   "2026-07-21": {
+    "n_distinct_series": 28,
+    "n_events_not_selected": 105,
+    "n_rows": 2387,
+    "n_rows_not_selected": 206,
+    "n_rows_whose_series_is_in_default_sports": 0,
+    "not_selected_by_series": {
+     "KXAFLGAME": {
+      "n_rows": 18,
+      "sport_key": "aussierules_afl"
+     },
+     "KXALLSVENSKANGAME": {
+      "n_rows": 2,
+      "sport_key": "soccer_sweden_allsvenskan"
+     },
+     "KXBRASILEIROBGAME": {
+      "n_rows": 28,
+      "sport_key": "soccer_brazil_serie_b"
+     },
+     "KXCHNSLGAME": {
+      "n_rows": 8,
+      "sport_key": "soccer_china_superleague"
+     },
+     "KXKBOGAME": {
+      "n_rows": 30,
+      "sport_key": "baseball_kbo"
+     },
+     "KXMLBGAME": {
+      "n_rows": 74,
+      "sport_key": "baseball_mlb"
+     },
+     "KXNPBGAME": {
+      "n_rows": 28,
+      "sport_key": "baseball_npb"
+     },
+     "KXUCLGAME": {
+      "n_rows": 6,
+      "sport_key": "soccer_uefa_champs_league"
+     },
+     "KXWNBAGAME": {
+      "n_rows": 12,
+      "sport_key": "basketball_wnba"
+     }
+    }
+   },
+   "2026-07-22": {
+    "n_distinct_series": 34,
+    "n_events_not_selected": 133,
+    "n_rows": 8271,
+    "n_rows_not_selected": 2031,
+    "n_rows_whose_series_is_in_default_sports": 0,
+    "not_selected_by_series": {
+     "KXAFLGAME": {
+      "n_rows": 162,
+      "sport_key": "aussierules_afl"
+     },
+     "KXALLSVENSKANGAME": {
+      "n_rows": 52,
+      "sport_key": "soccer_sweden_allsvenskan"
+     },
+     "KXBRASILEIROBGAME": {
+      "n_rows": 203,
+      "sport_key": "soccer_brazil_serie_b"
+     },
+     "KXCHNSLGAME": {
+      "n_rows": 140,
+      "sport_key": "soccer_china_superleague"
+     },
+     "KXKBOGAME": {
+      "n_rows": 320,
+      "sport_key": "baseball_kbo"
+     },
+     "KXMLBGAME": {
+      "n_rows": 687,
+      "sport_key": "baseball_mlb"
+     },
+     "KXNPBGAME": {
+      "n_rows": 305,
+      "sport_key": "baseball_npb"
+     },
+     "KXUCLGAME": {
+      "n_rows": 54,
+      "sport_key": "soccer_uefa_champs_league"
+     },
+     "KXWNBAGAME": {
+      "n_rows": 108,
+      "sport_key": "basketball_wnba"
+     }
+    }
+   }
+  }
+ },
+ "write_path_liveness": {
+  "families": {
+   "sports_clv": {
+    "importable_by_hourly_pass": true,
+    "imported_by_hourly_pass": false,
+    "verdict": "one_shot_no_scheduled_caller",
+    "writer": "collection/sports_history.py"
+   },
+   "sports_clv_s7": {
+    "importable_by_hourly_pass": false,
+    "imported_by_hourly_pass": false,
+    "verdict": "one_shot_no_scheduled_caller",
+    "writer": "scripts/sports_clv_s7.py"
+   },
+   "sports_history": {
+    "importable_by_hourly_pass": true,
+    "imported_by_hourly_pass": false,
+    "verdict": "one_shot_no_scheduled_caller",
+    "writer": "collection/sports_history.py"
+   },
+   "sports_history_s7": {
+    "importable_by_hourly_pass": false,
+    "imported_by_hourly_pass": false,
+    "verdict": "one_shot_no_scheduled_caller",
+    "writer": "scripts/sports_history_s7a.py"
+   },
+   "sports_maker_fillsim": {
+    "importable_by_hourly_pass": false,
+    "imported_by_hourly_pass": false,
+    "verdict": "one_shot_no_scheduled_caller",
+    "writer": "scripts/s13_maker_fillsim.py"
+   },
+   "sports_pairs": {
+    "importable_by_hourly_pass": true,
+    "imported_by_hourly_pass": true,
+    "verdict": "scheduled",
+    "writer": "collection/sports_pairs.py"
+   }
+  },
+  "hourly_pass_imports": [
+   "crypto_hourly",
+   "econ_prints",
+   "forecast_collector",
+   "hyperliquid_funding",
+   "orderbook_depth",
+   "perp_tape",
+   "polymarket_pairs",
+   "polymarket_us_live",
+   "polymarket_us_pairs",
+   "settlement_ledger",
+   "sports_pairs",
+   "universe_sweep",
+   "weather_actuals",
+   "weather_books"
+  ]
+ }
+}
