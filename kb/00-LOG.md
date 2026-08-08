@@ -6,6 +6,99 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-08 ~00:0x-00:4x UTC — research loop (idle run, policy (c)): the sharp-odds anchor has yielded 4 games ever, and the missing API key is not why (L306/L307)
+
+**What happened.** Queue re-scanned and drained again: every Q0–Q55 item reads DONE / BLOCKED /
+RESERVED / time-gated / data-gated at its most-recent Status line, except Q24 (whose top
+`Status: TODO` line is stale — the next Status line, same date, records a verifier-CONFIRMED
+DEAD-by-data-adequacy) and Q53 (claimed by open PR #315, untouched). Policy (a) re-checked
+against the ledger and empty — the 5 open `UNENFORCED` rows (L213, L221, L222, L282, L296) are
+Ryan-gated, explicitly DO-NOT-BUILD, or need a `verifier`. Policy (b) also empty (Q51 m3 and
+Q48/S55 both already pre-flighted). So: **policy (c)**.
+
+**Step 0b, owed and done.** Two stranded branches were younger than the last-recovered
+`hourly-20260807T1257Z` and older than 30 minutes: `hourly-20260807T1611Z` and
+`hourly-20260807T2156Z`. Union-appended **3,785 lines** across 7 day-files, carrying **9
+genuinely new `capture_id`s**; **0 byte-identical duplicates** introduced (L282/L285's failure
+mode checked explicitly, not assumed). `universe_sweep` correctly recovered nothing — the
+branch's copy is a strict subset of `main`'s.
+
+**Family chosen, and the honesty constraint on it.** The **sports fair-anchor substrate**: the
+external-bookmaker de-vigged fair probability that S7 (dead), S13 (dead), S21
+(DEAD-by-data-adequacy) and **S11** — the only sports-maker lane still `data-collecting` — are
+all scored against. It has two lanes nobody had audited together: a **backfill** lane of five
+directories (`sports_clv`, `sports_history`, `sports_clv_s7`, `sports_history_s7`,
+`sports_maker_fillsim`) and a **live** lane, the `odds_leg` sub-object inside `tape/sports_pairs/`.
+**Stated up front because it scopes the whole entry:** L305, filed one day earlier, already
+published the raw `odds_leg.status` row census (`matched` 240 = 0.163%). This run does not
+re-claim it. What is new is what a row count cannot say.
+
+**Finding 1 — 240 rows are 4 games, and they stopped on a nameable day.** Over 35 day-files /
+148,463 records / 2,836 distinct `event_ticker`s, the `matched` rows are **4 distinct events =
+0.141%** — all `KXWCGAME`, all `pinnacle`, all `price_source_tag: synthetic` (correct: a de-vigged
+fair probability is a model output, never a fillable price) — occurring on **2026-07-12 →
+2026-07-18 and nowhere else**. The S11 registry note "anchor confirmed live 2026-07-13" describes
+the second day of the only week this lane ever worked.
+
+**Finding 2 — three stacked causes, and the loudest is not the binding one.** (a) `blocked_key`:
+**16 consecutive day-files, 2026-07-23 → 2026-08-07, 100% blocked**, no other status present,
+while the collector writes normally (3,686 records on 08-07) — one absent env var. (b)
+`unmapped_series`: 3,920 rows / 230 events on 07-22 outside `SPORT_KEY_BY_SERIES`'s 16 entries.
+(c) the durable one: `collection/odds_api.py::DEFAULT_SPORTS` admits **3 of 16 mapped series**,
+and its three entries are the World Cup (ended 2026-07-19), the NFL (opens September) and the
+NBA (opens October) — **all three out of season today**. On the only two fully-keyed days that
+exist after the last anchor, the selector refused **133 events / 2,031 rows** (07-22) and 105 /
+206 (07-21) — MLB 687, KBO 320, NPB 305, Brasileirão-B 203, AFL 162, China SL 140, WNBA 108, UCL
+54, Allsvenskan 52, every one already mapped and in season — while **rows in a selected sport =
+0 on both days**. So the selector conserved an API quota it never got the chance to spend, and
+**restoring `ODDS_API_KEY` alone would still yield 0 matched games**. The generalizable lesson
+(L306) is the ordering discipline, not the sports specifics: the loudest refusal reason (71.3% of
+all rows) is not automatically the binding one.
+
+**Finding 3 — S21's blocker has MOVED, and the good news is real but small.** All **4/4** anchored
+games DO join `tape/orderbook_depth/`, on 4–5 distinct pre-kickoff days each — the L43/L9
+non-overlap that killed S21 genuinely does not apply to them. But only **1/4** carries an ex-post
+settlement on any of L300's nine surfaces, so the both-gates population is **1 game against L41's
+10-unit floor**. S21/S13 stay untestable; the reason is no longer a two-tape timing gap, it is
+that the anchor has produced 4 games ever and **0 in 21 days**. Backfill control re-derived
+independently: `sports_clv` is 104 records / 80 events, kickoffs 2026-06-04 → 2026-07-03T22:00Z,
+35 days stale, **0/80** overlap against 3,203 depth events — S21's zero reproduces (its
+`yes_ask<=0.20` proxy denominator reproduces exactly at 83; its `fair_prob<=0.20` denominator
+re-derives to 80, not the 81 the row quotes — recorded as-measured, unresolved, headline
+unaffected).
+
+**Finding 4 — the monitoring shape (L307).** `sports_pairs` **is** in
+`tape_gap_monitor.FAMILY_CONFIG` and passes every check it has, while the join-critical field
+inside it was 100% dead for 16 days: **no monitor here reads `odds_leg`**, and no timestamp-derived
+check ever could. The other five directories are **0/5 in `FAMILY_CONFIG`** and all five are
+`one_shot_no_scheduled_caller` (AST-verified against `collection/hourly_pass.py`'s imports), so an
+age alert would have been the wrong instrument for them anyway. L307 is filed **UNENFORCED** on
+purpose as a real, cloud-buildable policy-(a) candidate for the next idle run — a
+`FIELD_HEALTH_FAMILIES` sub-field check threaded through the existing `would_alert` path, with the
+L289/L298 `counter_absent`-vs-degraded distinction mandated so it does not repeat a mistake this
+repo has already made once.
+
+**Also recorded:** `tape/sports_clv/` stamps `price_source_tag: "mixed"` on 104/104 records — not
+one of the four sanctioned tags, so `tag_or_synthetic` degrades it to `synthetic`. A record can
+look tagged and still be untrusted; the nested legs (`pregame_ask.price_source_tag: real_ask`,
+`fair_prob_source_tag: synthetic`) are correct, so the composite is honest but out-of-vocabulary.
+
+**Class and the two-agent rule.** Everything above is DESCRIPTIVE — counts, spans, join
+cardinalities, config literals. No registry flip, no bootstrapped CI, no kill decision, so
+LOOP-QUEUE.md's two-agent verdict rule does not bind; the S11 row gains a DESCRIPTIVE note and
+nothing else. Separately and honestly: **no `Task`/subagent tool was exposed in this harness**, so
+no independent `verifier` was dispatchable (the L287/L288/L290/L291/L295 precedent) — which is why
+this run confined itself to work the rule does not gate rather than producing a verdict it could
+not have confirmed.
+
+**Artifacts.** `scripts/sports_anchor_substrate_audit.py` (read-only, fully offline; reads
+`DEFAULT_SPORTS`/`SPORT_KEY_BY_SERIES` by **AST rather than import**, because `collection.odds_api`
+pulls in `requests` at module scope and an offline audit that needs a network client installed is
+not offline in any useful sense) · `reports/sports_anchor_substrate_audit.json` ·
+`tests/test_sports_anchor_substrate_audit.py` (30 tests, closed window `--max-day 2026-08-07` per
+L286; every detector fixture-proven to fire on a planted defect) ·
+`findings/2026-08-08-sports-fair-anchor-substrate-audit.md` · lessons **L306/L307**.
+
 ## 2026-08-07 ~15:3x-16:5x UTC — research loop (idle run, policy (c)): the biggest tape family stops watching a game before the game starts (L304/L305)
 
 **What happened.** Queue drained again (every item Q0–Q55 reads DONE / BLOCKED / RESERVED /
