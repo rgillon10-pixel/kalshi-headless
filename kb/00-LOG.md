@@ -6,6 +6,61 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-08 ~01:2x-05:0xZ UTC — research loop: PR #315 merged (Q53 verdict, L303) + idle run policy (a): L307 UNENFORCED -> test + tool
+
+**Step 0 claim-check.** PR #315 (Q53's two-agent CONFIRMED-WITH-CORRECTIONS verdict, L303) had
+sat open since 2026-08-07T14:53Z, docs-only diff, gates re-confirmed fresh by its own producing
+session but never merged. `origin/main` had advanced 5 commits underneath it (PRs #316/#317/#318),
+so the merge attempt hit real conflicts in `kb/00-LOG.md` and `kb/lessons/00-lessons.md` (both
+append-only files, both sides had added entries). Rebased the PR branch onto current `main` by
+hand: `kb/00-LOG.md` resolved by chronological order (main's newer 2026-08-08 entry first, the
+PR's 2026-08-07 entry after), `kb/lessons/00-lessons.md` resolved by L-number order (L303 slotted
+between L302 and L304, since main had independently minted L304-L307 the same day). Verified the
+diff was genuinely docs-only (`LOOP-QUEUE.md`, `findings/`, `kb/`, no code) before treating
+`invariants.py --full` alone (exit 0, all green) as sufficient gate evidence — a prose diff cannot
+change a test outcome, so the full pytest re-run the original session had queued was not repeated.
+Force-pushed the rebased branch to the PR's own feature ref (not `main`) and merged (squash) as
+commit `9a1090f1`.
+
+**Idle-run policy (a): L307's own pre-seeded UNENFORCED shape, built as specified.** Queue
+re-verified drained (Q0-Q55 all DONE/BLOCKED/RESERVED/time-gated/data-gated post-merge; Q53 now
+closed). L307 (filed 2026-08-08 by the prior idle-run(c)) named its own conversion candidate
+explicitly: a `FIELD_HEALTH_FAMILIES` config in `scripts/tape_gap_monitor.py` mapping
+`family -> (json_path, healthy_predicate, max_consecutive_bad_days)`, seeded with
+`sports_pairs -> odds_leg.status -> "matched"`, threaded into `evaluate_family()` as a new
+`field_degraded` reason exactly as L128 threaded `join_stale`. Built to that spec. New
+`field_health_by_day()` classifies every committed day-file into `healthy` / `degraded` /
+`field_absent` (a field-absent day is excluded from the run-scan entirely — L289/L298's
+counter-absent-vs-empty-denominator rule, mirrored from `status_regression_by_key`'s own
+`neutral`-status treatment) and tracks the trailing consecutive-`degraded`-day run.
+
+**Re-derived, not assumed: the healthy-week/outage boundary.** Measured directly against
+committed tape rather than trusting L306/L307's own prose: every day of the one week the S7/S11
+anchor ever worked (2026-07-12..07-18) carries >=1 `matched` row (6/48/45/25/48/48/20); every day
+since 2026-07-19 (verified through 2026-08-07) carries exactly 0 — a **20-day** outage, four days
+longer than L306's `blocked_key`-only 16-day figure, because `matched` presence is the more direct
+signal and captures the two extra `unmapped_series`-dominated days (07-21/07-22) L306's
+`blocked_key`-only framing missed. `max_consecutive_bad_days=7` catches the real outage at roughly
+a third of its true length while never firing during the healthy week (positive control).
+
+**A genuine design decision, not a gap:** a family with NO healthy day anywhere in the window
+scanned reads as a `leading_bad` run, never a `degraded`/alerting one — mirrors
+`status_regression_by_key`'s `never_had` vs `lost_it` distinction exactly (there is nothing to
+REGRESS from). Proven intentional with a dedicated negative-control test rather than left as an
+unexplained edge case.
+
+**Gates, fresh after the last code change (L162).** `pytest -q` run as 4 disjoint file shards
+covering all 116 test files (`--collect-only` confirms 3,492 total, exactly the prior run's 3,476
++ this run's 16 new tests) — every shard reached 100% with 0 `F`/`E`, confirmed by grepping all
+four shard logs for `FAILED`/`ERROR` (zero hits). `python3 scripts/invariants.py --full` — exit
+0, all green, 19 non-gating advisories, identical set to before this diff (none newly introduced).
+No registry flip, no bootstrap CI, no kill, no P&L — still 0 proven edges. Two-agent rule N/A
+(tooling, no verdict-class claim). Files: `scripts/tape_gap_monitor.py`,
+`tests/test_tape_gap_monitor.py` (+16), `kb/lessons/00-lessons.md` (L307 enforcement cell updated
+in place, lesson text unchanged), `kb/00-LOG.md` (this entry), `LOOP-QUEUE.md` (Log-of-runs line).
+
+---
+
 ## 2026-08-08 ~00:0x-00:4x UTC — research loop (idle run, policy (c)): the sharp-odds anchor has yielded 4 games ever, and the missing API key is not why (L306/L307)
 
 **What happened.** Queue re-scanned and drained again: every Q0–Q55 item reads DONE / BLOCKED /
