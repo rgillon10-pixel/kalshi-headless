@@ -247,6 +247,73 @@ is derived from committed tape and config text only. The failure mode is now L29
 
 ---
 
+---
+
+## Verifier disposition (2026-08-07)
+
+**CONFIRMED-WITH-CORRECTIONS.** An independent `verifier` re-derived every load-bearing number
+in this finding on separate code paths (a from-scratch replay of the 43,038→13→0 funnel, an
+independent ticker-entity→title-subject map over `universe_sweep`, a fresh run of
+`subject_identity_corpus_audit.py` diffed byte-for-byte against the committed report) and
+adversarially probed the framing (do the 13 `UNVERIFIABLE` survivors actually hide a real arb?
+does the false-admit ground truth have blind spots? is "0 pairs checked" consistent with the
+actual check-3 code path?). **Every number reproduced exactly, both verdicts survive every
+attack, and the two-agent rule is satisfied**: S3 stays `data-collecting`, killable only once a
+scanned-ticker manifest exists; S15 stays `data-collecting`, `DATA-INADEQUATE`, unkillable while
+its curated family is time-boxed to a market with zero committed 2026-07-17+ coverage. Full
+pytest (3,313/3,313) and `invariants.py --full` both green on the verified tree.
+
+**Three claims in this finding were factually wrong; corrected here rather than silently
+edited, per this document's own retraction precedent above:**
+
+- **D1 — the platform-wide decided-ADMIT family attribution was wrong.** "All 15 decided-ADMITs
+  are correct... Every one is `KXATPGTOTAL`" understated the population: independent
+  enumeration of all 15 (not the report's 5-example-per-reason cap) finds **9 are
+  `KXATPGTOTAL`** (3 each on `STRNAV`/`FARBUE`/`KOUWIN`) and **6 are
+  `KXWNBATOTAL-26JUL22LVWSH`** ("Las Vegas vs Washington", total-points rungs `-192`/`-196`/
+  `-199`/`-203`). The *correctness* claim survives — the WNBA six are genuine rungs of one
+  game's total-points ladder, so 15/15 decided-ADMITs are still all correct — only the "every
+  one is X" family attribution was wrong. Root cause: `reports/subject_identity_corpus_audit.json`
+  caps stored examples at 5 per reason, all of which happened to be `KXATPGTOTAL`; the 5→15
+  generalization was never re-checked against the full population. General lesson: a capped
+  `examples` list in a JSON report is a sample, not the population — re-enumerate before writing
+  "every one."
+
+- **D2 — the KXWCROUND ticker-count/window claim was internally inconsistent.** "48 distinct
+  `KXWCROUND` tickers across 2026-07-06 … 07-14" does not hold: distinct tickers per day are
+  07-04: 48 · 07-05: 40 · 07-06: 36 · 07-07: 28 · 07-08: 16 · 07-10: 13 · 07-11: 10 · 07-12: 10 ·
+  07-13: 4 · 07-14: 4 · 07-15: 2 (independently re-derived, exact). The union over the *claimed*
+  window (07-06..07-14) is **36**, not 48; all 48 appear only if the window is widened to
+  07-04..07-15, and in fact all 48 are present on `dt=2026-07-04` alone. The qualitative point
+  this supported — that markets matching the family's ticker regex existed on committed tape
+  outside the scanned slice — still holds (36 or 48, both are nonzero and both are outside the
+  slice `check_cross_event_implication` actually ran against), so the S15 verdict is unaffected.
+
+- **D3 — "the '38 pairs / 40 open markets' validation is not reproducible from committed tape" was
+  false, and this is the load-bearing correction.** `tape/polymarket_pairs/dt=2026-07-05.jsonl`
+  holds exactly **40** distinct `KXWCROUND` tickers over 14 entities (12 teams with QUAR+SEMI+
+  FINAL rungs, FRA and MAR with SEMI+FINAL only); run through the family's own `ticker_regex` and
+  `round_order_raw_suffix_to_rank` in `config/implication_pairs.yaml`, that generates exactly
+  **12×3 + 2×1 = 38 pairs**. Both numbers reproduce to the digit (independently re-derived here
+  a second time). The defensible claim was narrower than what was written: not reproducible from
+  `tape/anomalies/` (true — no record there ever reports a nonzero pair count), but fully
+  reproducible from `tape/polymarket_pairs/`. **This correction strengthens, not weakens, the S15
+  verdict**: the sweep genuinely ran on 2026-07-05 (3 committed `tape/anomalies/` records that
+  day) while 40 matching markets sat on tape and 38 pairs were mechanically generatable from them,
+  and still recorded `n_implication_pairs_checked: 0` — the truncation/scope explanation for that
+  zero goes from "most likely" to positively corroborated, not merely un-refuted.
+
+**Caveats surfaced but not requiring a verdict change**, recorded so they are not silently lost
+(full detail in the verifier's own report, referenced from `kb/lessons/00-lessons.md` L303):
+the replay's final funnel stage (13→0) is definitional, not measured, because the committed
+`tape/anomalies/` schema cannot carry descriptive text at all — the S3 registry row's prose reads
+this stage as evidence, which it is not (the corpus-side proof is the real evidence, and it is
+sound); and `check_cross_event_implication`'s own subject-identity proof still derives from a
+ticker-suffix regex (`_round_progression_pairs`'s `entity` capture group) — the exact shortcut
+`core/subject_identity.py` was built to avoid — which costs nothing today (0 pairs ever checked)
+but goes live the moment a family with more coverage (e.g. Q55's `KXMARMADROUND`, 1,120 pairs)
+enters the sweep's scanned slice.
+
 ## Reproduce
 
 ```
