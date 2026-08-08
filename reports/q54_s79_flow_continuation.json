@@ -1,0 +1,107 @@
+{
+  "fee_side": "taker",
+  "gate_note": "gate shut on ['below_min_units', 'no_sign_variation']: 8 settled game units vs the L41 floor of 10 (2 more needed); minority-side units 0 vs floor 2 (units per side {'no': 0, 'yes': 8}). Nothing outcome-dependent was computed: the pre-registration is intact and this file is unchanged from its sealed state.",
+  "gate_reasons": [
+    "below_min_units",
+    "no_sign_variation"
+  ],
+  "generated_at": "2026-08-08T12:36:48.002266+00:00",
+  "n_sports_game_tickers": 38,
+  "n_tickers_with_prints": 42,
+  "network_calls": 0,
+  "population": {
+    "admissible": false,
+    "entries_per_unit": {
+      "KXARGPREMDIVGAME-26AUG03CCSLA": 1,
+      "KXASEANGAME-26AUG04MYALAO": 4,
+      "KXDIMAYORGAME-26AUG02SFEOC": 2,
+      "KXEKSTRAKLASAGAME-26AUG03CRAPSZ": 11,
+      "KXMLBGAME-26AUG032005LADCHC": 23,
+      "KXNPBGAME-26AUG030500TOHORI": 12,
+      "KXNWSLGAME-26AUG02DENBOS": 2,
+      "KXSCOTTISHPREMGAME-26AUG03CELDUN": 12
+    },
+    "gate_reasons": [
+      "below_min_units",
+      "no_sign_variation"
+    ],
+    "min_units": 10,
+    "n_entry_candidates_all": 82,
+    "n_entry_candidates_settled": 67,
+    "n_units": 8,
+    "settlement_coverage": {
+      "n_listed_unsettled": 29,
+      "n_non_binary": 0,
+      "n_requested": 38,
+      "n_settled_binary": 9,
+      "n_unresolved": 29,
+      "per_source_hits": {
+        "crypto_hourly": 0,
+        "econ_prints": 0,
+        "q26_settlement_cache": 0,
+        "q27_settlement_cache": 0,
+        "q29_settlement_cache": 0,
+        "q30_settlement_cache": 0,
+        "q51_settlement_cache": 9,
+        "settlement_ledger": 0,
+        "weather_actuals": 0
+      },
+      "sources_absent_on_disk": [],
+      "sources_scanned": [
+        "settlement_ledger",
+        "q26_settlement_cache",
+        "q27_settlement_cache",
+        "q29_settlement_cache",
+        "q30_settlement_cache",
+        "q51_settlement_cache",
+        "crypto_hourly",
+        "weather_actuals",
+        "econ_prints"
+      ]
+    },
+    "side_split": {
+      "yes": 67
+    },
+    "sign_variation": {
+      "min_minority_side_units": 2,
+      "minority_side_units": 0,
+      "ok": false,
+      "units_per_side": {
+        "no": 0,
+        "yes": 8
+      }
+    },
+    "units_short_of_floor": 2
+  },
+  "preregistration": {
+    "decision_grid_minutes": 60,
+    "entry_price_band": [
+      0.02,
+      0.98
+    ],
+    "exit": "hold_to_settlement",
+    "fee_legs": 1,
+    "fee_side": "taker",
+    "lookback_minutes": 30,
+    "max_entry_lag_minutes": 5,
+    "min_minority_side_units": 2,
+    "min_signed_flow_contracts": 10.0,
+    "min_ticks": 1.0,
+    "min_units": 10,
+    "n_boot": 10000,
+    "sealed_on": "2026-08-08",
+    "seed": 42,
+    "tick": 0.01,
+    "unit": "game"
+  },
+  "preregistration_sha256": "3f56818136b97206e2915af55728cf044735abba6f00754d4d5c3849a280205c",
+  "price_source_tag": "broker_truth",
+  "queue_item": "Q54",
+  "schema_version": "q54_s79_flow_continuation.v1",
+  "status": "INSUFFICIENT DATA",
+  "strategy": "S79",
+  "trade_days": [
+    "dt=2026-08-03.jsonl"
+  ],
+  "verdict": "GATED-by-adequacy"
+}

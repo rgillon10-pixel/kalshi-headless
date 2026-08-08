@@ -6,6 +6,115 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-08 ~11:0x-13:0xZ UTC — research loop IDLE RUN policy (b): Q54/S79's probe, sealed before its gate — and the third gate condition nobody had counted (L311, L312)
+
+Steps 0a/0/0b were established by the calling session and taken as given: **0a PASS** (the last 5
+merged PRs #315/#318/#319/#320/#321 are literally the top 5 commits of `origin/main`, HEAD
+`ed039e4`; newest `kb/00-LOG.md` entry 2026-08-08 and newest `tape/*/dt=*` 2026-08-07/08 within
+2 days — no rewind); **claim-check** 6 open PRs (#271/#208/#125 weekly-retro docs marked LEAVE OPEN
+for Ryan, #191/#166/#165 stale July draft worktree branches), none claiming a TODO/IN-PROGRESS
+queue item; **0b** both newest un-swept `tape/hourly-*` branches are line-level subsets of `main`,
+nothing to sweep (the ~200-branch historical backlog is the known, diagnosed L38/Q17-RESERVED
+class and was not touched).
+
+**Why this milestone.** The queue is drained (Q0-Q55 all DONE/BLOCKED/RESERVED/time-gated/
+data-gated) and idle-run policy (a) has no eligible row: the 5 open UNENFORCED lessons are
+L213/L221/L222/L282 (out-of-lane write-path or Ryan-action halves, each already carrying its
+buildable half) and L309 (self-deferred until after the 2026-08-10 Q51 firing, whose spec requires
+the probe to run unchanged). So policy (b) — prep the next gated item. Deliberately **not** Q51
+milestone 3: it has been pre-flighted three times already (08-05 population, 08-08 fill
+projection). The genuinely un-prepped gated items are **Q52 (S78)** and **Q54 (S79)**, and neither
+has a probe script. Both of their binding tests mandate *pre-registration* — "pre-register
+horizon+entry BEFORE returns" (Q54), "pre-register a COLLAPSED cell design BEFORE seeing holdout
+markout" (Q52) — and a pre-registration written on the day the data lands is not a
+pre-registration. Q54's gate is the nearer of the two.
+
+**What was built.** `scripts/q54_s79_flow_continuation_probe.py` (read-only, fully offline — no
+network; settlement read from committed tape through `core.settlement_sources`'s 9-family registry,
+L300) + `tests/test_q54_s79_flow_continuation_probe.py` (**41 tests**) ->
+`reports/q54_s79_flow_continuation.json`. Sealed spec (digest `3f56818136b97206…`, pinned by
+`::test_preregistration_hash_is_sealed`): unit = GAME (L6); `*GAME` sports moneylines with KXMVE*
+excluded (L31); decision instants on the whole UTC hour; signal = net signed YES flow over the
+preceding 30 minutes under the **L279 orientation** (a taker whose own order sits on the BID is a
+BUYER — constants imported from `scripts/q51_maker_fillsim.py` rather than restated, because the
+inverted reading is exactly the bug L279 caught); entry gate |flow| >= 10 contracts; entry = the
+first agreeing print within 5 minutes **at its executed price** (`broker_truth` — never a quote,
+never a midpoint, never a synthetic, which is the whole reason the trade tape exists); band
+[0.02, 0.98]; hold to settlement; **one** taker fee via `core.pricing` (L5); verdict through
+`bootstrap_verdict_admissible(min_units=10)` + `clears_tick_magnitude` (L41/L27), block-bootstrapped
+by game. Only the hold-to-settlement single-fee variant is built; the seconds-to-minutes round trip
+Q54 also names has no fillable exit surface at 4 `orderbook_depth` captures/day (the S9 cadence
+wall), and manufacturing one would be a synthetic fill price.
+
+**The seal (L311).** The committed tape can already produce the 8-game answer, so a probe that
+computed it and then printed `INSUFFICIENT DATA` would have spent the pre-registration it exists to
+protect. The refusal is therefore structural, not cosmetic: the adequacy path never receives a
+settlement `result` (membership collapses through `core.settlement.is_binary_result` to the label
+CLASS, so it learns THAT a market settled and never HOW); `outcome_map()` and `score_rows()` — the
+only functions that read an outcome value or compute a return — are unreachable from `run()` while
+the gate is shut, pinned by a test that monkeypatches both to raise and then runs the probe; the
+emitted report is walked key-by-key for outcome-derived fields (key-level, not a substring scan of
+the serialized blob, because a blob scan flags the gate note's own prose and an over-reporting guard
+gets disabled, L155); and the spec dict is hashed so tuning-after-seeing-data cannot be a quiet diff.
+
+**What it measured, outcome-blind, on the one committed trade day.** 38 sports `*GAME` tickers ->
+**82** entry candidates -> **67** on a settled market -> **8** bootstrap units against the L41 floor
+of 10. Two findings:
+
+- **The gate distance was quoted in the wrong denominator.** Q54's Status line read the distance off
+  the settlement census (9 resolved binary games), but a settled game becomes a bootstrap unit only
+  if it also yields a pre-registered entry, and `KXLIGAMXGAME-26AUG02AMESLA-TIE` (2,304 prints) has
+  a print span short enough to produce a single decision instant and no qualifying entry. The
+  distance is **2 units, not 1** — the same class as the 2026-08-03 Q37 "the gate counts the wrong
+  unit" finding and the L289/L296 mixed-denominator class.
+- **The scoreable population has ZERO sign variation (L312).** All 67 scoreable entries are on the
+  same side; the 5 NO-side candidates the tape produces belong to two games that have not settled.
+  On the population a verdict would actually come from, S79's conditioning variable is *constant* —
+  the strategy degenerates to "buy YES whenever 30-minute net flow clears 10 contracts", and any CI
+  would be evidence about buying YES sports moneylines, not about signed flow. This is structural
+  rather than a one-day accident: L279 measured **31,831 buy prints against 7,867 sell (80/20)** on
+  this same tape, because retail overwhelmingly buys in prediction markets, so a 30-minute net-flow
+  aggregate is positive nearly always and more days of tape do not remove that. Q54 named two gate
+  conditions (settled units < 10; no fillable seconds-to-minutes exit); this is a **third**, and the
+  one a longer tape is least likely to clear on its own.
+
+Because the discovery was made *under the seal* it was outcome-blind, so acting on it is design
+rather than tuning — which is why it became an enforced gate the same day instead of a note:
+`min_minority_side_units = 2` is now part of the sealed spec and the probe refuses on
+`no_sign_variation` exactly as it refuses on `below_min_units`. Two units and not one, because a
+minority arm concentrated inside a single game cannot be block-bootstrapped at all (L41's own logic
+applied to the signal rather than to the outcome). The benchmark decomposition an ALIVE reading
+would additionally require — primary vs an always-majority-side arm on identical entry instants and
+prices, with the PAIRED per-unit difference clearing its own block-bootstrap-by-game CI > 0 — is
+pre-registered in the module docstring as a **binding mandate** (the Q52 "mandated tightenings"
+precedent) and deliberately not built while the minority arm is empty: shipping an untestable second
+scoring arm would add verdict surface (L41) without adding evidence.
+
+**Nothing verdict-class was produced.** No registry flip, no bootstrap CI, no P&L, no mean, no kill
+decision. S79 stays `collect-and-revisit`; `kb/strategies/00-index.md` is untouched; still **0
+proven edges**. The two-agent rule is N/A for a pre-registration/data-adequacy result and is in any
+case unsatisfiable here (no `Task`/subagent tool in this harness — Read/Grep/Glob/Bash only, the
+L287/L288/L290/L291/L295 precedent), so the sanctioned redundancy fallback ran instead: an
+independent code path (integer cents rather than floats, its own window arithmetic, orientation
+constants as locals rather than imports) reproduces **38 tickers / 82 candidates / 5 NO-side / 67
+settled / 8 units / 0 minority units with 0 disagreements**, pinned as a permanent test. That is
+redundancy, not verification — it cannot catch an error the two paths share (the L279 failure mode)
+and is not claimed to.
+
+The probe **self-activates**: it globs every committed trade day instead of pinning a DAY constant,
+so a newly committed day opens the gate without an edit, and the live-tape test asserts the unit
+count as a floor (`>= 8`) precisely so it does not red-line on the event it is waiting for.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY` is non-empty (S14 ladder underwriting), so
+`scripts/paper_pass.py` was advanced over committed tape and its result recorded — see the run's
+digest line for the one-line `daily_summary()`.
+
+New lessons **L311** (a probe built before its gate must be structurally unable to peek) and
+**L312** (a signal whose sign is constant on the scoreable population is a direction, not a
+conditioning variable). Finding:
+`findings/2026-08-08-q54-s79-preregistered-probe-and-the-sign-variation-hole.md`. Gates after the
+last code change: see the `LOOP-QUEUE.md` Log-of-runs line for this run.
+
 ## 2026-08-08 ~09:0x-09:3xZ UTC — research loop IDLE RUN policy (a): L296's verdict half was already resolved — formal disposition (L310)
 
 Step 0a clean (last 5 merged PRs #315-#320 all confirmed ancestors of `origin/main` via the
