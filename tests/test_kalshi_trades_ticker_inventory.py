@@ -254,7 +254,7 @@ def test_advisory_is_registered_in_the_full_gate_and_stays_non_gating():
 def test_acceptance_real_tape_reproduces_l292s_published_inventory():
     """L292's own numbers, re-derived here on this independent code path: 39,698 prints /
     42 tickers / 20 series, every one of them sports or crypto."""
-    rep = kt.trade_tape_inventory(ROOT / "tape", max_day=M1_DAY)
+    rep = kt.trade_tape_inventory(ROOT / "tape", max_day=M1_DAY, min_day=M1_DAY)
     assert rep["n_days"] == 1 and rep["days"] == [M1_DAY]
     assert rep["n_lines"] == 39698
     assert rep["n_tickers"] == 42
@@ -270,12 +270,12 @@ def test_acceptance_real_tape_reproduces_l292s_published_inventory():
 def test_acceptance_no_econ_family_has_a_committed_print(token):
     """The fact that killed S81's REGISTER. If this ever fails, the trade collector has
     started covering econ and the L292 data-gate on that family has genuinely opened."""
-    rep = kt.trade_tape_inventory(ROOT / "tape", max_day=M1_DAY)
+    rep = kt.trade_tape_inventory(ROOT / "tape", max_day=M1_DAY, min_day=M1_DAY)
     assert kt.series_coverage(rep, token)["verdict"] == kt.ABSENT
 
 
 def test_acceptance_every_committed_series_is_sports_or_crypto():
-    rep = kt.trade_tape_inventory(ROOT / "tape", max_day=M1_DAY)
+    rep = kt.trade_tape_inventory(ROOT / "tape", max_day=M1_DAY, min_day=M1_DAY)
     crypto = {"KXBTC", "KXETH"}
     for s in rep["series"]:
         assert s in crypto or s.endswith("GAME"), s
@@ -293,12 +293,41 @@ def test_acceptance_live_registry_rows_are_read_and_classified():
 
 def test_cli_runs_offline_and_emits_stable_json(capsys):
     rc = kt.main(["--tape-root", str(ROOT / "tape"), "--max-day", M1_DAY,
-                  "--check", "KXMLBGAME", "KXCPI", "--json"])
+                  "--min-day", M1_DAY, "--check", "KXMLBGAME", "KXCPI", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["inventory"]["n_series"] == 20
     verdicts = {c["token"]: c["verdict"] for c in payload["checks"]}
     assert verdicts == {"KXMLBGAME": kt.COVERED, "KXCPI": kt.ABSENT}
+
+
+def test_min_day_closes_the_window_against_a_backfill(tmp_path):
+    """L316: a `max_day`-only window is NOT frozen for a family that grows BACKWARD.
+
+    The 2026-08-08 phase-1 pull added dt=2026-07-07..07-12 to `tape/kalshi_trades/`, every
+    one of them older than the 2026-08-03 `max_day` that L292's pins were frozen against —
+    so they entered windows that had been closed on purpose. Both ends or neither.
+    """
+    d = tmp_path / "kalshi_trades"
+    d.mkdir(parents=True)
+    for day in ("2026-07-07", "2026-08-03", "2026-08-09"):
+        (d / f"dt={day}.jsonl").write_text(
+            json.dumps({"ticker": "KXMLBGAME-26AUG03AAABBB-AAA", "trade_id": day}) + "\n")
+    older_and_newer = kt.trade_tape_inventory(tmp_path, max_day="2026-08-03")
+    assert older_and_newer["days"] == ["2026-07-07", "2026-08-03"]      # backfill leaked in
+    frozen = kt.trade_tape_inventory(tmp_path, max_day="2026-08-03", min_day="2026-08-03")
+    assert frozen["days"] == ["2026-08-03"] and frozen["n_days"] == 1
+
+
+def test_min_day_is_wired_through_the_cli(tmp_path, capsys):
+    d = tmp_path / "kalshi_trades"
+    d.mkdir(parents=True)
+    for day in ("2026-07-07", "2026-08-03"):
+        (d / f"dt={day}.jsonl").write_text(
+            json.dumps({"ticker": "KXMLBGAME-26AUG03AAABBB-AAA", "trade_id": day}) + "\n")
+    assert kt.main(["--tape-root", str(tmp_path), "--max-day", "2026-08-03",
+                    "--min-day", "2026-08-03", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["inventory"]["days"] == ["2026-08-03"]
 
 
 def test_cli_human_output_always_carries_the_coverage_caveat(capsys):
