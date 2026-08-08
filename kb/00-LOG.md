@@ -6,6 +6,128 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-08 ~15:0x-16:5xZ UTC — research loop IDLE RUN policy (c): the S78/S79 "collect-and-revisit" gate is an UN-RUN BACKFILL, not a calendar wait (L313)
+
+Steps 0a/0/0b were established by the orchestrating session before this leg ran: history-integrity
+PASS (origin/main's newest merged PR #321 is the current tip; newest `kb/00-LOG.md` entry
+2026-08-08 consistent with the newest `tape/*/dt=*` files), claim-check found only stale
+Ryan-review-only PRs (#271/#208/#125) and old worktree drafts (#191/#166/#165) claiming no queue
+item, and the stranded-tape sweep found the newest `tape/hourly-*` branch already a strict subset
+of `main` (nothing to union-append; the ~200-branch deletion backlog stays Q17's reserved item).
+
+**Queue re-verified drained** at each item's CURRENT status (Q0-Q55 all DONE/BLOCKED/RESERVED/
+time-gated/data-gated; Q51 milestone 3 still time-gated to 2026-08-10, two days out) -> IDLE RUN.
+**Policy (a) checked first and had no in-lane target:** the machine-checked open-`UNENFORCED` set
+was re-derived directly (`scripts.invariants._parse_lesson_rows` / `_lesson_disposed_ids`, not a
+prose count carried between runs) as exactly `{L213, L221, L222, L282, L309}` — L213 is a
+Ryan-action trigger prompt, L221/L222 are collector write-paths whose own cells say DO NOT BUILD,
+L282's remaining half is a Ryan-lane sweep-workflow change, and L309 is deliberately deferred until
+after the 08-10 Q51 firing (editing `q51_maker_fillsim.py` now would invalidate that milestone's
+frozen spec). Policy (b) was addressed by the 06Z leg the same day. So **policy (c): a data-quality
+deep-dive on one tape family — `tape/kalshi_trades/`.**
+
+**No `Task`/subagent tool exists in this harness** (Read/Grep/Glob/Bash + GitHub MCP only), so no
+`tape-auditor`, `edge-prober`, `verifier` or `kb-distiller` was dispatchable — the
+L287/L288/L290/L291/L295/L308 precedent. Built in main context, and the milestone was deliberately
+chosen to be **non-verdict-class** (no CI, no P&L, no fill rate, no kill, no registry flip) so the
+two-agent rule is N/A rather than unsatisfied.
+
+**The gap.** Q52/S78 and Q54/S79 — the only two live strategy candidates — are both parked
+`collect-and-revisit` behind gates written as calendar waits ("needs more `tape/kalshi_trades/`
+days"; "`below_min_units`, 9 settled games < the L41 floor of 10"). Nothing had asked whether
+waiting can possibly deliver.
+
+**Result 1 (exact, source-level, not tape-level).** `kalshi_trades` appears in NEITHER
+`collection/hourly_pass.py` NOR `collection/burst_capture.py`, nor `.github/`, nor `ops/` — by
+Q51-m1's own deliberate L221/L222 write-path call. **There is no scheduled writer: waiting adds
+exactly zero trade days, forever.** Committed trade tape is 1 day (`dt=2026-08-03`), 39,698 lines,
+42 distinct tickers, 0 duplicate `trade_id`s, 39,698/39,698 `broker_truth` — reproducing Q51-m1's
+published figures exactly.
+
+**Result 2 (the headline, PROVISIONAL).** Union over the 31 committed `tape/orderbook_depth/` days
+(`dt=2026-07-07`..`dt=2026-08-07`): 107,033 distinct tickers -> **45,495** with >=2 snapshots on
+some day (the fill-sim's own interval predicate, imported not re-guessed) -> 6,837 sports-game
+tickers / 2,575 games -> **611 tickers / 338 distinct GAMES already carrying a binary
+`broker_truth` outcome** from the nine declared settlement families (`core.settlement_sources`, the
+L300/Q54 correction against one-family reads). **338 units = 33.8x the L41 floor of 10**, against
+the 8 bootstrap units the same day's sealed-probe run (see the 11:0x-13:0xZ entry below, L311/L312)
+measured from the single captured trade day (9 settled games, 1 of which yields no scoreable entry).
+The 8/9 was never wrong — it was the population of the one day somebody pulled. Settlement provenance over the eligible set: `crypto_hourly` 35,052 /
+`settlement_ledger` 601 / `q51_settlement_cache` 10 / all other declared families 0; the sports
+units come from the ledger plus the Q51 cache. Per-day settled-game counts are reported lumpy, not
+averaged (169/189/158/163/110/34/28 on 07-07..07-14, then 0-3 through 07-30, 8/10/10/7 on
+07-31..08-03, and **0 for 08-04..08-07** — twelve zero days, meaning nobody CACHED those markets,
+not that they did not settle).
+
+**Result 3 (the load-bearing assumption, now MEASURED).** Q51-m1 established the trades endpoint
+backfills to >=2026-06-20 but never tested a SETTLED market. Three read-only, unauthenticated
+public calls this run (no credentials, no order path, nothing committed to tape):
+`KXBRASILEIROBGAME-26JUL07ATHFER-TIE` returned **392 prints in one call** for a market that settled
+32 days earlier (`broker_truth`, first `created_time` 2026-07-07T23:59:56Z);
+`KXALLSVENSKANGAME-26JUL11MJAAIK-TIE` returned 2; `KXARGNACBGAME-26JUL25CHISMT-SMT` returned 0 (the
+honest counterweight — a market can simply have had no trades in a window). **Long-settled markets
+still serve their full print history**, so the missing leg is a PULL. Settlement is a pull too
+(unauthenticated `GET /markets/{ticker}`, `q51_maker_fillsim.build_settlement_cache`).
+
+**The haircut, labelled as the projection it is:** ticker-level print incidence was measured once at
+42/200 = 21.0% (whole-universe stride-13 sample on 08-03, NOT a sports-only rate). 338 x 0.210 ~
+**71 units, 7.1x the floor** — emitted with `is_projection: true` / `price_source_tag: synthetic` /
+its basis string attached, never as a measurement.
+
+**Redundancy in place of a verifier:** the headline was re-derived by a second, independently
+written code path importing nothing from the audit module or from `q51_maker_fillsim` (own ticker
+grammar, own eligibility pass, own raw readers over the ledger JSONL, the five `*_settlement_cache`
+blobs and the three embedded families). It reproduces 45,495 / 6,837 / 2,575 / 611 / **338** and the
+two GAME SETS are **set-equal, symmetric difference 0**. That is a redundancy check, NOT a verifier
+confirmation — it cannot catch an error both paths share (e.g. a ticker-grammar mis-split) — so the
+338 is recorded **PROVISIONAL** and flips nothing.
+
+**Honest limits carried in the finding:** 338 is POTENTIAL, not realized joins (not one print for
+those games is captured); the ~3h book cadence (median 180.3 min inter-snapshot, L283) still makes
+queue position / time-to-fill / sub-3h adverse selection unmeasurable no matter how many units land,
+so more units do not repair WALL-B's surviving half; settlement lumpiness is cache-coverage, not
+sampling noise; every tape-sourced acceptance assertion is a `>=` bound per L280 (a step-0b sweep
+can only add lines), while the no-scheduled-writer assertion is EXACT and is designed to fail loudly
+if the collector is ever wired in.
+
+**Proposal recorded, NOT executed (a collector milestone, not a probe):** a bounded phase-1
+backfill of the 611 settled sports tickers, `min_ts`/`max_ts` scoped to each ticker's own
+book-snapshot span, 07-07..07-14 first, with the collector's existing `--max-calls` cap and
+`trade_id` dedup, measuring realized bytes after ~50 tickers against a declared 25-50MB cap
+(sizing: 604 bytes/print, ~945 prints per traded ticker => an unbounded pull could reach ~350MB
+next to a `tape/` already at 378MB for `orderbook_depth` alone).
+
+**No registry flip, no bootstrap CI, no kill, no P&L — S78 and S79 keep their idea-stage
+`collect-and-revisit` status; still 0 proven edges.** New lesson **L313** (`test` tier).
+
+**Paper sub-pass:** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`); `scripts/paper_pass.py`
+advanced deterministically over committed tape and booked nothing new (0 processed / 0
+deferred(caps) / 274 deferred(coverage) / 300 already-in-ledger), so no `paper/` lines were
+appended — `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash
+$+27.76, open notional $0.00` (ledger entry prices `real_bid`, settlements `broker_truth`).
+
+**Gates, fresh after the last change (L162):** `pytest -q` was run as 4 disjoint file shards
+verified to partition all 118 test files exactly (27+30+31+30, union == the full `--collect-only`
+list of **3,544** collected = 3,521 before this run + 23 new). Shards 1/2/3 (888 + 887 + 884)
+finished exit **0**. Shard 0 was KILLED by this harness's background time limit while still inside
+`tests/test_invariants.py`, so it was re-run as two disjoint pieces that together cover it exactly:
+its other 26 files (**561** tests) exit **0**, and `tests/test_invariants.py`'s **324** node ids
+split 81/81/81/81 (`ids[i::4]`, disjoint and exhaustive) all exit **0**. 888+887+884+561+324 =
+**3,544 collected, 3,544 passed, 0 failed**, zero `FAILED`/`ERROR` lines in any of the 8 logs. Both
+pieces that read live repo documents (`tests/test_invariants.py` and the live-ledger test in shard
+3's `tests/test_stale_unenforced_advisory.py`) ran AFTER the prose edits they could see;
+`python3 scripts/invariants.py --full` -> exit **0**, "invariants: all green" (same pre-existing
+non-gating advisories as base `main`, none new; the open-`UNENFORCED` count is unchanged at 5 —
+L313 lands `test`-tier, not UNENFORCED).
+
+Files: `scripts/kalshi_trades_backfill_population_audit.py`,
+`tests/test_kalshi_trades_backfill_population_audit.py` (+23),
+`reports/kalshi_trades_backfill_population.json`,
+`findings/2026-08-08-kalshi-trades-backfill-gate-not-calendar-gate.md`,
+`kb/lessons/00-lessons.md` (L313), `LOOP-QUEUE.md` (Q52/Q54 status updates + Log of runs),
+`kb/00-LOG.md`. No `execution/` change beyond the routine paper sub-pass; no credentials, no
+demo/live path, no orders.
+
 ## 2026-08-08 ~11:0x-13:0xZ UTC — research loop IDLE RUN policy (b): Q54/S79's probe, sealed before its gate — and the third gate condition nobody had counted (L311, L312)
 
 Steps 0a/0/0b were established by the calling session and taken as given: **0a PASS** (the last 5
