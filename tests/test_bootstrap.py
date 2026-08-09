@@ -16,6 +16,7 @@ from core.bootstrap import (
     floor_pinned_fraction,
     headline_fill_rate,
     hit_magnitude_decomposition,
+    kish_effective_n,
     sign_bounded_objective,
     turnover_rule_saturation,
     TURNOVER_SATURATION_RATIO,
@@ -78,6 +79,94 @@ def test_block_bootstrap_reports_n_boot_and_seed():
     report = block_bootstrap({"a": [1.0]}, n_boot=123, seed=9)
     assert report["n_boot"] == 123
     assert report["seed"] == 9
+
+
+# ─── kish_effective_n (L322) ────────────────────────────────────────────────
+
+def test_kish_effective_n_empty_is_honest_undefined_not_zero():
+    r = kish_effective_n([])
+    assert r["n_units"] == 0
+    assert r["n_obs"] == 0
+    assert r["kish_n"] is None
+    assert r["design_effect"] is None
+
+
+def test_kish_effective_n_all_zero_size_units_is_also_undefined():
+    r = kish_effective_n([0, 0, 0])
+    assert r["n_units"] == 3
+    assert r["n_obs"] == 0
+    assert r["kish_n"] is None
+    assert r["design_effect"] is None
+
+
+def test_kish_effective_n_equal_sized_units_equals_the_raw_count():
+    """`design_effect == 1.0` exactly when every block is the same size — Kish's formula
+    degenerates to the naive unit count with no raggedness to discount."""
+    r = kish_effective_n([5, 5, 5, 5])
+    assert r["n_units"] == 4
+    assert r["n_obs"] == 20
+    assert r["kish_n"] == pytest.approx(4.0)
+    assert r["design_effect"] == pytest.approx(1.0)
+
+
+def test_kish_effective_n_single_unit_is_itself():
+    r = kish_effective_n([7])
+    assert r["kish_n"] == pytest.approx(1.0)
+    assert r["design_effect"] == pytest.approx(1.0)
+
+
+def test_kish_effective_n_ragged_sizes_fall_strictly_below_raw_count():
+    """A single dominant block plus many singletons is the shape L322 flags: the raw
+    `n_units` overstates independence, so `kish_n` must land strictly below it."""
+    r = kish_effective_n([50, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+    assert r["n_units"] == 10
+    assert r["kish_n"] < 10
+    assert r["design_effect"] > 1.0
+
+
+def test_kish_effective_n_never_exceeds_raw_unit_count():
+    for sizes in ([1], [1, 1], [3, 1, 1], [23, 17, 12, 12, 11, 11, 8, 5, 4, 4, 3, 2, 2, 2,
+                                            2, 1, 1, 1, 1, 1, 1, 1, 1, 1]):
+        r = kish_effective_n(sizes)
+        assert r["kish_n"] <= r["n_units"] + 1e-9
+
+
+def test_kish_effective_n_negative_size_raises():
+    with pytest.raises(ValueError):
+        kish_effective_n([3, -1, 2])
+
+
+def test_kish_effective_n_does_not_mutate_its_input():
+    sizes = [4, 2, 1]
+    kish_effective_n(sizes)
+    assert sizes == [4, 2, 1]
+
+
+def test_acceptance_q54_s79_real_report_reproduces_l322s_effective_n():
+    """Real-tape acceptance test (L322): Q54/S79's own committed bootstrap pooled 133
+    entries into 24 game-units (`n_units=24` in `reports/q54_s79_flow_continuation.json`'s
+    `bootstrap` block) — the exact ragged-block population that motivated this lesson.
+    Reproducing it from the report's own `population.entries_per_unit` sizes pins the
+    ~11.6 Kish n (1.16x the L41 floor of 10, not the 2.4x the raw `n_units` implies)
+    against the real committed numbers rather than a synthetic fixture alone."""
+    import json
+    from pathlib import Path
+    p = Path(__file__).resolve().parent.parent / "reports" / "q54_s79_flow_continuation.json"
+    if not p.is_file():
+        pytest.skip("reports/q54_s79_flow_continuation.json not present in this checkout")
+    report = json.loads(p.read_text(encoding="utf-8"))
+    entries_per_unit = report["population"]["entries_per_unit"]
+    bootstrap = report["bootstrap"]
+
+    r = kish_effective_n(list(entries_per_unit.values()))
+
+    assert r["n_units"] == bootstrap["n_units"] == 24
+    assert r["n_obs"] == bootstrap["n_obs"] == 133
+    assert r["kish_n"] == pytest.approx(11.629848783694937)
+    # the headroom over the L41 floor the raw n_units implies (2.4x) vs. what the
+    # ragged block sizes actually deliver (~1.16x) — the gap L322 exists to surface.
+    assert (bootstrap["n_units"] / 10) == pytest.approx(2.4)
+    assert (r["kish_n"] / 10) == pytest.approx(1.1629848783694937)
 
 
 # ─── clears_tick_magnitude (L27) ────────────────────────────────────────────
