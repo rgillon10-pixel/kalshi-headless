@@ -6,6 +6,90 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-09 ~09:1x-12:2xZ UTC — Q54's sealed probe fired for real: S79 (signed-flow taker) is DEAD-by-CI, the first registry kill produced through the full two-agent bootstrap-CI rule
+
+Steps 0a/0/0b: history-integrity PASS (`origin/main` HEAD `19a7776`; PRs #325-#328 confirmed merged
+and reachable ancestors; newest `kb/00-LOG.md` and newest committed tape both 2026-08-09, no
+rewind); claim-check found only the standing Ryan-review-only PRs; step-0b had nothing new to
+sweep. **Queue re-verified: Q54's data gate opened yesterday (24 bootstrap units / 2 minority-side
+units, both floors cleared) — for the first time in this project's history, this run was NOT an
+idle run.**
+
+`scripts/q54_s79_flow_continuation_probe.py` — pre-registered and gate-sealed since 2026-08-08 —
+self-activated on the open gate (file untouched, digest `3f56818136b97206…` unchanged) and ran
+`outcome_map()`/`score_rows()` for the first time. **Headline: `DEAD-by-CI`.** Block-bootstrap
+**by GAME** (L6, n=10,000, seed 42) over **24 game units / 133 scored entries** across 6 committed
+trade days: mean **−$0.06947/contract**, **95% CI [−$0.27237, +$0.15206]** — straddles zero,
+`clears_tick_magnitude` **false** (L27), admissible under L41 (9 opposing units). Prices
+`broker_truth` throughout — entry is an executed print (133/133 matched to `trade_id`, 0 price
+disagreements; `no_price == 1 − yes_price` verified on all 128,915 tape rows), exit is venue
+settlement via `core.settlement_sources`; cost is exactly ONE taker leg at
+`core.pricing.TAKER_FEE_RATE` 0.07. The BINDING MANDATE's always-majority-side benchmark
+decomposition (required only for an ALIVE reading) was correctly **not** built — this reading is
+DEAD, so building it would have added verdict surface without evidence (L41): the mechanism test
+(does FOLLOWING signed flow beat a naive always-YES benchmark) is **owed, not passed**.
+
+Dispatched via `research-lead` -> `edge-prober` (build/run) + independent `verifier` (Agent tool —
+now finally satisfiable for a genuine bootstrap-CI verdict, not just the adequacy/data-adequacy
+class Q53 first proved reachable on 2026-08-07). Verdict: **CONFIRMED-WITH-CORRECTIONS.** The
+verifier re-derived every load-bearing number via a byte-identical re-run PLUS an independently
+written second code path (own JSONL parser, own settlement reader, own grid/flow/entry/fee logic —
+0 disagreements against the producer), corrected 7 non-load-bearing framing issues (minority-unit
+entry counts, a pytest-on-PATH mislabel later traced to a uv-tool-venv/site-packages split not a
+"dependency-less harness", a scope-limit list, an over-claimed `network_calls` measurement), and
+added one material finding: **leave-one-unit-out shows the headline's sign is carried by a single
+23-entry game unit** (drop it -> mean flips to **+$0.03464**; unit-equal mean **+$0.00844**, CI
+[−0.1444, +0.1740]) — the KILL itself is weighting-invariant across every variant tried, but the
+negative point estimate is fragile. Separately surfaced: **both minority-side (NO) units are ALSO
+majority-occupied** (17 and 8 total entries each, only 1 NO entry apiece) — a minority-only
+bootstrap block was never actually reachable, so the signed-flow *conditioning variable* was never
+identified by this test at all; what died is "buy YES on 30-min net flow ≥ 10 contracts, hold to
+settlement," not "signed flow carries no information." New lesson **L323** names this precisely
+(a minority-side unit count satisfied entirely by units the majority already occupies contributes
+no identifying variation — extends L312).
+
+**`kb/strategies/00-index.md`'s S79 row flipped `collect-and-revisit` → `dead ✗`** (conf low,
+unchanged) — the first strategy-registry status change this project has produced through the full
+protocol-v3 two-agent rule on an actual bootstrap CI, as opposed to a data-adequacy/evidence-class
+update (S3/S15, 2026-08-06/07) or a pre-Agent-tool verdict (S68, earlier). S78 is unaffected (its
+own gate — the maker/toxicity side — is separate and stays `collect-and-revisit`). Scope
+explicitly NOT killed: the seconds-to-minutes round-trip exit variant (still unpriceable, S9
+cadence wall) and the underlying signed-flow hypothesis itself (never identified, per above) — any
+revival needs a fresh pre-registration under a new candidate id, never a re-run of this sealed one.
+
+New lessons **L321** (a gate line quoting a bare tool name off `PATH` is not reproducible when
+multiple Python/pytest installs coexist — quote the resolved executable + version, and attribute a
+collection failure to the interpreter split, never to "the harness lacking deps"), **L322** (a
+pooled block-bootstrap mean whose SIGN flips under leave-one-unit-out must ship its LOO extremes
+and unit-equal mean alongside the entry-weighted headline), **L323** (above).
+
+**Paper sub-pass:** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`); `scripts/paper_pass.py`
+advanced idempotently, 0 newly processed (upstream `s14_ladder_fillsim` tape unchanged since the
+last run), no new `paper/` lines, realized P&L unchanged **$+27.76**.
+
+**Gates, fresh after the last edit (L162):** `pytest -q --collect-only` -> **3,676 collected**;
+full run (`python3 -m pytest -q -n 4 --dist loadfile`) -> **exit 0**, 3,676 passed / 0 failed
+(progress-character census: 3,682 dots − 6 xdist "bringing up nodes..." header chars = 3,676,
+matching collect-only exactly; 54m20s wall). `python3 scripts/invariants.py --full` -> exit **0**,
+"invariants: all green" (pre-existing non-gating advisories only, none new or Q54-related).
+
+Files: `scripts/q54_s79_verdict_selfchecks.py` (new, 23 tests), `tests/test_q54_s79_flow_
+continuation_probe.py` (+16 tests, append-only — `test_preregistration_hash_is_sealed` untouched),
+`kb/lessons/00-lessons.md` (+3: L321/L322/L323), `kb/strategies/00-index.md` (S79 row),
+`LOOP-QUEUE.md` (Q54 status + Log of runs), `kb/00-LOG.md` (this entry),
+`findings/2026-08-09-q54-s79-verdict.md` (new — mechanism, sealed-spec provenance, measured
+numbers with source tags, five adversarial self-checks, four scope limits, verifier disposition,
+registry recommendation), `reports/q54_s79_flow_continuation.json`, `reports/q54_s79_verdict_
+selfchecks.json`. Still 0 alive edges — one more candidate honestly killed, the sealed-probe
+methodology (pre-register before the gate opens, self-activate, don't peek) worked exactly as
+designed, and the two-agent rule caught real (if non-load-bearing) errors on its first live
+bootstrap-CI test.
+
+**Next:** Q55's own follow-on (a scanned event/ticker inventory + a live `implication_pairs.yaml`
+family) remains the standing S3/S15 kill-denominator unblocker; Q51 milestone 3 fires 2026-08-10 (tomorrow); no other TODO items — the next run without a fresh gate opening is an idle run.
+
+---
+
 ## 2026-08-09 ~03:1x-05:xxZ UTC — research loop IDLE RUN policy (c): Hyperliquid funding is half-pinned to its own interest baseline, and a third of the Q42 join's windows carry zero information (L318, L319, L320)
 
 Steps 0a/0/0b: history-integrity PASS (`main`'s tip `16921ab` reachable, newest `kb/00-LOG.md`

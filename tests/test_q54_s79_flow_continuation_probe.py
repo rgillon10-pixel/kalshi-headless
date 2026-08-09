@@ -16,6 +16,7 @@ the collector lands a new day — the exact hygiene failure the Q42 pins hit).
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -478,3 +479,174 @@ def test_committed_day_reproduces_on_an_independent_code_path():
     rows = Q.entry_candidates(prints, Q.eligible_tickers(prints))
     assert len(rows) == len(cands)
     assert sorted((r["ticker"], r["side"]) for r in rows) == sorted(cands)
+
+
+# =========================================================================== #
+# ACCEPTANCE — THE GATE IS OPEN (added 2026-08-09, Q54/S79 verdict run)
+#
+# The probe self-activates the moment `population_report()["admissible"]` is True, and on
+# 2026-08-09 both halves of the adequacy gate opened for the first time (24 settled game
+# units vs the floor of 10; 2 minority-side units vs the floor of 2). These tests pin the
+# OUTCOME-DEPENDENT branch that had never executed before.
+#
+# Non-brittleness rule (L320): every quantity that GROWS with honest tape accumulation is
+# asserted as a FLOOR or as a structural relation, never as an equality. A pinned live
+# population constant turns the next committed trade day into a red CI run, which is exactly
+# the event this probe was built to welcome. The one equality that IS pinned lives above and
+# stays pinned on purpose — `test_preregistration_hash_is_sealed`, which must break loudly if
+# the spec is ever tuned after the outcomes became visible.
+# =========================================================================== #
+OUTCOME_DEPENDENT_VERDICTS = {"DEAD-by-population", "DEAD-by-adequacy", "DEAD-by-CI",
+                              "ALIVE-PROVISIONAL"}
+
+# Tags forbidden anywhere in the P&L path: entry is an EXECUTED print and exit is the venue's
+# own settlement, so a quote/midpoint/synthetic token appearing in the report at all would
+# mean the instrument silently changed under the seal (the pt1 wall).
+NON_BROKER_TRUTH_TAGS = ("synthetic", "midpoint", "real_ask", "real_bid")
+
+
+# --------------------------------------------------------------------------- #
+# fee + L52 drop, on synthetic fixtures (the tape is not the thing under test here)
+# --------------------------------------------------------------------------- #
+def test_score_rows_charges_exactly_the_imported_taker_fee_at_every_band_price():
+    """The fee is asserted against the IMPORTED constant, never a literal (L5/L18/L30). The
+    maker-rate comparison is the direction the L5 bug actually went."""
+    from core.pricing import MAKER_FEE_RATE, TAKER_FEE_RATE, fee_per_contract
+
+    prices = [0.02, 0.05, 0.13, 0.27, 0.50, 0.73, 0.91, 0.98]
+    rows = [{"ticker": f"T{i}", "unit": f"G{i}", "side": Q.SIDE_YES, "entry_price": p}
+            for i, p in enumerate(prices)]
+    out = Q.score_rows(rows, {f"T{i}": 1 for i in range(len(prices))})
+    assert len(out) == len(prices)
+    for r, p in zip(out, prices):
+        assert r["fee"] == pytest.approx(fee_per_contract(p, TAKER_FEE_RATE))
+    # and it is genuinely the TAKER rate: at mid-band the two schedules differ 2c vs 1c
+    mid = [r for r, p in zip(out, prices) if p == 0.50][0]
+    assert mid["fee"] == pytest.approx(fee_per_contract(0.50, TAKER_FEE_RATE))
+    assert mid["fee"] != pytest.approx(fee_per_contract(0.50, MAKER_FEE_RATE))
+    assert Q.FEE_RATE == TAKER_FEE_RATE
+
+
+def test_score_rows_charges_exactly_one_fee_leg():
+    """Hold-to-settlement: the exit is the venue's settlement and costs nothing. A second
+    charged leg would show up here as an off-by-one-fee P&L."""
+    from core.pricing import TAKER_FEE_RATE, fee_per_contract
+
+    row = {"ticker": "T", "unit": "G", "side": Q.SIDE_YES, "entry_price": 0.27}
+    out = Q.score_rows([row], {"T": 1})[0]
+    fee = fee_per_contract(0.27, TAKER_FEE_RATE)
+    assert out["pnl"] == pytest.approx(1.0 - 0.27 - fee)
+    assert out["pnl"] != pytest.approx(1.0 - 0.27 - 2 * fee)
+    assert Q.PREREGISTRATION["fee_legs"] == 1
+    assert Q.PREREGISTRATION["fee_side"] == "taker"
+
+
+def test_score_rows_drops_a_losing_side_without_charging_a_second_fee():
+    from core.pricing import TAKER_FEE_RATE, fee_per_contract
+
+    out = Q.score_rows([{"ticker": "T", "unit": "G", "side": Q.SIDE_YES,
+                         "entry_price": 0.60}], {"T": 0})[0]
+    assert out["won"] is False
+    assert out["pnl"] == pytest.approx(0.0 - 0.60 - fee_per_contract(0.60, TAKER_FEE_RATE))
+
+
+def test_non_binary_settlement_never_reaches_a_score_row(tmp_path):
+    """L52 end-to-end: a `scalar` result is DROPPED at `outcome_map`, so `score_rows` has
+    nothing to book — it is never silently scored as a loss."""
+    root = _settlement_root(tmp_path, {"KXAGAME-26AUG03AB-A": "scalar",
+                                       "KXAGAME-26AUG03CD-C": "yes"})
+    om = Q.outcome_map(["KXAGAME-26AUG03AB-A", "KXAGAME-26AUG03CD-C"], root=root)
+    assert om == {"KXAGAME-26AUG03CD-C": 1}
+    rows = [{"ticker": "KXAGAME-26AUG03AB-A", "unit": "G1", "side": Q.SIDE_YES,
+             "entry_price": 0.5},
+            {"ticker": "KXAGAME-26AUG03CD-C", "unit": "G2", "side": Q.SIDE_YES,
+             "entry_price": 0.5}]
+    scored = Q.score_rows(rows, om)
+    assert [r["ticker"] for r in scored] == ["KXAGAME-26AUG03CD-C"]
+
+
+def test_open_gate_report_verdict_vocabulary_on_synthetic_tape(tmp_path):
+    tape, root = _many_game_tape(tmp_path)
+    rep = Q.run(tape_dir=tape, settlement_root=root)
+    assert rep["population"]["admissible"] is True
+    assert rep["verdict"] in OUTCOME_DEPENDENT_VERDICTS
+    assert rep["verdict"] != "GATED-by-adequacy"
+
+
+def test_open_gate_report_carries_no_non_broker_truth_price_tag(tmp_path):
+    tape, root = _many_game_tape(tmp_path)
+    blob = json.dumps(Q.run(tape_dir=tape, settlement_root=root)).lower()
+    assert [t for t in NON_BROKER_TRUTH_TAGS if t in blob] == []
+
+
+# --------------------------------------------------------------------------- #
+# committed tape — the open gate, asserted as FLOORS (L320)
+# --------------------------------------------------------------------------- #
+@_real_tape
+class TestAcceptanceRealTapeOpenGateVerdict:
+    @pytest.fixture(scope="class")
+    def rep(self):
+        return Q.run()
+
+    def test_the_adequacy_gate_is_open(self, rep):
+        pop = rep["population"]
+        assert pop["admissible"] is True
+        assert pop["gate_reasons"] == []
+        assert pop["units_short_of_floor"] == 0
+
+    def test_unit_count_clears_the_l41_floor_and_the_gate_day_count(self, rep):
+        """FLOOR, not equality: the 24 units of 2026-08-09 may only grow."""
+        assert rep["population"]["n_units"] >= 24
+        assert rep["population"]["n_units"] >= Q.MIN_UNITS
+
+    def test_minority_side_units_clear_the_sign_variation_floor(self, rep):
+        sv = rep["population"]["sign_variation"]
+        assert sv["ok"] is True
+        assert sv["minority_side_units"] >= 2
+        assert sv["minority_side_units"] >= Q.MIN_MINORITY_SIDE_UNITS
+        assert set(sv["units_per_side"]) == {Q.SIDE_YES, Q.SIDE_NO}
+
+    def test_verdict_is_from_the_outcome_dependent_vocabulary(self, rep):
+        assert rep["verdict"] in OUTCOME_DEPENDENT_VERDICTS
+        assert rep["verdict"] != "GATED-by-adequacy"
+        assert "gate_note" not in rep
+
+    def test_bootstrap_carries_a_finite_mean_and_both_ci_bounds(self, rep):
+        b = rep["bootstrap"]
+        lo, hi = b["ci95"]
+        assert all(isinstance(x, float) and math.isfinite(x) for x in (b["mean"], lo, hi))
+        assert lo <= b["mean"] <= hi
+        assert b["n_units"] == rep["population"]["n_units"]
+        assert b["n_boot"] == Q.PREREGISTRATION["n_boot"]
+        assert b["seed"] == Q.PREREGISTRATION["seed"]
+
+    def test_scored_population_is_bounded_by_the_settled_candidate_population(self, rep):
+        """Structural, so honest growth cannot red-line it: every scored row is a settled
+        candidate (L52 can only DROP), and every unit carries at least one row."""
+        pop = rep["population"]
+        assert rep["n_scored"] <= pop["n_entry_candidates_settled"]
+        assert rep["n_scored"] >= pop["n_units"]
+        assert rep["bootstrap"]["n_obs"] == rep["n_scored"]
+
+    def test_report_is_broker_truth_taker_single_leg(self, rep):
+        assert rep["price_source_tag"] == "broker_truth"
+        assert rep["fee_side"] == "taker"
+        assert rep["preregistration"]["fee_legs"] == 1
+        assert rep["preregistration"]["exit"] == "hold_to_settlement"
+        assert rep["network_calls"] == 0
+
+    def test_no_non_broker_truth_price_tag_appears_anywhere_in_the_report(self, rep):
+        blob = json.dumps(rep).lower()
+        assert [t for t in NON_BROKER_TRUTH_TAGS if t in blob] == []
+
+    def test_admissibility_and_tick_gate_are_both_reported(self, rep):
+        assert isinstance(rep["admissibility"]["admissible"], bool)
+        assert isinstance(rep["clears_tick_magnitude"], bool)
+        # ALIVE requires BOTH a strictly positive lower bound AND the tick gate (L27)
+        if rep["verdict"] == "ALIVE-PROVISIONAL":
+            assert rep["bootstrap"]["ci95"][0] > 0 and rep["clears_tick_magnitude"] is True
+
+    def test_the_seal_survived_the_gate_opening(self, rep):
+        """Nothing was tuned when the outcomes became visible."""
+        assert rep["preregistration_sha256"] == Q.PREREG_SHA256
+        assert rep["preregistration"]["sealed_on"] == "2026-08-08"

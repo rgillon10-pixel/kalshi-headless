@@ -1,0 +1,209 @@
+{
+  "all_checks_ok": true,
+  "checks": {
+    "A_sign_boundedness": {
+      "admissibility": {
+        "admissible": true,
+        "n_opposing_units": 9,
+        "n_units": 24,
+        "reasons": []
+      },
+      "sign_bounded_objective": {
+        "all_zero_support": false,
+        "inadmissibility_is_definitional": false,
+        "max_value": 0.87,
+        "min_obs": 5,
+        "min_value": -0.88,
+        "n_negative": 75,
+        "n_obs": 133,
+        "n_positive": 58,
+        "n_units": 24,
+        "n_zero": 0,
+        "no_signal": false,
+        "observation_level_straddle_only": false,
+        "one_sided_support": false,
+        "reasons": [],
+        "support_sign": null,
+        "tol": 1e-12,
+        "unit_means_one_sided": false,
+        "verdict_bearing": true,
+        "weak_sample": false
+      },
+      "verdict_is_artifact_of_a_bounded_object": false
+    },
+    "B_unit_integrity": {
+      "n_scored_tickers": 31,
+      "n_tickers_with_a_venue_event_ticker": 31,
+      "n_units": 24,
+      "n_units_carrying_both_outcome_legs": 5,
+      "ok": true,
+      "unit_key_that_is_itself_a_market_ticker": [],
+      "unit_vs_venue_event_ticker_mismatches": [],
+      "units_carrying_both_outcome_legs": {
+        "KXKBOGAME-26JUL070530KIALOT": [
+          "KXKBOGAME-26JUL070530KIALOT-KIA",
+          "KXKBOGAME-26JUL070530KIALOT-LOT"
+        ],
+        "KXMLBGAME-26JUL061915NYMATL": [
+          "KXMLBGAME-26JUL061915NYMATL-ATL",
+          "KXMLBGAME-26JUL061915NYMATL-NYM"
+        ],
+        "KXNPBGAME-26JUL070500FUKORI": [
+          "KXNPBGAME-26JUL070500FUKORI-FUK",
+          "KXNPBGAME-26JUL070500FUKORI-ORI"
+        ],
+        "KXUCLGAME-26JUL07ARARFC": [
+          "KXUCLGAME-26JUL07ARARFC-ARA",
+          "KXUCLGAME-26JUL07ARARFC-RFC",
+          "KXUCLGAME-26JUL07ARARFC-TIE"
+        ],
+        "KXUECLGAME-26JUL07ELBBAT": [
+          "KXUECLGAME-26JUL07ELBBAT-BAT",
+          "KXUECLGAME-26JUL07ELBBAT-ELB",
+          "KXUECLGAME-26JUL07ELBBAT-TIE"
+        ]
+      }
+    },
+    "C_fee": {
+      "distinct_fee_values": [
+        0.01,
+        0.02
+      ],
+      "fee_legs_pre_registered": 1,
+      "fee_rate_is_the_imported_taker_rate": true,
+      "fee_rate_used": 0.07,
+      "hand_derivation": {
+        "agrees": true,
+        "ceil_to_cent_over_100": 0.02,
+        "entry_price": 0.27,
+        "entry_trade_id": "f56b5c0b-60c3-4097-4aa8-701fbf92944d",
+        "fee_charged_by_probe": 0.02,
+        "fee_per_contract_from_core_pricing": 0.02,
+        "imported_TAKER_FEE_RATE": 0.07,
+        "rate_times_p_times_1_minus_p": 0.013797000000000002,
+        "ticker": "KXALLSVENSKANGAME-26JUL11MJAAIK-TIE",
+        "times_100": 1.3797000000000001
+      },
+      "n_rows_violating_the_single_leg_identity": 0,
+      "n_rows_with_a_wrong_fee": 0,
+      "ok": true,
+      "total_fees_charged": 2.34
+    },
+    "D_price_provenance": {
+      "entry_price_source_tags_on_the_raw_tape": [
+        "broker_truth"
+      ],
+      "forbidden_price_tags_in_probe_report": [],
+      "n_entries": 133,
+      "n_entry_prices_disagreeing_with_the_tape_print": 0,
+      "n_entry_prints_not_found_on_the_trade_tape": 0,
+      "n_rows_not_tagged_broker_truth": 0,
+      "ok": true,
+      "settlement_price_source_tags": [
+        "broker_truth"
+      ],
+      "settlement_sources_used": {
+        "q51_settlement_cache": 8,
+        "settlement_ledger": 23
+      }
+    },
+    "E_population": {
+      "entries_per_side": {
+        "no": 2,
+        "yes": 131
+      },
+      "entries_per_unit": {
+        "KXALLSVENSKANGAME-26JUL11MJAAIK": 2,
+        "KXARGPREMDIVGAME-26AUG03CCSLA": 1,
+        "KXASEANGAME-26AUG04MYALAO": 4,
+        "KXBRASILEIROBGAME-26JUL07ATHFER": 3,
+        "KXBRASILEIROCGAME-26JUL06AMAITA": 1,
+        "KXDIMAYORGAME-26AUG02SFEOC": 2,
+        "KXECULPGAME-26JUL01ORETEC": 2,
+        "KXEKSTRAKLASAGAME-26AUG03CRAPSZ": 11,
+        "KXELITESERIENGAME-26JUL11AFKMFK": 2,
+        "KXKBOGAME-26JUL070530KIALOT": 11,
+        "KXKLEAGUEGAME-26JUL11GISBUC": 2,
+        "KXMLBGAME-26AUG032005LADCHC": 23,
+        "KXMLBGAME-26JUL061915NYMATL": 4,
+        "KXNPBGAME-26AUG030500TOHORI": 12,
+        "KXNPBGAME-26JUL070500FUKORI": 17,
+        "KXNWSLGAME-26AUG02DENBOS": 2,
+        "KXNWSLGAME-26JUL10BOSCHI": 2,
+        "KXSCOTTISHPREMGAME-26AUG03CELDUN": 12,
+        "KXUCLGAME-26JUL07ARARFC": 8,
+        "KXUECLGAME-26JUL07ELBBAT": 5,
+        "KXURYPDGAME-26JUL10MALALB": 2,
+        "KXUSLCUPGAME-26JUL11ALTPHO": 2,
+        "KXUSLGAME-26JUL08HAROC": 2,
+        "KXWCGAME-26JUL06USABEL": 1
+      },
+      "entries_per_unit_max": 23,
+      "entries_per_unit_median": 2,
+      "entries_per_unit_min": 1,
+      "entry_days": {
+        "2026-07-07": 51,
+        "2026-07-08": 3,
+        "2026-07-10": 2,
+        "2026-07-11": 8,
+        "2026-07-12": 2,
+        "2026-08-03": 67
+      },
+      "entry_instant_concentration": {
+        "concentrated": false,
+        "entries_per_distinct_instant": 2.418181818181818,
+        "flag_share": 0.5,
+        "max_instant_share": 0.03759398496240601,
+        "n_distinct_instants": 55,
+        "n_entries": 133,
+        "n_unit_instant_pairs": 114,
+        "n_units": 24,
+        "n_units_on_top_instant": 4,
+        "no_signal": false,
+        "single_instant": false,
+        "top_instant": 1783386000.0,
+        "top_instant_count": 5,
+        "unit_share_on_top_instant": 0.16666666666666666
+      },
+      "minority_side_units": 2,
+      "n_entry_candidates_all": 148,
+      "n_entry_candidates_settled": 133,
+      "n_entry_days": 6,
+      "n_scored": 133,
+      "n_units": 24,
+      "trade_days": [
+        "dt=2026-07-07.jsonl",
+        "dt=2026-07-08.jsonl",
+        "dt=2026-07-10.jsonl",
+        "dt=2026-07-11.jsonl",
+        "dt=2026-07-12.jsonl",
+        "dt=2026-08-03.jsonl"
+      ],
+      "units_per_side": {
+        "no": 2,
+        "yes": 24
+      }
+    }
+  },
+  "fee_side": "taker",
+  "generated_at": "2026-08-09T09:23:37.380352+00:00",
+  "network_calls": 0,
+  "price_source_tag": "broker_truth",
+  "probe_bootstrap": {
+    "ci95": [
+      -0.2723703703703705,
+      0.15205882352941175
+    ],
+    "mean": -0.06947368421052634,
+    "n_boot": 10000,
+    "n_obs": 133,
+    "n_units": 24,
+    "seed": 42
+  },
+  "probe_clears_tick_magnitude": false,
+  "probe_preregistration_sha256": "3f56818136b97206e2915af55728cf044735abba6f00754d4d5c3849a280205c",
+  "probe_verdict": "DEAD-by-CI",
+  "queue_item": "Q54",
+  "schema_version": "q54_s79_verdict_selfchecks.v1",
+  "strategy": "S79"
+}

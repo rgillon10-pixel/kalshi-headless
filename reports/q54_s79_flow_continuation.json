@@ -1,39 +1,66 @@
 {
+  "admissibility": {
+    "admissible": true,
+    "n_opposing_units": 9,
+    "n_units": 24,
+    "reasons": []
+  },
+  "bootstrap": {
+    "ci95": [
+      -0.2723703703703705,
+      0.15205882352941175
+    ],
+    "mean": -0.06947368421052634,
+    "n_boot": 10000,
+    "n_obs": 133,
+    "n_units": 24,
+    "seed": 42
+  },
+  "clears_tick_magnitude": false,
   "fee_side": "taker",
-  "gate_note": "gate shut on ['below_min_units', 'no_sign_variation']: 8 settled game units vs the L41 floor of 10 (2 more needed); minority-side units 0 vs floor 2 (units per side {'no': 0, 'yes': 8}). Nothing outcome-dependent was computed: the pre-registration is intact and this file is unchanged from its sealed state.",
-  "gate_reasons": [
-    "below_min_units",
-    "no_sign_variation"
-  ],
-  "generated_at": "2026-08-08T12:36:48.002266+00:00",
-  "n_sports_game_tickers": 38,
-  "n_tickers_with_prints": 42,
+  "generated_at": "2026-08-09T09:20:53.635322+00:00",
+  "n_scored": 133,
+  "n_sports_game_tickers": 62,
+  "n_tickers_with_prints": 66,
   "network_calls": 0,
   "population": {
-    "admissible": false,
+    "admissible": true,
     "entries_per_unit": {
+      "KXALLSVENSKANGAME-26JUL11MJAAIK": 2,
       "KXARGPREMDIVGAME-26AUG03CCSLA": 1,
       "KXASEANGAME-26AUG04MYALAO": 4,
+      "KXBRASILEIROBGAME-26JUL07ATHFER": 3,
+      "KXBRASILEIROCGAME-26JUL06AMAITA": 1,
       "KXDIMAYORGAME-26AUG02SFEOC": 2,
+      "KXECULPGAME-26JUL01ORETEC": 2,
       "KXEKSTRAKLASAGAME-26AUG03CRAPSZ": 11,
+      "KXELITESERIENGAME-26JUL11AFKMFK": 2,
+      "KXKBOGAME-26JUL070530KIALOT": 11,
+      "KXKLEAGUEGAME-26JUL11GISBUC": 2,
       "KXMLBGAME-26AUG032005LADCHC": 23,
+      "KXMLBGAME-26JUL061915NYMATL": 4,
       "KXNPBGAME-26AUG030500TOHORI": 12,
+      "KXNPBGAME-26JUL070500FUKORI": 17,
       "KXNWSLGAME-26AUG02DENBOS": 2,
-      "KXSCOTTISHPREMGAME-26AUG03CELDUN": 12
+      "KXNWSLGAME-26JUL10BOSCHI": 2,
+      "KXSCOTTISHPREMGAME-26AUG03CELDUN": 12,
+      "KXUCLGAME-26JUL07ARARFC": 8,
+      "KXUECLGAME-26JUL07ELBBAT": 5,
+      "KXURYPDGAME-26JUL10MALALB": 2,
+      "KXUSLCUPGAME-26JUL11ALTPHO": 2,
+      "KXUSLGAME-26JUL08HAROC": 2,
+      "KXWCGAME-26JUL06USABEL": 1
     },
-    "gate_reasons": [
-      "below_min_units",
-      "no_sign_variation"
-    ],
+    "gate_reasons": [],
     "min_units": 10,
-    "n_entry_candidates_all": 82,
-    "n_entry_candidates_settled": 67,
-    "n_units": 8,
+    "n_entry_candidates_all": 148,
+    "n_entry_candidates_settled": 133,
+    "n_units": 24,
     "settlement_coverage": {
       "n_listed_unsettled": 29,
       "n_non_binary": 0,
-      "n_requested": 38,
-      "n_settled_binary": 9,
+      "n_requested": 62,
+      "n_settled_binary": 33,
       "n_unresolved": 29,
       "per_source_hits": {
         "crypto_hourly": 0,
@@ -43,7 +70,7 @@
         "q29_settlement_cache": 0,
         "q30_settlement_cache": 0,
         "q51_settlement_cache": 9,
-        "settlement_ledger": 0,
+        "settlement_ledger": 24,
         "weather_actuals": 0
       },
       "sources_absent_on_disk": [],
@@ -60,18 +87,19 @@
       ]
     },
     "side_split": {
-      "yes": 67
+      "no": 2,
+      "yes": 131
     },
     "sign_variation": {
       "min_minority_side_units": 2,
-      "minority_side_units": 0,
-      "ok": false,
+      "minority_side_units": 2,
+      "ok": true,
       "units_per_side": {
-        "no": 0,
-        "yes": 8
+        "no": 2,
+        "yes": 24
       }
     },
-    "units_short_of_floor": 2
+    "units_short_of_floor": 0
   },
   "preregistration": {
     "decision_grid_minutes": 60,
@@ -98,10 +126,16 @@
   "price_source_tag": "broker_truth",
   "queue_item": "Q54",
   "schema_version": "q54_s79_flow_continuation.v1",
-  "status": "INSUFFICIENT DATA",
+  "status": "OK",
   "strategy": "S79",
   "trade_days": [
+    "dt=2026-07-07.jsonl",
+    "dt=2026-07-08.jsonl",
+    "dt=2026-07-10.jsonl",
+    "dt=2026-07-11.jsonl",
+    "dt=2026-07-12.jsonl",
     "dt=2026-08-03.jsonl"
   ],
-  "verdict": "GATED-by-adequacy"
+  "verdict": "DEAD-by-CI",
+  "verdict_note": "ALIVE-PROVISIONAL is PROVISIONAL: protocol v3's two-agent rule requires an independent verifier re-run before this may flip kb/strategies/00-index.md."
 }
