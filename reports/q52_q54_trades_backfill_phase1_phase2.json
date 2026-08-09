@@ -1,0 +1,1575 @@
+{
+  "dry_run": false,
+  "execution": {
+    "bytes_written": 51080313,
+    "cap_bytes": 52428800,
+    "cap_mb": 50.0,
+    "coverage_is_ticker_scoped": true,
+    "coverage_note": "day-files are a ticker-scoped backfill of the listed games only, NOT complete venue days; join against `manifest`, never against a whole dt= file assumed complete",
+    "elapsed_s": 107.0,
+    "end_bytes": 128940326,
+    "manifest": [
+      {
+        "completeness_ok": true,
+        "game": "KXALLSVENSKANGAME-26JUL11MJAAIK",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 2,
+            "n_lines": 0,
+            "n_pulled": 2,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXALLSVENSKANGAME-26JUL11MJAAIK-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 3,
+            "n_lines": 0,
+            "n_pulled": 3,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXALLSVENSKANGAME-26JUL11MJAAIK-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 1472,
+            "n_lines": 0,
+            "n_pulled": 1472,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXALLSVENSKANGAME-26JUL11MJAAIK-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXALLSVENSKANGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXBRASILEIROBGAME-26JUL07ATHFER",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 392,
+            "n_lines": 0,
+            "n_pulled": 392,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROBGAME-26JUL07ATHFER-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 2122,
+            "n_lines": 0,
+            "n_pulled": 2122,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROBGAME-26JUL07ATHFER-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXBRASILEIROBGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXBRASILEIROCGAME-26JUL06AMAITA",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 276,
+            "n_lines": 0,
+            "n_pulled": 276,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROCGAME-26JUL06AMAITA-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXBRASILEIROCGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXCHNSLGAME-26JUL10SHTYUN",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXCHNSLGAME-26JUL10SHTYUN-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 3,
+            "n_lines": 0,
+            "n_pulled": 3,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXCHNSLGAME-26JUL10SHTYUN-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXCHNSLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXECULPGAME-26JUL01ORETEC",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 4,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 3277,
+            "n_lines": 0,
+            "n_pulled": 3277,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXECULPGAME-26JUL01ORETEC-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXECULPGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXELITESERIENGAME-26JUL11AFKMFK",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 1,
+            "n_lines": 0,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXELITESERIENGAME-26JUL11AFKMFK-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 3,
+            "n_lines": 0,
+            "n_pulled": 3,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXELITESERIENGAME-26JUL11AFKMFK-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 1710,
+            "n_lines": 0,
+            "n_pulled": 1710,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXELITESERIENGAME-26JUL11AFKMFK-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXELITESERIENGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXKBOGAME-26JUL070530KIALOT",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 1029,
+            "n_lines": 0,
+            "n_pulled": 1029,
+            "n_tickers": 2,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKBOGAME-26JUL070530KIALOT-KIA",
+              "KXKBOGAME-26JUL070530KIALOT-LOT"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXKBOGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXKLEAGUEGAME-26JUL11GISBUC",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKLEAGUEGAME-26JUL11GISBUC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 3,
+            "n_lines": 0,
+            "n_pulled": 3,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKLEAGUEGAME-26JUL11GISBUC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 1877,
+            "n_lines": 0,
+            "n_pulled": 1877,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKLEAGUEGAME-26JUL11GISBUC-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXKLEAGUEGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXMLBGAME-26JUL061915NYMATL",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 54,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 52937,
+            "n_lines": 0,
+            "n_pulled": 52937,
+            "n_tickers": 2,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXMLBGAME-26JUL061915NYMATL-ATL",
+              "KXMLBGAME-26JUL061915NYMATL-NYM"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXMLBGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXNPBGAME-26JUL070500FUKORI",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 1929,
+            "n_lines": 0,
+            "n_pulled": 1929,
+            "n_tickers": 2,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNPBGAME-26JUL070500FUKORI-FUK",
+              "KXNPBGAME-26JUL070500FUKORI-ORI"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXNPBGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXNWSLGAME-26JUL10BOSCHI",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNWSLGAME-26JUL10BOSCHI-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 57,
+            "n_lines": 0,
+            "n_pulled": 57,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNWSLGAME-26JUL10BOSCHI-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 866,
+            "n_lines": 0,
+            "n_pulled": 866,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNWSLGAME-26JUL10BOSCHI-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXNWSLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUCLGAME-26JUL07ARARFC",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 783,
+            "n_lines": 0,
+            "n_pulled": 783,
+            "n_tickers": 3,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUCLGAME-26JUL07ARARFC-ARA",
+              "KXUCLGAME-26JUL07ARARFC-RFC",
+              "KXUCLGAME-26JUL07ARARFC-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUCLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUECLGAME-26JUL07ELBBAT",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 6,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 4478,
+            "n_lines": 0,
+            "n_pulled": 4478,
+            "n_tickers": 3,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUECLGAME-26JUL07ELBBAT-BAT",
+              "KXUECLGAME-26JUL07ELBBAT-ELB",
+              "KXUECLGAME-26JUL07ELBBAT-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 70,
+            "n_lines": 0,
+            "n_pulled": 70,
+            "n_tickers": 3,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUECLGAME-26JUL07ELBBAT-BAT",
+              "KXUECLGAME-26JUL07ELBBAT-ELB",
+              "KXUECLGAME-26JUL07ELBBAT-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUECLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXURYPDGAME-26JUL10MALALB",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXURYPDGAME-26JUL10MALALB-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXURYPDGAME-26JUL10MALALB-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 1612,
+            "n_lines": 0,
+            "n_pulled": 1612,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXURYPDGAME-26JUL10MALALB-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXURYPDGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUSLCUPGAME-26JUL11ALTPHO",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLCUPGAME-26JUL11ALTPHO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 2,
+            "n_lines": 0,
+            "n_pulled": 2,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLCUPGAME-26JUL11ALTPHO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-12",
+            "max_ts": 1783900800,
+            "min_ts": 1783814400,
+            "n_duplicate": 343,
+            "n_lines": 0,
+            "n_pulled": 343,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLCUPGAME-26JUL11ALTPHO-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUSLCUPGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUSLGAME-26JUL08HAROC",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 3,
+            "n_lines": 0,
+            "n_pulled": 3,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLGAME-26JUL08HAROC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 606,
+            "n_lines": 0,
+            "n_pulled": 606,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLGAME-26JUL08HAROC-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUSLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXWCGAME-26JUL06USABEL",
+        "n_written": 0,
+        "queries": [
+          {
+            "call_count": 14,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 13361,
+            "n_lines": 0,
+            "n_pulled": 13361,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXWCGAME-26JUL06USABEL-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXWCGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXWNBAGAME-26JUL06CONNMIN",
+        "n_written": 27956,
+        "queries": [
+          {
+            "call_count": 29,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 27956,
+            "n_pulled": 27956,
+            "n_tickers": 2,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXWNBAGAME-26JUL06CONNMIN-CONN",
+              "KXWNBAGAME-26JUL06CONNMIN-MIN"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXWNBAGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXALLSVENSKANGAME-26JUL11ORGHAC",
+        "n_written": 4405,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 5,
+            "n_pulled": 5,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXALLSVENSKANGAME-26JUL11ORGHAC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 5,
+            "n_pulled": 5,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXALLSVENSKANGAME-26JUL11ORGHAC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 5,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 4395,
+            "n_pulled": 4395,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXALLSVENSKANGAME-26JUL11ORGHAC-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXALLSVENSKANGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXBRASILEIROBGAME-26JUL08PONCRI",
+        "n_written": 689,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 1,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROBGAME-26JUL08PONCRI-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 688,
+            "n_pulled": 688,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROBGAME-26JUL08PONCRI-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXBRASILEIROBGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXBRASILEIROCGAME-26JUL11CAXFLO",
+        "n_written": 1539,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 1,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROCGAME-26JUL11CAXFLO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROCGAME-26JUL11CAXFLO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 1,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROCGAME-26JUL11CAXFLO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 1537,
+            "n_pulled": 1537,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXBRASILEIROCGAME-26JUL11CAXFLO-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXBRASILEIROCGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXCHNSLGAME-26JUL11CHRCHO",
+        "n_written": 2211,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 1,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXCHNSLGAME-26JUL11CHRCHO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 4,
+            "n_pulled": 4,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXCHNSLGAME-26JUL11CHRCHO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 2206,
+            "n_pulled": 2206,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXCHNSLGAME-26JUL11CHRCHO-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXCHNSLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXECULPGAME-26JUL07SDAGUA",
+        "n_written": 1952,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 58,
+            "n_pulled": 58,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXECULPGAME-26JUL07SDAGUA-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 1894,
+            "n_pulled": 1894,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXECULPGAME-26JUL07SDAGUA-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXECULPGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXELITESERIENGAME-26JUL11FFKLSK",
+        "n_written": 676,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXELITESERIENGAME-26JUL11FFKLSK-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 2,
+            "n_pulled": 2,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXELITESERIENGAME-26JUL11FFKLSK-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 674,
+            "n_pulled": 674,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXELITESERIENGAME-26JUL11FFKLSK-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXELITESERIENGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXKBOGAME-26JUL070530KIWKTW",
+        "n_written": 906,
+        "queries": [
+          {
+            "call_count": 2,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 906,
+            "n_pulled": 906,
+            "n_tickers": 2,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKBOGAME-26JUL070530KIWKTW-KIW",
+              "KXKBOGAME-26JUL070530KIWKTW-KTW"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXKBOGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXKLEAGUEGAME-26JUL11GWAPOH",
+        "n_written": 354,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKLEAGUEGAME-26JUL11GWAPOH-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 1,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKLEAGUEGAME-26JUL11GWAPOH-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 353,
+            "n_pulled": 353,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXKLEAGUEGAME-26JUL11GWAPOH-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXKLEAGUEGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXMLBGAME-26JUL061945MILSTL",
+        "n_written": 28728,
+        "queries": [
+          {
+            "call_count": 30,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 28728,
+            "n_pulled": 28728,
+            "n_tickers": 2,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXMLBGAME-26JUL061945MILSTL-MIL",
+              "KXMLBGAME-26JUL061945MILSTL-STL"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXMLBGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXNPBGAME-26JUL070500HANYOM",
+        "n_written": 3315,
+        "queries": [
+          {
+            "call_count": 4,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 3315,
+            "n_pulled": 3315,
+            "n_tickers": 2,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNPBGAME-26JUL070500HANYOM-HAN",
+              "KXNPBGAME-26JUL070500HANYOM-YOM"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXNPBGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXNWSLGAME-26JUL10OPRKC",
+        "n_written": 2275,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 1,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNWSLGAME-26JUL10OPRKC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 28,
+            "n_pulled": 28,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNWSLGAME-26JUL10OPRKC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 2246,
+            "n_pulled": 2246,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXNWSLGAME-26JUL10OPRKC-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXNWSLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUCLGAME-26JUL07BBLLEV",
+        "n_written": 2397,
+        "queries": [
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 2397,
+            "n_pulled": 2397,
+            "n_tickers": 3,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUCLGAME-26JUL07BBLLEV-BBL",
+              "KXUCLGAME-26JUL07BBLLEV-LEV",
+              "KXUCLGAME-26JUL07BBLLEV-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUCLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUECLGAME-26JUL07UNALAF",
+        "n_written": 4110,
+        "queries": [
+          {
+            "call_count": 6,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 4063,
+            "n_pulled": 4063,
+            "n_tickers": 3,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUECLGAME-26JUL07UNALAF-LAF",
+              "KXUECLGAME-26JUL07UNALAF-TIE",
+              "KXUECLGAME-26JUL07UNALAF-UNA"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 47,
+            "n_pulled": 47,
+            "n_tickers": 3,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUECLGAME-26JUL07UNALAF-LAF",
+              "KXUECLGAME-26JUL07UNALAF-TIE",
+              "KXUECLGAME-26JUL07UNALAF-UNA"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUECLGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXURYPDGAME-26JUL11DANNAC",
+        "n_written": 2950,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXURYPDGAME-26JUL11DANNAC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 1,
+            "n_pulled": 1,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXURYPDGAME-26JUL11DANNAC-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 3,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 2949,
+            "n_pulled": 2949,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXURYPDGAME-26JUL11DANNAC-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXURYPDGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUSLCUPGAME-26JUL11BIRTUL",
+        "n_written": 72,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-10",
+            "max_ts": 1783728000,
+            "min_ts": 1783641600,
+            "n_duplicate": 0,
+            "n_lines": 0,
+            "n_pulled": 0,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLCUPGAME-26JUL11BIRTUL-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-11",
+            "max_ts": 1783814400,
+            "min_ts": 1783728000,
+            "n_duplicate": 0,
+            "n_lines": 7,
+            "n_pulled": 7,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLCUPGAME-26JUL11BIRTUL-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-12",
+            "max_ts": 1783900800,
+            "min_ts": 1783814400,
+            "n_duplicate": 0,
+            "n_lines": 65,
+            "n_pulled": 65,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLCUPGAME-26JUL11BIRTUL-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUSLCUPGAME"
+      },
+      {
+        "completeness_ok": true,
+        "game": "KXUSLGAME-26JUL08SRPRHO",
+        "n_written": 38,
+        "queries": [
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-07",
+            "max_ts": 1783468800,
+            "min_ts": 1783382400,
+            "n_duplicate": 0,
+            "n_lines": 2,
+            "n_pulled": 2,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLGAME-26JUL08SRPRHO-TIE"
+            ],
+            "truncated": false
+          },
+          {
+            "call_count": 1,
+            "completeness_ok": true,
+            "day": "2026-07-08",
+            "max_ts": 1783555200,
+            "min_ts": 1783468800,
+            "n_duplicate": 0,
+            "n_lines": 36,
+            "n_pulled": 36,
+            "n_tickers": 1,
+            "n_truncated_queries": 0,
+            "tickers": [
+              "KXUSLGAME-26JUL08SRPRHO-TIE"
+            ],
+            "truncated": false
+          }
+        ],
+        "series": "KXUSLGAME"
+      }
+    ],
+    "mb_written": 48.714,
+    "n_api_calls": 239,
+    "n_games_incomplete": 0,
+    "n_games_planned": 328,
+    "n_games_pulled": 34,
+    "n_lines_written": 84573,
+    "n_prints_pulled": 173790,
+    "post_hoc_adjustment": "KXWCGAME-26JUL07ARGEGY (35,144 lines, all on dt=2026-07-07) was dropped from committed tape AFTER this run's live pull, discovered only at git push time: with this game included, tape/kalshi_trades/dt=2026-07-07.jsonl was 109,151,185 bytes, exceeding GitHub's 100,000,000-byte single-file limit (the pre-receive hook rejected the whole push). Dropped whole-game (ticker-prefix match, all outcome legs), preserving the script's own whole-game-atomicity contract (L315) \u2014 no partial game was ever committed. Final committed state: 34/328 games, not the 35 this run's live execution() actually pulled; the extra game's data was fetched from the API but is not in git history. A smaller per-run byte cap or day-file sharding (see the open tape-storage-migration PR #166) is needed before any single kalshi_trades day-file can safely approach 100MB again.",
+    "price_source_tag": "broker_truth",
+    "schema_version": "q52_q54_trades_backfill_phase1.v1",
+    "start_bytes": 77860013,
+    "stopped_reason": "byte_cap",
+    "verdict_class": "DATA-COLLECTION (no P&L, no CI, no registry flip)"
+  },
+  "generated_by": "scripts/q52_q54_trades_backfill_phase1.py",
+  "plan_preview": [
+    {
+      "game": "KXALLSVENSKANGAME-26JUL11MJAAIK",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXBRASILEIROBGAME-26JUL07ATHFER",
+      "n_ticker_days": 2
+    },
+    {
+      "game": "KXBRASILEIROCGAME-26JUL06AMAITA",
+      "n_ticker_days": 1
+    },
+    {
+      "game": "KXCHNSLGAME-26JUL10SHTYUN",
+      "n_ticker_days": 2
+    },
+    {
+      "game": "KXECULPGAME-26JUL01ORETEC",
+      "n_ticker_days": 1
+    },
+    {
+      "game": "KXELITESERIENGAME-26JUL11AFKMFK",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXKBOGAME-26JUL070530KIALOT",
+      "n_ticker_days": 2
+    },
+    {
+      "game": "KXKLEAGUEGAME-26JUL11GISBUC",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXMLBGAME-26JUL061915NYMATL",
+      "n_ticker_days": 2
+    },
+    {
+      "game": "KXNPBGAME-26JUL070500FUKORI",
+      "n_ticker_days": 2
+    },
+    {
+      "game": "KXNWSLGAME-26JUL10BOSCHI",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXUCLGAME-26JUL07ARARFC",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXUECLGAME-26JUL07ELBBAT",
+      "n_ticker_days": 6
+    },
+    {
+      "game": "KXURYPDGAME-26JUL10MALALB",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXUSLCUPGAME-26JUL11ALTPHO",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXUSLGAME-26JUL08HAROC",
+      "n_ticker_days": 2
+    },
+    {
+      "game": "KXWCGAME-26JUL06USABEL",
+      "n_ticker_days": 1
+    },
+    {
+      "game": "KXWNBAGAME-26JUL06CONNMIN",
+      "n_ticker_days": 2
+    },
+    {
+      "game": "KXALLSVENSKANGAME-26JUL11ORGHAC",
+      "n_ticker_days": 3
+    },
+    {
+      "game": "KXBRASILEIROBGAME-26JUL08PONCRI",
+      "n_ticker_days": 2
+    }
+  ],
+  "population": {
+    "days_scanned": [
+      "2026-07-07",
+      "2026-07-08",
+      "2026-07-10",
+      "2026-07-11",
+      "2026-07-12",
+      "2026-07-13",
+      "2026-07-14"
+    ],
+    "n_games": 328,
+    "n_sports_eligible_union": 1240,
+    "n_sports_settled_union": 601,
+    "n_ticker_days": 1430,
+    "settlement_price_source_tag": "broker_truth",
+    "settlement_sources_scanned": [
+      "settlement_ledger",
+      "q26_settlement_cache",
+      "q27_settlement_cache",
+      "q29_settlement_cache",
+      "q30_settlement_cache",
+      "q51_settlement_cache",
+      "crypto_hourly",
+      "weather_actuals",
+      "econ_prints"
+    ]
+  },
+  "schema_version": "q52_q54_trades_backfill_phase1.v1",
+  "window_days": [
+    "2026-07-07",
+    "2026-07-08",
+    "2026-07-09",
+    "2026-07-10",
+    "2026-07-11",
+    "2026-07-12",
+    "2026-07-13",
+    "2026-07-14"
+  ]
+}

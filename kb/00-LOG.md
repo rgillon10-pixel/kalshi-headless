@@ -62,6 +62,77 @@ idempotent), realized P&L **$+27.76 unchanged**, no new ledger lines. Files:
 
 ---
 
+## 2026-08-09 ~15:2x-19:4xZ UTC — research loop: Q52/S78 phase-2 trade-print backfill (+17 games,
+cumulative 34/328) plus a GitHub 100MB single-file push rejection caught and repaired, and a
+caught near-duplicate-work convergence with a concurrent run's step-0b sweep
+
+**Step 0a/0/0b.** History-integrity PASS (kb/00-LOG.md newest entry and newest committed tape date
+both 2026-08-09, no rewind signal). Claim check: 6 open PRs found (#330/#271/#208/#191/#166/#125),
+none claiming a queue item still TODO/IN-PROGRESS here — #330 is a retro doc explicitly LEAVE-OPEN-
+for-Ryan, the rest are stale feature branches from prior weeks. Step-0b sweep via
+`scripts/tape_branch_sweep.py --base-ref origin/main --no-fetch` over 243 locally-fetched
+`tape/hourly-*`/`tape/burst-*` branches found 2 genuinely stranded (the other 13 nominal "missing
+line" branches were all `tape/cloud-env-check.md` conflict-marker noise, correctly refused per
+L247): `tape/hourly-202608091000Z` (756 lines: crypto_hourly 2, polymarket_macro_pairs 21,
+sports_pairs 733, all dt=2026-08-09) and `tape/hourly-20260809T0057Z` (2 lines,
+hyperliquid_funding dt=2026-08-09). All 758 union-appended, JSON-validity-checked, no existing
+line touched — this all happened locally, ahead of pushing (see below for what this sweep turned
+out to duplicate).
+
+**Milestone: queue rescan found Q0-Q55 fully DONE/BLOCKED/RESERVED/time-gated/data-gated** (Q54
+closed DEAD this same 3-hour loop window by a prior firing; Q51 milestone-3 time-gated to
+2026-08-10, one day out; Q53/Q55 both closed/extended with no open milestone). Q52/S78 was the one
+item with a concrete, non-Ryan-gated next action already named in its own status ("phase 2 is a
+byte decision, not a discovery") — took it: re-ran `scripts/q52_q54_trades_backfill_phase1.py
+--cap-mb 50` (up from phase-1's 40) over the same committed-tape-only 328-game selection. Idempotent
+on phase-1's 17 games (0 new lines — dedupe confirmed), then live execution pulled **+18 new games
+/ 119,717 new lines / 68.8MB**, all `price_source_tag: broker_truth`.
+
+**Push rejected — a real infra blocker, caught and repaired before anything landed.** The first
+`git push` failed outright: with all 18 games committed, `tape/kalshi_trades/dt=2026-07-07.jsonl`
+measured 109,151,185 bytes, over GitHub's 100,000,000-byte single-file limit (pre-receive hook
+declined the whole branch). Dropped exactly one whole game — `KXWCGAME-26JUL07ARGEGY` (35,144
+lines, all on dt=2026-07-07, ticker-prefix matched across every outcome leg so no game was ever
+partially committed, preserving L315's whole-game-atomicity contract) — before re-committing.
+**Final committed state: +17 new games / 84,573 new lines / 48.7MB, cumulative 34/328 games**, 0
+incomplete on the retained set; the dropped game's prints were fetched from the API but never
+entered git history. `07-13`/`07-14` still uncovered (round-robin order hasn't reached either
+day). Still short of a pre-registered ≤4-cell train/holdout population on both sides for S78's
+toxicity design — flagged that a per-cell quota strategy would converge faster than continuing
+byte-capped passes, AND that the phase-N-cap pattern now needs a day-file-size guard of its own
+before it can safely resume (the open tape-storage-migration PR #166 is the standing fix; not
+built here). No registry change: S78 stays idea-stage `collect-and-revisit`. Two-agent rule N/A
+(data-collection class, L287/L288/L290/L291/L295/L308/L313 precedent).
+
+**Near-duplicate work caught at `git pull --rebase`, not before.** By the time this run's gates
+finally passed (the full suite runs long against the now much larger tape corpus) and it tried to
+push, `origin/main` had moved 28 commits — including the concurrent **12:2x-14:xxZ IDLE RUN**
+(L319 ratchet, see the entry above) which independently ran the SAME step-0b sweep, found the SAME
+2 stranded branches, recovered the SAME 758 lines, hit the SAME `max_multiplicity` 2->3 break in
+`tests/test_hl_funding_tape_quality.py::test_real_tape_hour_coverage_has_no_holes_and_starts_at_launch`,
+and already fixed it — with a better fix than this run's own (`>=2`, matching this file's own
+"survive tape growth" convention, versus this run's brittle `==3`). The rebase surfaced this
+cleanly: the 4 tape-file hunks applied as pure no-ops (byte-identical content, so nothing
+duplicated in the data), and only 3 prose files conflicted (this log, `LOOP-QUEUE.md`'s Log of
+runs, and the test file). Resolved by keeping the already-merged `>=2` pin, keeping both runs'
+narrative entries in their respective logs, and NOT re-doing or reverting either side's genuinely
+independent work — this run's actual net-new contribution is the Q52/S78 backfill and the GitHub
+100MB catch above; the step-0b recovery itself is credited to the run that merged first.
+
+Gates AFTER rebase + conflict resolution: `pytest -q -n 4` → 0 failures, ~3,655 collected (full
+suite); `python3 scripts/invariants.py --full` → exit 0, all green, same non-gating advisories as
+before (none newly introduced; confirmed the S78/S79 `unscoped` advisory reads correctly after a
+registry-row edit briefly introduced a literal `KX...` ticker into the S78 row, caught and fixed
+before commit per L299's registration-surface guard). Step 9: `execution/strategy_api.
+SHADOW_REGISTRY` unchanged from prior runs — no new shadow strategies to advance this run.
+
+Files: `scripts/q52_q54_trades_backfill_phase1_phase2.json` (report), 4 recovered tape day-files,
+5 kalshi_trades day-files (idempotent re-touch + new prints), `tests/test_hl_funding_tape_quality.py`,
+`findings/2026-08-09-q52-q54-phase2-trade-print-backfill.md`, `LOOP-QUEUE.md`,
+`kb/strategies/00-index.md` (S78 row).
+
+---
+
 ## 2026-08-09 ~06:xx-13:xxZ UTC — research loop: Q54/S79's sealed probe fired for the first time — verdict DEAD-by-CI, two-agent verifier-CONFIRMED (L321/L322/L323); plus a step-0b tape recovery and a caught near-duplicate-work error
 
 **Step 0a/0/0b.** History-integrity PASS (no rewind). Step-0b sweep via `scripts/tape_branch_sweep.py
