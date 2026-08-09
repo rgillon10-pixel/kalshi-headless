@@ -6,6 +6,62 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-09 ~18:0x-19:3xZ UTC — research loop IDLE RUN policy (a): L322 (Kish effective n) converted UNENFORCED -> test
+
+**Step 0a/0/0b.** History-integrity PASS: `git fetch origin main` fast-forwarded local `main`
+28 commits to `64a0f2c` (this session's initial `git checkout main` attached to a stale
+pre-existing local branch 28 commits behind — the exact un-numbered trap the 06:xx-13:xxZ
+entry below flagged for a future protocol pass, not yet a lesson row; caught immediately
+this time via `git log`/`git rev-parse` against `origin/main` before reading anything else,
+so no stale-file re-read happened here). No open
+PR claims any TODO/IN-PROGRESS queue item (`#330`/`#271`/`#125` are standing "LEAVE OPEN for
+Ryan" retro docs, not claims). Newest `kb/00-LOG.md` entry and newest tape (`dt=2026-08-09`)
+agree within the 2-day bound. Step-0b: no branches younger than 30 min found stranded past
+what the prior run already swept.
+
+**Queue re-verified drained.** Every `Qn` section reads DONE/BLOCKED/RESERVED/time-gated/
+data-gated at its current Status line (Q53/Q54 both CLOSED as of the prior run; Q51
+milestone 3 is time-gated to **2026-08-10**, i.e. tomorrow — not yet open). Idle-run policy
+(a) applies: `kb/lessons/00-lessons.md`'s open `UNENFORCED` rows were re-surveyed
+(`L318`, `L320`, `L321`, `L322`, `L323` — the newest, from the just-closed Q54/S79 verdict).
+L318/L320/L321/L323 all name a next step that would touch a FROZEN or SEALED script
+(`q42_crossvenue_funding_join.py`'s pinned gate, `q54_s79_flow_continuation_probe.py`'s L311
+seal) and are explicitly deferred by their own text. **L322 is the one buildable candidate**:
+its named next step is a standalone, generally-reusable helper in `core/bootstrap.py` that
+does not touch any sealed probe.
+
+**The milestone.** Built `core/bootstrap.py::kish_effective_n(unit_sizes)` — Kish's effective
+sample size `(Σn_i)²/Σ(n_i²)` for a set of per-unit observation counts, the reporting
+companion L322 asked for: a pooled (not equal-weighted) block bootstrap's raw `n_units`
+overstates independence when block sizes are ragged, and this makes the discount
+machine-computable instead of an eyeballed "~11.6" in prose. Returns `n_units`/`n_obs`/
+`kish_n`/`design_effect`, with the module's usual empty/zero-input honesty (`None`s, never a
+fabricated 0.0) and a `ValueError` on a negative size. Deliberately does **not** touch
+`scripts/q54_s79_flow_continuation_probe.py` itself — that stays sealed per L311 mid-verdict,
+same posture L309/L321/L323 already took; this is a standalone helper any future probe can
+call, not a patch to Q54's own report. 9 new tests in `tests/test_bootstrap.py`, including a
+REAL-TAPE acceptance test that reproduces L322's own numbers from the committed
+`reports/q54_s79_flow_continuation.json`: the 24 real game-block sizes give
+`kish_n == 11.629848783694937` (matches "~11.6" exactly) against `n_units=24`/`n_obs=133` —
+confirming the raw unit count implies 2.4x headroom over the L41 floor of 10 while the
+ragged blocks actually deliver ~1.16x. `kb/lessons/00-lessons.md` L322's enforcement cell
+moved `UNENFORCED` -> `test` (original cell preserved verbatim per the L152/L214 precedent);
+lesson TEXT unchanged.
+
+Not verdict-class (a shared-library addition + tests, no registry flip, no bootstrap CI, no
+kill decision) — two-agent rule N/A, matching the L318/L319/L320 idle-run precedent from
+earlier today's runs. Gates AFTER the last code change: `pytest -q -n 4` → **3600 passed, 0
+failed** (full suite, ~fresh install of `pytest-xdist`, same as the prior run's cadence);
+`python3 scripts/invariants.py --full` → exit **0**, all green (same pre-existing non-gating
+advisories as the prior run, none newly introduced). **Step 9:** `SHADOW_REGISTRY` is
+non-empty (`s14_ladder_underwriting`); ran `scripts/paper_pass.py` over tape appended since
+the ledger's last entry — 0 processed (274 deferred(coverage), 300 already-in-ledger,
+idempotent), realized P&L **$+27.76 unchanged**, no new ledger lines. Files:
+`core/bootstrap.py`, `tests/test_bootstrap.py`, `kb/lessons/00-lessons.md`, `LOOP-QUEUE.md`,
+`kb/00-LOG.md`.
+
+---
+
 ## 2026-08-09 ~06:xx-13:xxZ UTC — research loop: Q54/S79's sealed probe fired for the first time — verdict DEAD-by-CI, two-agent verifier-CONFIRMED (L321/L322/L323); plus a step-0b tape recovery and a caught near-duplicate-work error
 
 **Step 0a/0/0b.** History-integrity PASS (no rewind). Step-0b sweep via `scripts/tape_branch_sweep.py

@@ -70,6 +70,50 @@ def block_bootstrap(unit_values: Dict[str, Sequence[float]], *, n_boot: int = 10
     }
 
 
+def kish_effective_n(unit_sizes: Sequence[int]) -> dict:
+    """The L322 reporting companion to `block_bootstrap`: when blocks are ragged in size,
+    the raw unit count overstates how independent the pooled mean actually is — report
+    Kish's effective sample size beside it.
+
+    `block_bootstrap` pools every unit's observations with EQUAL PER-OBSERVATION weight
+    (the correct choice for L6's blocking discipline — each unit still gets resampled as
+    a whole block), which means a 23-observation unit counts 23x as heavily toward the
+    pooled mean as a 1-observation unit. Comparing the resulting `n_units` against an
+    adequacy floor (`bootstrap_verdict_admissible`'s `min_units`) then reads as if all
+    units carried equal weight. Kish's formula, `(sum(n_i))**2 / sum(n_i**2)`, is the
+    classic survey-sampling answer to "how many EQUALLY-sized units would give the same
+    precision as this ragged mixture" — it equals `n_units` exactly when every block is
+    the same size and falls below it as sizes get more unequal. Q54/S79's real block
+    sizes (24 game-units, 133 pooled entries, sizes from 23 down to 1) give a Kish n of
+    ~11.6: 2.4x headroom over the L41 floor of 10 reads as ~1.16x once size is accounted
+    for.
+
+    `unit_sizes` is the caller's own per-unit observation COUNT (e.g. `len(v) for v in
+    unit_values.values()`, the same `unit_values` mapping `block_bootstrap` takes) — this
+    function reads no tape/report fields itself, same discipline as `bracket_by_movement`.
+    A negative size raises `ValueError` rather than silently corrupting the sums.
+
+    Returns `n_units` (count of entries, including any zero-size ones), `n_obs` (their
+    sum), `kish_n` (the effective sample size, `None` when `n_obs == 0` — an honest
+    undefined ratio rather than a fabricated 0.0), and `design_effect`
+    (`n_units / kish_n`, `None` when undefined) — `design_effect == 1.0` only when every
+    unit is the same size, and grows without bound as block sizes get more ragged.
+    """
+    sizes = [int(s) for s in unit_sizes]
+    for s in sizes:
+        if s < 0:
+            raise ValueError(f"unit_sizes must be non-negative (got {s})")
+    n_units = len(sizes)
+    n_obs = sum(sizes)
+    if n_obs == 0:
+        return {"n_units": n_units, "n_obs": 0, "kish_n": None, "design_effect": None}
+    kish_n = (n_obs ** 2) / sum(s * s for s in sizes)
+    return {
+        "n_units": n_units, "n_obs": n_obs, "kish_n": kish_n,
+        "design_effect": (n_units / kish_n) if kish_n else None,
+    }
+
+
 def bootstrap_verdict_admissible(unit_values: Dict[str, Sequence[float]], *,
                                   min_units: int = 10) -> dict:
     """The L41 degeneracy gate: a cluster bootstrap whose units ALL resolved the same
