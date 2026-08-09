@@ -639,13 +639,24 @@ def scan_db(db_path: Path) -> List[str]:
 
 def _git_tape_refs() -> List[str]:
     """Local-clone knowledge of `tape/hourly-*` fallback branches (both origin-tracking and
-    local heads). The hourly collector's push to main fails intermittently and strands tape on
-    these refs (lesson L17). This is a best-effort, fully offline-safe probe: ANY failure
-    (missing git, nonzero exit, timeout, exception) yields [] so it can never poison the gate."""
+    local heads), PLUS the `claude/determined-goodall-*` pattern (lesson L317): the
+    kalshi-collector Routine's own CCR session-outcome branch, configured in its trigger as
+    `outcomes: [{"branches": ["claude/determined-goodall"]}]`. When the collector's own
+    in-prompt git fallback (push to `tape/hourly-<ts>Z`) ALSO fails, CCR's session-exit
+    auto-commit is what actually saves the working tree, and it lands there instead — a
+    pattern the original `tape/hourly-*`-only sweep could never see, so tape stranded that
+    way accumulated silently (measured 2026-08-09: 7,114 real capture lines, 4 commits,
+    across 2026-08-06..08, found only by a content-level diff against every remote branch,
+    not by this name-pattern probe). This is a best-effort, fully offline-safe probe: ANY
+    failure (missing git, nonzero exit, timeout, exception) yields [] so it can never poison
+    the gate."""
     try:
         out = subprocess.run(
             ["git", "-C", str(ROOT), "for-each-ref",
              "refs/remotes/origin/tape/hourly-*", "refs/heads/tape/hourly-*",
+             "refs/remotes/origin/tape/burst-*", "refs/heads/tape/burst-*",
+             "refs/remotes/origin/claude/determined-goodall-*",
+             "refs/heads/claude/determined-goodall-*",
              "--format=%(refname:short)"],
             capture_output=True, text=True, timeout=5,
         )
@@ -657,17 +668,20 @@ def _git_tape_refs() -> List[str]:
 
 
 def stranded_tape_warning(refs: List[str]) -> Optional[str]:
-    """A non-gating advisory message when local tape/hourly-* refs exist, else None. Pure."""
+    """A non-gating advisory message when local collector-fallback refs (`tape/hourly-*`,
+    `tape/burst-*`, or the CCR session-outcome `claude/determined-goodall-*`, per L317) exist,
+    else None. Pure."""
     if not refs:
         return None
     n = len(refs)
     examples = ", ".join(refs[:3]) + (", ..." if n > 3 else "")
     return (
-        f"warning (non-gating): {n} local tape/hourly-* ref(s) known to this clone "
-        f"(e.g. {examples}). These are LOCAL refs as of the last fetch — they may carry tape "
-        f"lines `main` is missing. This is advisory only and does NOT affect the exit code; "
-        f"run LOOP-QUEUE step 0b (git fetch origin, then the union-append line-set sweep) to "
-        f"reconcile them before trusting the canonical tape."
+        f"warning (non-gating): {n} local collector-fallback ref(s) known to this clone "
+        f"(tape/hourly-*, tape/burst-*, claude/determined-goodall-* — e.g. {examples}). These "
+        f"are LOCAL refs as of the last fetch — they may carry tape lines `main` is missing. "
+        f"This is advisory only and does NOT affect the exit code; run LOOP-QUEUE step 0b "
+        f"(git fetch origin, then a CONTENT-level diff against main, not just a name-pattern "
+        f"match — L317) to reconcile them before trusting the canonical tape."
     )
 
 
@@ -2417,7 +2431,22 @@ def econ_prints_settlement_regression_warning(issues: List[Dict[str, object]]) -
 # wrong trade — so the day is allowlisted to be reported as a KNOWN fact rather than
 # re-flagged as a fresh collector regression every run. See L301 and
 # `findings/2026-08-07-settlement-source-registry-and-recovery-verification.md`.
-WEATHER_BOOKS_META_DUP_ALLOWLIST = frozenset({"2026-07-27", "2026-08-07"})
+
+# `2026-08-06` (added 2026-08-09, research-loop step-0b sweep-gap recovery, L317): a THIRD
+# instance of the identical mechanism. `claude/determined-goodall-*` (a CCR session-outcome
+# branch the standing sweep never checked — L317) carried the day's SECOND weather_books meta
+# write (capture `20260806T040620Z`, 48 keys, commit `8aff5571`, "tape: hourly pass final
+# 2026-08-06T04:06:20Z") and its push to `main` failed; the day's FIRST pass
+# (`20260806T010624Z`) had already landed. Recovering the stranded second pass necessarily
+# re-created all 48 duplicate keys — 5 of them (the `KXTEMP*H`/`hourly` series) differing in
+# `rules_primary`/`sample_ticker`, the SAME content-divergence shape as 2026-07-27 (the two
+# passes sampled different hourly-directional contract instances) — the same write-once-per-day
+# / recover-the-other-race-loser shape as 2026-08-07, just found later because the branch it
+# stranded on was outside the sweep's name-pattern list until this run. Kept for the same
+# reason: the duplicate rows are REAL captures, dropping them to quiet a warning is the wrong
+# trade. See L317 and
+# `findings/2026-08-09-stranded-tape-sweep-gap-and-recovery.md`.
+WEATHER_BOOKS_META_DUP_ALLOWLIST = frozenset({"2026-07-27", "2026-08-06", "2026-08-07"})
 
 
 def _weather_books_meta_duplicate_issues(

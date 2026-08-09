@@ -6,6 +6,68 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-09 ~00:1x-01:xxZ UTC — the standing tape sweep only checked two of three fallback branch shapes; recovered 7,114 stranded lines and found the VPS collector dead 65h (L317)
+
+Steps 0a/0/0b: history-integrity PASS (main's tip `386ffc4` matches the 5 most recently merged
+PRs #324/#323/#322/#321/#320; newest `kb/00-LOG.md` entry 2026-08-08, newest `tape/*/dt=*` file
+2026-08-07, within the 2-day bound); claim-check found only the standing Ryan-review-only PRs
+(#271/#208/#191/#166/#165/#125), none claiming a live queue item.
+
+The routine step-0b sweep (`git ls-remote ... tape/hourly-* tape/burst-*`) found only long-since
+-recovered branches. Before trusting that "clean" reading, enumerated EVERY remote branch by
+commit recency instead of by name pattern (`git for-each-ref --sort=-committerdate`) — the
+single newest commit on the entire remote sat on `claude/determined-goodall-5llz9l`, a CCR
+session-outcome branch the sweep's name-pattern list had never included. That branch family
+(`claude/determined-goodall-*`) is where the kalshi-collector Routine's own trigger config
+(`outcomes.git_repository.git_info.branches`) lands tape whenever BOTH its push to `main` and
+its manual `tape/hourly-*` fallback fail. Content-diffing the small (<=3-commits-ahead, to
+exclude squash-merged research branches whose raw ancestry overstates "stranded") candidates
+against `main`'s CURRENT files found **4 commits / 7,114 real capture lines** genuinely missing
+(2026-08-06 04:12 through 2026-08-08 16:05; weather_books, crypto_hourly,
+polymarket_macro_pairs, sports_pairs, hyperliquid_funding, orderbook_depth, perp_tape).
+Union-appended, every line re-validated as JSON, none reordered.
+
+**What the recovered data revealed**, via the pre-existing (L117/L129) COLLECTOR HEALTH
+ADVISORY in `scripts/invariants.py --full` (which reads committed tape only, so it had been
+blind to the same stranded lines): the **`vps` leg has been silent 65.1 hours** (last seen
+2026-08-06T07:23:15Z) — a dead VPS cron that "cannot be fixed from a cloud run; fix = restart
+the cron on the machine that owns it," per the tool's own text. The `cloud` leg is healthier
+than `main` alone showed (8.5h silent after recovery vs. 23.3h before — one bad sample from
+tripping the same >=24h bucket the vps leg is already in), but its two most recent scheduled
+firings (18:53 and 21:53 UTC on 2026-08-08, per the Routine's own `last_fired_at`) left no
+commit anywhere — not on `main`, not on any known fallback branch — so either they captured
+nothing new or failed before committing; not resolved this run.
+
+Closed the detection gap itself: `scripts/invariants.py::_git_tape_refs` now also probes
+`refs/*/tape/burst-*` and `refs/*/claude/determined-goodall-*` (previously only
+`tape/hourly-*`), with `stranded_tape_warning`'s message updated to point at a content-level
+diff rather than a name-pattern match.
+
+Recovering the `weather_books` meta line for 2026-08-06 turned out to be a THIRD live
+occurrence of the already-documented L281/L301 "recover a race-loser" duplicate-write
+pattern (write-once-per-`(series,group)`-per-day, two independent passes both wrote it) —
+`WEATHER_BOOKS_META_DUP_ALLOWLIST` extended to `{2026-07-27, 2026-08-06, 2026-08-07}` with
+the same rigor as the existing entries, and the two hard-coded test pins that named exactly
+the prior two days (`test_acceptance_l281_real_tape_reproduces_the_2026_07_27_incident`,
+`test_weather_books_meta_allowlist_names_the_two_known_incident_days_L301`) updated plus one
+new acceptance test mirroring the existing 2026-08-07 one. 3 new tests total in
+`tests/test_invariants.py`. **Gates, fresh after the final edit:** `pytest -q` run as 6
+disjoint file-shards (serial `test_invariants.py` alone runs ~45-60min) then the shard
+carrying it fully re-run after the pin fixes — `--collect-only` **3,613 collected**, 0 failed
+anywhere; `python3 scripts/invariants.py --full` → exit **0**, "invariants: all green" (17
+non-gating advisories, all pre-existing shapes). Paper sub-pass: `SHADOW_REGISTRY` non-empty
+(`s14_ladder_underwriting`); `scripts/paper_pass.py` advanced idempotently, 0 newly
+processed (unchanged upstream `s14_ladder_fillsim` tape), no new `paper/` lines, realized
+P&L unchanged $+27.76.
+
+DATA-COLLECTION + tooling, non-verdict-class (two-agent rule N/A: no registry flip, no
+bootstrap CI, no kill decision). Residual, honestly scoped: ~350 old squash-merged
+research/idle-run branches (600+ commits "ahead" of `main` by raw ancestry, an artifact of
+squash-merge, not evidence of real data loss) were not content-diffed this run — a
+multi-hour job at this repo's tape size, left for a future run if branch cleanup ever needs it.
+See `findings/2026-08-09-stranded-tape-sweep-gap-and-recovery.md`, `kb/lessons/00-lessons.md`
+L317.
+
 ## 2026-08-08 ~18:1x-19:5xZ UTC — the phase-1 trade-print backfill ran: S79's data gate is OPEN (24 units vs a floor of 10) (L314, L315)
 
 Steps 0a/0/0b were established by the orchestrating session before this leg: history-integrity PASS

@@ -132,6 +132,35 @@ def test_git_tape_refs_returns_list_without_raising():
     assert all(isinstance(r, str) for r in refs)
 
 
+def test_git_tape_refs_probes_determined_goodall_pattern(monkeypatch):
+    # L317: the collector Routine's CCR session-outcome branch (claude/determined-goodall-*)
+    # must be in the probed ref patterns, not just tape/hourly-* / tape/burst-* — that gap let
+    # 7,114 real capture lines (2026-08-06..08) go undetected by this exact function.
+    captured_args = {}
+
+    class FakeResult:
+        returncode = 0
+        stdout = ""
+
+    def fake_run(args, **kwargs):
+        captured_args["args"] = args
+        return FakeResult()
+
+    monkeypatch.setattr(inv.subprocess, "run", fake_run)
+    inv._git_tape_refs()
+    joined = " ".join(captured_args["args"])
+    assert "claude/determined-goodall-*" in joined
+    assert "tape/hourly-*" in joined
+    assert "tape/burst-*" in joined
+
+
+def test_stranded_tape_warning_message_content_determined_goodall():
+    msg = inv.stranded_tape_warning(["origin/claude/determined-goodall-5llz9l"])
+    assert msg is not None
+    assert "origin/claude/determined-goodall-5llz9l" in msg
+    assert "non-gating" in msg
+
+
 def test_stranded_tape_warning_never_gates_exit_code(monkeypatch, capsys):
     # Even with stranded refs present, a clean tree must still exit 0 — warnings never gate.
     monkeypatch.setattr(inv, "_git_tape_refs", lambda: ["origin/tape/hourly-FAKE"])
@@ -2227,12 +2256,20 @@ def test_acceptance_l281_real_tape_reproduces_the_2026_07_27_incident():
     assert issue["n_keys"] == 48
     n_content_differs = sum(1 for d in issue["duplicates"] if d["differing_fields"])
     assert n_content_differs == 5
-    # Every OTHER committed day-file must be clean, with exactly ONE documented exception:
-    # dt=2026-08-07, created by this repo's own step-0b recovery of the day's first (stranded)
-    # meta write on 2026-08-07 — same mechanism, different cause (L301). A THIRD day here
-    # would be new information and must fail this pin.
-    other_days_dirty = [i["day"] for i in issues if i["day"] != "2026-07-27"]
-    assert other_days_dirty == ["2026-08-07"], other_days_dirty
+    # Every OTHER committed day-file must be clean, with exactly TWO documented exceptions:
+    # dt=2026-08-07 (this repo's own step-0b recovery of the day's first (stranded) meta write,
+    # L301) and dt=2026-08-06 (the same recover-a-race-loser mechanism, found later because the
+    # branch it stranded on — `claude/determined-goodall-*` — was outside the sweep's
+    # name-pattern list until L317). A FOURTH day here would be new information and must fail
+    # this pin.
+    other_days_dirty = sorted(i["day"] for i in issues if i["day"] != "2026-07-27")
+    assert other_days_dirty == ["2026-08-06", "2026-08-07"], other_days_dirty
+    issue_0806 = by_day["2026-08-06"]
+    assert issue_0806["allowlisted"] is True
+    assert issue_0806["n_duplicate_keys"] == 48
+    assert issue_0806["n_keys"] == 48
+    n_content_differs_0806 = sum(1 for d in issue_0806["duplicates"] if d["differing_fields"])
+    assert n_content_differs_0806 == 5
     msg = inv.weather_books_meta_duplicate_warning(issues)
     assert msg is not None
     assert "known historical incident" in msg
@@ -2982,12 +3019,15 @@ def test_acceptance_l285_real_tape_reproduces_the_2026_07_28_cross_family_incide
 
 
 # ─── L301: the 2026-08-07 weather_books-meta duplicate is a RECOVERY artifact ────────────
-def test_weather_books_meta_allowlist_names_the_two_known_incident_days_L301():
-    """2026-07-27 (two racing live writers, L281) and 2026-08-07 (this repo's own step-0b
-    recovery of the day's FIRST meta write, whose push had failed). Both are real captures
-    with distinct capture_ids that append-only tape cannot un-commit; neither is a collector
-    regression. A third day appearing here must be argued for, not added quietly."""
-    assert inv.WEATHER_BOOKS_META_DUP_ALLOWLIST == frozenset({"2026-07-27", "2026-08-07"})
+def test_weather_books_meta_allowlist_names_the_three_known_incident_days_L301_L317():
+    """2026-07-27 (two racing live writers, L281), 2026-08-07 (this repo's own step-0b
+    recovery of the day's FIRST meta write, whose push had failed, L301), and 2026-08-06
+    (the identical recover-a-race-loser mechanism, found later because the branch it
+    stranded on was outside the sweep's name-pattern list until L317). All three are real
+    captures with distinct capture_ids that append-only tape cannot un-commit; none is a
+    collector regression. A fourth day appearing here must be argued for, not added quietly."""
+    assert inv.WEATHER_BOOKS_META_DUP_ALLOWLIST == frozenset(
+        {"2026-07-27", "2026-08-06", "2026-08-07"})
 
 
 def test_acceptance_real_tape_20260807_meta_duplicate_reads_as_known_not_new_L301():
@@ -3002,4 +3042,20 @@ def test_acceptance_real_tape_20260807_meta_duplicate_reads_as_known_not_new_L30
     assert day[0]["allowlisted"] is True
     msg = inv.weather_books_meta_duplicate_warning(issues)
     assert msg is None or "dt=2026-08-07" not in msg.split("NEW regression")[-1].split(
+        "known historical incident")[0]
+
+
+def test_acceptance_real_tape_20260806_meta_duplicate_reads_as_known_not_new_L317():
+    """HARD, against real committed tape: dt=2026-08-06 carries 48 duplicated (series,group)
+    keys from two genuine captures (recovered by the 2026-08-09 sweep-gap fix, L317), and the
+    advisory must report it as a known incident, never a fresh regression."""
+    meta = ROOT / "tape" / "weather_books" / "meta" / "dt=2026-08-06.jsonl"
+    if not meta.exists():
+        pytest.skip("weather_books meta tape absent")
+    issues = inv._weather_books_meta_duplicate_issues()
+    day = [i for i in issues if i["day"] == "2026-08-06"]
+    assert day, "expected the recovered 2026-08-06 meta duplicate to be detected"
+    assert day[0]["allowlisted"] is True
+    msg = inv.weather_books_meta_duplicate_warning(issues)
+    assert msg is None or "dt=2026-08-06" not in msg.split("NEW regression")[-1].split(
         "known historical incident")[0]
