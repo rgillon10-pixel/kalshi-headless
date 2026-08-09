@@ -509,6 +509,75 @@ def inv_no_raw_datetime_fromisoformat(path: Path, text: str) -> Optional[str]:
                 f"LEGACY_RAW_FROMISOFORMAT_SITES may only shrink, never rise")
 
 
+# ─── Collector self-tape-read cursor-persistence triage (L319: GATING, allowlisted) ──
+#
+# L319 (2026-08-09): an incremental collector that computes its resume point by reading its
+# OWN already-committed tape (`glob("dt=*.jsonl")`) makes a branch-local dedup race
+# detectable directly from tape ONLY if the computed resume key (or an equivalent field
+# combination) is persisted on the record it emits. `collection/hyperliquid_funding.py`
+# already does this (`start_ms` on every record) — exactly what let a 2026-07-26 `git log -S`
+# archaeology finding become a pure-tape audit this run (`scripts/hl_funding_tape_quality.py`,
+# 13/79 regressions per coin measured directly from committed tape, no git history needed).
+#
+# Whether a given collector's read of its own tape is THIS shape (a self-referential resume
+# computation, vs. e.g. reading a DIFFERENT family's tape to pick targets) is a semantic,
+# per-file judgment — not a syntactic pattern (L319's own text). So this is enforced as a
+# RATCHET, the same discipline as LEGACY_RAW_FROMISOFORMAT_SITES above: every collection/*.py
+# module that reads its own committed tape via the `glob("dt=` day-partition idiom must have
+# a triage entry below recording whether its resume key is audit-sufficient (persisted on the
+# emitted record) and why. An UNTRIAGED module with a hit is a GATING failure — the whole
+# point is that a newly-added incremental collector can't silently skip this judgment. The
+# dict may only grow; deleting an entry to silence this check defeats its purpose.
+COLLECTOR_SELF_TAPE_READ_TRIAGE: Dict[str, str] = {
+    "collection/hyperliquid_funding.py":
+        "audit-sufficient: persists `start_ms` (the resume cursor itself) on every emitted "
+        "record — L319's own worked example; `tests/test_hl_funding_tape_quality.py` pins a "
+        "real-tape regression scan against it.",
+    "collection/weather_actuals.py":
+        "audit-sufficient: resume point is per (target_day, city); both fields are on every "
+        "emitted record (`covered_city_days`/`missing_city_days` read them back), so a "
+        "duplicate (target_day, city) pair is directly detectable from tape with no "
+        "dedicated cursor field.",
+    "collection/settlement_ledger.py":
+        "audit-sufficient: resume point is the dedup key `_key()` computes — "
+        "(ticker, close_time, result, settlement_value) — and all four fields are persisted "
+        "on every emitted record, so a duplicate key is directly detectable from tape.",
+    "collection/kalshi_trades.py":
+        "NOT the L319 mechanism: `tickers_from_tape` reads a DIFFERENT family's tape "
+        "(orderbook-style ticker discovery) to choose which tickers to query for ITS OWN "
+        "trade prints — not a self-referential resume cursor. Tracked here so a future "
+        "incremental cursor added to this module's own family doesn't silently evade the "
+        "ratchet.",
+}
+
+_COLLECTOR_SELF_TAPE_GLOB_RE = re.compile(r'\.glob\(\s*f?["\']dt=')
+
+
+def inv_collector_self_tape_read_triage(path: Path, text: str) -> Optional[str]:
+    """L319 GATING ratchet: any `collection/*.py` module reading its own committed tape via
+    the `glob("dt=...")` day-partition idiom must be triaged in
+    COLLECTOR_SELF_TAPE_READ_TRIAGE (see the banner above) recording whether its resume key
+    is audit-sufficient. Scoped to `collection/` only — the idiom is common and unremarkable
+    in read-only analysis/probe scripts that merely enumerate an existing family's days."""
+    if _file_excluded(path):
+        return None
+    rel = _rel(path)
+    if not rel.startswith("collection/"):
+        return None
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#") and _COLLECTOR_SELF_TAPE_GLOB_RE.search(ln)]
+    if not hits:
+        return None
+    if rel in COLLECTOR_SELF_TAPE_READ_TRIAGE:
+        return None
+    return _fmt(path, hits,
+                "UNTRIAGED self-tape-read via glob(\"dt=...\") — lesson L319: a collector "
+                "computing its resume point from its own committed tape must be added to "
+                "COLLECTOR_SELF_TAPE_READ_TRIAGE in scripts/invariants.py, recording whether "
+                "the resume key is persisted on the emitted record (audit-sufficient) so a "
+                "future dedup-race audit doesn't need git-history archaeology")
+
+
 STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_gefs", inv_no_gefs),
     ("no_bare_pstdev", inv_no_bare_pstdev),
@@ -521,6 +590,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_private_ws_channel_subscription", inv_no_private_ws_channel_subscription),
     ("risk_caps_sanctioned", inv_risk_caps_sanctioned),
     ("no_raw_datetime_fromisoformat", inv_no_raw_datetime_fromisoformat),
+    ("collector_self_tape_read_triage", inv_collector_self_tape_read_triage),
 ]
 
 

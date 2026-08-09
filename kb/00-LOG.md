@@ -70,6 +70,96 @@ upstream `s14_ladder_fillsim` tape), ledger unchanged **realized P&L $+27.76**. 
 `tape/{crypto_hourly,orderbook_depth,perp_tape,polymarket_macro_pairs,sports_pairs}/dt=2026-08-09.jsonl`
 (PR #329), `reports/q54_s79_flow_continuation.json`, `kb/strategies/00-index.md`, `kb/lessons/
 00-lessons.md` (L321-L323), `LOOP-QUEUE.md`.
+## 2026-08-09 ~12:2x-14:xxZ UTC — research loop IDLE RUN policy (a): L319 becomes a GATING ratchet; step-0b recovers a residual stranded-recovery gap (L301-class)
+
+Steps 0a/0 clean: `origin/main` HEAD `2b88e6e`, no rewind (newest `kb/00-LOG.md` entry and
+newest committed tape both 2026-08-09); claim-check found only the standing Ryan-review-only
+PRs (#330/#271/#208/#191/#166/#125), none claiming a live queue item — PR #48 (protocol v3)
+was already merged well before this run, `LOOP-QUEUE.md` on `main` already reads v3. Queue
+re-verified drained (Q0-Q55 all DONE/BLOCKED/RESERVED/time-gated/data-gated; Q51 milestone 3
+still one day out from its 2026-08-10 gate). Of the repo's own canonically-derived 8 open
+`UNENFORCED` lesson rows, L213/L221/L222/L282/L309 are Ryan-lane or verifier-gated by their own
+text and L318/L320 are self-described terminal protocol notes — leaving **L319** as the only
+row naming a concrete buildable next step: a survey of `collection/*.py` for the
+self-tape-read-cursor-persistence shape L319 itself documented on `hyperliquid_funding.py`.
+
+**What was built.** Surveyed every `collection/*.py` module for the `.glob("dt=...")`
+day-partition self-read idiom — exactly 4 hits: `hyperliquid_funding.py` (persists `start_ms`,
+the resume cursor itself, on every record — audit-sufficient, L319's own worked example),
+`weather_actuals.py` (resume point is per `(target_day, city)`, both persisted on every
+record — audit-sufficient), `settlement_ledger.py` (resume point is the dedup key `_key()`
+computes, all four fields — `ticker`/`close_time`/`result`/`settlement_value` — persisted —
+audit-sufficient), and `kalshi_trades.py` (`tickers_from_tape` reads a DIFFERENT family's tape
+for ticker discovery, not a self-referential resume cursor for its own trade prints — NOT the
+L319 mechanism, tracked so a future cursor added to this module doesn't silently evade the
+check). All three audit-sufficiency claims were independently verified against real committed
+tape by new tests (not left as unverified prose).
+
+Since "is this file's tape-read a self-referential resume computation" is a per-file semantic
+judgment, not a syntactic pattern (L319's own text), this could not become a bare static
+assert — it became a RATCHET, the same discipline as the existing `LEGACY_RAW_FROMISOFORMAT_
+SITES` ratchet (L136/L150): `scripts/invariants.py::COLLECTOR_SELF_TAPE_READ_TRIAGE` +
+`inv_collector_self_tape_read_triage`, wired into `STATIC_INVARIANTS` (GATING). Any
+`collection/*.py` module that reads its own committed tape via the day-partition glob idiom
+and is NOT in the triage dict now fails `--full` outright — the whole point being that a
+newly-added incremental collector can no longer skip the judgment silently. 15 new tests in
+`tests/test_invariants.py`: a HARD real-tree acceptance pin (0 untriaged hits today), a
+precision check that the detector's regex hits exactly the 4 named files (no more, no fewer),
+scope/exclusion regression tests (fires only under `collection/`, respects comment lines and
+the global file exclusions, requires the specific `dt=` idiom not bare `glob()`), and — the
+part that turns "audit-sufficient" from an assertion into a checked fact — three tests reading
+real committed tape to confirm `hyperliquid_funding` records carry `start_ms`, `weather_
+actuals` records carry `target_day`+`city`, and `settlement_ledger` records carry the full
+`_key()` tuple. L319's enforcement cell was updated in place (only that cell moves, per the
+L152 own-row-update convention this ledger already uses on L213/L221/L222) to record the new
+invariant and tests; the row stays honestly `UNENFORCED` for its residual semantic-judgment
+half — recognizing a brand-new module's tape-read as this shape is still a human call the
+ratchet forces (fails closed as "untriaged") rather than one it resolves automatically.
+
+**Step 0b (mandatory every run, not the idle-run's own unit of work).** `scripts/tape_branch_
+sweep.py` over all 243 remote `tape/*` branches (no `--limit`) found 2 branches carrying
+genuinely-missing, appendable content: `tape/hourly-202608091000Z` (756 lines — `crypto_hourly`
++2, `polymarket_macro_pairs` +21, `sports_pairs` +733, a normal ~2h-old unrecovered pass) and,
+more interestingly, `tape/hourly-20260809T0057Z` — the SAME branch the immediately-prior run's
+own commit (`2b88e6e`, "sweep-gap recovery — 3,577 stranded lines") had already recovered —
+still carrying **2 missing `hyperliquid_funding` lines** (an earlier `20260809T010500Z`
+incremental capture that the prior recovery's bulk-family focus missed). This is the exact
+L301 class of bug (a commit that recovers a branch's BULK families and gets read as "the
+branch is recovered," leaving a small residual family stranded) caught here only because this
+run's sweep re-triaged the branch fresh rather than trusting the earlier PR title. All 758
+lines union-appended via a line-set membership test against `origin/main` (prefix-preserving,
+append-only, 0 conflict-marker/non-JSONL content, 0 value conflicts on the hyperliquid_funding
+overlap — confirmed via `scripts/hl_funding_tape_quality.py::duplicate_value_conflicts`).
+
+**Side-effect on an existing pin, corrected honestly.** The 2 recovered `hyperliquid_funding`
+lines are an earlier capture (`start_ms=1786118400008`) that overlaps hours already covered by
+a later capture already on `main` — recovering it pushed `tests/test_hl_funding_tape_quality.
+py`'s real-tape acceptance test's `max_multiplicity` from 2 to 3 for both coins, breaking a
+strict `== 2` pin the immediately-prior run wrote "to survive tape growth" but pinned too
+tightly on this one field. Verified this is legitimate growth, not a regression (0 value
+conflicts, exactly the L319 overlapping-capture mechanism this file exists to audit) and
+loosened the assertion to `>= 2`, matching the `>=`/`>=` convention the same test already uses
+on its other two growing fields. Gates AFTER the last code change (including this test fix):
+`pytest -q` → **3,649 passed, 0 failed** (the detached run's own trailing summary line was lost
+to the same buffer-reaping pattern several prior runs have hit; cross-checked against an
+independent `pytest --collect-only -q` = 3,649, exact match, per the L162 floor clause);
+`python3 scripts/invariants.py --full` → exit **0**, all green, re-run fresh after the last
+edit, same advisory classes as before (no new ones introduced).
+
+Not verdict-class (no CI, no P&L, no registry flip, no kill decision) — two-agent rule N/A.
+
+**Step 9.** `SHADOW_REGISTRY={s14_ladder_underwriting}`; `scripts/paper_pass.py` ran idempotent:
+0 newly processed, 274 deferred(coverage), 300 already-in-ledger, realized P&L **$+27.76
+unchanged**, no new ledger lines. Root-caused (not a broker bug, and not newly discovered —
+the open weekly-retro PR #330 already flagged the symptom): the S14 candle-summary cache
+(`tape/s14_ladder_fillsim/`) is a single frozen `dt=2026-07-13.jsonl` snapshot — S14 was killed
+2026-07-16 and nothing has rebuilt this cache since, so every event past that snapshot's window
+is permanently `deferred(coverage)` regardless of how much new `crypto_hourly` tape accumulates.
+This is exactly the mechanism behind PR #330's "ledger frozen since 08-04 while tape kept
+flowing" observation — confirmed here, not fixed (rebuilding a dead strategy's fill-sim cache
+is out of scope for a paper-tier idle run and would need its own dedicated milestone).
+
+See `kb/lessons/00-lessons.md` L319 (enforcement cell), `LOOP-QUEUE.md` Log of runs.
 
 ---
 
