@@ -6,6 +6,73 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-09 ~06:xx-13:xxZ UTC — research loop: Q54/S79's sealed probe fired for the first time — verdict DEAD-by-CI, two-agent verifier-CONFIRMED (L321/L322/L323); plus a step-0b tape recovery and a caught near-duplicate-work error
+
+**Step 0a/0/0b.** History-integrity PASS (no rewind). Step-0b sweep via `scripts/tape_branch_sweep.py
+--base-ref origin/main` over all 234 `tape/hourly-*`/`tape/burst-*` branches (never `--is-ancestor`,
+L160) found one genuinely stranded: `tape/hourly-20260809T0057Z` carried 3,577 lines across 5
+`dt=2026-08-09` files not yet on `main`. Recovered as PR #329 (squash-merged `2b88e6eb`); `main`
+had independently gained its own newer 07:07Z pass for the same day while gating ran, so the
+recovery union-merged by line (confirmed genuinely non-overlapping capture timestamps — e.g.
+crypto_hourly's main line is 06:55Z, the recovered line is 00:55Z) rather than overwriting.
+
+**A process failure caught mid-run, worth recording honestly.** Early in this run, `git checkout -q
+main` silently attached to a STALE pre-existing local branch (not `origin/main`'s true tip) rather
+than the intended fallback creating a fresh one — the `||` fallback in the standard checkout
+one-liner only fires when the first command FAILS, and a stale local `main` branch existing from a
+prior session made it succeed. Every read of `LOOP-QUEUE.md`/`kb/strategies/00-index.md` for the
+next several hours was against that stale ~140-line-shorter file, which still showed Q53's
+milestone-3 verdict as PROVISIONAL. A `verifier` agent was dispatched against Q53 on that false
+premise and spent real compute (11 min, ~72k tokens) independently re-deriving three defects in the
+2026-08-06 finding — which turned out to be **the exact same three defects** PR #315 had already
+found, fixed, and closed as `L303` two days earlier (2026-08-07, `9a1090f1`). Caught before
+publication by cross-checking `git show origin/main:LOOP-QUEUE.md` against the working tree and
+finding a ~140-line offset in Q53's section start. The stashed duplicate doc edits were dropped
+(never pushed), no history damage. **Lesson:** `git checkout -q <branch> 2>/dev/null || git
+checkout -q -b <branch> origin/<branch>` silently prefers a stale pre-existing local branch over
+the remote tip; the safe form is `git fetch origin main && git checkout -B main origin/main` (force
+the local ref to match the fetched remote unconditionally), which this run now recommends for the
+LOOP-QUEUE.md protocol text — not changed in this diff (protocol edits are Ryan-review-only per
+step 0's own precedent), but flagged here for the next Ryan-supervised protocol pass.
+
+**The actual milestone: Q54/S79.** Re-scanning the CORRECT current queue after the stale-branch
+catch found Q53 already CLOSED and Q54 as the true topmost eligible item — its data gate opened
+2026-08-08 with a sealed, pre-registered probe waiting to fire. Ran
+`scripts/q54_s79_flow_continuation_probe.py --json` for the first time against its
+outcome-dependent path (`outcome_map()`/`score_rows()`): 148 entry candidates / 133 settled / 24
+bootstrap units (games), block-bootstrap-by-game (L6, n_boot=10,000, seed=42) — mean **−$0.0695**,
+95% CI **[−$0.2724, +$0.1521]**, straddling zero and failing the L27 tick gate. `verdict:
+"DEAD-by-CI"`. An independent `verifier` reproduced the run byte-identically, independently
+re-derived the full population from raw `tape/kalshi_trades/` with its own parser (matched to the
+digit), hand-verified 7 candidates against raw prints including both NO-side entries, confirmed the
+fee model (single taker leg, correctly not double-charged; a zero-fee counterfactual is still CI
+[−0.254,+0.169], so the kill isn't a fee artifact), checked the settlement join for look-ahead
+(none), and ran three robustness attacks (dropping the dominant 23-entry losing unit, equal-unit
+weighting, adversarial tie-break) — all still DEAD. **CONFIRMED.** `kb/strategies/00-index.md` S79:
+`collect-and-revisit` → **`dead ✗`** (idea-stage record preserved for provenance, S68/Q49 pattern).
+The BINDING MANDATE (majority-benchmark decomposition) correctly did not trigger — it exists only
+to rescue an apparent ALIVE reading. Scope caveat: 131/133 entries are YES-side (retail's own
+80/20 buy-skew, L279); this kills "follow positive signed flow, hold to settlement" on the
+population that exists, not the NO arm (2 untested observations). New lessons **L321** (a
+minority-side gate counting units touched-by-minority rather than exclusive-to-minority can open
+with zero genuinely-minority-only bootstrap blocks — it did here), **L322** (report Kish effective
+n beside a pooled bootstrap's `n_units`; S79's real precision is ~11.6 units, not 24), **L323**
+(14,724 exact-timestamp trade-print ties on committed tape resolve by file order today, not an
+explicit rule — 76/148 entry prices move under an adversarial tie-break, though the verdict
+doesn't). Still **0 proven edges** — S79 is now the project's 2nd two-agent-confirmed CI-based kill
+(after S68/Q49). Gates: `pytest -q -n 4` → 0 failures across the full suite (parallelized via
+newly-installed `pytest-xdist` — the single-threaded run over the now-1.7GB tape corpus was taking
+>1h wall-clock, `-n 4` brought it to ~5-8 min; worth carrying into the standing protocol note for
+future runs on similarly-sized sandboxes); `python3 scripts/invariants.py --full` → exit 0, all
+green. **Step 9 paper sub-pass:** `SHADOW_REGISTRY` = `{s14_ladder_underwriting}` (dead-strategy
+paper-infra validation only); `scripts/paper_pass.py` idempotent, 0 newly processed (no new
+upstream `s14_ladder_fillsim` tape), ledger unchanged **realized P&L $+27.76**. Files:
+`tape/{crypto_hourly,orderbook_depth,perp_tape,polymarket_macro_pairs,sports_pairs}/dt=2026-08-09.jsonl`
+(PR #329), `reports/q54_s79_flow_continuation.json`, `kb/strategies/00-index.md`, `kb/lessons/
+00-lessons.md` (L321-L323), `LOOP-QUEUE.md`.
+
+---
+
 ## 2026-08-09 ~03:1x-05:xxZ UTC — research loop IDLE RUN policy (c): Hyperliquid funding is half-pinned to its own interest baseline, and a third of the Q42 join's windows carry zero information (L318, L319, L320)
 
 Steps 0a/0/0b: history-integrity PASS (`main`'s tip `16921ab` reachable, newest `kb/00-LOG.md`
