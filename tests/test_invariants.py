@@ -3059,3 +3059,167 @@ def test_acceptance_real_tape_20260806_meta_duplicate_reads_as_known_not_new_L31
     msg = inv.weather_books_meta_duplicate_warning(issues)
     assert msg is None or "dt=2026-08-06" not in msg.split("NEW regression")[-1].split(
         "known historical incident")[0]
+
+
+# ─── Collector self-tape-read cursor-persistence triage (L319: GATING, allowlisted) ──
+
+def _collector_self_tape_triage_failures_over_real_tree():
+    """Every failure message the ratchet produces over the REAL repo source tree."""
+    out = []
+    for p in inv._iter_source_files():
+        if p.suffix != ".py":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        msg = inv.inv_collector_self_tape_read_triage(p, text)
+        if msg:
+            out.append(msg)
+    return out
+
+
+def test_acceptance_collector_self_tape_triage_real_tree_is_clean():
+    # HARD acceptance test, anchored to the REAL tree: COLLECTOR_SELF_TAPE_READ_TRIAGE
+    # exactly covers today's four collection/*.py modules that read their own committed tape
+    # via glob("dt=..."), so the ratchet is green NOW and a new untriaged module turns it red.
+    assert _collector_self_tape_triage_failures_over_real_tree() == []
+
+
+def test_collector_self_tape_triage_real_tree_hits_exactly_the_known_four_files():
+    # Precision check on the detector itself: exactly the four files this lesson named should
+    # match the glob("dt=...") idiom in collection/, not more, not fewer.
+    hit_files = set()
+    for rel in sorted(inv.COLLECTOR_SELF_TAPE_READ_TRIAGE):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        if inv._COLLECTOR_SELF_TAPE_GLOB_RE.search(text):
+            hit_files.add(rel)
+    assert hit_files == set(inv.COLLECTOR_SELF_TAPE_READ_TRIAGE)
+    for rel in inv.COLLECTOR_SELF_TAPE_READ_TRIAGE:
+        assert (ROOT / rel).exists(), f"triaged path no longer exists: {rel}"
+
+
+def test_collector_self_tape_triage_fires_on_new_untriaged_collector():
+    # The point of the ratchet: a brand-new collection/ module reading its own tape via the
+    # glob("dt=...") idiom, not on the allowlist, fails.
+    src = 'for p in sorted(store.glob("dt=*.jsonl")):\n    pass\n'
+    p = ROOT / "collection" / "some_new_collector.py"
+    msg = inv.inv_collector_self_tape_read_triage(p, src)
+    assert msg is not None
+    assert "UNTRIAGED self-tape-read" in msg
+    assert "L319" in msg
+    assert "COLLECTOR_SELF_TAPE_READ_TRIAGE" in msg
+
+
+def test_collector_self_tape_triage_silent_on_triaged_collector():
+    rel = "collection/hyperliquid_funding.py"
+    src = 'for path in sorted(d.glob("dt=*.jsonl")):\n    pass\n'
+    assert inv.inv_collector_self_tape_read_triage(ROOT / rel, src) is None
+
+
+def test_collector_self_tape_triage_scoped_to_collection_dir_only():
+    # A script/ or tests/ module doing the same read (e.g. a read-only tape-quality audit) is
+    # NOT a collector and is deliberately out of scope — the idiom is unremarkable there.
+    src = 'for p in sorted(store.glob("dt=*.jsonl")):\n    pass\n'
+    assert inv.inv_collector_self_tape_read_triage(
+        ROOT / "scripts" / "some_probe.py", src) is None
+    assert inv.inv_collector_self_tape_read_triage(
+        ROOT / "tests" / "test_some_probe.py", src) is None
+
+
+def test_collector_self_tape_triage_ignores_comment_lines():
+    src = '# for p in sorted(store.glob("dt=*.jsonl")): pass\n'
+    p = ROOT / "collection" / "some_new_collector.py"
+    assert inv.inv_collector_self_tape_read_triage(p, src) is None
+
+
+def test_collector_self_tape_triage_respects_file_exclusions():
+    # invariants.py itself and its adversarial-fixture test file are globally excluded.
+    src = 'for p in sorted(store.glob("dt=*.jsonl")): pass\n'
+    assert inv.inv_collector_self_tape_read_triage(
+        ROOT / "scripts" / "invariants.py", src) is None
+    assert inv.inv_collector_self_tape_read_triage(
+        ROOT / "tests" / "test_invariants.py", src) is None
+
+
+def test_collector_self_tape_triage_does_not_fire_without_the_dt_glob_idiom():
+    # A collection/ module that globs on something else entirely must not be flagged — the
+    # ratchet targets the specific day-partition idiom, not glob() in general.
+    src = 'for p in sorted(store.glob("*.csv")):\n    pass\n'
+    p = ROOT / "collection" / "some_new_collector.py"
+    assert inv.inv_collector_self_tape_read_triage(p, src) is None
+
+
+def test_collector_self_tape_triage_registered_in_static_invariants():
+    names = [name for name, _fn in inv.STATIC_INVARIANTS]
+    assert "collector_self_tape_read_triage" in names
+
+
+def test_collector_self_tape_triage_hyperliquid_start_ms_actually_persisted():
+    # Empirical check on the L319 claim itself: hyperliquid_funding's emitted records really
+    # do carry `start_ms`, the audit-sufficient resume key the triage note asserts.
+    import json as _json
+    tape_dir = ROOT / "tape" / "hyperliquid_funding"
+    files = sorted(tape_dir.glob("dt=*.jsonl")) if tape_dir.exists() else []
+    if not files:
+        pytest.skip("hyperliquid_funding tape absent")
+    found_incremental = False
+    for fp in files:
+        for line in fp.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = _json.loads(line)
+            except _json.JSONDecodeError:
+                continue
+            if rec.get("mode") == "incremental":
+                assert "start_ms" in rec, f"{fp}: incremental record missing start_ms"
+                found_incremental = True
+    assert found_incremental, "expected at least one incremental hyperliquid_funding record"
+
+
+def test_collector_self_tape_triage_weather_actuals_keys_actually_persisted():
+    # Empirical check: weather_actuals records carry BOTH target_day and city, the composite
+    # resume key the triage note claims is audit-sufficient.
+    import json as _json
+    tape_dir = ROOT / "tape" / "weather_actuals"
+    files = sorted(tape_dir.glob("dt=*.jsonl")) if tape_dir.exists() else []
+    if not files:
+        pytest.skip("weather_actuals tape absent")
+    checked = 0
+    for fp in files:
+        for line in fp.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = _json.loads(line)
+            except _json.JSONDecodeError:
+                continue
+            if "target_day" in rec and "city" in rec:
+                checked += 1
+    assert checked > 0, "expected at least one weather_actuals record with target_day+city"
+
+
+def test_collector_self_tape_triage_settlement_ledger_keys_actually_persisted():
+    # Empirical check: settlement_ledger records carry the full _key() tuple the triage note
+    # claims is audit-sufficient.
+    import json as _json
+    tape_dir = ROOT / "tape" / "settlement_ledger"
+    files = sorted(tape_dir.glob("dt=*.jsonl")) if tape_dir.exists() else []
+    if not files:
+        pytest.skip("settlement_ledger tape absent")
+    checked = 0
+    for fp in files:
+        for line in fp.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = _json.loads(line)
+            except _json.JSONDecodeError:
+                continue
+            if {"ticker", "close_time", "result", "settlement_value"} <= rec.keys():
+                checked += 1
+    assert checked > 0, "expected at least one settlement_ledger record with the full dedup key"

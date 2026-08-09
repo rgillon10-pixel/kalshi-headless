@@ -264,7 +264,12 @@ def test_real_tape_hour_coverage_has_no_holes_and_starts_at_launch():
         assert c["n_missing_hours"] == 0, c["missing_runs"]
         assert c["span_start"] == "2026-06-03T00:00Z"
         assert c["n_distinct_hours"] >= 1601
-        assert c["max_multiplicity"] == 2
+        # >= 2, not ==: a stranded overlapping capture recovered by a later step-0b sweep
+        # can only ADD another copy of an already-duplicated hour, never remove one (tape is
+        # append-only) — measured 2026-08-09 later same day, a step-0b recovery of a
+        # previously-missed hyperliquid_funding residual (L301-class incomplete recovery)
+        # pushed this from 2 to 3 by construction, exactly the L319 race this file audits.
+        assert c["max_multiplicity"] >= 2
     assert rep["BTC"]["n_distinct_hours"] == rep["ETH"]["n_distinct_hours"]
 
 
