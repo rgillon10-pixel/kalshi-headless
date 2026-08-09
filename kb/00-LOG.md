@@ -6,6 +6,81 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-09 ~21:1x-2xxZ UTC — research loop IDLE RUN policy (a): L318 (cross-venue funding-basis regime-run resampling) converted UNENFORCED -> protocol, encoded; step-0b recovers 3,300 stranded lines
+
+**Step 0a/0/0b.** History-integrity PASS: `git fetch origin main` fast-forwarded local `main`
+29 commits to `f48d783` (the same un-numbered trap the two most-recent entries below both hit
+— the session's initial `git checkout main` attaches to a stale pre-existing local branch
+rather than `origin/main`'s true tip; caught immediately via `git log`/`git rev-parse` before
+reading anything else, so no stale-file re-read happened). No open PR claims a live TODO/
+IN-PROGRESS item (`#330`/`#271`/`#208`/`#191`/`#166`/`#125` are all long-standing Ryan-review-
+only/draft). Newest `kb/00-LOG.md` entry and newest committed tape (`dt=2026-08-09`) agree.
+Step-0b: manually line-set-diffed the 3 most-recent `tape/hourly-*` branches against
+`origin/main` (the exact per-file line-set method `scripts/tape_branch_sweep.py` documents)
+ahead of the full 244-branch tool run, then cross-checked against the tool's own completed
+report once it finished — the two agree exactly. `tape/hourly-202608091000Z` and
+`tape/hourly-20260809T0057Z` were already fully swept by the two prior runs' PRs (#329/#333).
+`tape/hourly-20260809T1608Z` (committed 16:07Z, well past the 30-minute floor) carried
+**3,300 genuinely-missing lines** across 7 `dt=2026-08-09` day-files: `crypto_hourly` +2,
+`hyperliquid_funding` +2, `orderbook_depth` +2000, `perp_tape` +17, `polymarket_macro_pairs`
++21, `sports_pairs` +715, `weather_books` +543. Union-appended (line-set membership,
+prefix-preserving, never rewriting an existing line); all 3,300 lines validated as well-formed
+JSON; 0 conflicts. The full-tree sweep additionally confirms the other 13 non-trivial branches
+it flags (`tape/hourly-202607100655Z` and 12 others, all from 07-10..07-23) carry **zero**
+appendable content — every one of their "missing" lines is a git conflict marker or sits in a
+non-JSONL file (`tape/cloud-env-check.md`, or two econ/anomalies day-files with embedded merge
+markers), which L247 already forbids sweeping (re-injecting that content would recreate the
+corruption `invariants.py` gates against). 205 of the 244 branches are contained only via the
+coarser capture_id-level check (L216, oversized bulk families skip a full byte diff) and 25
+via full line-level verification — none of those 230 carry anything to recover.
+
+**Queue re-verified drained.** Every `Qn` section reads DONE/BLOCKED/RESERVED/time-gated/
+data-gated at its current Status line (Q51 milestone 3 still time-gated to **2026-08-10**,
+one day out; Q53/Q54 both CLOSED). Idle-run policy (a): the canonical query
+(`scripts/invariants.py::stale_unenforced_recall_report().open_unenforced_ids`, not a naive
+text match) currently returns 9 open rows: `L213`, `L221`, `L222`, `L282`, `L309`, `L319`,
+`L320`, `L321`, `L323`. `L213`/`L221`/`L222`/`L282`/`L309` are Ryan-lane or gate-blocked per
+their own text (Ryan trigger-prompt actions, PR #165 write-path overlap, the step-0b sweep's
+own structural workflow, the Q51 08-10 freeze). `L319`'s residual is terminal by its own
+admission (recognizing a brand-new module's tape-read shape is inherently a human judgment
+call). `L321`/`L323` would both edit the L311-sealed Q54 probe mid-verdict — explicitly
+deferred until that verdict is fully closed out. `L320` defers to a dedicated Q42 milestone
+(its own script is pinned against frozen real-tape gate tests, L191) — not actionable from an
+idle run. That leaves **L318**, whose own text named its resolution: "likely terminal as
+protocol — a `.claude/agents/edge-prober.md` house-style note for any future funding/
+rate-basis probe," the same posture L28/L32/L69/L105/L163/L167/L211/L218 already closed under.
+
+**The milestone.** Added a house-style bullet to `.claude/agents/edge-prober.md`: for a
+cross-venue rate/funding-basis probe joining two venues that each carry a baseline/dead-band/
+interest-floor constant, never resample the joined differential by WINDOW — L318 found
+Hyperliquid's hourly funding pinned to its own 1.25e-05/hr interest floor in 52.78%/55.84%
+(BTC/ETH) of 1,601 committed hours in long autocorrelated runs, with 28.3%/35.9% of joined
+windows pinned on BOTH legs simultaneously and every one of those 127 windows carrying exactly
+ONE distinct differential value — arithmetic on two constants, not independent observations.
+Resample by autocorrelated REGIME RUN instead (`baseline_pin_profile`'s `n_pinned_runs`/
+`longest_pinned_run_hours`) and report the degenerate-window fraction as an explicit mixture
+weight beside any CI. Filed **L324** in `kb/lessons/00-lessons.md` — a formal machine-readable
+disposition (`DISPOSES: L318`, terminal tier `protocol, encoded`) — per the ledger's own
+append-only convention: L318's original row is left byte-unedited, never rewritten. Confirmed
+the canonical open-row query drops L318 from its `open_unenforced_ids` output after the edit
+(9 open rows before -> 8 after, `n_rows` 319 -> 320).
+
+**Not verdict-class.** Docs/ledger bookkeeping + a house-style addition + a tape recovery — no
+bootstrap CI, no P&L, no registry flip, no kill decision. Two-agent rule N/A. Gates AFTER the
+last code change: `pytest -q -n 4` and `python3 scripts/invariants.py --full`, both re-run
+fresh on the final tree before commit (see the Log-of-runs line in `LOOP-QUEUE.md` for the
+exact counts). Step 9: `s14_ladder_underwriting` idempotent, 0 newly processed, realized P&L
+**$+27.76 unchanged**, no new ledger lines — the same frozen-cache mechanism the
+2026-08-09T~12:2x run root-caused (S14's candle-summary cache is a single frozen 2026-07-13
+snapshot; S14 itself was killed 2026-07-16). Files: `.claude/agents/edge-prober.md`,
+`kb/lessons/00-lessons.md` (L324), `LOOP-QUEUE.md`, `kb/00-LOG.md`,
+`tape/crypto_hourly/dt=2026-08-09.jsonl`, `tape/hyperliquid_funding/dt=2026-08-09.jsonl`,
+`tape/orderbook_depth/dt=2026-08-09.jsonl`, `tape/perp_tape/dt=2026-08-09.jsonl`,
+`tape/polymarket_macro_pairs/dt=2026-08-09.jsonl`, `tape/sports_pairs/dt=2026-08-09.jsonl`,
+`tape/weather_books/dt=2026-08-09.jsonl`.
+
+---
+
 ## 2026-08-09 ~18:0x-19:3xZ UTC — research loop IDLE RUN policy (a): L322 (Kish effective n) converted UNENFORCED -> test
 
 **Step 0a/0/0b.** History-integrity PASS: `git fetch origin main` fast-forwarded local `main`

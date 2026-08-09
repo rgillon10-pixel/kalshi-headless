@@ -209,6 +209,22 @@ House style for probes (precedents: `scripts/s7c_sports_clv_bootstrap.py`,
   -0.0453 to -0.0152 — same sign, confirming the drop wasn't a thumb on the
   scale. A `sign_preserved=False` result means the verdict may be an artifact
   of the drop, not a real edge — investigate before reporting it.
+- For a cross-venue rate/funding-basis probe joining two venues that each pin
+  to their own baseline/dead-band/interest-floor constant when "true"
+  funding is near zero (L318 — a third state beside "clamped to zero" and
+  "free-floating"), never resample the joined differential by WINDOW.
+  Hyperliquid's hourly funding sat pinned to its own 1.25e-05/hr interest
+  floor in 52.78%/55.84% (BTC/ETH) of 1,601 committed hours, in long
+  autocorrelated runs (median 2-3h, up to 269-270h); joined against Kalshi's
+  own 0.0 clamp, 28.3%/35.9% of windows had BOTH legs pinned simultaneously,
+  and every one of those 127 windows carried exactly ONE distinct
+  differential value — arithmetic on two constants, not independent
+  observations. Resample by autocorrelated REGIME RUN (consecutive
+  pinned/free-floating windows collapsed into one unit each — see
+  `scripts/hl_funding_tape_quality.py::baseline_pin_profile`'s
+  `n_pinned_runs`/`longest_pinned_run_hours`) instead of by window, and
+  report the degenerate-window fraction as an explicit mixture weight
+  beside any CI.
 - Never derive a "post-close" / settlement-lag population from a sports
   ticker's embedded HHMM token read as UTC (L64 — it is league-local and
   tz-ambiguous by up to ~13h; Q25's ticker-HHMM-as-UTC `post_close` bucket was
