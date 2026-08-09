@@ -1,0 +1,449 @@
+{
+  "generated_at": "2026-08-09T03:30:25.012617+00:00",
+  "price_source_tag": "broker_truth",
+  "hl_source": "/home/user/kalshi-headless/tape/hyperliquid_funding/dt=*.jsonl",
+  "perp_source": "/home/user/kalshi-headless/tape/perp_tape/dt=*.jsonl",
+  "n_lines": 160,
+  "n_records": 160,
+  "hour_coverage": {
+    "BTC": {
+      "n_rows": 1680,
+      "n_distinct_hours": 1601,
+      "span_start": "2026-06-03T00:00Z",
+      "span_end": "2026-08-08T16:00Z",
+      "n_expected_hours": 1601,
+      "n_missing_hours": 0,
+      "missing_runs": [],
+      "n_duplicate_hours": 79,
+      "duplicate_hour_fraction": 0.04934415990006246,
+      "n_redundant_rows": 79,
+      "max_multiplicity": 2,
+      "duplicate_runs": [
+        [
+          "2026-07-22T13:00Z",
+          "2026-07-22T13:00Z",
+          1
+        ],
+        [
+          "2026-07-26T23:00Z",
+          "2026-07-27T04:00Z",
+          6
+        ],
+        [
+          "2026-07-27T08:00Z",
+          "2026-07-27T13:00Z",
+          6
+        ],
+        [
+          "2026-07-27T23:00Z",
+          "2026-07-28T10:00Z",
+          12
+        ],
+        [
+          "2026-08-02T11:00Z",
+          "2026-08-02T16:00Z",
+          6
+        ],
+        [
+          "2026-08-05T02:00Z",
+          "2026-08-05T16:00Z",
+          15
+        ],
+        [
+          "2026-08-05T20:00Z",
+          "2026-08-05T22:00Z",
+          3
+        ],
+        [
+          "2026-08-06T02:00Z",
+          "2026-08-06T07:00Z",
+          6
+        ],
+        [
+          "2026-08-06T17:00Z",
+          "2026-08-07T01:00Z",
+          9
+        ],
+        [
+          "2026-08-07T08:00Z",
+          "2026-08-07T22:00Z",
+          15
+        ]
+      ],
+      "price_source_tag": "broker_truth"
+    },
+    "ETH": {
+      "n_rows": 1680,
+      "n_distinct_hours": 1601,
+      "span_start": "2026-06-03T00:00Z",
+      "span_end": "2026-08-08T16:00Z",
+      "n_expected_hours": 1601,
+      "n_missing_hours": 0,
+      "missing_runs": [],
+      "n_duplicate_hours": 79,
+      "duplicate_hour_fraction": 0.04934415990006246,
+      "n_redundant_rows": 79,
+      "max_multiplicity": 2,
+      "duplicate_runs": [
+        [
+          "2026-07-22T13:00Z",
+          "2026-07-22T13:00Z",
+          1
+        ],
+        [
+          "2026-07-26T23:00Z",
+          "2026-07-27T04:00Z",
+          6
+        ],
+        [
+          "2026-07-27T08:00Z",
+          "2026-07-27T13:00Z",
+          6
+        ],
+        [
+          "2026-07-27T23:00Z",
+          "2026-07-28T10:00Z",
+          12
+        ],
+        [
+          "2026-08-02T11:00Z",
+          "2026-08-02T16:00Z",
+          6
+        ],
+        [
+          "2026-08-05T02:00Z",
+          "2026-08-05T16:00Z",
+          15
+        ],
+        [
+          "2026-08-05T20:00Z",
+          "2026-08-05T22:00Z",
+          3
+        ],
+        [
+          "2026-08-06T02:00Z",
+          "2026-08-06T07:00Z",
+          6
+        ],
+        [
+          "2026-08-06T17:00Z",
+          "2026-08-07T01:00Z",
+          9
+        ],
+        [
+          "2026-08-07T08:00Z",
+          "2026-08-07T22:00Z",
+          15
+        ]
+      ],
+      "price_source_tag": "broker_truth"
+    }
+  },
+  "duplicate_value_conflicts": {
+    "BTC": {
+      "n_conflicting_hours": 0,
+      "conflicting_hours": []
+    },
+    "ETH": {
+      "n_conflicting_hours": 0,
+      "conflicting_hours": []
+    }
+  },
+  "duplicate_lines": {
+    "n_lines": 160,
+    "n_duplicate_line_groups": 2,
+    "n_extra_lines": 2,
+    "groups": [
+      {
+        "capture_id": "20260728T070413Z",
+        "coin": "BTC",
+        "mode": "incremental",
+        "n_prints": 9,
+        "n_copies": 2,
+        "paths": [
+          "/home/user/kalshi-headless/tape/hyperliquid_funding/dt=2026-07-28.jsonl"
+        ]
+      },
+      {
+        "capture_id": "20260728T070413Z",
+        "coin": "ETH",
+        "mode": "incremental",
+        "n_prints": 9,
+        "n_copies": 2,
+        "paths": [
+          "/home/user/kalshi-headless/tape/hyperliquid_funding/dt=2026-07-28.jsonl"
+        ]
+      }
+    ]
+  },
+  "start_ms_regressions": {
+    "BTC": {
+      "n_incremental_records": 79,
+      "n_start_ms_regressions": 13,
+      "regression_fraction": 0.16455696202531644,
+      "regressions": [
+        {
+          "captured_at": "2026-07-22T13:30:11.383499+00:00",
+          "capture_id": "20260722T133011Z",
+          "start_hour": "2026-07-22T12:00Z",
+          "already_archived_through": "2026-07-22T13:00Z",
+          "n_re_emitted_hours": 1
+        },
+        {
+          "captured_at": "2026-07-27T07:00:31.261984+00:00",
+          "capture_id": "20260727T070031Z",
+          "start_hour": "2026-07-26T22:00Z",
+          "already_archived_through": "2026-07-27T04:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-07-27T16:00:25.335447+00:00",
+          "capture_id": "20260727T160025Z",
+          "start_hour": "2026-07-27T07:00Z",
+          "already_archived_through": "2026-07-27T13:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-07-28T07:04:13.893407+00:00",
+          "capture_id": "20260728T070413Z",
+          "start_hour": "2026-07-27T22:00Z",
+          "already_archived_through": "2026-07-28T07:00Z",
+          "n_re_emitted_hours": 9
+        },
+        {
+          "captured_at": "2026-07-28T13:04:03.478113+00:00",
+          "capture_id": "20260728T130403Z",
+          "start_hour": "2026-07-28T07:00Z",
+          "already_archived_through": "2026-07-28T10:00Z",
+          "n_re_emitted_hours": 3
+        },
+        {
+          "captured_at": "2026-08-02T19:01:55.411745+00:00",
+          "capture_id": "20260802T190155Z",
+          "start_hour": "2026-08-02T10:00Z",
+          "already_archived_through": "2026-08-02T16:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-08-05T19:06:47.728569+00:00",
+          "capture_id": "20260805T190647Z",
+          "start_hour": "2026-08-05T01:00Z",
+          "already_archived_through": "2026-08-05T16:00Z",
+          "n_re_emitted_hours": 15
+        },
+        {
+          "captured_at": "2026-08-06T01:06:23.404912+00:00",
+          "capture_id": "20260806T010623Z",
+          "start_hour": "2026-08-05T19:00Z",
+          "already_archived_through": "2026-08-05T22:00Z",
+          "n_re_emitted_hours": 3
+        },
+        {
+          "captured_at": "2026-08-06T10:11:13.388380+00:00",
+          "capture_id": "20260806T101113Z",
+          "start_hour": "2026-08-06T01:00Z",
+          "already_archived_through": "2026-08-06T07:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-08-07T04:05:55.612921+00:00",
+          "capture_id": "20260807T040555Z",
+          "start_hour": "2026-08-06T16:00Z",
+          "already_archived_through": "2026-08-07T01:00Z",
+          "n_re_emitted_hours": 9
+        },
+        {
+          "captured_at": "2026-08-07T16:05:16.835600+00:00",
+          "capture_id": "20260807T160516Z",
+          "start_hour": "2026-08-07T07:00Z",
+          "already_archived_through": "2026-08-07T13:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-08-07T22:08:41.164013+00:00",
+          "capture_id": "20260807T220841Z",
+          "start_hour": "2026-08-07T13:00Z",
+          "already_archived_through": "2026-08-07T16:00Z",
+          "n_re_emitted_hours": 3
+        },
+        {
+          "captured_at": "2026-08-08T16:04:46.116364+00:00",
+          "capture_id": "20260808T160446Z",
+          "start_hour": "2026-08-07T16:00Z",
+          "already_archived_through": "2026-08-07T22:00Z",
+          "n_re_emitted_hours": 6
+        }
+      ]
+    },
+    "ETH": {
+      "n_incremental_records": 79,
+      "n_start_ms_regressions": 13,
+      "regression_fraction": 0.16455696202531644,
+      "regressions": [
+        {
+          "captured_at": "2026-07-22T13:30:11.383499+00:00",
+          "capture_id": "20260722T133011Z",
+          "start_hour": "2026-07-22T12:00Z",
+          "already_archived_through": "2026-07-22T13:00Z",
+          "n_re_emitted_hours": 1
+        },
+        {
+          "captured_at": "2026-07-27T07:00:31.261984+00:00",
+          "capture_id": "20260727T070031Z",
+          "start_hour": "2026-07-26T22:00Z",
+          "already_archived_through": "2026-07-27T04:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-07-27T16:00:25.335447+00:00",
+          "capture_id": "20260727T160025Z",
+          "start_hour": "2026-07-27T07:00Z",
+          "already_archived_through": "2026-07-27T13:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-07-28T07:04:13.893407+00:00",
+          "capture_id": "20260728T070413Z",
+          "start_hour": "2026-07-27T22:00Z",
+          "already_archived_through": "2026-07-28T07:00Z",
+          "n_re_emitted_hours": 9
+        },
+        {
+          "captured_at": "2026-07-28T13:04:03.478113+00:00",
+          "capture_id": "20260728T130403Z",
+          "start_hour": "2026-07-28T07:00Z",
+          "already_archived_through": "2026-07-28T10:00Z",
+          "n_re_emitted_hours": 3
+        },
+        {
+          "captured_at": "2026-08-02T19:01:55.411745+00:00",
+          "capture_id": "20260802T190155Z",
+          "start_hour": "2026-08-02T10:00Z",
+          "already_archived_through": "2026-08-02T16:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-08-05T19:06:47.728569+00:00",
+          "capture_id": "20260805T190647Z",
+          "start_hour": "2026-08-05T01:00Z",
+          "already_archived_through": "2026-08-05T16:00Z",
+          "n_re_emitted_hours": 15
+        },
+        {
+          "captured_at": "2026-08-06T01:06:23.404912+00:00",
+          "capture_id": "20260806T010623Z",
+          "start_hour": "2026-08-05T19:00Z",
+          "already_archived_through": "2026-08-05T22:00Z",
+          "n_re_emitted_hours": 3
+        },
+        {
+          "captured_at": "2026-08-06T10:11:13.388380+00:00",
+          "capture_id": "20260806T101113Z",
+          "start_hour": "2026-08-06T01:00Z",
+          "already_archived_through": "2026-08-06T07:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-08-07T04:05:55.612921+00:00",
+          "capture_id": "20260807T040555Z",
+          "start_hour": "2026-08-06T16:00Z",
+          "already_archived_through": "2026-08-07T01:00Z",
+          "n_re_emitted_hours": 9
+        },
+        {
+          "captured_at": "2026-08-07T16:05:16.835600+00:00",
+          "capture_id": "20260807T160516Z",
+          "start_hour": "2026-08-07T07:00Z",
+          "already_archived_through": "2026-08-07T13:00Z",
+          "n_re_emitted_hours": 6
+        },
+        {
+          "captured_at": "2026-08-07T22:08:41.164013+00:00",
+          "capture_id": "20260807T220841Z",
+          "start_hour": "2026-08-07T13:00Z",
+          "already_archived_through": "2026-08-07T16:00Z",
+          "n_re_emitted_hours": 3
+        },
+        {
+          "captured_at": "2026-08-08T16:04:46.116364+00:00",
+          "capture_id": "20260808T160446Z",
+          "start_hour": "2026-08-07T16:00Z",
+          "already_archived_through": "2026-08-07T22:00Z",
+          "n_re_emitted_hours": 6
+        }
+      ]
+    }
+  },
+  "capture_cadence": {
+    "n_capture_instants": 79,
+    "first": "2026-07-17T06:20:03.133306+00:00",
+    "last": "2026-08-08T16:04:46.116364+00:00",
+    "median_gap_hours": 3.036105088055556,
+    "mean_gap_hours": 6.894170167585471,
+    "max_gap_hours": 116.38869737611112
+  },
+  "baseline_pin_profile": {
+    "BTC": {
+      "baseline": 1.25e-05,
+      "n_hours": 1601,
+      "n_pinned_hours": 845,
+      "pinned_fraction": 0.5277951280449719,
+      "n_pinned_runs": 95,
+      "longest_pinned_run_hours": 269,
+      "median_pinned_run_hours": 3,
+      "n_zero_rate_hours": 0,
+      "n_negative_rate_hours": 175,
+      "min_rate": -1.97415e-05,
+      "max_rate": 1.89181e-05,
+      "max_rate_equals_baseline": false,
+      "n_distinct_rate_values": 757,
+      "price_source_tag": "broker_truth"
+    },
+    "ETH": {
+      "baseline": 1.25e-05,
+      "n_hours": 1601,
+      "n_pinned_hours": 894,
+      "pinned_fraction": 0.5584009993753903,
+      "n_pinned_runs": 88,
+      "longest_pinned_run_hours": 270,
+      "median_pinned_run_hours": 2.0,
+      "n_zero_rate_hours": 0,
+      "n_negative_rate_hours": 273,
+      "min_rate": -3.48251e-05,
+      "max_rate": 1.25e-05,
+      "max_rate_equals_baseline": true,
+      "n_distinct_rate_values": 708,
+      "price_source_tag": "broker_truth"
+    }
+  },
+  "degenerate_windows": {
+    "BTC": {
+      "kalshi_ticker": "KXBTCPERP",
+      "hl_coin": "BTC",
+      "n_windows_joined": 198,
+      "n_kalshi_clamped": 143,
+      "kalshi_clamped_fraction": 0.7222222222222222,
+      "n_all8_hl_pinned": 66,
+      "all8_hl_pinned_fraction": 0.3333333333333333,
+      "n_both_degenerate": 56,
+      "both_degenerate_fraction": 0.2828282828282828,
+      "n_distinct_degenerate_differentials": 1,
+      "degenerate_differential": 0.00010000437510937488,
+      "price_source_tag": "broker_truth"
+    },
+    "ETH": {
+      "kalshi_ticker": "KXETHPERP",
+      "hl_coin": "ETH",
+      "n_windows_joined": 198,
+      "n_kalshi_clamped": 168,
+      "kalshi_clamped_fraction": 0.8484848484848485,
+      "n_all8_hl_pinned": 74,
+      "all8_hl_pinned_fraction": 0.37373737373737376,
+      "n_both_degenerate": 71,
+      "both_degenerate_fraction": 0.35858585858585856,
+      "n_distinct_degenerate_differentials": 1,
+      "degenerate_differential": 0.00010000437510937488,
+      "price_source_tag": "broker_truth"
+    }
+  }
+}

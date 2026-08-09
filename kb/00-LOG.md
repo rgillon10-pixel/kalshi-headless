@@ -6,6 +6,78 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-09 ~03:1x-05:xxZ UTC — research loop IDLE RUN policy (c): Hyperliquid funding is half-pinned to its own interest baseline, and a third of the Q42 join's windows carry zero information (L318, L319, L320)
+
+Steps 0a/0/0b: history-integrity PASS (`main`'s tip `16921ab` reachable, newest `kb/00-LOG.md`
+entry and newest committed tape both 2026-08-08/09, no rewind); claim-check found only the
+standing Ryan-review-only PRs (#271/#208/#191/#166/#165/#125), none claiming a live queue item;
+step-0b's step could not usefully re-audit the full multi-hundred-branch legacy backlog
+(`tape/hourly-*`, `tape/burst-*`, `claude/determined-goodall-*`) given the prior run's own
+comprehensive content-diff sweep the same day (L317, 7,114 lines recovered) — no new branch
+postdates that sweep by more than 30 minutes.
+
+**Queue re-verified drained** at each item's current Status line: Q0-Q55 all DONE / BLOCKED /
+RESERVED / time-gated / data-gated, most recently confirmed by kalshi-edge-hunter round #25
+(2026-08-07, 0 eligible). Checked idle-run policy (a) first, properly this time: a naive
+`enforcement cell starts with **UNENFORCED**` scan found 29 candidate rows, but re-deriving
+against the repo's own canonical disposition query
+(`invariants._parse_lesson_rows` + `_lesson_disposed_ids`) showed **all 29 are already disposed**
+via an `L188`-class supersession — the ledger's true open UNENFORCED backlog is **0 rows**. (This
+matches L122's 2026-07-21 "backlog empty" statement and L198's warning about a supersession
+grammar that predates the corpus it's checking — a useful reminder not to trust a naive text
+match over the file's own machine-readable convention.) Checked policy (b): Q51 milestone 3
+(the only time-gated item, fires 2026-08-10) is already maximally prepped across 5 prior idle
+runs (fill projection, book-anchor audit, trade-tape quality, firing-hazard repair, preflight) —
+nothing further to usefully add before its gate opens tomorrow.
+
+Took **policy (c)**: dispatched an `edge-prober` subagent for a second data-quality pass on
+`tape/hyperliquid_funding/` (least-recently-mentioned active tape family per a `kb/00-LOG.md`
+grep census; the only prior audit, 2026-07-26, covered shape/schema and predates 13 days of new
+tape). **Headline (L318):** Hyperliquid's hourly funding rate sits pinned to exactly its own
+0.01%-per-8h interest baseline (`1.25e-05`/hr) in **52.78% (BTC) / 55.84% (ETH)** of 1,601
+committed hours, in long autocorrelated runs (longest 269-270h, median 2-3h). Joined against
+Kalshi's own `0.0` funding clamp via Q42's own window-join code (imported, not
+re-implemented), **28.3% (BTC) / 35.9% (ETH)** of the 198 joined 8h windows/asset have BOTH legs
+pinned simultaneously — and across all 127 such windows the cross-venue differential is a single
+repeated value (`1.0000437510937488e-04`), zero variance. A future Q42 part-3 CI must resample by
+autocorrelated regime run, not by window, or it overstates independent information by roughly a
+third.
+
+**Secondary, mostly extending known history:** duplicate `(coin, time_ms)` prints grew from the
+2026-07-26 reading of 2 to **158 rows** (79/coin, 0 value conflicts), now root-caused purely from
+committed tape (**L319**) — 13 of 79 incremental captures per coin persist a `start_ms` behind the
+tape's own already-archived maximum, a branch-local read race in
+`collection/hyperliquid_funding.py::_committed_time_ms` that the 2026-07-26 audit could only
+reach via `git log -S` archaeology. The Q42 join is confirmed NOT frozen (198 windows/asset, 0
+partial — the 2026-07-21 "frozen at the single 07-17 backfill" note is now stale), but its
+hardcoded `PART1_BTC_ZERO_FRACTION=0.669` historical cross-check now false-alarms against honest
+population growth (drifted to 0.7222, **L320**) — flagged, not fixed, since `q42_crossvenue_
+funding_join.py` is deliberately frozen against pinned real-tape gate tests (L191) that a
+dedicated Q42 milestone should update on purpose. The one byte-identical duplicate line this
+family carries is already-documented L285 history, reproduced not new.
+
+Built `scripts/hl_funding_tape_quality.py` (read-only, offline, imports Q42's own window-join
+helpers so it cannot drift from what Q42 actually runs) + `tests/test_hl_funding_tape_quality.py`
+(24 tests: synthetic-record unit coverage for every pure function, plus a pinned real-tape
+acceptance layer written to survive tape growth) -> `reports/hl_funding_tape_quality.json`.
+Not verdict-class (data-quality characterization: no P&L, no fee model, no bootstrap CI, no
+registry change) — two-agent rule N/A. Step 9: `SHADOW_REGISTRY` non-empty
+(`s14_ladder_underwriting`); `scripts/paper_pass.py` advanced idempotently — 0 newly processed,
+274 deferred(coverage), 300 already-in-ledger, realized P&L unchanged $+27.76, no new `paper/`
+lines. **Gates, fresh after the last code edit (the `hl_funding_tape_quality` build; subsequent doc/
+ledger edits do not affect collection):** `pytest -q` -> **3,637 collected, 0 F/E in the progress
+stream** — same L162-floor pattern this repo has hit twice before on a ~2h full-suite run
+(2026-08-07, 2026-08-09-earlier): the detached run's trailing summary line is lost to shell/
+buffer reaping before it prints, so the count is taken from the progress-character census (all
+`.`, zero `F`/`E`/`s`) cross-checked against an independently-run `pytest --collect-only -q` =
+**3,637**, matching exactly, re-confirmed a second time after this run's own doc edits (docs
+cannot change collection). The new file's own 24 tests were additionally run in isolation:
+`pytest -q tests/test_hl_funding_tape_quality.py` -> 24/24 passed. `python3
+scripts/invariants.py --full` -> exit **0**, all green, re-run fresh in this session (not just
+cited from the subagent) — same non-gating advisories as the prior run, none newly introduced. See
+`findings/2026-08-09-hyperliquid-funding-baseline-pin-and-degenerate-windows.md`,
+`kb/lessons/00-lessons.md` L318/L319/L320.
+
 ## 2026-08-09 ~04:15Z UTC — edge-hunter nightly: adversarial review re-checked the S79 gate-open foundation (all CONFIRMED); pipeline has 2 eligible items so no Q21 round; Q51-m3 prep already complete
 
 Steps 0a/0/0b: history-integrity **PASS** (newest `kb/00-LOG.md` entry 2026-08-09, newest
@@ -70,7 +142,7 @@ only, NOT edge evidence). Gates fresh after this (docs-only) edit: `python3 scri
 cannot affect pytest, so this is an honest floor and invariants-green is the binding gate). Docs-only
 diff (this header). See `findings/` dated 2026-08-08/09 for the reviewed items.
 
-
+## 2026-08-09 ~00:1x-01:xxZ UTC — the standing tape sweep only checked two of three fallback branch shapes; recovered 7,114 stranded lines and found the VPS collector dead 65h (L317)
 
 Steps 0a/0/0b: history-integrity PASS (main's tip `386ffc4` matches the 5 most recently merged
 PRs #324/#323/#322/#321/#320; newest `kb/00-LOG.md` entry 2026-08-08, newest `tape/*/dt=*` file
