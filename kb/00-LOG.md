@@ -6,7 +6,71 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
-## 2026-08-09 ~00:1x-01:xxZ UTC — the standing tape sweep only checked two of three fallback branch shapes; recovered 7,114 stranded lines and found the VPS collector dead 65h (L317)
+## 2026-08-09 ~04:15Z UTC — edge-hunter nightly: adversarial review re-checked the S79 gate-open foundation (all CONFIRMED); pipeline has 2 eligible items so no Q21 round; Q51-m3 prep already complete
+
+Steps 0a/0/0b: history-integrity **PASS** (newest `kb/00-LOG.md` entry 2026-08-09, newest
+`tape/*/dt=*` file 2026-08-08, within the 2-day bound; `origin/main` tip `784896b`, up to date);
+claim-check found only the standing Ryan-review-only PRs (#271/#208/#191/#166/#165/#125), none
+claiming a live queue item; step-0b remote-branch sweep found only long-since-recovered
+`tape/hourly-*`/`burst-*` branches (the 08-09 00:1xZ run had already closed the third-shape
+detection gap and recovered the 7,114 stranded lines).
+
+**Unit 1 — Adversarial review (the primary unit).** The day's highest-stakes finding is the
+2026-08-08 phase-1 trade-print backfill (`findings/2026-08-08-q52-q54-phase1-trade-print-backfill.md`),
+because it OPENED S79's data gate — an error there would send the next research-loop run into a
+verdict-class probe on a bad foundation. An independent `verifier` agent (two-agent redundancy —
+the `Task`/Agent tool IS available in this harness this run, unlike the L287/L295 precedent runs)
+re-checked all three load-bearing numbers on separate code paths and all **CONFIRMED**:
+(1) **provenance tag** — the 89,217 new executed-trade-print lines are `broker_truth`, which is the
+correct/honest tag (a completed venue-reported transaction, same epistemic class as a settlement
+`result`; `collection/kalshi_trades.py` reads `yes_price`/`no_price` verbatim, no midpoint/synthetic
+laundered in); family total re-counted **128,915/128,915 `broker_truth`, zero other tags**;
+(2) **bootstrap units** — re-running the SEALED probe's outcome-blind adequacy path (`outcome_map()`/
+`score_rows()` never called, L311 seal intact) reproduced **24 units / 2 minority-side units /
+`admissible=true`** exactly; (3) **the margin-of-one check** — the 2 NO-side (minority) units sit in
+**2 DISTINCT games** (`KXNPBGAME-…FUKORI` NPB + `KXUCLGAME-…ARARFC` UCL), so the minority arm is a
+genuine 2 resample units, not a disguised single game (L41/L312 degeneracy does NOT apply); the gate
+is really open, though it clears the floor by exactly zero margin — the next (verdict-class) run must
+honor S79's pre-registered BINDING MANDATE (paired primary-minus-majority-benchmark per-game CID > 0,
+not the headline CI alone). Independently also reproduced the Q51-m3 fill-projection headline
+**0.2969** all-intervals fill rate straight out of the committed `reports/q51_m3_fill_projection.json`
+and confirmed its seal (no `pnl`/`ci95`/`won`/`settle_result` keys leak). **No number failed
+re-check → no `review:` GitHub issue opened; history not rewritten.**
+
+**Unit 2 — Pipeline replenishment.** Eligible (TODO/runnable, unclaimed, unblocked) research items:
+**Q53** (TODO — `check_monotonicity` subject-identity repair + the S3/S15 verdict it unblocks, runnable
+on committed tape) and **Q54** (S79 scoring probe, DATA GATE OPEN as of 08-08, runnable). Count = **2**,
+which is **not** fewer than 2, so **no Q21 idea-generation round was required or run** (consistent with
+the anti-treadmill posture — S43–S79 idea rounds have registered only collect-and-revisit shells; the
+binding constraint remains the Ryan-gated multi-day `kalshi_trades` write-path, not idea volume). No
+new S-candidate registered.
+
+**Unit 3 — Probe-prep.** Q51 milestone 3 is time-gated to **2026-08-10** (within ~72h). Verified by
+FILE SHAPE (L25), not path existence: `scripts/q51_m3_fill_projection.py`,
+`scripts/q51_maker_fillsim.py`, and `tests/test_q51_m3_fill_projection.py` are all present and the
+projection tests run **29 passed** offline; the 08-10 firing recipe and its `covered_intervals`
+sensitivity branch (26 units) are pinned in the report. **Prep is already complete — nothing to
+build**; the gated run on 08-10 only has to execute.
+
+**Housekeeping.** Open PRs blocked >5 days on a Ryan-side action — retros #271/#208/#125 (LEAVE-OPEN
+by charter) and drafts #191/#166/#165 — are all previously flagged (the 08-02 retro Priority:high'd
+the retro pileup); **not re-flagged Priority:high this run** (no new information, per the
+don't-retrain-the-channel rule). Stale `kalshi-burst-*` triggers whose event dates have all passed:
+`fomc-0729` (still ENABLED, auto-rescheduled to 2027-07-29), `wcfinal-0719`, `cpi-0714`,
+`wcsemi1-0714`, `wcsemi2-0715` — named for deletion (Ryan-only); same five the 08-02 retro named.
+Remote `tape/hourly-*` branch count: **224** (+ ~12 `tape/burst-*`).
+
+Verdict-class this run: **none** (review confirmed existing numbers, no flip, no CI, no kill; still
+**0 proven edges**). Paper sub-pass: `SHADOW_REGISTRY` = `s14_ladder_underwriting` (a `dead ✗`
+paper-infra shadow); no new upstream `s14_ladder_fillsim` tape since `dt=2026-07-13`, so 0 newly
+processed, realized paper P&L unchanged **$+27.76** (dead-strategy shadow — paper-infra validation
+only, NOT edge evidence). Gates fresh after this (docs-only) edit: `python3 scripts/invariants.py
+--full` → exit **0**, "invariants: all green" (only pre-existing non-gating advisories);
+`pytest --collect-only` → **3,613 tests collected, 0 collection errors** (a markdown-only append
+cannot affect pytest, so this is an honest floor and invariants-green is the binding gate). Docs-only
+diff (this header). See `findings/` dated 2026-08-08/09 for the reviewed items.
+
+
 
 Steps 0a/0/0b: history-integrity PASS (main's tip `386ffc4` matches the 5 most recently merged
 PRs #324/#323/#322/#321/#320; newest `kb/00-LOG.md` entry 2026-08-08, newest `tape/*/dt=*` file
