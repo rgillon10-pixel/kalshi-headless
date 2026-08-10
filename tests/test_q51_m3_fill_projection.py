@@ -25,6 +25,7 @@ computes none, and `test_report_is_outcome_independent` pins that it never will.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -357,3 +358,34 @@ def test_acceptance_the_close_day_proxy_is_an_upper_bound_on_milestone_2():
     cal = _report()["calibration_vs_milestone_2"]
     assert cal["direction"] == "over-inclusive"
     assert all(v >= 0 for v in cal["delta_projected_minus_observed"].values())
+
+
+# --------------------------------------------------------------------------- #
+# L325 — the calibration comparand must itself be frozen
+# --------------------------------------------------------------------------- #
+M2_REPORT_SHA256 = "745c4eb7ae31552c829731fdbfcd3516ea59ecc2e5350de0b1948b336e883c24"
+
+
+def test_acceptance_frozen_m2_report_is_the_calibration_comparand():
+    """`calibration_vs_milestone_2` compares this module's close-day proxy against what
+    milestone 2 OBSERVED. Its comparand defaulted to the live `reports/q51_maker_fillsim.json`
+    — the exact file milestone 3's firing command rewrites — so on 2026-08-10 it silently
+    began comparing the 08-04 projection against the 08-10 RESULT and the upper-bound
+    acceptance test went red. The comparand is now the frozen milestone-2 report, pinned here
+    by its own sha256 so a later edit cannot swap it and re-baseline the calibration
+    (the same discipline as `test_acceptance_frozen_m2_cache_is_the_milestone_2_input`)."""
+    path = P.M2_REPORT
+    assert path.exists(), path
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert digest == M2_REPORT_SHA256, f"frozen milestone-2 report changed: {digest}"
+    blob = json.loads(path.read_text(encoding="utf-8"))
+    head = blob["verdicts"]["all_intervals"]
+    assert head["n_units_games"] == 7 and head["n_legs"] == 40 and head["n_filled_legs"] == 26
+    assert blob["intervals"]["n_intervals"] == 20
+
+
+def test_acceptance_calibration_does_not_read_the_mutable_live_report():
+    """Source-text pin: the default comparand may never point back at the live report."""
+    src = (P.REPO_ROOT / "scripts" / "q51_m3_fill_projection.py").read_text(encoding="utf-8")
+    assert 'observed_report: Path = M2_REPORT' in src
+    assert 'observed_report: Path = REPO_ROOT / "reports" / "q51_maker_fillsim.json"' not in src

@@ -76,6 +76,132 @@ paper-infra validation only, NOT edge evidence.
 invariants-green is the binding gate. Files: `kb/strategies/00-index.md` (S80, S81),
 `findings/2026-08-10-q21-round26-idea-gen.md`, `LOOP-QUEUE.md` (Q56 + Log of runs), `kb/00-LOG.md`.
 
+## 2026-08-10 ~00:2x-02:xxZ UTC — research loop: **Q51 milestone 3 FIRED on its gate day — the first ADMISSIBLE run of the interval-level maker fill-sim, verdict an honest NULL (PROVISIONAL, no registry flip); plus the L284 firing hazard recurring in two sibling modules (L325) and a nominal-vs-informative unit-count rule (L326)**
+
+**Steps 0a/0/0b.** History-integrity PASS (established by the calling session and spot-checked:
+`origin/main` and local `main` both at `310bdf7`/PR #336; newest `kb/00-LOG.md` entry and newest
+`tape/*/dt=*` agree at 2026-08-09/08-10). No open PR claims a live TODO/IN-PROGRESS item
+(#330/#271/#208/#125 are Ryan-review-only; #191/#166/#165 stale since 07-23..07-25). Step-0b:
+`scripts/tape_branch_sweep.py` over **244 branches** — **0 union-appendable stranded lines**.
+25 fully contained + line-level verified, 206 contained via capture_id-level check (L216), 13
+flagged as carrying "missing" content of which **13/13 carry NOTHING appendable** — every
+missing line is a git conflict marker or sits in a non-JSONL file (`tape/cloud-env-check.md`;
+two 07-18 econ/anomalies day-files with embedded merge markers), so sweeping them would
+re-inject the L142 corruption `invariants.py` gates against (L247). 0 branches deleted: nothing
+was swept this run, so nothing became deletable.
+
+**The milestone.** Q51's milestone-3 time gate opened today and the 08-05 recipe ran as written:
+(i) `q51_m3_preflight.py` → conservative **41 units / 238 legs**, 4x the L41 floor → FIRE; (ii)
+`q51_maker_fillsim.py --build-cache` (read-only unauthenticated re-pull, SAME 60 tickers); (iii)
+`q51_maker_fillsim.py` **UNCHANGED**, reproduced byte-identically on a second run; (iv) a NEW
+immutable snapshot `tape/q51_settlement_cache/settlement-m3-2026-08-10.json` (sha256
+`26762aff…36ef5`) frozen and pinned, with every milestone-3 test passing `cache_path=M3_CACHE`
+explicitly. The milestone-2 pins on `settlement-m2-2026-08-04.json` are untouched and re-verified.
+
+**RESULT — admissible NULL.** Headline `all_intervals` (`real_bid` rest price / `broker_truth`
+fill evidence + settlement, maker fee **0.0175** per L5, block-bootstrap by GAME never by
+outcome, n_boot 10,000, seed 42): **51 game units** (milestone 2 had 7, below the floor), 294
+legs / **64 fills = 21.77%**, interval coverage **58/147 = 39.46%**, **12 opposing clusters**,
+mean **+$0.010068**, 95% CI **[−$0.015700, +$0.036815]**, `admissible=True` (`reasons=[]`), L27
+tick gate FAILS. Sensitivity `covered_intervals` (clears L41 for the first time here): 116 legs /
+64 fills = **55.17%**, 25 units, mean **+$0.025517**, CI **[−$0.041017, +$0.088559]** — same
+verdict. `yes_bid` fill 9.52% vs `no_bid` 34.01%: milestone 2's taker-flow asymmetry persists and
+WIDENS (1.9x → 3.6x). 64/64 fills trace to a `broker_truth` `trade_id`; no queue-position or
+time-to-fill number exists anywhere in the run.
+
+**What it means and does not mean.** It converts milestone 2's DATA-INADEQUATE "not measured
+yet" into a measurement. It does NOT revive S13/S23/S29 — a CI straddling zero is not a revival —
+and it does not re-kill them either; all three keep `dead ✗` and **no row in
+`kb/strategies/00-index.md` moves**. Still 0 proven edges. Three qualifiers ride with the
+headline: (1) 230 of 294 legs (78.2%) are unfilled and contribute an EXACT 0.0, so
+`mean_all == fill_rate × mean_filled` is an identity (verified to 0.0e+00) and the headline is a
+**4.59x rescaling** of the per-fill number; (2) **51 units is nominal, 24 informative** — 27
+units are entirely unfilled and contribute an identical zero to all 10,000 resamples (**L326**;
+Kish effective n is 49.91 and structurally cannot see this); (3) L309's `drops` unit-mixing is
+present, confirmed INERT, still unrepaired — and now unblocked.
+
+**Against the 08-08 projection every count moved, both drivers measured.** 147/294/51/64 actual
+vs 128/256/44/76 projected. The population GREW because a FINALIZED market's `close_time` is the
+actual finalize instant, not the scheduled close the m2 cache held while the game was `active` —
+**48 of 60 `close_time`s moved EARLIER, 12 unchanged, 0 later**, 59 markets in scope vs 47 (a
+direction the `close_day <= fire_date` upper-bound framing did not anticipate; now test-pinned).
+Fills SHRANK because 5 markets settled `scalar` (L52) + 1 unsettled → 15 intervals dropped that
+the synthetic cache had assumed binary. **L308's mechanism CONFIRMED, stronger than projected:**
+fill rate 0.6500 → 0.21769 = **2.99x** compression (projected 2.27x) while the
+conditional-on-coverage rate falls only 0.7647 → 0.55172 = **1.39x**; the identity
+`all_rate / covered_rate == coverage` holds exactly (0.394558). The collapse is COVERAGE, not
+fill behaviour.
+
+**THE FIRING TURNED `pytest` RED — 6 acceptance cases across 4 modules (new lesson L325).** L284
+predicted exactly this hazard on 2026-08-05, repaired `tests/test_q51_maker_fillsim.py`, verified
+42/42 — and never asked *who else reads this artifact*. On the day: `tests/test_q51_m3_preflight.py`
+twice (`P.run()` defaults to the LIVE cache; the close-day table collapses 11 rows → 8 under the
+re-pull), `tests/test_q51_m3_fill_projection.py` once — its `calibration_vs_milestone_2()`
+comparand defaulted to the live `reports/q51_maker_fillsim.json`, **the exact file step (iii)
+rewrites**, so it began comparing the 08-04 projection against the 08-10 RESULT and returned
+`MIXED` — `tests/test_q51_maker_fillsim_rederive.py` once (`R.rederive()` defaults to the live
+rows file; 40 rows → 294), and `tests/test_settlement_sources.py` TWICE, where **L300's own
+acceptance pin** reads the same live cache. That last module has nothing to do with Q51's
+fill-sim and was written by a different run — which is precisely why a per-file repair could
+never have found it. Two generalisations: the question is *"who else reads this?"*, and
+`reports/` is as mutable as `tape/` and had never been treated as such. Repair is NON-WEAKENING
+(no assertion relaxed, deleted or reordered): explicit `cache_path=FROZEN_M2_CACHE`; newly frozen
+`reports/q51_maker_fillsim-m2-2026-08-04.json` (sha256 `745c4eb7…83c24`) and
+`reports/q51_maker_fillsim_rows-m2-2026-08-04.jsonl` (sha256 `780b1a7d…5ca50`), both recovered
+byte-identically from the committed tree and both hash-pinned, plus a source-text assertion that
+the calibration default can never point back at the live report; and
+`dataclasses.replace(path_glob=…)` substituting the frozen snapshot into the settlement source
+registry, which reproduces L300's published counts EXACTLY (9/9). Every repaired module keeps a
+live-path case (SHAPE-only, or a directional measurement of the new state).
+
+**A SIDE-EFFECT WORTH ITS OWN LINE: the re-pull moved a DIFFERENT data gate.** L300 recorded that
+the whole declared settlement registry resolved **9** of the 42 tickers that traded on 2026-08-03
+— all nine from `q51_settlement_cache`, **9 GAME units, below the L41 floor of 10**. Milestone 3's
+re-pull resolved 49 more of the 60 sampled markets, so the same registry now resolves **32 tickers
+= 32 distinct GAME units**, above the floor. L300's honest residue is unchanged: 4 crypto brackets
+(`KXBTC-`/`KXETH-`) are still unresolved AND unlisted by every source. **This revives nothing** —
+S79 fired on 2026-08-09 (DEAD-by-CI, verifier-CONFIRMED, 24 units off the trade-print backfill),
+and this is a settlement-RESOLVABILITY measurement on ONE surface, not a strategy result. Recorded
+and pinned directionally (`>= 32`, since a settlement cache only gains results) because a gate a
+prior run measured as CLOSED is now OPEN as a by-product of an unrelated milestone.
+
+**Two-agent rule: NOT SATISFIABLE — result committed PROVISIONAL.** The run brief stated a
+`Task`/subagent tool was available and that the rule was active and mandatory. It is not
+available in this harness (`No such tool available: Agent`), the same limitation every prior Q51
+milestone recorded (L287/L288/L290/L291/L295 precedent). Per LOOP-QUEUE.md step 5 the verdict is
+PROVISIONAL and flips no registry status. The sanctioned fallback ran: an INDEPENDENT code path
+reading ONLY `reports/q51_maker_fillsim_rows.jsonl`, never importing the probe (own reader, own
+Decimal ROUND_CEILING fee vs the probe's `math.ceil`, own grouping, own bootstrap, seed
+20260810) — **294/294 rows, 0 P&L mismatches, 0 untraced fills, 0 tag violations**, every branch
+mean reproduced to 12 decimals, every CI sign conclusion unchanged, **51 distinct games with both
+legs of a ticker in ONE unit** (so the bootstrap is by game, never by outcome), 12 opposing units
+independently confirmed, and a fee control (+$0.010068 at maker 0.0175 vs +$0.008061 at taker
+0.07). Separately, 12 tickers re-fetched live with a plain `requests` GET agree with the frozen
+snapshot **12/12** on `result`/`status`/`close_time`/`event_ticker`. That is a redundancy check,
+NOT a verifier — it shares L279's orientation premise and could not have caught an orientation
+error.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`).
+`scripts/paper_pass.py` replayed deterministically over committed tape: 1,641 records loaded,
+**0 processed / 0 deferred(caps) / 274 deferred(coverage) / 300 already-in-ledger**, so **zero
+new ledger lines** were appended — the shadow is idempotent against tape it has already seen and
+no new S14-eligible tape has landed since `paper/ledger/dt=2026-08-04.jsonl`. `daily_summary()`:
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open
+notional $0.00`.
+
+**Honest process note.** This run is a `research-lead`-charter session whose charter says it
+never edits files itself but delegates to worker subagents. With the `Task` tool absent,
+delegation was structurally impossible, so the lead executed the milestone, the repairs and the
+bookkeeping directly rather than returning nothing. Recorded here because it is a deviation from
+the roster discipline in LOOP-QUEUE.md's "Subagent roster" section, not because it changed any
+number.
+
+**Owed next:** an independent `verifier` on these numbers the first time a harness exposes one
+(until then PROVISIONAL, registry untouched); the second settlement sweep after **2026-08-24**
+(terminal 57 units / 330 legs — buys resample UNITS, not fill EVIDENCE); L309's `drops` repair,
+now unblocked. The binding constraint on the WALL-B program is unchanged and is NOT this verdict:
+`orderbook_depth`'s revisit interval (L283), which only Q47's Ryan-gated WS `orderbook_delta`
+moves.
 
 ## 2026-08-09 ~21:1x-2xxZ UTC — research loop IDLE RUN policy (a): L318 (cross-venue funding-basis regime-run resampling) converted UNENFORCED -> protocol, encoded; step-0b recovers 3,300 stranded lines
 

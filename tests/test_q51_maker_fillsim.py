@@ -36,6 +36,15 @@ from scripts import q51_maker_fillsim as M
 #: See the module docstring's SETTLEMENT-CACHE PIN note.
 M2_CACHE = M.CACHE_PATH.parent / "settlement-m2-2026-08-04.json"
 
+#: The MILESTONE-3 settlement cache, frozen 2026-08-10 immediately after that day's
+#: `--build-cache` re-pull, for exactly the same reason as `M2_CACHE`: the live
+#: `settlement.json` is rewritten by any later re-pull (the second sweep is already planned
+#: for after 2026-08-24), so milestone 3's pins must name an input that cannot move.
+#: L191 ("pin to a slice that cannot grow") / L284 (the hazard, measured) / L325 (the same
+#: hazard recurring in the sibling modules the L284 repair did not cover).
+M3_CACHE = M.CACHE_PATH.parent / "settlement-m3-2026-08-10.json"
+M3_CACHE_SHA256 = "26762aff97853d3deb2379846a0b6132fdd074dca041a29f4671d513f0236ef5"
+
 
 # --------------------------------------------------------------------------- #
 # keys / population helpers
@@ -465,3 +474,115 @@ def test_acceptance_frozen_m2_cache_is_the_milestone_2_input():
     assert results.count("yes") == 4 and results.count("no") == 6
     # every cached result is binary-or-empty on this slice (L52 has nothing to drop here)
     assert set(results) <= {"", "yes", "no"}
+
+
+# --------------------------------------------------------------------------- #
+# MILESTONE 3 (fired 2026-08-10) — pinned against the FROZEN m3 snapshot, never the
+# live mutable cache. The milestone-2 pins above are untouched and stay on M2_CACHE.
+# --------------------------------------------------------------------------- #
+def test_acceptance_frozen_m3_cache_is_the_milestone_3_input():
+    """Identity pin on milestone 3's own input, mirroring the m2 case above.
+
+    A second settlement sweep is already planned for after 2026-08-24; it will overwrite
+    `settlement.json` again. Without this pin the milestone-3 acceptance numbers below would
+    silently re-baseline on that day exactly as the milestone-2 numbers would have on this
+    one (L284)."""
+    import hashlib
+    assert M3_CACHE.exists(), (
+        "frozen milestone-3 settlement snapshot missing — the milestone-3 pins have no "
+        "source of truth")
+    digest = hashlib.sha256(M3_CACHE.read_bytes()).hexdigest()
+    assert digest == M3_CACHE_SHA256, f"frozen milestone-3 snapshot changed: {digest}"
+    payload = json.loads(M3_CACHE.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "q51_settlement_cache.v1"
+    assert payload["price_source_tag"] == "broker_truth"
+    assert payload["day"] == M.DAY
+    assert payload["pulled_at"].startswith("2026-08-10T")
+    markets = payload["markets"]
+    assert len(markets) == 60
+    statuses = sorted((v.get("status") or "") for v in markets.values())
+    assert statuses.count("finalized") == 59
+    assert statuses.count("active") == 1
+    results = sorted((v.get("result") or "") for v in markets.values())
+    assert results.count("no") == 35 and results.count("yes") == 19
+    # L52: five markets settled `scalar` — non-binary, and they must be DROPPED, not scored
+    assert results.count("scalar") == 5
+
+
+def test_acceptance_milestone_3_headline_population(   # noqa: D401
+):
+    """The first ADMISSIBLE run of this design: 51 game units, 294 legs, 64 fills."""
+    report, rows = M.run(n_boot=2000, cache_path=M3_CACHE)
+    v = report["verdicts"]["all_intervals"]
+    assert v["n_units_games"] == 51
+    assert v["n_legs"] == 294 and v["n_filled_legs"] == 64
+    assert v["fill_rate"] == pytest.approx(64 / 294)
+    assert v["n_losing_units"] == 12
+    assert v["admissible"] is True and v["admissibility"]["reasons"] == []
+    assert v["sign_bounded_objective"]["inadmissibility_is_definitional"] is False
+    assert len(rows) == 294
+    iv = report["intervals"]
+    assert iv["n_intervals"] == 147 and iv["n_covered_intervals"] == 58
+    assert iv["interval_coverage"] == pytest.approx(58 / 147)
+    assert iv["drops"]["non_binary_result"] == 15
+    assert iv["drops"]["unsettled"] == 3
+    assert iv["drops"]["no_settlement"] == 0
+    assert report["fill_traceability"]["all_fills_traced"] is True
+    assert report["fill_traceability"]["n_fills"] == 64
+
+
+def test_acceptance_milestone_3_verdict_is_not_a_positive_edge():
+    """The load-bearing pin: milestone 3's 95% CI STRADDLES ZERO and fails the L27 tick gate.
+
+    S13/S23/S29 are already `dead x`; nothing here revives them. If a later edit ever moves
+    this branch to a CI strictly above zero, that is a registry-class event and must trip a
+    test rather than slide in as a quiet re-baseline."""
+    report, _rows = M.run(n_boot=2000, cache_path=M3_CACHE)
+    for name in ("all_intervals", "covered_intervals"):
+        v = report["verdicts"][name]
+        lo, hi = v["ci95"]
+        assert lo < 0.0 < hi, f"{name} CI no longer straddles zero: {v['ci95']}"
+        assert v["clears_tick_magnitude"] is False
+        # L5: the RESTING-order fee is the maker rate, never the 4x taker rate
+        assert v["fee_rate"] == MAKER_FEE_RATE == 0.0175
+        assert v["fee_rate"] != TAKER_FEE_RATE
+        # Hard Rule #4 / trust defaults: the rest price is a real quote, the fill is a print
+        assert v["price_source_tag"] == "real_bid"
+        assert v["fill_evidence_tag"] == "broker_truth"
+
+
+def test_acceptance_milestone_3_sensitivity_branch_agrees():
+    report, _rows = M.run(n_boot=2000, cache_path=M3_CACHE)
+    v = report["verdicts"]["covered_intervals"]
+    assert v["n_legs"] == 116 and v["n_filled_legs"] == 64
+    assert v["n_units_games"] == 25
+    assert v["fill_rate"] == pytest.approx(64 / 116)
+
+
+def test_acceptance_milestone_3_zero_inflation_identity():
+    """78% of legs are unfilled and contribute an EXACT 0.0, so the headline mean is an
+    arithmetic rescaling of the conditional-on-fill mean by the fill rate. Pinned because
+    the headline must never be read as an independent measurement of per-fill economics."""
+    report, rows = M.run(n_boot=200, cache_path=M3_CACHE)
+    head = report["verdicts"]["all_intervals"]
+    cond = report["verdicts"]["conditional_on_fill"]
+    assert all(r["pnl"] == 0.0 for r in rows if not r["filled"])
+    assert head["mean"] == pytest.approx(head["fill_rate"] * cond["mean"], abs=1e-12)
+
+
+def test_acceptance_milestone_3_units_are_games_not_outcomes():
+    """L6/G2: both legs of a ticker, and every ticker of a game, share ONE resample unit.
+
+    Also records the honest qualifier on the 51: 27 of them are entirely unfilled, so only
+    24 units carry any non-zero leg (which is still above the L41 floor of 10)."""
+    _report, rows = M.run(n_boot=100, cache_path=M3_CACHE)
+    by_ticker = {}
+    for r in rows:
+        by_ticker.setdefault(r["ticker"], set()).add(r["game"])
+    assert all(len(v) == 1 for v in by_ticker.values())
+    units = {}
+    for r in rows:
+        units.setdefault(r["game"], []).append(r["pnl"])
+    assert len(units) == 51
+    informative = [g for g, v in units.items() if any(x != 0.0 for x in v)]
+    assert len(informative) == 24 >= 10
