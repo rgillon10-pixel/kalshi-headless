@@ -3051,7 +3051,92 @@ recurring non-WC round-progression series, or a fresh sports/league bracket) —
 not a network/credential gate.
 
 ### Q56 — S80 / S81 binding tests (Q21 round #26 survivors, kalshi-edge-hunter 2026-08-10)
-Status: **S81 MILESTONE DONE — the binding test is BUILT, PRE-REGISTERED, SEALED, and its
+Status: **S80 MILESTONE DONE — BOTH Q56 SUB-MILESTONES NOW RUN. S80's binding test is BUILT and
+FIRED, and the verdict is `DEAD` BY CI ON AN ADEQUATE POPULATION (a real falsification, not a
+data-adequacy refusal). REGISTRY NOT FLIPPED — recorded PROVISIONAL; S80 stays idea-stage
+`binding-test-defined`, conf `low`. Still 0 proven edges.** (2026-08-10, research loop, later
+firing than the S81 milestone above; Q56 was again the topmost item whose current status line
+read TODO for this sub-milestone.) **Why no flip:** a kill is verdict-class and NO independent
+`verifier` was dispatchable in this harness — no `Task`/subagent tool is exposed to the
+executing context (the L287/L288/L290/L291/L295/L308/L313/L325 precedent). The sanctioned
+no-verifier redundancy fallback ran instead: `scripts/q56_s80_rederive.py`, a from-scratch
+second implementation sharing NO code with the probe (own JSONL readers, own hand-rolled
+ISO-8601→epoch parser via string slicing + days-from-civil, own settlement read straight off
+`tape/settlement_ledger/` + `tape/q51_settlement_cache/` rather than `core.settlement_sources`,
+own round-up-to-cent fee formula, own signal/queue/fill loop, own block bootstrap over its own
+RNG; only `MAKER_FEE_RATE` is shared, because `invariants.py::no_handrolled_fee_rate` forbids a
+local rate literal). It reproduces every headline number — population counts, K1, and the two
+P&L branches **BIT-IDENTICALLY**; only the bootstrap CI on K1 differs, by bootstrap noise, as an
+independent draw must. Its own hand-rolled parser is separately pinned against
+`core.timeutil.parse_iso_utc` on real committed timestamps, so the agreement is not two
+implementations sharing one bug. **An independent `verifier` should still attack this record
+before the S80 status column moves.**
+**The result.** `scripts/q56_s80_print_vwap_overshoot_maker_fade.py` (+43 offline tests;
+`scripts/q56_s80_rederive.py` +10) implements the S80 row's binding test exactly as registered,
+read-only over committed tape, zero network calls, zero credentials, zero orders of any tier.
+**Gate K1 — the registered MECHANISM IS WRONG-SIGNED.** Per-ticker full-sample print VWAP minus
+`broker_truth` settlement, block-bootstrapped by GAME (81 tickers / 66 games): fade-aligned
+gross overshoot mean **−$0.15922**, 95% CI **[−$0.22531, −$0.08180]**, against a FLAT $0.01
+maker fee — not merely inside the fee but negative and ~16x it in the wrong direction. The
+decomposition is the whole story: the LEADING side (own VWAP ≥ 0.50, n=30, mean VWAP 0.6638)
+realized an **0.8333** settle rate → overshoot **−0.16949**, while the TRAILING side (VWAP <
+0.50, n=51, mean VWAP 0.2512) realized **0.0980** → overshoot **+0.15318**. Retail overpays the
+LONGSHOT, not the leader (favourite-longshot bias) — the exact opposite of the registered
+premise, so resting on the trailing side is systematically buying the overpriced side.
+**Gate K2 — adequacy PASSES, so this is a CI FALSIFICATION and not an S21/S19-class adequacy
+death.** 213,431 `broker_truth` prints / 87 traded sports tickers / 72 games / 6 trade-days;
+funnel 2,607 intervals → 364 signal-computable → 180 triggered → 59 dropped on a one-sided touch
+→ **121 candidates over 31 games → 84 fills (69.42%) over 27 GAMES** (2.7x the L41 floor, two
+orders of magnitude above S19's 0.45% dead-thin floor); **84/84 fills trace to a `broker_truth`
+`trade_id`** — a synthesised fill is unconstructible (the predicate reads a print or returns
+False); median `queue_ahead` **662.45** contracts, median fill price **$0.27** (`real_bid`).
+**Gate K3 — the CI.** Headline `all_candidates` (unfilled legs score an honest $0), block-boot by
+GAME, n_boot=10,000, seed=42: mean **−$0.09727**, 95% CI **[−$0.18770, −$0.01229]** — entirely
+below zero; `admissible: true`, 31 units / **27 informative** (L326) / Kish **20.95** (L322).
+`conditional_on_fill`: 27 games / 84 legs, mean **−$0.14012**, CI **[−$0.26919, −$0.01143]**.
+Maker fee 0.0175 through `core.pricing.MAKER_FEE_RATE` only (L5; `TAKER_FEE_RATE` appears
+nowhere in the probe, test-pinned). Kill conditions fired: `K1_overshoot_within_maker_fee`,
+`K3_headline_ci_not_positive`; K2 did NOT fire.
+**Robustness.** All **12/12** cells of the author-chosen free-parameter grid (window ∈
+{15,30,60} min × θ ∈ {0.01,0.02,0.03,0.05}) have a NEGATIVE point estimate — 3 with entirely
+negative CIs, 9 straddling zero from below. Reported honestly: the default headline cell (30
+min / $0.02) is one of the 3, but both defaults were fixed on principled grounds BEFORE the grid
+was computed (30 min = the measured book cadence; $0.02 = the first threshold strictly above the
+flat $0.01 maker fee), and K1 contains no window or threshold at all, so it fails independently
+of any cell. **The sign-flip does NOT rescue it** (computed and reported as DESCRIPTIVE ONLY —
+a post-hoc direction is never a verdict, L41's family): resting on the CHASED side gives
+`all_candidates` mean −$0.00669 CI [−$0.08000, +$0.06330] and `conditional_on_fill` mean
+−$0.01095 CI [−$0.13956, +$0.10014], both straddling zero.
+**Two durable lessons, both landed (L328, L329).** **L329**, measured on that mirror leg's 74
+fills: static gross at the ticker's own print VWAP **+$0.07508** vs realized gross at our actual
+`real_bid` **−$0.00095** = an adverse-selection cost of **+$0.07603** that eats **100.1%** of the
+static edge BEFORE the flat fee is charged — decisive because a resting bid is strictly CHEAPER
+than the average print, so random fills would have had to do BETTER; the registered leg's same
+decomposition reads **−$0.03026** (genuine price improvement), which separates "signal backwards"
+from "signal right but unfillable at a profit" in a way a bare P&L cannot. Consequence for
+idea-gen: an "overshoot vs fee" gate computed from an ex-post average price is NOT a proxy for a
+maker edge and must not be registered as one. **L328 discharges the Q56 spec's owed L283
+reconciliation:** the `orderbook_depth` intra-ticker revisit interval is **BIMODAL** — on the 87
+traded sports GAME tickers pooled p25 **28.72 min** / median **31.33** / p75 **179.54** / p90
+**360.39** — so the round-#26 verifier's "~29 min" and the graveyard's "~3h blanket maker-fill
+blocker" are the p25 and p75 of ONE distribution: both correct, neither is "the cadence", and
+quoting the ~3h figure as a blocker silently converts a p75 into a floor. It is NOT a blocker
+here (median 28 snapshots per traded ticker, 87/87 with a book), though ~25% of scored intervals
+are ≥3h wide — a resolution ceiling, honestly stated. Separable second fact from the same table:
+across ALL 108,668 depth tickers the median is **1 snapshot ever** (only 46,709 ever seen twice),
+so `orderbook_depth` is L283-shaped in aggregate while this probe's population is a genuine
+panel — L283 binds a FAMILY, and whether it binds a probe is a property of that probe's
+population and must be measured, not inherited.
+**Owed next:** (1) an independent `verifier` pass over this record before any S80 status flip;
+(2) the S81 settlement backfill described in the history line below; (3) nothing else from Q56 —
+both sub-milestones have now run. Same short-the-chased-side factor family as S13/S23/S79
+(Hard-Rule-#6 ρ cap, not diversification). Gates AFTER the last CODE change (L162; only prose bookkeeping followed): `python3.11 -m pytest -o addopts='' -q` → **3,760 passed, 0 failed, 1 warning** in 4717.71s (1:18:37), exit 0; `python3 scripts/invariants.py --full` → exit **0**, `invariants: all green`, 16 non-gating advisories — **none of which names any file added by this run** (the L228 `*_fee`-scalar advisory went 3 sites → 2 after `overshoot_gate` was changed to bind its fee from `core.pricing.fee_per_contract` in its own scope rather than take it as a caller-supplied parameter; the two remaining sites are the pre-existing `longshot_fade_probe.py` / `q30_draw_aversion_maker_probe.py`). **Environment note (outside the repo, no repo file changed):** the sandbox's default `pytest` interpreter lacked `requests`/`PyYAML`/`numpy`/`openpyxl`/`cryptography`, so 30 test modules failed to COLLECT before anything ran; those packages were pip-installed into the user site of `/usr/bin/python3.11`, after which all 3,760 tests collect and pass. No repo dependency file was edited. Files: `scripts/q56_s80_print_vwap_overshoot_maker_fade.py`, `scripts/q56_s80_rederive.py`,
+`tests/test_q56_s80_print_vwap_overshoot_maker_fade.py`, `tests/test_q56_s80_rederive.py`,
+`reports/q56_s80_print_vwap_overshoot_maker_fade.json` + `.md`, `reports/q56_s80_rederive.json`,
+`findings/2026-08-10-q56-s80-print-vwap-overshoot-maker-fade.md`, `kb/lessons/00-lessons.md`
+(L328, L329), `kb/strategies/00-index.md` (S80 prose only — status column untouched),
+`LOOP-QUEUE.md`, `kb/00-LOG.md`.
+Status (history): **S81 MILESTONE DONE — the binding test is BUILT, PRE-REGISTERED, SEALED, and its
 gate is SHUT. VERDICT CLASS: DATA-ADEQUACY. No CI, no P&L, no kill, no registry flip — S81 stays
 idea-stage `binding-test-defined`, S80's milestone is UNTOUCHED and still TODO, still 0 proven
 edges.** (2026-08-10, research loop, later firing; Q56 was the topmost item whose CURRENT status

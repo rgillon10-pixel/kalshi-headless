@@ -1,0 +1,51 @@
+{
+  "K1": {
+    "ci95": [
+      -0.2265868788676746,
+      -0.08194571868429763
+    ],
+    "maker_fee_at_0_50": 0.01,
+    "mean": -0.1592186397431818,
+    "mean_overshoot_leading_side": -0.16948863869403363,
+    "mean_overshoot_trailing_side": 0.1531774638897395,
+    "n_leading": 30,
+    "n_trailing": 51,
+    "n_units_games": 66
+  },
+  "branch_all_candidates": {
+    "ci95": [
+      -0.18769841269841278,
+      -0.012285714285714299
+    ],
+    "mean": -0.0972727272727273
+  },
+  "branch_conditional_on_fill": {
+    "ci95": [
+      -0.26918918918918927,
+      -0.011428571428571436
+    ],
+    "mean": -0.14011904761904764
+  },
+  "fill": {
+    "fill_rate": 0.6942148760330579,
+    "fills_traceable_to_print_id": 84,
+    "n_candidates": 121,
+    "n_fills": 84,
+    "n_games_with_candidate": 31,
+    "n_games_with_fill": 27
+  },
+  "independent": true,
+  "price_source_tags": {
+    "fill_evidence": "broker_truth",
+    "fill_price": "real_bid",
+    "settlement": "broker_truth",
+    "signal": "broker_truth"
+  },
+  "rederive_of": "q56_s80_print_vwap_overshoot_maker_fade",
+  "tape": {
+    "n_games": 72,
+    "n_prints": 213431,
+    "n_settled_tickers": 81,
+    "n_tickers": 87
+  }
+}

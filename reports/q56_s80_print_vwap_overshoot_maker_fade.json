@@ -1,0 +1,629 @@
+{
+  "probe": "q56_s80_print_vwap_overshoot_maker_fade",
+  "strategy": "S80",
+  "queue_item": "Q56",
+  "read_only": true,
+  "network_calls": 0,
+  "params": {
+    "recent_window_min": 30,
+    "theta": 0.02,
+    "min_anchor_prints": 5,
+    "min_recent_prints": 3,
+    "n_boot": 10000,
+    "seed": 42,
+    "maker_fee_per_contract_at_0_50": 0.01,
+    "bootstrap_unit": "game (event_ticker)"
+  },
+  "price_source_tags": {
+    "fill_price": "real_bid",
+    "fill_evidence": "broker_truth",
+    "signal": "broker_truth",
+    "settlement": "broker_truth"
+  },
+  "tape": {
+    "n_trade_day_files": 6,
+    "n_depth_day_files": 34,
+    "n_traded_sports_tickers": 87,
+    "n_traded_sports_games": 72,
+    "n_prints": 213431,
+    "n_tickers_with_depth": 87
+  },
+  "settlement_coverage": {
+    "requested": 87,
+    "n_resolved": 81,
+    "n_non_binary": 5,
+    "n_listed_unsettled": 1,
+    "n_unresolved": 6,
+    "per_source_hits": {
+      "crypto_hourly": 0,
+      "econ_prints": 0,
+      "q26_settlement_cache": 0,
+      "q27_settlement_cache": 0,
+      "q29_settlement_cache": 0,
+      "q30_settlement_cache": 0,
+      "q51_settlement_cache": 32,
+      "settlement_ledger": 49,
+      "weather_actuals": 0
+    },
+    "sources_scanned": [
+      "settlement_ledger",
+      "q26_settlement_cache",
+      "q27_settlement_cache",
+      "q29_settlement_cache",
+      "q30_settlement_cache",
+      "q51_settlement_cache",
+      "crypto_hourly",
+      "weather_actuals",
+      "econ_prints"
+    ],
+    "sources_absent_on_disk": [],
+    "non_binary": {
+      "KXARGNACBGAME-26AUG01ABOCAC-ABO": {
+        "result": "scalar",
+        "source": "q51_settlement_cache"
+      },
+      "KXDIMAYORGAME-26JUL25CHICAN-TIE": {
+        "result": "scalar",
+        "source": "q51_settlement_cache"
+      },
+      "KXKBOGAME-26AUG040530KTWKIA-KIA": {
+        "result": "scalar",
+        "source": "q51_settlement_cache"
+      },
+      "KXKBOGAME-26AUG050530LGSSG-SSG": {
+        "result": "scalar",
+        "source": "q51_settlement_cache"
+      },
+      "KXUELGAME-26AUG06PAFRBS-RBS": {
+        "result": "scalar",
+        "source": "q51_settlement_cache"
+      }
+    },
+    "unresolved": [
+      "KXARGNACBGAME-26AUG01ABOCAC-ABO",
+      "KXDIMAYORGAME-26JUL25CHICAN-TIE",
+      "KXKBOGAME-26AUG040530KTWKIA-KIA",
+      "KXKBOGAME-26AUG050530LGSSG-SSG",
+      "KXLEAGUESCUPGAME-26AUG09PHINCX-PHI",
+      "KXUELGAME-26AUG06PAFRBS-RBS"
+    ],
+    "recall_note": "undeclared_settlement_dirs() detects only settlement-NAMED directories; a family that embeds results inside another schema (see EMBEDDED_RESULT_FAMILIES) is undetectable by name. A 0-issue result is precision evidence, never recall (L155/L189/L300)."
+  },
+  "cadence_reconciliation": {
+    "all_depth_tickers": {
+      "n_tickers": 108668,
+      "snapshots_per_ticker": {
+        "n": 108668,
+        "median": 1.0,
+        "p25": 1.0,
+        "p75": 2.0,
+        "p90": 2.0
+      },
+      "pooled_gap_minutes": {
+        "n": 325108,
+        "median": 31.989069966666666,
+        "p25": 31.09195495,
+        "p75": 179.35898715,
+        "p90": 360.13705438333335
+      },
+      "per_ticker_median_gap_minutes": {
+        "n": 46709,
+        "median": 31.54997515,
+        "p25": 31.310088733333334,
+        "p75": 32.01828285,
+        "p90": 180.4007613
+      }
+    },
+    "traded_tickers": {
+      "n_tickers": 87,
+      "snapshots_per_ticker": {
+        "n": 87,
+        "median": 28.0,
+        "p25": 14.0,
+        "p75": 56.0,
+        "p90": 66.0
+      },
+      "pooled_gap_minutes": {
+        "n": 2797,
+        "median": 31.333142116666668,
+        "p25": 28.72349673333333,
+        "p75": 179.53980491666667,
+        "p90": 360.39451971666665
+      },
+      "per_ticker_median_gap_minutes": {
+        "n": 87,
+        "median": 31.2156273,
+        "p25": 31.09195495,
+        "p75": 180.4007613,
+        "p90": 180.57601481666666
+      }
+    },
+    "traded_sports_game_tickers": {
+      "n_tickers": 87,
+      "snapshots_per_ticker": {
+        "n": 87,
+        "median": 28.0,
+        "p25": 14.0,
+        "p75": 56.0,
+        "p90": 66.0
+      },
+      "pooled_gap_minutes": {
+        "n": 2797,
+        "median": 31.333142116666668,
+        "p25": 28.72349673333333,
+        "p75": 179.53980491666667,
+        "p90": 360.39451971666665
+      },
+      "per_ticker_median_gap_minutes": {
+        "n": 87,
+        "median": 31.2156273,
+        "p25": 31.09195495,
+        "p75": 180.4007613,
+        "p90": 180.57601481666666
+      }
+    }
+  },
+  "gate_K1_overshoot_vs_maker_fee": {
+    "n_rows": 81,
+    "n_units": 66,
+    "mean": -0.15921863974318176,
+    "ci95": [
+      -0.2253077951250289,
+      -0.08179951541847452
+    ],
+    "maker_fee": 0.01,
+    "passes": false,
+    "by_chased_side": {
+      "yes": {
+        "n": 30,
+        "mean_overshoot": -0.16948863869403363,
+        "mean_vwap": 0.6638446946392997,
+        "settlement_rate": 0.8333333333333334
+      },
+      "no": {
+        "n": 51,
+        "mean_overshoot": 0.1531774638897395,
+        "mean_vwap": 0.251216679576014,
+        "settlement_rate": 0.09803921568627451
+      }
+    },
+    "price_source_tags": {
+      "vwap": "broker_truth",
+      "settlement": "broker_truth"
+    }
+  },
+  "population": {
+    "intervals_seen": 2607,
+    "signal_uncomputable": 2243,
+    "signal_computable": 364,
+    "triggered": 180,
+    "candidates": 121,
+    "below_theta": 184,
+    "ticker_unsettled": 6,
+    "no_touch_on_leg": 59
+  },
+  "fill": {
+    "n_candidates": 121,
+    "n_fills": 84,
+    "fill_rate": 0.6942148760330579,
+    "n_games_with_candidate": 31,
+    "n_games_with_fill": 27,
+    "fills_traceable_to_broker_truth_print": 84,
+    "median_queue_ahead": 662.45,
+    "median_fill_price_real_bid": 0.27
+  },
+  "branch_all_candidates": {
+    "n_units": 31,
+    "n_legs": 121,
+    "n_fills": 84,
+    "mean": -0.0972727272727273,
+    "ci95": [
+      -0.18769841269841278,
+      -0.012285714285714299
+    ],
+    "admissible": {
+      "admissible": true,
+      "n_units": 31,
+      "n_opposing_units": 9,
+      "reasons": []
+    },
+    "clears_tick_magnitude": false,
+    "kish_effective_n": {
+      "n_units": 31,
+      "n_obs": 121,
+      "kish_n": 20.94563662374821,
+      "design_effect": 1.4800218564305718
+    },
+    "n_informative_units": 27,
+    "verdict": "DEAD-negative-CI",
+    "price_source_tags": {
+      "fill_price": "real_bid",
+      "fill_evidence": "broker_truth",
+      "signal": "broker_truth",
+      "settlement": "broker_truth"
+    }
+  },
+  "branch_conditional_on_fill": {
+    "n_units": 27,
+    "n_legs": 84,
+    "n_fills": 84,
+    "mean": -0.14011904761904764,
+    "ci95": [
+      -0.26918918918918927,
+      -0.011428571428571436
+    ],
+    "admissible": {
+      "admissible": true,
+      "n_units": 27,
+      "n_opposing_units": 9,
+      "reasons": []
+    },
+    "clears_tick_magnitude": false,
+    "kish_effective_n": {
+      "n_units": 27,
+      "n_obs": 84,
+      "kish_n": 20.275862068965516,
+      "design_effect": 1.3316326530612246
+    },
+    "n_informative_units": 27,
+    "verdict": "DEAD-negative-CI",
+    "price_source_tags": {
+      "fill_price": "real_bid",
+      "fill_evidence": "broker_truth",
+      "signal": "broker_truth",
+      "settlement": "broker_truth"
+    }
+  },
+  "adverse_selection_registered_leg": {
+    "n_fills": 84,
+    "static_gross_at_vwap": -0.1603764328685652,
+    "realized_gross_at_bid": -0.13011904761904763,
+    "realized_net_after_maker_fee": -0.14011904761904762,
+    "adverse_selection_cost": -0.03025738524951757,
+    "note": "negative adverse_selection_cost means the fills we got were BETTER than the average print; positive means the flow selected against us",
+    "price_source_tags": {
+      "entry_vwap": "broker_truth",
+      "fill_price": "real_bid",
+      "settlement": "broker_truth"
+    }
+  },
+  "kill_conditions_fired": [
+    "K1_overshoot_within_maker_fee",
+    "K3_headline_ci_not_positive"
+  ],
+  "verdict": "DEAD",
+  "mirror_leg_DESCRIPTIVE_ONLY": {
+    "WARNING": "post-hoc sign-flip of the pre-registered direction; DESCRIPTIVE ONLY, never a verdict and never grounds for a registry flip",
+    "n_candidates": 121,
+    "n_fills": 74,
+    "branch_all_candidates": {
+      "n_units": 31,
+      "n_legs": 121,
+      "n_fills": 74,
+      "mean": -0.006694214876033062,
+      "ci95": [
+        -0.08,
+        0.06330275229357797
+      ],
+      "admissible": {
+        "admissible": true,
+        "n_units": 31,
+        "n_opposing_units": 17,
+        "reasons": []
+      },
+      "clears_tick_magnitude": false,
+      "kish_effective_n": {
+        "n_units": 31,
+        "n_obs": 121,
+        "kish_n": 20.94563662374821,
+        "design_effect": 1.4800218564305718
+      },
+      "n_informative_units": 29,
+      "verdict": "DEAD-straddles-zero",
+      "price_source_tags": {
+        "fill_price": "real_bid",
+        "fill_evidence": "broker_truth",
+        "signal": "broker_truth",
+        "settlement": "broker_truth"
+      }
+    },
+    "branch_conditional_on_fill": {
+      "n_units": 29,
+      "n_legs": 74,
+      "n_fills": 74,
+      "mean": -0.010945945945945952,
+      "ci95": [
+        -0.13955555555555557,
+        0.10013888888888887
+      ],
+      "admissible": {
+        "admissible": true,
+        "n_units": 29,
+        "n_opposing_units": 17,
+        "reasons": []
+      },
+      "clears_tick_magnitude": false,
+      "kish_effective_n": {
+        "n_units": 29,
+        "n_obs": 74,
+        "kish_n": 18.625850340136054,
+        "design_effect": 1.5569758948137327
+      },
+      "n_informative_units": 29,
+      "verdict": "DEAD-straddles-zero",
+      "price_source_tags": {
+        "fill_price": "real_bid",
+        "fill_evidence": "broker_truth",
+        "signal": "broker_truth",
+        "settlement": "broker_truth"
+      }
+    },
+    "adverse_selection": {
+      "n_fills": 74,
+      "static_gross_at_vwap": 0.07508186250413179,
+      "realized_gross_at_bid": -0.0009459459459459422,
+      "realized_net_after_maker_fee": -0.010945945945945949,
+      "adverse_selection_cost": 0.07602780845007773,
+      "note": "negative adverse_selection_cost means the fills we got were BETTER than the average print; positive means the flow selected against us",
+      "price_source_tags": {
+        "entry_vwap": "broker_truth",
+        "fill_price": "real_bid",
+        "settlement": "broker_truth"
+      }
+    }
+  },
+  "sensitivity_grid": [
+    {
+      "window_min": 15,
+      "theta": 0.01,
+      "n_candidates": 163,
+      "n_fills": 98,
+      "fill_rate": 0.6012269938650306,
+      "n_games_all": 30,
+      "n_games_filled": 29,
+      "mean_all": -0.05791411042944785,
+      "ci95_all": [
+        -0.13664335664335667,
+        0.00772058823529411
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.09632653061224489,
+      "ci95_conditional_on_fill": [
+        -0.22399999999999998,
+        0.012476190476190469
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 15,
+      "theta": 0.02,
+      "n_candidates": 123,
+      "n_fills": 87,
+      "fill_rate": 0.7073170731707317,
+      "n_games_all": 30,
+      "n_games_filled": 27,
+      "mean_all": -0.08130081300813008,
+      "ci95_all": [
+        -0.17468468468468468,
+        0.001039999999999985
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.11494252873563218,
+      "ci95_conditional_on_fill": [
+        -0.24759493670886074,
+        0.004148936170212744
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 15,
+      "theta": 0.03,
+      "n_candidates": 103,
+      "n_fills": 74,
+      "fill_rate": 0.7184466019417476,
+      "n_games_all": 30,
+      "n_games_filled": 25,
+      "mean_all": -0.07407766990291262,
+      "ci95_all": [
+        -0.16897435897435903,
+        0.011758241758241752
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.1031081081081081,
+      "ci95_conditional_on_fill": [
+        -0.23292307692307693,
+        0.018735632183908033
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 15,
+      "theta": 0.05,
+      "n_candidates": 88,
+      "n_fills": 64,
+      "fill_rate": 0.7272727272727273,
+      "n_games_all": 27,
+      "n_games_filled": 24,
+      "mean_all": -0.06409090909090909,
+      "ci95_all": [
+        -0.16506493506493508,
+        0.028275862068965502
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.088125,
+      "ci95_conditional_on_fill": [
+        -0.22658536585365857,
+        0.03941176470588239
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 30,
+      "theta": 0.01,
+      "n_candidates": 176,
+      "n_fills": 102,
+      "fill_rate": 0.5795454545454546,
+      "n_games_all": 34,
+      "n_games_filled": 30,
+      "mean_all": -0.06420454545454546,
+      "ci95_all": [
+        -0.13953488372093023,
+        0.0012735849056603587
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.1107843137254902,
+      "ci95_conditional_on_fill": [
+        -0.2315116279069767,
+        0.002298850574712633
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 30,
+      "theta": 0.02,
+      "n_candidates": 121,
+      "n_fills": 84,
+      "fill_rate": 0.6942148760330579,
+      "n_games_all": 31,
+      "n_games_filled": 27,
+      "mean_all": -0.0972727272727273,
+      "ci95_all": [
+        -0.18769841269841278,
+        -0.012285714285714299
+      ],
+      "verdict_all": "DEAD-negative-CI",
+      "mean_conditional_on_fill": -0.14011904761904764,
+      "ci95_conditional_on_fill": [
+        -0.26918918918918927,
+        -0.011428571428571436
+      ],
+      "verdict_conditional_on_fill": "DEAD-negative-CI"
+    },
+    {
+      "window_min": 30,
+      "theta": 0.03,
+      "n_candidates": 104,
+      "n_fills": 74,
+      "fill_rate": 0.7115384615384616,
+      "n_games_all": 31,
+      "n_games_filled": 26,
+      "mean_all": -0.1195192307692308,
+      "ci95_all": [
+        -0.21495412844036701,
+        -0.03271739130434783
+      ],
+      "verdict_all": "DEAD-negative-CI",
+      "mean_conditional_on_fill": -0.167972972972973,
+      "ci95_conditional_on_fill": [
+        -0.29760000000000003,
+        -0.04602739726027399
+      ],
+      "verdict_conditional_on_fill": "DEAD-negative-CI"
+    },
+    {
+      "window_min": 30,
+      "theta": 0.05,
+      "n_candidates": 79,
+      "n_fills": 60,
+      "fill_rate": 0.759493670886076,
+      "n_games_all": 27,
+      "n_games_filled": 24,
+      "mean_all": -0.09215189873417723,
+      "ci95_all": [
+        -0.19216666666666668,
+        -0.003428571428571438
+      ],
+      "verdict_all": "DEAD-negative-CI",
+      "mean_conditional_on_fill": -0.12133333333333335,
+      "ci95_conditional_on_fill": [
+        -0.24413793103448278,
+        -0.0022033898305084984
+      ],
+      "verdict_conditional_on_fill": "DEAD-negative-CI"
+    },
+    {
+      "window_min": 60,
+      "theta": 0.01,
+      "n_candidates": 192,
+      "n_fills": 103,
+      "fill_rate": 0.5364583333333334,
+      "n_games_all": 34,
+      "n_games_filled": 31,
+      "mean_all": -0.05130208333333334,
+      "ci95_all": [
+        -0.1141875,
+        0.011770833333333328
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.09563106796116506,
+      "ci95_conditional_on_fill": [
+        -0.20390000000000005,
+        0.018058252427184465
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 60,
+      "theta": 0.02,
+      "n_candidates": 110,
+      "n_fills": 77,
+      "fill_rate": 0.7,
+      "n_games_all": 33,
+      "n_games_filled": 27,
+      "mean_all": -0.05663636363636364,
+      "ci95_all": [
+        -0.1545967741935484,
+        0.039883720930232555
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.08090909090909092,
+      "ci95_conditional_on_fill": [
+        -0.21617647058823525,
+        0.060724637681159425
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 60,
+      "theta": 0.03,
+      "n_candidates": 95,
+      "n_fills": 69,
+      "fill_rate": 0.7263157894736842,
+      "n_games_all": 30,
+      "n_games_filled": 25,
+      "mean_all": -0.08452631578947367,
+      "ci95_all": [
+        -0.19086538461538466,
+        0.01757894736842104
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.11637681159420289,
+      "ci95_conditional_on_fill": [
+        -0.25,
+        0.0216216216216216
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    },
+    {
+      "window_min": 60,
+      "theta": 0.05,
+      "n_candidates": 71,
+      "n_fills": 53,
+      "fill_rate": 0.7464788732394366,
+      "n_games_all": 25,
+      "n_games_filled": 21,
+      "mean_all": -0.08014084507042253,
+      "ci95_all": [
+        -0.1902941176470588,
+        0.026571428571428555
+      ],
+      "verdict_all": "DEAD-straddles-zero",
+      "mean_conditional_on_fill": -0.10735849056603773,
+      "ci95_conditional_on_fill": [
+        -0.23836363636363633,
+        0.03452380952380951
+      ],
+      "verdict_conditional_on_fill": "DEAD-straddles-zero"
+    }
+  ]
+}
