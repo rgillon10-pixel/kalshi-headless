@@ -212,8 +212,15 @@ def test_acceptance_the_2026_08_10_firing_clears_the_l41_floor_by_a_wide_margin(
 def test_acceptance_the_queue_s_57_units_is_the_terminal_row_not_the_08_10_row():
     """LOOP-QUEUE's milestone-3 spec predicts '~57 game units / ~330 legs'. That is the
     close-day 2026-08-23 row. Firing on 08-10 buys materially less — the pre-flight exists
-    to make that difference a number instead of a word."""
-    rep = P.run(with_hazard=False)
+    to make that difference a number instead of a word.
+
+    `cache_path=P.FROZEN_M2_CACHE` is load-bearing (L325): `P.run()` defaults to the LIVE
+    settlement cache, which milestone 3's own `--build-cache` command overwrote on 2026-08-10
+    with the venue's ACTUAL finalize times. Under that cache 48 of 60 markets' `close_time`
+    moves EARLIER and the close-day table collapses from 11 rows to 8, so this test — which
+    pins what the PRE-FIRING projection said — must name the input the projection was measured
+    on. That is L284/L191's rule (pin to a slice that cannot grow) applied one artifact over."""
+    rep = P.run(with_hazard=False, cache_path=P.FROZEN_M2_CACHE)
     table = rep["cumulative_by_close_day"]
     terminal = table[-1]
     assert terminal["close_day"] == "2026-08-23"
@@ -223,7 +230,8 @@ def test_acceptance_the_queue_s_57_units_is_the_terminal_row_not_the_08_10_row()
 
 
 def test_acceptance_the_cumulative_table_is_monotone_on_real_tape():
-    rep = P.run(with_hazard=False)
+    """FROZEN input (L325) — see the note on the terminal-row test above."""
+    rep = P.run(with_hazard=False, cache_path=P.FROZEN_M2_CACHE)
     table = rep["cumulative_by_close_day"]
     assert len(table) >= 11
     for a, b in zip(table[:-1], table[1:]):
@@ -289,3 +297,45 @@ def test_hazard_report_before_column_defaults_to_the_live_cache_but_is_overridab
     import inspect
     sig = inspect.signature(P.hazard_report)
     assert sig.parameters["before_cache_path"].default is None
+
+
+# --------------------------------------------------------------------------- #
+# L325 — the milestone-3 firing hazard that L284's repair did NOT cover
+# --------------------------------------------------------------------------- #
+def test_acceptance_live_cache_still_produces_a_well_formed_table_after_the_m3_repull():
+    """SHAPE ONLY, on the LIVE cache — deliberately not pinned to values.
+
+    L284 froze the settlement cache and repointed `tests/test_q51_maker_fillsim.py`'s three
+    milestone-2 pins at the snapshot, but left the two value-pinning cases in THIS module
+    reading the live cache; on 2026-08-10 the firing turned them red. The repair repoints
+    those at the frozen snapshot. This case exists so the live path is still structurally
+    checked rather than silently abandoned — the same division of labour L284 chose."""
+    rep = P.run(with_hazard=False)
+    table = rep["cumulative_by_close_day"]
+    assert table, "live cache produced no close-day rows at all"
+    for a, b in zip(table[:-1], table[1:]):
+        assert b["close_day"] > a["close_day"]
+        assert b["markets_closed"] >= a["markets_closed"]
+        assert b["game_units"] >= a["game_units"]
+        assert b["legs"] >= a["legs"]
+    assert rep["population"]["sports_game_markets_in_sample"] == 60
+
+
+def test_acceptance_the_m3_repull_moved_close_time_earlier_never_later():
+    """WHY the table collapsed, measured rather than asserted.
+
+    Kalshi's `close_time` on a FINALIZED market is the actual finalize instant, not the
+    scheduled close the milestone-2 cache recorded while the game was still `active`. So the
+    re-pull can only move a market EARLIER into scope, never later — which is why the 08-10
+    firing scored MORE units (51) than the pre-flight's close-day projection (44), the
+    opposite direction from the settlement-lag reduction the pre-flight warned about."""
+    m2 = M.load_settlement_cache(P.FROZEN_M2_CACHE)
+    m3_path = P.REPO_ROOT / "tape" / "q51_settlement_cache" / "settlement-m3-2026-08-10.json"
+    if not m3_path.exists():          # tolerate a checkout without the m3 snapshot
+        return
+    m3 = M.load_settlement_cache(m3_path)
+    assert set(m2) == set(m3)
+    later = [t for t in m3 if (m3[t].get("close_time") or "") > (m2[t].get("close_time") or "")]
+    assert later == [], f"close_time moved LATER for {later}"
+    earlier = [t for t in m3 if (m3[t].get("close_time") or "") < (m2[t].get("close_time") or "")]
+    assert len(earlier) >= 40

@@ -112,9 +112,24 @@ def test_all_same_direction_population_is_inadmissible_s20(tmp_path):
     assert out["all_intervals"]["admissible"] is False
 
 
+#: The FROZEN milestone-2 rows file (L325's repair, 2026-08-10). `R.rederive()` defaults to
+#: the LIVE `reports/q51_maker_fillsim_rows.jsonl`, which milestone 3's own firing command
+#: rewrites — 40 rows became 294 on 2026-08-10 and this acceptance case went red. Same defect
+#: class as L284/L191: pin to a slice that cannot grow.
+M2_ROWS = R.ROWS_PATH.parent / "q51_maker_fillsim_rows-m2-2026-08-04.jsonl"
+M2_ROWS_SHA256 = "780b1a7de2970ea8187f01c8252051aa95d2fe14e5afa7bcdcd62eb83d65ca50"
+
+
+def test_acceptance_frozen_m2_rows_are_the_milestone_2_output():
+    """Identity pin so the frozen comparand cannot be swapped and silently re-baselined."""
+    import hashlib
+    assert M2_ROWS.exists(), M2_ROWS
+    assert hashlib.sha256(M2_ROWS.read_bytes()).hexdigest() == M2_ROWS_SHA256
+
+
 def test_acceptance_rederives_the_committed_report_rows_cleanly():
-    """HARD acceptance over the committed `reports/q51_maker_fillsim_rows.jsonl`."""
-    out = R.rederive(n_boot=2000)
+    """HARD acceptance over the FROZEN milestone-2 rows (L325 — was the live file)."""
+    out = R.rederive(rows_path=M2_ROWS, n_boot=2000)
     assert out["rows"] == 40
     assert out["pnl_mismatches"] == 0
     assert out["untraced_fills"] == 0
@@ -147,3 +162,26 @@ def test_a_non_binary_settlement_result_is_flagged_not_booked_as_a_loss_l52(tmp_
 
 def test_acceptance_no_non_binary_result_reached_a_scored_fill():
     assert R.rederive(n_boot=100)["non_binary_result_fills"] == 0
+
+
+def test_acceptance_rederives_the_milestone_3_rows_cleanly():
+    """The same independent re-derivation over MILESTONE 3's rows (fired 2026-08-10).
+
+    This is the redundancy path the two-agent rule falls back to when no `verifier` subagent
+    is dispatchable: an own-reader, own-fee, own-bootstrap re-derivation that never imports
+    the probe. It shares the producer's premises (notably L279's `taker_book_side`
+    orientation) and is therefore NOT a verification of those premises."""
+    out = R.rederive(n_boot=2000)
+    assert out["rows"] == 294
+    assert out["pnl_mismatches"] == 0
+    assert out["untraced_fills"] == 0
+    assert out["price_tag_violations"] == 0
+    assert out["all_intervals"]["n_units"] == 51
+    assert out["all_intervals"]["n_filled"] == 64
+    assert out["all_intervals"]["fill_rate"] == pytest.approx(64 / 294)
+    assert out["all_intervals"]["mean"] == pytest.approx(0.010068027210884354, abs=1e-9)
+    assert out["all_intervals"]["admissible"] is True
+    assert out["all_intervals"]["n_opposing_units"] == 12
+    assert out["all_intervals"]["clears_tick"] is False
+    assert out["all_intervals"]["ci95"][0] < 0 < out["all_intervals"]["ci95"][1]
+    assert out["row_level_interval_coverage"] == pytest.approx(58 / 147)

@@ -90,6 +90,16 @@ from scripts import q51_maker_fillsim as M  # noqa: E402
 # and nothing else is. Using the frozen file rather than the live one keeps this projection
 # reproducible after the 08-10 `--build-cache` overwrites `settlement.json`.
 M2_CACHE = REPO_ROOT / "tape" / "q51_settlement_cache" / "settlement-m2-2026-08-04.json"
+
+# The FROZEN milestone-2 REPORT (L325's repair, 2026-08-10). `calibration_vs_milestone_2`
+# compares this module's close-day proxy against what milestone 2 actually observed, so its
+# comparand must BE milestone 2. It defaulted to the LIVE `reports/q51_maker_fillsim.json` —
+# a file the milestone-3 firing command rewrites — so on 2026-08-10 the function silently
+# started comparing the 08-04 projection against the 08-10 RESULT and its own acceptance test
+# went red. Same defect class as L284 (pin to a slice that cannot grow, L191), one artifact
+# over: L284 froze the settlement CACHE and repaired one test module, but two sibling modules
+# were still reading mutable artifacts. The live path stays available via the argument.
+M2_REPORT = REPO_ROOT / "reports" / "q51_maker_fillsim-m2-2026-08-04.json"
 REPORT_PATH = REPO_ROOT / "reports" / "q51_m3_fill_projection.json"
 
 # The fire dates `scripts/q51_m3_preflight.py` tabulates, so the two reports join row-wise.
@@ -339,7 +349,7 @@ def drops_unit_audit() -> dict:
 
 
 def calibration_vs_milestone_2(rows: Sequence[dict],
-                               observed_report: Path = REPO_ROOT / "reports" / "q51_maker_fillsim.json",
+                               observed_report: Path = M2_REPORT,
                                proxy_fire_date: str = "2026-08-04") -> dict:
     """Measure the PROXY's own error instead of asserting it. This module buckets a market by
     `close_day <= fire_date`; milestone 2's probe bucketed it by whether the venue had
@@ -347,7 +357,12 @@ def calibration_vs_milestone_2(rows: Sequence[dict],
     predicates and the difference is exactly the settlement LAG the projection calls an upper
     bound. Comparing the 08-04 projection row against the committed milestone-2 report turns
     "upper bound" from a claim into a measured direction. Returns {} if the observed report is
-    absent, so this can never fail a run."""
+    absent, so this can never fail a run.
+
+    `observed_report` defaults to the FROZEN milestone-2 report (`M2_REPORT`), NOT the live
+    `reports/q51_maker_fillsim.json`: the live file is rewritten by every re-run of the probe,
+    including milestone 3's own firing command, and a calibration against a moving comparand
+    is not a calibration (L325)."""
     if not observed_report.exists():
         return {}
     try:

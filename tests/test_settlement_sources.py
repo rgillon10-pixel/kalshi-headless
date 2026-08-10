@@ -233,6 +233,17 @@ class TestUndeclaredDirDetector:
 # --------------------------------------------------------------------------- #
 # real committed tape — the L300 acceptance pin
 # --------------------------------------------------------------------------- #
+def _frozen_m2_sources():
+    """The declared registry with `q51_settlement_cache` repointed at its FROZEN milestone-2
+    snapshot, so L300's published counts stay reproducible after any later re-pull (L325)."""
+    import dataclasses
+    return tuple(
+        dataclasses.replace(
+            src, path_glob="q51_settlement_cache/settlement-m2-2026-08-04.json")
+        if src.name == "q51_settlement_cache" else src
+        for src in SETTLEMENT_SOURCES)
+
+
 @pytest.mark.skipif(not TRADE_DAY_TAPE.exists(), reason="kalshi_trades tape absent")
 class TestAcceptanceRealTapeS79DataGate:
     @pytest.fixture(scope="class")
@@ -250,7 +261,16 @@ class TestAcceptanceRealTapeS79DataGate:
         assert rep.n_resolved == 0
 
     def test_the_full_registry_resolves_nine_and_names_the_family(self, traded_tickers):
-        rep = resolve_market_results(traded_tickers)
+        """L300's pin, now read through the FROZEN milestone-2 cache (L325).
+
+        `q51_settlement_cache`'s live `settlement.json` is rewritten by
+        `q51_maker_fillsim.py --build-cache`; milestone 3 fired that command on 2026-08-10 and
+        this count moved 9 -> 32, turning L300's acceptance pin red for a reason that has
+        nothing to do with the property under test. Substituting the frozen snapshot into the
+        registry reproduces the pin EXACTLY (9/9) and re-anchors it to a slice that cannot
+        grow (L191). The post-firing live state is measured in its own case below rather than
+        being silently absorbed into this one."""
+        rep = resolve_market_results(traded_tickers, sources=_frozen_m2_sources())
         assert rep.n_resolved == 9
         assert rep.per_source_hits["q51_settlement_cache"] == 9
         assert sum(v for k, v in rep.per_source_hits.items()
@@ -259,8 +279,9 @@ class TestAcceptanceRealTapeS79DataGate:
 
     def test_nine_is_below_the_l41_ten_unit_floor(self, traded_tickers):
         """Why S79 still does not become runnable: the gate holds, on a different reason.
-        The bootstrap unit is the GAME (L6), so count distinct event_tickers, not tickers."""
-        rep = resolve_market_results(traded_tickers)
+        The bootstrap unit is the GAME (L6), so count distinct event_tickers, not tickers.
+        FROZEN input (L325) — see the note on the previous case."""
+        rep = resolve_market_results(traded_tickers, sources=_frozen_m2_sources())
         events = {t.rsplit("-", 1)[0] for t in rep.resolved}
         assert len(events) == 9
         assert len(events) < 10
@@ -273,3 +294,22 @@ class TestAcceptanceRealTapeS79DataGate:
                       if t not in rep.listed_unsettled and t not in rep.non_binary]
         assert len(never_seen) == 4
         assert all(t.startswith(("KXBTC-", "KXETH-")) for t in never_seen)
+
+    def test_the_m3_repull_moved_this_surface_above_the_l41_floor(self, traded_tickers):
+        """MEASURED side-effect of Q51 milestone 3's settlement re-pull (2026-08-10).
+
+        The re-pull resolved 49 more of the 60 sampled markets, so this surface now resolves
+        32 of the 42 traded tickers = 32 distinct GAME units, above the L41 floor of 10 that
+        L300 recorded it as failing. DIRECTIONAL (`>=`): a settlement cache only ever gains
+        finalized results, so a later sweep can raise this and must not turn it red.
+
+        What it does NOT mean: S79 already fired on 2026-08-09 (verdict DEAD-by-CI,
+        verifier-CONFIRMED, 24 units off the trade-print backfill). This is a
+        settlement-RESOLVABILITY measurement on one surface, not a strategy result, and it
+        revives nothing."""
+        rep = resolve_market_results(traded_tickers)
+        assert rep.n_resolved >= 32
+        assert rep.per_source_hits["q51_settlement_cache"] >= 32
+        events = {t.rsplit("-", 1)[0] for t in rep.resolved}
+        assert len(events) >= 32 > 10
+        assert all(m.price_source_tag == "broker_truth" for m in rep.resolved.values())

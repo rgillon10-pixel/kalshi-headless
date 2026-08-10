@@ -2107,6 +2107,100 @@ nothing depends on them and no registry row moves. `pytest` 2,647 items green (0
 this diff). See `kb/lessons/00-lessons.md` L255/L258.
 
 ### Q51 — Public executed-trade print tape (`/markets/trades`): the WALL-B unblocker
+Status: **MILESTONE 3 FIRED AND DONE (2026-08-10, research loop — the time gate opened today
+and the recipe ran as written). VERDICT: ADMISSIBLE NULL — the first run of this design whose
+`bootstrap_verdict_admissible` gate OPENS, and its 95% CI straddles zero at real prices.
+PROVISIONAL (no `verifier` dispatchable); NO registry row moves; S13/S23/S29 keep the `dead ✗`
+they already had; still 0 proven edges.** Recipe followed literally: (i) `q51_m3_preflight.py`
+→ conservative **41 units / 238 legs** (optimistic 44/256), 4x the L41 floor → FIRE; (ii)
+`q51_maker_fillsim.py --build-cache` (read-only unauthenticated re-pull of the SAME 60 tickers);
+(iii) `q51_maker_fillsim.py` UNCHANGED, reproduced byte-identically on a second run; (iv) NEW
+immutable snapshot `tape/q51_settlement_cache/settlement-m3-2026-08-10.json` (sha256
+`26762aff…36ef5`) frozen and pinned, every milestone-3 test passing `cache_path=M3_CACHE`
+explicitly — the milestone-2 pins on `settlement-m2-2026-08-04.json` are UNTOUCHED and
+re-verified. **Headline `all_intervals`** (`real_bid` rest price / `broker_truth` fill evidence
++ settlement, maker fee **0.0175** per L5, block-bootstrap by GAME never by outcome, n_boot
+10,000, seed 42): **51 units** (7 at milestone 2), 294 legs / **64 fills = 21.77%**, interval
+coverage **58/147 = 39.46%**, **12 opposing clusters** (S20 satisfied), mean **+$0.010068**,
+95% CI **[−$0.015700, +$0.036815]**, `admissible=True` with `reasons=[]`, L27 tick gate FAILS →
+**NULL, not an edge, and not a revival.** Sensitivity `covered_intervals` (which clears L41 for
+the first time on this firing): 116 legs / 64 fills = **55.17%**, 25 units, mean **+$0.025517**,
+CI **[−$0.041017, +$0.088559]** — same verdict. Sub-branches: `yes_bid` fill 9.52%, `no_bid`
+34.01% (the milestone-2 taker-flow asymmetry persists and WIDENS, 1.9x → 3.6x);
+`conditional_on_fill` 64 legs / 24 units, mean +$0.04625, CI [−$0.073443, +$0.179091]. **All
+binding gates held:** 64/64 fills trace to a `broker_truth` `trade_id` (0 synthesised fills);
+no queue-position or time-to-fill number computed anywhere; coverage reported beside every fill
+rate on both branches. **Three qualifiers that ride with the headline:** (1) 230 of 294 legs
+(78.2%) are unfilled and contribute an EXACT 0.0, so `mean_all == fill_rate × mean_filled` is an
+identity (verified to 0.0e+00) — the headline is a **4.59x rescaling** of the per-fill number,
+not an independent measurement of it; (2) **51 units is nominal, 24 are informative** — 27 units
+are entirely unfilled and contribute an identical zero to all 10,000 resamples; the verdict
+survives (24 > 10) but the headroom is half what it reads (**new lesson L326**; Kish effective n
+is 49.91 and cannot see this, because an all-zero unit is perfectly *sized*); (3) L309's `drops`
+unit-mixing defect is present, confirmed INERT (affects the drops accounting only, no headline
+number) and still deliberately unrepaired — now unblocked, since the probe no longer has to run
+unchanged. **Against the 08-08 projection every count moved, and both drivers are measured:**
+147 intervals / 294 legs / 51 units / 64 fills vs the projected 128 / 256 / 44 / 76. The
+population GREW because a FINALIZED market's `close_time` is the actual finalize instant, not
+the scheduled close the m2 cache held while the game was `active` — re-pulled, **48 of 60
+`close_time`s moved EARLIER, 12 unchanged, 0 later** (59 markets in scope vs 47), a direction
+the `close_day <= fire_date` proxy's upper-bound framing did not anticipate (test-pinned). The
+fills SHRANK because 5 markets settled `scalar` (L52) plus 1 unsettled → 15 intervals dropped
+that the synthetic projection cache assumed binary. **L308's mechanism is CONFIRMED and
+stronger than projected:** `all_intervals` fill rate 0.6500 → 0.21769 = **2.99x** compression
+(projected 2.27x) while the conditional-on-coverage rate falls only 0.7647 → 0.55172 = **1.39x**
+(projected 1.26x), coverage 0.8500 → 0.39456; the identity `all_rate / covered_rate ==
+coverage` holds exactly (0.394558) — a COVERAGE effect, not a change in fill behaviour.
+**THE FIRING TURNED `pytest` RED — 6 acceptance cases across 4 modules L284's repair did not
+cover (new lesson L325).** L284 froze the settlement cache and repaired `tests/test_q51_maker_fillsim.py`, then
+verified 42/42 — but never asked *who else reads this artifact*. Three acceptance cases failed
+on the day: two in `tests/test_q51_m3_preflight.py` (`P.run()` defaults to the LIVE cache) and
+one in `tests/test_q51_m3_fill_projection.py`, whose `calibration_vs_milestone_2()` compared
+against the live `reports/q51_maker_fillsim.json` — **the exact file step (iii) rewrites**, so
+the calibration silently began comparing the 08-04 projection against the 08-10 RESULT; one in
+`tests/test_q51_maker_fillsim_rederive.py` (`R.rederive()` defaults to the live rows file, 40 ->
+294); and TWO in `tests/test_settlement_sources.py`, where **L300's own acceptance pin** — a
+module with nothing to do with Q51's fill-sim — reads the same live cache. **That last one is
+also a real side-effect finding:** the re-pull moved L300's settlement-resolvability gate from
+**9 GAME units (below the L41 floor of 10) to 32 (above it)**, because 49 more of the 60 sampled
+markets now carry a binary result. It revives nothing (S79 fired DEAD-by-CI on 2026-08-09, 24
+units, verifier-CONFIRMED) and is a resolvability measurement on ONE surface, not a strategy
+result — pinned directionally (`>= 32`) so the next run does not rediscover it. Repair
+is NON-WEAKENING (no assertion relaxed, deleted or reordered): explicit `cache_path=
+FROZEN_M2_CACHE` on the two preflight cases; `calibration_vs_milestone_2`'s default comparand is
+now the newly frozen `reports/q51_maker_fillsim-m2-2026-08-04.json` (sha256 `745c4eb7…83c24`,
+recovered byte-identically from the committed tree), pinned by hash and by a source-text
+assertion that it can never point back at the live report; a newly frozen
+`reports/q51_maker_fillsim_rows-m2-2026-08-04.jsonl` (sha256 `780b1a7d…5ca50`) for the rederive
+case; and `dataclasses.replace(path_glob=…)` substituting the frozen snapshot into the settlement
+source registry, which reproduces L300's counts EXACTLY (9/9). Every repaired module keeps a
+live-path case (SHAPE-only or a directional measurement of the new state). **Two-agent rule: NOT SATISFIABLE.** The run brief asserted a `Task`/subagent tool was
+available; it is not (`No such tool available: Agent`) — the L287/L288/L290/L291/L295 precedent
+holds, so this is committed PROVISIONAL and flips nothing. The sanctioned fallback ran: an
+INDEPENDENT code path over `reports/q51_maker_fillsim_rows.jsonl` alone (own reader, own Decimal
+ROUND_CEILING fee vs the probe's `math.ceil`, own grouping, own bootstrap, seed 20260810, never
+importing the probe) — **294/294 rows, 0 P&L mismatches, 0 untraced fills, 0 tag violations**,
+every mean reproduced to 12 decimals, every CI sign conclusion unchanged, 51 distinct games with
+both legs of a ticker in ONE unit (bootstrap is by game, never by outcome), 12 opposing units,
+and a fee control (mean +$0.010068 at maker 0.0175 vs +$0.008061 at taker 0.07). Plus an
+independent 12-ticker live re-fetch with a plain `requests` GET agreeing with the frozen snapshot
+**12/12**. That is a redundancy check, NOT a verifier: it shares L279's orientation premise and
+could not have caught an orientation error. **Owed next:** an independent `verifier` the first
+time a harness exposes one; the second sweep after **2026-08-24** (terminal 57 units / 330 legs
+— buys resample UNITS, not fill EVIDENCE, per the 08-08 projection); L309's `drops` repair, now
+unblocked. The binding constraint on the whole WALL-B program is UNCHANGED and is not this
+verdict: `orderbook_depth`'s revisit interval (L283 — 98.01% of executed volume cannot be priced
+against a quote younger than 15 min), which only Q47's Ryan-gated WS `orderbook_delta` moves.
+Gates AFTER the last code change: see the Log-of-runs line below. Files:
+`tape/q51_settlement_cache/settlement-m3-2026-08-10.json`,
+`reports/q51_maker_fillsim.json`, `reports/q51_maker_fillsim_rows.jsonl`,
+`reports/q51_maker_fillsim-m2-2026-08-04.json`, `reports/q51_m3_preflight.json`,
+`reports/q51_maker_fillsim_rows-m2-2026-08-04.jsonl`,
+`scripts/q51_m3_fill_projection.py`, `tests/test_q51_maker_fillsim.py`,
+`tests/test_q51_m3_preflight.py`, `tests/test_q51_m3_fill_projection.py`,
+`tests/test_q51_maker_fillsim_rederive.py`, `tests/test_settlement_sources.py`,
+`findings/2026-08-10-q51-m3-admissible-null-verdict.md`, `kb/lessons/00-lessons.md` (L325,
+L326), `LOOP-QUEUE.md`, `kb/00-LOG.md`.
 Status: MILESTONE 3 STILL TIME-GATED (2026-08-10) — and its FILL population is now PROJECTED,
 outcome-independently, two days before the gate (2026-08-08, research loop IDLE RUN, idle-run
 policy (b): build + offline-test what the NEXT time-gated item needs so it fires correctly on its
@@ -3014,6 +3108,7 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
+- 2026-08-10T~00:2x-03:xxZ (research loop, protocol v3) · **Q51 MILESTONE 3 FIRED ON ITS GATE DAY — the first ADMISSIBLE run of the interval-level maker fill-sim; verdict an honest NULL (mean +$0.010068, 95% CI [−$0.015700, +$0.036815], 51 game units, 12 opposing clusters, L27 tick gate FAILS), PROVISIONAL, NO registry flip — S13/S23/S29 keep `dead ✗`, still 0 proven edges.** Recipe followed literally: preflight (41 conservative units, 4x the L41 floor) → `--build-cache` read-only re-pull → probe UNCHANGED, reproduced byte-identically → NEW frozen snapshot `settlement-m3-2026-08-10.json` (sha256 `26762aff…36ef5`) with every m3 test pinned to it and the m2 pins untouched. `real_bid` rest price / `broker_truth` fill evidence + settlement / maker fee 0.0175 (L5) / block-bootstrap by GAME / 64-of-64 fills traced to a `trade_id`. Reported beside the headline as required: `covered_intervals` 55.17% fill, mean +$0.025517, CI [−$0.041017, +$0.088559], 25 units; coverage 58/147 = 39.46%. L308 CONFIRMED and stronger than projected — fill rate 0.6500 → 0.21769 (**2.99x** vs projected 2.27x) while the conditional-on-coverage rate falls only 1.39x; the identity `all/covered == coverage` holds exactly. Two new lessons: **L325** (the L284 firing hazard recurred in **6 acceptance cases across 4 sibling modules** the repair never audited — including L300's pin in `test_settlement_sources.py`, and one leak through a mutable REPORT, not a cache; repaired non-weakeningly with two more frozen+hash-pinned artifacts and a registry `path_glob` substitution that reproduces L300 exactly 9/9) and **L326** (51 nominal units, only **24** informative — 27 units are entirely unfilled and contribute an identical zero to all 10,000 resamples; Kish effective n is 49.91 and structurally cannot see it). Side-effect recorded: the re-pull moved L300's settlement-resolvability gate from 9 GAME units to **32**, above the L41 floor — revives nothing (S79 fired DEAD-by-CI 2026-08-09). **Two-agent rule NOT SATISFIABLE** — the run brief asserted a `Task`/subagent tool was available; it is not (`No such tool available: Agent`), the L287/L288/L290/L291/L295 precedent — so the sanctioned redundancy fallback ran instead (independent reader/fee/bootstrap over the rows alone: 294/294 rows, 0 P&L mismatches, 0 untraced fills, 0 tag violations, every mean to 12 decimals, every CI sign conclusion unchanged; plus a 12/12 live re-fetch agreement), explicitly a redundancy check and NOT a verifier. Step-0b: 244 branches checked, **0 union-appendable stranded lines** (13 flagged branches carry only conflict markers / non-JSONL, L247), 0 branches deleted. Step 9 paper sub-pass: 0 new ledger lines (274 deferred on coverage, 300 already-in-ledger — deterministic no-op), `daily_summary()` = `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00`. Gates AFTER the last code change: `pytest -q -n 4` → **3,675 passed / 2 skipped / 0 failed / 0 errors** (3,677 outcomes; the detached run's trailing summary line was lost, so this is read off the progress output — 0 `F`, 0 `E`), `python scripts/invariants.py --full` → **all green**. Honest process note: this session runs the `research-lead` charter, which delegates rather than edits; with no `Task` tool, delegation was impossible and the lead executed directly.
 - 2026-08-09T~21:1x-2xxZ (research loop, protocol v3) · **IDLE RUN, policy (a): L318 (cross-venue funding-basis resampling-by-regime-run) `UNENFORCED` -> `protocol, encoded` (L324 disposition row); plus a step-0b recovery of 3,300 genuinely-stranded lines from `tape/hourly-20260809T1608Z`.** Step 0a: `git fetch origin main` fast-forwarded local `main` 29 commits to `f48d783` (initial checkout had attached to a stale `48f1246`-tip local branch — caught via `git log`/`git rev-parse` vs `origin/main` before reading any queue file, same class as the two prior runs' identical trap); no rewind otherwise, newest `kb/00-LOG.md` entry and newest tape (`dt=2026-08-09`) agree. Step 0 claim-check clean (open PRs #330/#271/#208/#191/#166/#125 are all long-standing Ryan-review-only/draft, none claiming a live TODO item). Step 0b: manually line-set-diffed the 3 most-recent `tape/hourly-*` branches against `origin/main` (the exact method `scripts/tape_branch_sweep.py` documents) before the full 234-branch tool run finished — `tape/hourly-202608091000Z` and `tape/hourly-20260809T0057Z` were already fully contained (prior runs' PRs #329/#333), but `tape/hourly-20260809T1608Z` (committed 16:07Z, >30min old) carried **3,300 genuinely-missing lines** across 7 `dt=2026-08-09` day-files (crypto_hourly +2, hyperliquid_funding +2, orderbook_depth +2000, perp_tape +17, polymarket_macro_pairs +21, sports_pairs +715, weather_books +543); union-appended, 0 conflicts. Queue re-verified drained (Q0-Q55 all DONE/BLOCKED/RESERVED/time-gated/data-gated; Q51 m3 still gated to 2026-08-10, Q53/Q54 both CLOSED). Of the 9 open `UNENFORCED` lesson rows (`invariants.stale_unenforced_recall_report().open_unenforced_ids`, the canonical query): L213/L221/L222/L282/L309 are Ryan-lane/verifier-gated per their own rows, L319/L321/L323 would touch a frozen/sealed script or are terminal by their own admission, leaving **L318** and **L320**. L320 defers to a dedicated Q42 milestone (its own scripts are pinned against frozen real-tape gate tests, L191) — not actionable here. L318 named its own resolution: "likely terminal as protocol — a `.claude/agents/edge-prober.md` house-style note," same posture as L28/L32/L69/L105/L163/L167/L211/L218. Added that bullet (never resample a cross-venue funding/rate-basis differential by WINDOW when both legs can simultaneously pin to their own baseline constant; resample by autocorrelated REGIME RUN instead) and a new **L324** disposition row (`DISPOSES: L318`, terminal tier **protocol, encoded**, per the L152 own-row-update convention — L318's own row is left unedited). Not verdict-class (docs + ledger bookkeeping, no CI, no P&L, no registry flip) — two-agent rule N/A. Gates AFTER the last code change: see the run's own commit for the fresh count. Step 9: `s14_ladder_underwriting` idempotent, 0 newly processed, realized P&L **$+27.76 unchanged**, no new ledger lines (same frozen-cache mechanism the 2026-08-09T~12:2x run root-caused). See `kb/00-LOG.md` 2026-08-09.
 - 2026-08-09T~18:0x-19:3xZ (research loop, protocol v3) · **IDLE RUN, policy (a): L322 (Kish effective n for a pooled block bootstrap's ragged units) `UNENFORCED` -> `test`.** Step 0a: local `main` had attached to a stale pre-existing branch 28 commits behind on the initial `git checkout main` (caught via `git log`/`git rev-parse` vs `origin/main` before reading any queue file — `git fetch origin main && git merge --ff-only` fast-forwarded to `64a0f2c`, no stale re-read happened); no rewind otherwise, newest `kb/00-LOG.md`/tape both 2026-08-09. Step 0 claim-check clean (no open PR claims a live item). Step 0b: nothing new past the prior run's sweep. Queue re-verified drained (Q0-Q55 all DONE/BLOCKED/RESERVED/time-gated/data-gated; Q51 m3 still gated to 2026-08-10, one day out; Q53/Q54 both CLOSED). Of the 5 open `UNENFORCED` lesson rows from today's earlier runs (L318/L320/L321/L322/L323), only **L322** names a buildable next step that doesn't touch a frozen/sealed script (L318/L320 defer to a dedicated Q42 milestone touching pinned gates; L321/L323 would edit the L311-sealed Q54 probe mid-verdict). Built `core/bootstrap.py::kish_effective_n(unit_sizes)` (Kish's `(Σn_i)²/Σ(n_i²)`, the module's usual empty/zero-input honesty, `ValueError` on a negative size) + 9 new tests in `tests/test_bootstrap.py`, including a REAL-TAPE acceptance test reproducing L322's own "~11.6" figure exactly (`kish_n=11.629848783694937`) from the 24 real game-block sizes in the committed `reports/q54_s79_flow_continuation.json`. Deliberately does NOT touch `scripts/q54_s79_flow_continuation_probe.py` itself (stays sealed per L311) — a standalone reusable helper, not a patch to Q54's report. Not verdict-class (shared-library addition + tests, no registry flip, no CI, no kill) — two-agent rule N/A. Gates AFTER the last code change: `pytest -q -n 4` → **3,600 passed, 0 failed** (progress-character census, exit code 0); `python3 scripts/invariants.py --full` → exit **0**, all green, same pre-existing non-gating advisories as the prior run. Step 9: `s14_ladder_underwriting` idempotent, 0 newly processed, realized P&L **$+27.76 unchanged**, no new ledger lines. See `kb/00-LOG.md` 2026-08-09.
 - 2026-08-09T~06:xx-13:xxZ (research loop, protocol v3) · **Q54/S79's sealed probe fired for the first time — verdict DEAD-by-CI, two-agent verifier-CONFIRMED (L321/L322/L323); plus a step-0b tape recovery (PR #329) and a caught near-duplicate-work error (recurrence of the 2026-08-06 stale-local-`main` pattern at line above/below — `git checkout -q main` silently attached to a stale pre-existing local branch instead of `origin/main`'s true tip, so Q53 briefly re-verified content PR #315/L303 had already closed 2 days earlier; caught before publishing via `git show origin/main:LOOP-QUEUE.md`, the duplicate stash dropped unpushed, no history damage).** Q54's sealed probe (`scripts/q54_s79_flow_continuation_probe.py`, frozen 2026-08-08) fired against its outcome-dependent path for the first time: 148 candidates/133 settled/24 game-units, block-bootstrap-by-game — mean −$0.0695, 95% CI [−$0.2724,+$0.1521], straddles zero. Independent `verifier` byte-identically reproduced the run, independently re-derived the population from raw tape, hand-verified 7 candidates, confirmed the fee model and settlement join, ran 3 robustness attacks (all still DEAD) — CONFIRMED. `kb/strategies/00-index.md` S79: `collect-and-revisit` → `dead ✗` (2nd two-agent-confirmed CI kill after S68/Q49). Gates: `pytest -q -n 4` (newly-installed `pytest-xdist` — the single-threaded run over the 1.7GB tape corpus was taking >1h wall-clock; `-n 4` cut it to ~5-8min, recommend carrying `-n <cores>` into the standing protocol text) → 0 failures across the full suite; `invariants.py --full` exit 0, all green. Step 9: `s14_ladder_underwriting` idempotent, realized P&L $+27.76 unchanged. See `kb/00-LOG.md` 2026-08-09.
