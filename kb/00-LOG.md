@@ -6,6 +6,77 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-10 ~04:15Z UTC — edge-hunter nightly: adversarial review all-CONFIRMED; Q21 round #26 broke the treadmill — 2 of 3 candidates survived verifier attack, registered S80/S81 (first registrable survivors since S34)
+
+Steps 0a/0/0b: history-integrity **PASS** (newest `kb/00-LOG.md` entry 2026-08-09, newest `tape/*/dt=*`
+2026-08-10, within the 2-day bound; `origin/main` tip `8ab1819`, up to date; recent merges sequential, no
+rewind); claim-check found only the standing Ryan-review-only PRs (#330/#271/#208 retros, #191/#166/#165
+drafts), none claiming a live queue item; step-0b sweep found the newest stranded `tape/hourly-*` branches
+are 2026-08-09 and already recovered by the 08-09 research-loop runs — nothing from 08-10 stranded (the
+hourly collector is committing to `main` directly). Remote `tape/hourly-*` branch count: **226** (+ ~11
+`tape/burst-*`).
+
+**Unit 1 — Adversarial review (primary unit).** Re-checked one load-bearing number per last-24h finding/
+verdict; all **CONFIRM**, nothing failed, no `review:` issue opened, history not rewritten. (1) **Q54/S79
+DEAD-by-CI** (the day's highest-stakes verdict, already two-agent-confirmed 08-09): `reports/q54_s79_
+flow_continuation.json` reproduces mean **−$0.0695**, 95% CI **[−$0.2724,+$0.1521]**, `n_units=24` games,
+`n_boot=10000`, `seed=42`, `clears_tick_magnitude=false`; price provenance `broker_truth`; fee is a SINGLE
+taker leg imported from `core.pricing.TAKER_FEE_RATE`/`fee_per_contract` (no hardcoded rate — the only
+`0.07` in the probe is a docstring, Hard-Rule-#3 clean); bootstrap unit = by-game (L6). (2) **phase-2
+trade-print backfill:** `tape/kalshi_trades/` re-counted **213,488 lines, 100% `broker_truth`**, zero other
+tags; largest day-file `dt=2026-07-07` = 88 MB, under GitHub's 100 MB single-file limit (the finding's
+game-drop to stay under 100 MB holds). (3) **hyperliquid funding pin (L318):** `reports/hl_funding_tape_
+quality.json` reproduces BTC pinned_fraction **0.5278** / ETH **0.5584** exactly.
+
+**Unit 2 — Pipeline replenishment (Q21 round #26).** Eligible (TODO/runnable, unclaimed, unblocked) items:
+yesterday's edge-hunter counted exactly {Q53, Q54}; since then **Q53 CLOSED** (L303/L310 two-agent
+confirmed) and **Q54/S79 DEAD**, while **Q52/S78 stays not-runnable** (34/328 games, data-gated) — leaving
+at most Q51-m3 (gate opens today) = **≤ 1 eligible < 2 → Q21 round REQUIRED.** Proposed 3 NEW falsifiable
+candidates, each with named mechanism/counterparty, already-collected data source, falsifiable gate + kill,
+and a survival paragraph vs its nearest dead cousin. An independent `verifier` subagent attacked all three
+against committed tape BEFORE registration (two-agent discipline, step 5) — **2 survived, 1 killed:**
+**α** (perp-anchored crypto-hourly intra-hour staleness taker) → **DEAD, sub-hourly-cadence (S9-class)**:
+`crypto_hourly` is one snapshot/event ~5 min pre-close every ~3h and `perp_tape` is 7×/day — no intra-hour
+series exists, the mechanism is structurally unmeasurable. **β** → **REGISTER as S80** (print-VWAP-overshoot
+contrarian maker fade on late sports flow): 76 sports games / 6 trade-days / 213k `broker_truth` prints ≫
+floor, and the verifier REFUTED the proposal's own blocker — `orderbook_depth` median intra-ticker gap is
+**~29 min** on traded sports tickers (not L283's ~3h), ~6–12 snapshots/game, a real basis for an L39-free
+queue fill model; not the sign-flip of taker S79. **γ** → **REGISTER as S81** (funding-regime-conditioned
+crypto-hourly directional settlement bias): funding genuinely hourly, regime contrast pin 848 / sub-baseline
+607 / negative 179, joinable to **215 BTC settlement events / ~338 regime runs** ≫ floor, near-money brackets
+carry genuine 2-sided `real_ask` (S10's 1¢-pinned kill doesn't apply); not a cousin of S8/S10 or Q42/Q43.
+Both registered `binding-test-defined` (idea-stage) in `kb/strategies/00-index.md`; queue item **Q56** added
+for their binding tests. **NOT verdict-class** (new idea rows, no CI, no P&L, no kill, no flip of any existing
+strategy) — still **0 proven edges**; the binding tests are future two-agent `edge-prober` milestones. This
+is the first idea round to yield registrable survivors since S34, unblocked by the new multi-day
+`kalshi_trades` surface plus the verifier's finer book-cadence measurement. Verifier flagged two lesson
+candidates for the kb-distiller: crypto_hourly's true cadence (1 snap/event ~5 min pre-close, every ~3h) and
+an **L283 scope reconciliation** (measured ~29-min book cadence on traded sports tickers vs L283's ~3h).
+
+**Unit 3 — Probe-prep.** Q51 milestone 3 is time-gated to **2026-08-10** (today). Verified by FILE SHAPE
+(L25): `scripts/q51_m3_fill_projection.py`, `scripts/q51_maker_fillsim.py`, `scripts/q51_m3_preflight.py`,
+`tests/test_q51_m3_fill_projection.py`, `reports/q51_m3_fill_projection.json` all present; the projection
+tests run **29 passed** offline. **Prep already complete — nothing to build**; today's gated research-loop
+run only has to execute.
+
+**Housekeeping.** Open PRs blocked >5 days on Ryan (retros #271/#208/#125 LEAVE-OPEN-by-charter; drafts
+#191/#166/#165) were freshly named by yesterday's weekly-retro PR #330 — **not re-flagged Priority:high**
+(no new information, don't-retrain-the-channel rule). Stale `kalshi-burst-*` triggers whose event dates all
+passed (July 2026): `fomc-0729` (still ENABLED, auto-rescheduled to 2027), `wcfinal-0719`, `cpi-0714`,
+`wcsemi1-0714`, `wcsemi2-0715` — named for deletion (Ryan-only); same five prior runs named.
+
+**Paper sub-pass (step 9).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (a `dead ✗` paper-infra shadow);
+no new upstream `s14_ladder_fillsim` tape since `dt=2026-07-13` (ledger frozen at `dt=2026-08-04`, the known
+PR #330 issue), so 0 newly processed, realized paper P&L unchanged **$+27.76** — dead-strategy shadow,
+paper-infra validation only, NOT edge evidence.
+
+**Gates, fresh after the last (docs-only) change:** `python3 scripts/invariants.py --full` → exit **0**,
+"invariants: all green" (only pre-existing non-gating advisories); `tests/test_q51_m3_fill_projection.py`
+→ 29 passed. This run's diff is docs/registry-only (markdown cannot change pytest collection), so
+invariants-green is the binding gate. Files: `kb/strategies/00-index.md` (S80, S81),
+`findings/2026-08-10-q21-round26-idea-gen.md`, `LOOP-QUEUE.md` (Q56 + Log of runs), `kb/00-LOG.md`.
+
+
 ## 2026-08-09 ~21:1x-2xxZ UTC — research loop IDLE RUN policy (a): L318 (cross-venue funding-basis regime-run resampling) converted UNENFORCED -> protocol, encoded; step-0b recovers 3,300 stranded lines
 
 **Step 0a/0/0b.** History-integrity PASS: `git fetch origin main` fast-forwarded local `main`
