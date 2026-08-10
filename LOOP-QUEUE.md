@@ -3053,24 +3053,35 @@ not a network/credential gate.
 ### Q56 — S80 / S81 binding tests (Q21 round #26 survivors, kalshi-edge-hunter 2026-08-10)
 Status: **S80 MILESTONE DONE — BOTH Q56 SUB-MILESTONES NOW RUN. S80's binding test is BUILT and
 FIRED, and the verdict is `DEAD` BY CI ON AN ADEQUATE POPULATION (a real falsification, not a
-data-adequacy refusal). REGISTRY NOT FLIPPED — recorded PROVISIONAL; S80 stays idea-stage
-`binding-test-defined`, conf `low`. Still 0 proven edges.** (2026-08-10, research loop, later
+data-adequacy refusal). REGISTRY FLIPPED to `dead ✗` (2026-08-10, later the same run) — see
+below. Still 0 proven edges.** (2026-08-10, research loop, later
 firing than the S81 milestone above; Q56 was again the topmost item whose current status line
-read TODO for this sub-milestone.) **Why no flip:** a kill is verdict-class and NO independent
-`verifier` was dispatchable in this harness — no `Task`/subagent tool is exposed to the
-executing context (the L287/L288/L290/L291/L295/L308/L313/L325 precedent). The sanctioned
-no-verifier redundancy fallback ran instead: `scripts/q56_s80_rederive.py`, a from-scratch
+read TODO for this sub-milestone.) **Two-agent history:** the producing sub-context had no
+`Task`/subagent tool (the L287/L288/L290/L291/L295/L308/L313/L325 precedent), so it ran the
+sanctioned no-verifier redundancy fallback first: `scripts/q56_s80_rederive.py`, a from-scratch
 second implementation sharing NO code with the probe (own JSONL readers, own hand-rolled
 ISO-8601→epoch parser via string slicing + days-from-civil, own settlement read straight off
 `tape/settlement_ledger/` + `tape/q51_settlement_cache/` rather than `core.settlement_sources`,
 own round-up-to-cent fee formula, own signal/queue/fill loop, own block bootstrap over its own
 RNG; only `MAKER_FEE_RATE` is shared, because `invariants.py::no_handrolled_fee_rate` forbids a
-local rate literal). It reproduces every headline number — population counts, K1, and the two
-P&L branches **BIT-IDENTICALLY**; only the bootstrap CI on K1 differs, by bootstrap noise, as an
+local rate literal). It reproduced every headline number — population counts, K1, and the two
+P&L branches **BIT-IDENTICALLY**; only the bootstrap CI on K1 differed, by bootstrap noise, as an
 independent draw must. Its own hand-rolled parser is separately pinned against
 `core.timeutil.parse_iso_utc` on real committed timestamps, so the agreement is not two
-implementations sharing one bug. **An independent `verifier` should still attack this record
-before the S80 status column moves.**
+implementations sharing one bug. That redundancy pass alone was NOT the two-agent rule. The
+orchestrating research-loop session then dispatched an independent `verifier` agent — a THIRD
+from-scratch implementation with its own bootstrap RNG (20,000 draws, seed 1234) — which
+reproduced every headline number to the digit, checked `event_ticker_of()`'s derived-game-id
+parsing against the venue's own `event_ticker` field on 10,785 pairs (0 mismatches), ran the
+L249 sign-boundedness check on both K3 objects (negative CI is not a gate artifact), and
+inverted the fill-orientation convention entirely as an adversarial stress test — still
+DEAD-negative-CI on both branches. Returned **CONFIRMED-WITH-CORRECTIONS**: it fixed a
+100.1%→101.3% arithmetic slip (below), a settlement-count table that summed to 92 against 87,
+a "65 of 76 games" population that does not exist in this tape, and an overclaim that K1
+(algebraically a static per-ticker price-level cut with no chase term in it) directly refutes
+the registered chase mechanism — the DEAD verdict stands on K3's CI regardless. Full corrected
+text in `findings/2026-08-10-q56-s80-print-vwap-overshoot-maker-fade.md`. **Two-agent rule
+SATISFIED — this is what authorizes the registry flip.**
 **The result.** `scripts/q56_s80_print_vwap_overshoot_maker_fade.py` (+43 offline tests;
 `scripts/q56_s80_rederive.py` +10) implements the S80 row's binding test exactly as registered,
 read-only over committed tape, zero network calls, zero credentials, zero orders of any tier.
@@ -3081,8 +3092,10 @@ maker fee — not merely inside the fee but negative and ~16x it in the wrong di
 decomposition is the whole story: the LEADING side (own VWAP ≥ 0.50, n=30, mean VWAP 0.6638)
 realized an **0.8333** settle rate → overshoot **−0.16949**, while the TRAILING side (VWAP <
 0.50, n=51, mean VWAP 0.2512) realized **0.0980** → overshoot **+0.15318**. Retail overpays the
-LONGSHOT, not the leader (favourite-longshot bias) — the exact opposite of the registered
-premise, so resting on the trailing side is systematically buying the overpriced side.
+LONGSHOT, not the leader (favourite-longshot bias). Correction (verifier): K1 is algebraically a
+static per-ticker price-level cut with no chase term in it, so it corroborates rather than
+directly refutes the registered chase premise — the direct falsification is K3 below — but
+resting on the trailing side is still systematically buying the overpriced side.
 **Gate K2 — adequacy PASSES, so this is a CI FALSIFICATION and not an S21/S19-class adequacy
 death.** 213,431 `broker_truth` prints / 87 traded sports tickers / 72 games / 6 trade-days;
 funnel 2,607 intervals → 364 signal-computable → 180 triggered → 59 dropped on a one-sided touch
@@ -3109,7 +3122,7 @@ a post-hoc direction is never a verdict, L41's family): resting on the CHASED si
 −$0.01095 CI [−$0.13956, +$0.10014], both straddling zero.
 **Two durable lessons, both landed (L328, L329).** **L329**, measured on that mirror leg's 74
 fills: static gross at the ticker's own print VWAP **+$0.07508** vs realized gross at our actual
-`real_bid` **−$0.00095** = an adverse-selection cost of **+$0.07603** that eats **100.1%** of the
+`real_bid` **−$0.00095** = an adverse-selection cost of **+$0.07603** that eats **101.3%** of the
 static edge BEFORE the flat fee is charged — decisive because a resting bid is strictly CHEAPER
 than the average print, so random fills would have had to do BETTER; the registered leg's same
 decomposition reads **−$0.03026** (genuine price improvement), which separates "signal backwards"

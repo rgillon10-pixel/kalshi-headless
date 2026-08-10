@@ -3,13 +3,23 @@
 **Date:** 2026-08-10 · **Run:** research loop (protocol v3), Q56 S80 milestone
 **Verdict class:** **CI FALSIFICATION** — not a data-adequacy refusal. The fillable
 population clears the L41 floor by 2.7x, so the strategy was genuinely measured and it lost.
-**Status of this record:** **PROVISIONAL** — no independent `verifier` subagent was
-dispatchable in this harness (no `Task`/subagent tool is exposed to this context; the
-L287/L288/L290/L291/L295/L308/L313/L325 precedent). The sanctioned no-verifier redundancy
-fallback ran instead: a from-scratch second implementation
-(`scripts/q56_s80_rederive.py`) that shares no code with the probe and reproduces every
-headline number. **The S80 registry STATUS COLUMN IS NOT FLIPPED** by this run — a registry
-flip is verdict-class and requires the two-agent CONFIRM. Prose only.
+**Status of this record:** **CONFIRMED-WITH-CORRECTIONS** (2026-08-10, later the same run) —
+the producing sub-context had no `Task`/subagent tool (the L287/L288/L290/L291/L295/L308/L313/L325
+precedent) and ran the sanctioned no-verifier redundancy fallback instead
+(`scripts/q56_s80_rederive.py`, a from-scratch second implementation sharing no code with the
+probe, reproducing every headline number). The orchestrating research-loop session then
+dispatched an independent `verifier` agent, which built a THIRD from-scratch implementation
+(own parser, own settlement reader, own bootstrap RNG), reproduced every population/K1/K3 number
+to the digit, stress-tested for look-ahead / game-grouping / fee-direction / sign errors and
+found none, and inverted the fill orientation entirely as an adversarial check (still DEAD on
+both branches) — **CONFIRMED-WITH-CORRECTIONS**: the DEAD verdict stands, and four wording/
+arithmetic errors it caught are fixed in place below (a 100.1%→101.3% arithmetic slip, a
+settlement-count table that summed to 92 against 87, a "65 of 76 games" population that does
+not exist in this tape, and an overclaim that K1 directly refutes the registered CHASE
+mechanism when it is algebraically a static per-ticker price-level cut with no chase term in
+it — DEAD by K3's CI either way). Two-agent rule: **SATISFIED**. **The S80 registry STATUS
+COLUMN IS NOW FLIPPED to `dead ✗`** in `kb/strategies/00-index.md` — this is a verdict-class
+change and the two-agent CONFIRM above is what authorizes it.
 **Still 0 proven edges.**
 
 ---
@@ -78,16 +88,22 @@ The decomposition is the whole story:
 
 The leading side's prints sit **BELOW** what it turned out to be worth, and the trailing
 side's sit **ABOVE**. That is textbook favourite-longshot bias
-(`kb/quant-finance/favorite-longshot-bias.md`) — and it is the **exact opposite** of S80's
-premise that the chase pushes the LEADER above fair. Resting on the trailing side means
-systematically buying the overpriced longshot.
+(`kb/quant-finance/favorite-longshot-bias.md`). **Correction (verifier, 2026-08-10):** K1 is
+algebraically a **static per-ticker price-level cut** — `chased_side` is set by the ticker's
+own full-sample VWAP level (`>= 0.5`), and the CHASE signal itself never enters
+`overshoot_rows` — so K1 is not a direct test of the registered chase direction, and "exact
+opposite of the premise" overclaims what it computes. What K1 legitimately shows is that
+resting on the trailing (sub-50c) side buys a systematically overpriced longshot, which is the
+same conclusion the registered strategy needs to be false to work, but the falsification of the
+CHASE mechanism specifically rests on gate K3 below (the actual queue-aware fill-sim on the
+registered trailing-side leg), not on K1.
 
 ### Gate K2 — adequacy. **PASSES.** This is not a data-adequacy death.
 
 | quantity | value |
 |---|---|
 | tape | 213,431 `broker_truth` prints / 87 traded sports market tickers / 72 games / 6 trade-days |
-| settlement | 81 resolved binary, 5 `scalar` (non-binary, dropped per L52), 6 unresolved — all `broker_truth` |
+| settlement | 81 resolved binary / 6 unresolved (of which 5 are `scalar`, non-binary, dropped per L52, and 1 is listed-but-unsettled) — all `broker_truth`; **correction (verifier): the earlier "81+5+6" phrasing double-counted the scalar tickers, which are a subset of the 6 unresolved, not a third bucket** |
 | intervals seen | 2,607 · signal computable 364 · triggered 180 · one-sided touch dropped 59 |
 | **candidates** | **121** over **31 games** |
 | **fills** | **84** (fill rate **69.42%**) over **27 games** — 2.7x the L41 floor of 10 |
@@ -165,8 +181,9 @@ On the mirror leg's **74 filled contracts**, decomposed per contract:
 
 Read it carefully: a resting bid is **strictly cheaper** than the average print, so under
 *random* fills the realized gross must **exceed** the static gross. It does not. The flow gave
-us the fills that hurt, and **100.1% of a +7.5¢ static edge disappeared into which contracts
-actually filled** — before the fee was charged at all. The same decomposition on the
+us the fills that hurt, and **101.3% of a +7.5¢ static edge disappeared into which contracts
+actually filled** (0.07602780845007773 / 0.07508186250413179; correction, verifier: the
+originally-quoted 100.1% was an arithmetic slip) — before the fee was charged at all. The same decomposition on the
 registered leg reads static −$0.16038 → realized −$0.13012 (adverse-selection cost
 **−$0.03026**, i.e. genuinely favourable price improvement), which confirms the machinery is
 not simply biased against makers: the registered leg loses because its **mechanism is
@@ -214,8 +231,8 @@ and the difference is measurable rather than assumed.
 
 ## 5. Two-agent status and independent re-derivation
 
-No `Task`/subagent tool is exposed to this context, so no independent `verifier` agent could
-be dispatched. Under the sanctioned fallback, `scripts/q56_s80_rederive.py` re-derives the
+No `Task`/subagent tool was exposed to the producing sub-context, so no independent `verifier`
+agent could be dispatched there. Under the sanctioned fallback, `scripts/q56_s80_rederive.py` re-derives the
 headline from scratch: its own JSONL readers, its own hand-rolled ISO-8601 → epoch parser
 (string slicing + Hinnant's days-from-civil, no `datetime.fromisoformat`, no `core.timeutil`),
 its own settlement reader straight off `tape/settlement_ledger/` + `tape/q51_settlement_cache/`
@@ -241,8 +258,21 @@ The independent parser is itself pinned against `core.timeutil.parse_iso_utc` on
 committed timestamps (`tests/test_q56_s80_rederive.py`), so the agreement is not two
 implementations sharing one bug.
 
-**This is redundancy, NOT the two-agent verdict rule.** An independent `verifier` agent should
-still attack this record before the S80 registry status column moves.
+**That redundancy pass alone was NOT the two-agent verdict rule.** The orchestrating
+research-loop session separately dispatched an independent `verifier` agent (it had the
+`Task`/subagent tool where the producing sub-context did not), which built a THIRD from-scratch
+implementation (own JSONL readers, own Hinnant days-from-civil ISO parser, settlement read
+directly off `tape/settlement_ledger/` + `tape/q51_settlement_cache/`, its own bootstrap with an
+independent seed/RNG stream and 20,000 draws) and reproduced every headline number to the digit:
+prints/tickers/games, the full funnel, K1's mean and decomposition, both K3 branches' means, and
+all 12 grid cells' n/fills/means. It additionally: checked `event_ticker_of()`'s
+derived-game-id parsing against the venue's own `event_ticker` field on 10,785 ticker/event
+pairs (0 mismatches — no block-bootstrap off-by-one); ran `sign_bounded_objective` (L249) on
+both K3 objects and confirmed the negative CI is not a gate artifact (two-sided support,
+`one_sided_support=False` on both); and inverted the `taker_book_side` fill-orientation
+convention entirely as an adversarial check — still DEAD-negative-CI on both branches under the
+inversion. **Verdict: CONFIRMED-WITH-CORRECTIONS** (see the corrections folded into §2 and §6
+above and the status line at the top of this document). Two-agent rule: **SATISFIED.**
 
 ---
 
@@ -266,9 +296,13 @@ back of the touch queue; it does not model partial fills or size.
    backfill, which sampled rather than enumerated. If that sample is correlated with
    settlement (e.g. skewed to markets that settled early), the K1 decomposition inherits the
    skew. The CI verdict does not depend on K1, but the *explanation* does.
-2. **51 trailing vs 30 leading tickers.** 65 of 76 games contribute only ONE traded outcome
-   market, so the leading/trailing split is a *per-market price-level* cut, not a
-   within-game comparison; regression effects on a 81-ticker sample deserve scrutiny.
+2. **51 trailing vs 30 leading tickers.** **Correction (verifier): the original "65 of 76
+   games" cited a population that does not exist in this tape — no cut here has 76 games.**
+   The correct figures: 61 of the 72 traded games contribute only ONE traded outcome market
+   over the full traded population, or 55 of 66 games over K1's own settled 81-ticker
+   population (distribution: 55 games × 1 ticker, 7 × 2, 4 × 3). Either way the leading/
+   trailing split is mostly a *per-market price-level* cut, not a within-game comparison;
+   regression effects on the 81-ticker sample deserve scrutiny.
 3. **Interval width.** ~25% of scored intervals are ≥3h wide (§4). A tighter book would
    change which fills occur, though not obviously in the strategy's favour.
 4. **A mutable artifact sits inside the settlement join (L325).** `core.settlement_sources`

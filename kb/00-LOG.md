@@ -6,6 +6,48 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-10 ~19:1xZ UTC — research loop: Q56/S80 independent `verifier` CONFIRMED-WITH-CORRECTIONS — registry FLIPPED to `dead ✗`
+
+Follow-up to the entry immediately below. The orchestrating research-loop session (which, unlike
+the producing sub-context, has a `Task`/subagent tool) dispatched an independent `verifier` agent
+against the S80 DEAD verdict before merging. It built a THIRD from-scratch implementation (own
+JSONL readers, own Hinnant days-from-civil ISO-8601 parser, settlement read directly off
+`tape/settlement_ledger/` + `tape/q51_settlement_cache/`, its own bootstrap with an independent
+seed/RNG stream, 20,000 draws) and reproduced every population, funnel, K1, and K3 number to the
+digit. It additionally: checked `event_ticker_of()`'s derived-game-id parsing against the venue's
+own `event_ticker` field on 10,785 ticker/event pairs (0 mismatches, ruling out a block-bootstrap
+grouping error); ran the L249 `sign_bounded_objective` check on both K3 objects (confirmed the
+negative CI is not a gate artifact — two-sided support on both); and inverted the
+`taker_book_side` fill-orientation convention entirely as an adversarial stress test (still
+DEAD-negative-CI on both branches under the inversion).
+
+**Verdict: CONFIRMED-WITH-CORRECTIONS.** The DEAD verdict and every headline number hold. Four
+errors in the write-up were caught and are now fixed in
+`findings/2026-08-10-q56-s80-print-vwap-overshoot-maker-fade.md` (and mirrored into
+`kb/lessons/00-lessons.md` L329, `kb/strategies/00-index.md`, and `LOOP-QUEUE.md`):
+1. The adverse-selection cost was **101.3%** of the static edge, not 100.1%
+   (0.07602780845007773 / 0.07508186250413179) — a plain division slip.
+2. The K2 settlement table double-counted: 81 resolved + 6 unresolved = 87 (matching the
+   requested population); the 5 `scalar` tickers are a SUBSET of the 6 unresolved, not a third
+   bucket.
+3. "65 of 76 games" cited a population that does not exist in this tape. Correct: 61 of 72 games
+   contribute one traded outcome market over the full traded population, or 55 of 66 over K1's
+   own settled population.
+4. K1's framing overclaimed. `chased_side` is set by the ticker's own full-sample VWAP level; the
+   CHASE signal itself never enters `overshoot_rows`. K1 is algebraically a **static per-ticker
+   price-level (favourite-longshot) cut**, not a direct test of the registered chase direction —
+   it corroborates the DEAD verdict rather than being "the exact opposite of the premise" in
+   itself. The direct falsification of the chase mechanism is gate K3 (the actual queue-aware
+   fill-sim on the registered trailing-side leg), which fails regardless of K1's framing.
+
+**Two-agent rule: SATISFIED.** Per LOOP-QUEUE.md's v3 protocol, a verdict without verifier
+confirmation may only be committed PROVISIONAL and must not flip the registry; with confirmation
+in hand, **S80's status column in `kb/strategies/00-index.md` is flipped from
+`binding-test-defined` to `dead ✗`**. Still **0 proven edges**. No file under `execution/` touched,
+no S81 file touched, no CLAUDE.md change.
+
+---
+
 ## 2026-08-10 ~16:0xZ UTC — research loop: Q56/S80 binding test BUILT + FIRED — **DEAD by CI on an ADEQUATE population** (PROVISIONAL, no registry flip)
 
 Steps 0a/0/0b were done by the orchestrating session at run start: no open PR claims Q56 or its S80
