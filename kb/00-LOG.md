@@ -6,6 +6,103 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-10 ~1x:xxZ UTC — research loop: Q56/S81 binding test BUILT + SEALED; the join keeps 14% of the informative cell (DATA-ADEQUACY, CONFIRMED-WITH-CORRECTIONS, no flip)
+
+Steps 0a/0/0b: history-integrity **PASS** (HEAD == `origin/main` after fetch, verified by the calling
+session; newest `kb/00-LOG.md` entry 2026-08-10 and newest `tape/*/dt=*` 2026-08-10, within the 2-day
+bound). Claim-check: open PRs #330 (weekly retro, explicitly LEAVE OPEN for Ryan — not a claim), #271,
+#208, #191, #166, #165, #125 — all older than two weeks, none naming a live TODO/IN-PROGRESS queue item;
+treated as stale/Ryan-review-only and ignored. Queue scan by CURRENT status line (L25 file-shape reading,
+each item's newest Status): Q19 burst-gated · Q32 blocked on both legs · Q35 build-gated · Q36 still gated ·
+Q42 undecidable at tape density · Q43 density-gated · Q47 Ryan-gated activation · Q48 burst-gated ·
+Q51 milestone 3 fired earlier today, next sweep time-gated to 2026-08-24 · Q52 data-gated collect-and-revisit ·
+Q53/Q54 CLOSED · Q55 milestones 1-2 DONE. **Topmost item reading TODO: Q56** (added this morning by the
+edge-hunter's Q21 round #26). It carries two INDEPENDENT probe milestones; this run executed **S81's** and
+left **S80's untouched** (S80 additionally owes an L283 scope reconciliation, so it is the larger of the two).
+
+**What was built.** `scripts/q56_s81_funding_regime_settlement_probe.py` (+36 offline tests), the
+pre-registered, gate-sealed binding test for S81, hash-locked at `PREREG_SHA256 =
+edde1f66efc059d3628128ad2bbf0e49d60526c274664ca8e8bb5978dec34581`. Regime label per (coin, UTC hour) from
+`tape/hyperliquid_funding/` — `pin` (rate exactly at the 0.01%/8h interest baseline, L318's dead band),
+`sub_baseline`, `negative`, `above_baseline` — blocked by **REGIME RUN**, never by hour or window
+(L318/L324's house rule). One entry snapshot per (coin, `event_ticker`): the latest `crypto_hourly` capture
+with `status: ok` STRICTLY before that event's own `close_time`. The directional leg is the single `between`
+bracket immediately ABOVE the bracket holding spot, filled at its resting `yes_ask` (**`real_ask`**) net ONE
+`core.pricing` taker fee; settlement **`broker_truth`** through `core.settlement_sources` (nine declared
+families, L300). Spot (`coinbase`, tag **`synthetic`**) only decides which bracket is adjacent — it is never
+a price and never an edge input. **The seal is structural, not cosmetic:** `population_report()` receives a
+settled-ticker MEMBERSHIP set from `settled_ticker_set()` (`is_binary_result -> bool`; the direction is
+dropped), and `outcome_map()`/`score_rows()` — the only functions that read a result value or compute a
+return — are unreachable from `run()` unless the gate opens; tests pin the sealed report free of every
+`pnl`/`mean`/`ci95`/`payoff` token.
+
+**What it measured, outcome-blind.** 854 entry snapshots / **574 settlement-joinable** (`crypto_hourly` 574
+hits; the other 8 declared families 0) / 280 unjoinable. **Informative cell (`sub_baseline` + `negative`):
+19 entries (17 + 2), 15 fillable, 11 regime runs, 8 FILLABLE runs, Kish effective n 4.79** →
+`admissible: false`, `gate_reasons [below_min_units, below_min_kish_effective_n]`. The verdict does not rest
+on the stricter Kish gate — 8 fillable runs is already below the plain L41 floor of 10 — and nothing above
+required reading a settlement direction, so the gate choice cannot be result-motivated. Control cell (`pin`,
+L318's dead band, benchmark only): 555 entries / 368 fillable / 12 fillable runs / **Kish 3.49**. Legs are
+genuinely fillable near-money two-sided instruments (informative fillable asks 0.02–0.41, median ~0.18), so
+S10's 1¢-pinned no-fillable-price kill still does not apply.
+
+**The load-bearing finding — new lesson L327: a join's adequacy lives in the JOINED CELL, never in either
+leg's marginal.** S81 was registered on marginals ("regime contrast pin 848 / sub-baseline 607 / negative
+179"; "215 BTC settlement events / ~338 regime runs ≫ 10-unit floor"). Both are real; the joined informative
+cell is 8 fillable runs — 19 of the 136 total `sub_baseline`+`negative` snapshots in the full funding census
+(14% of that captured-informative population; just 3.3% of the full 574-entry joinable universe — two
+different denominators). The mechanism is specific: `crypto_hourly`'s settlement is one of L300's three
+EMBEDDED families — `previous_settlement` reports ONLY the event that closed immediately before that capture
+— so a snapshot is joinable only if ANOTHER capture lands in the following hour. Starting ~2026-07-15 the
+collector's capture-pass cadence fell from ~46–50/day to ~2–8/day (reaching that floor ~07-23, one relapse
+day 07-29 at 27) — an ~8x collapse in one consistent unit — and joinable entries/day collapsed with it (last
+joinable entry 2026-08-05). **Counterfactual measured on the same tape: had every captured snapshot been
+settlement-paired, the informative cell would hold 136 entries/94 runs, of which 105 FILLABLE entries over 77
+FILLABLE runs, Kish 58.3 — 5.8x the floor.** So the blocker is a bounded PULL, not a calendar wait: a
+settlement backfill for the 280 unjoinable `KXBTC-*`/`KXETH-*` event tickers (117 informative, 90 fillable, 69
+runs) — the Q52/Q54 phase-1 shape — opens the L41 floor (10 fillable runs) an estimated ~2 weeks sooner than
+the current accrual rate (~1.17 fillable-informative-runs/week since 07-23) would reach it, and the stricter
+Kish≥10 condition an estimated ~10+ weeks sooner.
+
+**Two-agent rule: SATISFIED, later in this same run.** The producing sub-context carried no `Task`/subagent
+tool (L287/L288/L290/L291/L295/L308/L313/L325 precedent), so it ran only the sanctioned no-verifier fallback:
+an independently written second code path (own JSON reader, own baseline constant re-derived from L318's text
+rather than imported, own calendar-arithmetic hour index, own run builder, own leg picker, own settlement read
+straight from `previous_settlement` never through `core.settlement_sources`, own Kish formula, never importing
+the probe) reproduced **every** headline exactly — 854 / 574 / 19 / 15 / 11 / 8 / Kish 4.787234042553192 to 12
+decimals; control 555 / 368 / 13 / 12 / 3.4863556791267634; all-settled counterfactual 105 fillable entries /
+77 fillable runs. That was a redundancy check, NOT a verifier: it shares the probe's design premises (the
+adjacent-above bracket as the directional instrument; the capture-hour funding print as the label) and could
+not have caught an error in either. The orchestrating session then dispatched an independent `verifier` agent,
+which re-derived every headline number from a THIRD from-scratch implementation (identical results),
+confirmed the pre-registration hash is genuinely test-pinned (not decorative), confirmed outcome-blindness at
+runtime by booby-trapping `outcome_map`/`score_rows`/`binary_outcome`/`verdict_block` and observing `run()`
+complete via `SEALED_INSUFFICIENT_DATA` without calling any of them, and returned **CONFIRMED-WITH-CORRECTIONS**
+— the DATA-ADEQUACY/gate-SHUT verdict itself is unchanged; the four wording/unit corrections folded into this
+entry (cadence-unit mix + onset date, fillable qualifiers on 105/77, the 14%-vs-3.3% denominator
+clarification, the split L41-vs-Kish wait estimate) are exactly what the verifier flagged. **No registry
+status flips** (S81 stays idea-stage `binding-test-defined`, prose note only), no CI, no P&L, no kill — still
+**0 proven edges**.
+
+**Also recorded:** the crowded-LONG arm is 1 coin-hour on the entire committed funding tape (BTC
+`above_baseline` = 1, ETH = 0), so S81's registered symmetric mechanism is only half-testable here and any
+future result is scope-limited to the short-crowded arm and confounded with realized drift — which is why
+the `pin` cell is pre-registered as the drift BENCHMARK, never as a strategy.
+
+Gates AFTER the last code change: `pytest` → 0 failed (≥3,690 collected); `python scripts/invariants.py
+--full` → exit 0, all green, same non-gating advisories as the prior run (none newly introduced). One
+invariant violation was found and fixed during the run, not silenced: the test fixture built a complement
+field as `1 - yes_ask`, which `inv_no_yes_ask_arithmetic` (Hard rule #3) correctly refused — the fixture
+locals were renamed `ask`/`bid`.
+
+Artifacts: `scripts/q56_s81_funding_regime_settlement_probe.py`,
+`tests/test_q56_s81_funding_regime_settlement_probe.py`,
+`reports/q56_s81_funding_regime_settlement.json`, `findings/2026-08-10-q56-s81-join-cell-adequacy.md`,
+`kb/lessons/00-lessons.md` (L327), `kb/strategies/00-index.md` (S81 prose only — status column untouched),
+`LOOP-QUEUE.md` (Q56 status + Log of runs).
+
+---
+
 ## 2026-08-10 ~04:15Z UTC — edge-hunter nightly: adversarial review all-CONFIRMED; Q21 round #26 broke the treadmill — 2 of 3 candidates survived verifier attack, registered S80/S81 (first registrable survivors since S34)
 
 Steps 0a/0/0b: history-integrity **PASS** (newest `kb/00-LOG.md` entry 2026-08-09, newest `tape/*/dt=*`

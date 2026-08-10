@@ -1,0 +1,159 @@
+{
+  "candidate": "S81",
+  "note": "Adequacy gate shut; no settlement direction was read and no P&L was computed. Gate reasons: below_min_units, below_min_kish_effective_n",
+  "population": {
+    "admissible": false,
+    "control_cell": {
+      "by_coin": {
+        "BTC": 272,
+        "ETH": 283
+      },
+      "by_regime": {
+        "pin": 555
+      },
+      "kish": {
+        "design_effect": 3.4419896030245747,
+        "kish_n": 3.4863556791267634,
+        "n_obs": 368,
+        "n_units": 12
+      },
+      "n_entries": 555,
+      "n_fillable_entries": 368,
+      "n_fillable_runs": 12,
+      "n_runs": 13,
+      "run_sizes": [
+        167,
+        85,
+        48,
+        28,
+        24,
+        7,
+        3,
+        2,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    "excluded_cell": {
+      "by_coin": {},
+      "by_regime": {},
+      "kish": {
+        "design_effect": null,
+        "kish_n": null,
+        "n_obs": 0,
+        "n_units": 0
+      },
+      "n_entries": 0,
+      "n_fillable_entries": 0,
+      "n_fillable_runs": 0,
+      "n_runs": 0,
+      "run_sizes": []
+    },
+    "funding_census": {
+      "BTC": {
+        "above_baseline": 1,
+        "negative": 179,
+        "pin": 848,
+        "sub_baseline": 606
+      },
+      "ETH": {
+        "negative": 273,
+        "pin": 926,
+        "sub_baseline": 435
+      }
+    },
+    "gate_reasons": [
+      "below_min_units",
+      "below_min_kish_effective_n"
+    ],
+    "gates": {
+      "min_fillable_entries": 10,
+      "min_kish_effective_n": 10.0,
+      "min_units": 10
+    },
+    "informative_cell": {
+      "by_coin": {
+        "BTC": 15,
+        "ETH": 4
+      },
+      "by_regime": {
+        "negative": 2,
+        "sub_baseline": 17
+      },
+      "kish": {
+        "design_effect": 1.671111111111111,
+        "kish_n": 4.787234042553192,
+        "n_obs": 15,
+        "n_units": 8
+      },
+      "n_entries": 19,
+      "n_fillable_entries": 15,
+      "n_fillable_runs": 8,
+      "n_runs": 11,
+      "run_sizes": [
+        5,
+        4,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    "n_entry_snapshots": 854,
+    "n_joinable": 574,
+    "n_unjoinable": 280,
+    "preregistration_sha256": "edde1f66efc059d3628128ad2bbf0e49d60526c274664ca8e8bb5978dec34581"
+  },
+  "preregistration": {
+    "candidate": "S81",
+    "control_regimes": [
+      "pin"
+    ],
+    "direction_for_informative": "up",
+    "entry_leg": "adjacent_above_between_bracket",
+    "entry_snapshot": "latest_ok_capture_strictly_before_close",
+    "fee_legs": 1,
+    "fee_rate_name": "TAKER_FEE_RATE",
+    "informative_regimes": [
+      "sub_baseline",
+      "negative"
+    ],
+    "locked": "2026-08-10",
+    "max_entry_ask": 0.98,
+    "min_fillable_entries": 10,
+    "min_kish_effective_n": 10.0,
+    "min_ticks": 1.0,
+    "min_units": 10,
+    "n_boot": 10000,
+    "queue_item": "Q56",
+    "require_two_sided_quote": true,
+    "seed": 42,
+    "tick": 0.01,
+    "unit": "regime_run_per_coin"
+  },
+  "preregistration_sha256": "edde1f66efc059d3628128ad2bbf0e49d60526c274664ca8e8bb5978dec34581",
+  "queue_item": "Q56",
+  "schema_version": "q56_s81_probe.v1",
+  "settlement_coverage": {
+    "n_non_binary": 0,
+    "n_resolved": 574,
+    "per_source_hits": {
+      "crypto_hourly": 574,
+      "econ_prints": 0,
+      "q26_settlement_cache": 0,
+      "q27_settlement_cache": 0,
+      "q29_settlement_cache": 0,
+      "q30_settlement_cache": 0,
+      "q51_settlement_cache": 0,
+      "settlement_ledger": 0,
+      "weather_actuals": 0
+    },
+    "requested": 854,
+    "summary": "854 requested / 574 resolved / 0 non-binary / 280 unresolved; hits: crypto_hourly=574"
+  },
+  "status": "SEALED_INSUFFICIENT_DATA"
+}
