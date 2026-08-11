@@ -6,6 +6,49 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-11 ~04:15Z UTC — kalshi-edge-hunter nightly: Unit-1 review all-CONFIRM; Q21 round #27 registered 0 of 3 (verifier killed all); Unit-3 no-op
+
+**Unit 1 — adversarial review of the last-24h verdicts (both CONFIRM, no `review:` issue).** Re-checked
+one load-bearing number per finding on independent paths. **Q56/S81** (PR #344, admissible NULL): the
+report's `preregistration.fee_rate_name = TAKER_FEE_RATE` / `fee_legs = 1` / `unit = regime_run_per_coin`;
+the script imports `fee_per_contract(entry, TAKER_FEE_RATE)` from `core.pricing` (not hand-rolled), entry
+tag `real_ask`, settlement tag `broker_truth`; the headline mean −0.06361904… / 77 units / 105 obs / 13
+opposing reproduce exactly and the break-even identity (0.20181 ask + 0.01419 fee = 0.21600 vs realized
+settle-YES 0.15238 = 16/105) gives −0.06362 to the digit — CONFIRM. **Q56/S80** (PR #342, DEAD): script
+imports `fee_per_contract(fill_price, MAKER_FEE_RATE)` from `core.pricing` (correct maker rate, L5 guard),
+tags fill `real_bid` / settlement+signal `broker_truth`, block unit by GAME; report mean −0.09727
+(all) / −0.14012 (conditional-on-fill), both CIs below zero — CONFIRM. No number failed → no issue opened.
+
+**Unit 2 — pipeline replenishment (Q21 round #27, 0 survivors).** Eligible research items < 2 (Q56 fully
+done, Q54/S79 DEAD, Q52/S78 not-runnable at 34/328 games, rest gated/blocked) → Q21 round required.
+Proposed 3 NEW candidates; an independent `verifier` attacked each against committed tape before any
+registration. **All three killed:** (α) draw-underpricing TAKER buy on 3-way `-TIE` legs, fill-evidenced
+by executed prints (the S29 fill-first revival) — data is ADEQUATE (35 non-WC 3-way-league `-TIE` tickers
+in `tape/kalshi_trades/`, 34 settled ≫ 10-game floor) but **DEAD by CI**, block-by-game net of the 7% fee
+**[−0.120, +0.100]**, tie is well-calibrated (draw-games avg price 0.58–0.70), the pooled +0.079 was a
+print-count-weighting look-ahead artifact — this closes the S29-revival door with real fill evidence;
+(β) weather-actuals known-outcome late taker — the observability precondition is NOT on tape (actuals
+captured ~8h post-close, no realization timestamp) and the honest no-look-ahead test is **[−0.0049,
++0.0402]**, straddles zero; (γ) low-fee S&P/NDX index longshot-fade — **data-DEAD**, `universe_sweep`
+holds exactly ONE index bracket row (`KXINXHUD-26JUL211600`), zero NDX, ~10x below the L41 floor. No
+registration, no new queue item, still **0 proven edges**. Two verifier lesson candidates flagged for
+kb-distiller (print-count-weighting look-ahead → the only admissible unit is the GAME, reinforces L6;
+winner-selection look-ahead in weather needs an observation-time field the tape lacks). A 0-registration
+round with honest refutations is a valid outcome.
+
+**Unit 3 — probe-prep (no-op).** No time-gated item unblocks within ~72h (verified by file-shape, L25):
+Q48/S55 is FOMC-burst-gated (~September); Q52/S78 collect-and-revisit is far from its train/holdout floor;
+the rest gated/blocked.
+
+**Housekeeping.** Remote `tape/hourly-*` branches: **226** (deletion Q17-reserved, cloud lacks the
+push-delete permission). The 5 stale July `kalshi-burst-*` triggers (`cpi-0714`/`wcsemi1-0714`/
+`wcsemi2-0715`/`wcfinal-0719`/`fomc-0729`) remain Ryan-only to delete — named by retro #330 and yesterday's
+edge-hunter, NOT re-escalated. Open-PR backlog >5d on Ryan (#125/#165/#166/#191/#208/#271) already named by
+retro #330, NOT re-flagged. Paper: `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra only),
+ledger frozen, realized P&L $+27.76 unchanged. Gates after the last edit (docs/findings-only diff):
+`python scripts/invariants.py --full` exit 0, all green (2 known non-gating advisories, none new); `pytest`
+green. See `findings/2026-08-11-q21-round27-idea-gen.md`.
+
 ## 2026-08-11 ~02:2xZ UTC — research loop: Q56/S81 independent `verifier` CONFIRMED-WITH-CORRECTIONS — still no registry flip (verifier-confirmed admissible NULL)
 
 Follow-up to the entry immediately below. The orchestrating research-loop session (which, unlike
