@@ -16,8 +16,10 @@ collector" when the truth is "the population is one game short".
 
 The general failure (L165-class, incomplete source): a data-gate assertion of the form
 "family X does not cover day D" is only as strong as the SET of families the asserting run
-looked at. This repo has NINE settlement-bearing surfaces, and only one of them has
-"settlement" in its directory name path that a grep for `settlement_ledger` would find.
+looked at. This repo had NINE settlement-bearing surfaces when this module was written and
+has TEN since 2026-08-11 (`q56_settlement_cache`, the Q56/S81 backfill) — quote
+`declared_source_names()`, never a count remembered from a docstring — and only one of them
+has "settlement" in its directory name path that a grep for `settlement_ledger` would find.
 Three of them are EMBEDDED inside another family's records (`crypto_hourly`,
 `weather_actuals`, `econ_prints`) and are invisible to any directory-name scan at all.
 
@@ -28,7 +30,7 @@ and quote its per-source table.
 Recall limit, published in the module rather than discovered later (L155/L189)
 -----------------------------------------------------------------------------
 `undeclared_settlement_dirs()` can only detect a NEW settlement family whose directory NAME
-carries the word "settlement" (the `q*_settlement_cache` shape, which is how five of the nine
+carries the word "settlement" (the `q*_settlement_cache` shape, which is how six of the ten
 arrived). It structurally CANNOT detect a tenth family that hides settlement inside another
 family's record schema, the way `crypto_hourly.previous_settlement` /
 `weather_actuals.settled_markets` / `econ_prints.recent_settlement` do. A 0-issue report from
@@ -156,6 +158,18 @@ SETTLEMENT_SOURCES: Tuple[SettlementSource, ...] = (
         declared_tag="broker_truth",
         note="Q51 milestone-2/3 cache — the ONLY family covering the 2026-08-03 "
              "kalshi_trades day. Rows carry `status`; only `finalized` ones have a result.",
+    ),
+    SettlementSource(
+        name="q56_settlement_cache",
+        path_glob="q56_settlement_cache/settlement*.json",
+        kind=CACHE_MARKETS_MAP,
+        resolves=MARKET_RESULT,
+        declared_tag="broker_truth",
+        note="Q56/S81 settlement backfill (2026-08-11) — public /markets/{ticker} results for "
+             "the crypto-hourly bracket legs `crypto_hourly.previous_settlement` never paired "
+             "(L327). RAW payload: keeps result=='scalar' and listed-but-unsettled rows (L52). "
+             "Written by scripts/q56_s81_settlement_backfill.py under an exhaustive, "
+             "outcome-blind selection rule.",
     ),
     SettlementSource(
         name="crypto_hourly",

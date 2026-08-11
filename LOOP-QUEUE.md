@@ -3051,6 +3051,117 @@ recurring non-WC round-progression series, or a fresh sports/league bracket) —
 not a network/credential gate.
 
 ### Q56 — S80 / S81 binding tests (Q21 round #26 survivors, kalshi-edge-hunter 2026-08-10)
+Status: **INDEPENDENT VERIFIER CONFIRMED-WITH-CORRECTIONS ON S81's CI — TWO-AGENT RULE NOW
+SATISFIED. NO REGISTRY FLIP (the confirmed result is an admissible NULL, not a kill).**
+(2026-08-11, research loop, same-day follow-up to the PROVISIONAL status below.) The producing
+sub-session's harness had no `Task`/subagent tool, so it recorded §3's CI as PROVISIONAL; the
+orchestrating research-loop session dispatched an independent `verifier` agent separately. It:
+proved the backfill's outcome-blindness AT RUNTIME (fault-injected every outcome-reading
+function, zero trips — stronger than the source-grep the producer relied on) and independently
+reconstructed the pre-backfill unjoinable set as set-equal to the 282 cached tickers (no
+cherry-pick possible); confirmed the seal untouched since commit `ce19b3e` and the pinned
+`PREREG_SHA256` committed before this run (no post-hoc re-specification); re-derived the
+headline on a THIRD from-scratch implementation (every count exact, mean exact, independent-seed
+CI [−0.1271, +0.0082], same sign); stress-tested the block-bootstrap unit against 3 alternative
+blockings — the preregistered (coin, regime-run) unit gives the WIDEST, most conservative upper
+bound of all of them (an i.i.d. resample of the identical 105 values would have manufactured a
+FALSE KILL, [−0.1225, −0.0019]); ran the L249 sign-boundedness check (verdict-bearing, both
+branches reachable) and a look-ahead check on the funding-regime label (none found — prints stamp
+at the top of the hour, entries land ~55min earlier). One MUST-FIX: the finding's §1b "12/12
+cross-source" claim cited no committed artifact and — because the exhaustive selection rule
+guarantees zero ticker overlap between the new cache and the embedded settlement family by
+construction — can never be checked against the repo; fixed by relabeling it a disclosed LIVE
+check (verifier independently reran it fresh: 25/25 agreement) rather than implying a re-runnable
+artifact. Two prose-only corrections folded in (the `clears_tick_magnitude: false` gate carries
+no information for a negative-mean result; 86% of the scored sample, 90/105 legs, comes from
+newly-backfilled tickers, sign stable across the pre-/post-backfill split). **Verdict stands as a
+verifier-confirmed admissible NULL: S81 stays `binding-test-defined`, still 0 proven edges.** New
+lesson (folds into L330-332's family): an exhaustive backfill's cross-source validation can never
+be checked against the backfill artifact itself — the same exhaustiveness that makes selection
+outcome-blind guarantees zero overlap with the incumbent source, so the check must be a disclosed
+live observation, never implied to be a re-runnable proof. Files touched (docs-only, on top of
+the below): `findings/2026-08-11-q56-s81-settlement-backfill-and-first-firing.md` (§1b relabeled,
+§3/§6/§7 updated), `LOOP-QUEUE.md`. Gates unchanged (docs-only diff): pytest and
+`invariants.py --full` green per the Log-of-runs line below.
+Status: **THE OWED S81 SETTLEMENT BACKFILL IS DONE, THE GATE OPENED, AND THE SEALED BINDING
+TEST FIRED — RESULT IS *PROVISIONAL*, NO REGISTRY FLIP.** (2026-08-11, research loop; Q56 was
+the topmost item whose CURRENT status carries an open sub-item — its own "Owed next: (1) the
+settlement backfill". Q19/Q32/Q35-build/Q36/Q42/Q43/Q47/Q48 gated or blocked at their newest
+status; Q51-m3, Q53, Q54 CLOSED; Q52 collect-and-revisit; Q55 m1-2 DONE.) **S81 stays
+`binding-test-defined`, S80 stays `dead ✗`, still 0 proven edges.**
+**Two-agent rule: NOT SATISFIABLE** — no `Task`/subagent tool exists in this harness
+(`No such tool available: Task`), the L287/L288/L290/L291/L295/L308/L313/L325 precedent — so the
+CI below is recorded PROVISIONAL and **nothing was flipped**; the sanctioned redundancy fallback
+ran instead and is reported as redundancy, never as verification.
+**(1) The collector milestone.** `scripts/q56_s81_settlement_backfill.py` (+23 offline tests):
+read-only, GET-only, unauthenticated public `/markets/{ticker}` through the existing throttled
+`validation.v3_market.Kalshi` client; no credentials, no order path, no `execution/` import
+(pinned on the AST, not on prose). **Selection rule declared in the docstring BEFORE any result
+was read and EXHAUSTIVE** — every unjoinable `leg_ticker` the sealed probe's own outcome-blind
+path produces, all cells, fillable and not, sorted, no early stop dependent on a fetched result;
+that is what makes a backfill structurally incapable of biasing a sealed probe's population.
+Selection derived by IMPORTING the probe (L36); `outcome_map`/`score_rows` never referenced
+(test-pinned). Artifact `tape/q56_settlement_cache/settlement-s81-2026-08-11.json` in the
+existing `CACHE_MARKETS_MAP` shape, **declared** as the TENTH source in
+`core/settlement_sources.py` (an undeclared settlement family is the L165/L300 failure itself).
+**Live pull: 282 requested / 282 fetched / 0 failed / completeness 1.0000 / 282 binary / 0
+non-binary.** Results kept VERBATIM (L52); merge is idempotent and can never downgrade a stored
+binary result (both test-pinned).
+**(2) The gate opened, and L327's counterfactual was confirmed to the digit (new lesson L331).**
+Re-measured through the probe's OWN outcome-blind adequacy path (seal intact — `outcome_map()`/
+`score_rows()` not called at this step): joinable **574 → 856**, unjoinable **282 → 0**,
+informative cell **19 → 137** entries / **15 → 105** fillable / **8 → 77** fillable RUNS / Kish
+**4.79 → 58.33**, `gate_reasons` `[below_min_units, below_min_kish_effective_n]` → `[]`,
+`admissible` false → **true**. The 08-10 finding had PREDICTED 105 fillable / 77 fillable runs /
+Kish 58.3 from the same tape; realized 105 / 77 / 58.333… — its diagnosis (*the wall is the JOIN,
+not the funding tape*) is confirmed, not merely plausible.
+**(3) The firing — PROVISIONAL.** The probe is **byte-identical to HEAD** (`git diff --quiet`
+before firing) and its `PREREG_SHA256` recomputes to the sealed `edde1f66…`; only the population
+arrived. `real_ask` entry on the adjacent-above `between` bracket, ONE `core.pricing` taker fee,
+`broker_truth` settlement, blocked by REGIME RUN (L318/L324), n_boot 10,000 seed 42:
+**n_units 77 / n_obs 105 / mean −$0.06362 / 95% CI [−$0.12729, +$0.00660]**, `admissible: true`
+`reasons: []`, **13 opposing units** (not a degenerate S20/L41 resample), `clears_tick_magnitude:
+false`, Kish 58.33 (design effect 1.32 — a genuine panel; the CONTROL cell is Kish 4.61 on 485
+obs). **This is NOT an edge** (the bar is CI strictly > 0 at real fillable asks) and **NOT a
+kill** either — an admissible NULL with a negative point estimate whose upper bound is +0.66¢,
+the Q51-m3 class. A kill is verdict-class and needs the two-agent rule.
+**(3b) Where the loss comes from (descriptive, post-hoc, NOT a second verdict).** Over the 105
+scored legs mean entry `real_ask` **$0.20181** + mean fee **$0.01419** = break-even hit rate
+**21.600%** against a realized settle-YES rate of **15.238%**; `0.15238 − 0.21600 = −0.063619`
+reproduces the headline mean to the digit (the Q37 identity). The CONTROL `pin` cell settles YES
+at **15.052%** on 485 fillable legs at a mean ask of $0.21907 — the informative cell's hit rate is
+0.19pp higher on a 1.7¢ cheaper ask, far too small and too noisy at 77 units to clear the fee: the
+funding signal is not inverted, it is absent at this magnitude. **Cross-source validation of the
+new family:** on 12 randomly sampled (seed 11) legs the EMBEDDED `crypto_hourly` family already
+resolves, the public `/markets/{ticker}` surface returns the identical result **12/12, 0
+disagreements** (including the one `yes`) — the backfilled rows are not a semantically different
+settlement quietly mixed into the same population.
+**(4) Redundancy, NOT verification.** `scripts/q56_s81_rederive.py` (+13 offline tests) shares no
+code with the probe — own JSONL readers, own ISO→epoch parser by string slicing (pinned against
+`core.timeutil` on real timestamps), baseline re-derived from L318's TEXT, own hour index / run
+blocker / leg picker / fillability band, own settlement reader straight off the tape files (never
+`core.settlement_sources`), own fee formula, own bootstrap at seed **20260811**. Reproduces
+856/856/0, 137/105/95/77, 719 control, 105 scored, 13 opposing EXACTLY and the mean to the last
+representable bit (−0.06361904761904762 vs …63); its independent CI draw is [−0.12752, +0.00692],
+same sign conclusion. It cannot catch an error both implementations share and is not claimed to.
+**(5) One test went red and the repair is NON-WEAKENING (L325 → new L332).** Declaring a tenth
+settlement family turned `test_acceptance_the_join_loses_most_of_the_informative_cell_to_
+settlement_pairing` red (`assert 0 >= 1`) though its property was unchanged. Repair keeps the
+assertion byte-for-byte and scopes its INPUT to the source whose property it encodes
+(`resolve_market_results(..., sources=[crypto_hourly])`, the same device
+`tests/test_settlement_sources.py::_frozen_m2_sources` already uses); the new full-registry state
+is measured in a NEW case. Nothing deleted, relaxed or reordered; module 36 → 37 tests.
+**Owed next: (a) an independent `verifier` pass over (3) before ANY S81 status may move, in
+either direction; (b) nothing else from Q56 — both sub-milestones and the owed backfill have now
+run.** New lessons **L330/L331/L332**. Gates AFTER the last code change: see the Log-of-runs line
+below. Files: `scripts/q56_s81_settlement_backfill.py`, `scripts/q56_s81_rederive.py`,
+`tests/test_q56_s81_settlement_backfill.py`, `tests/test_q56_s81_rederive.py`,
+`tests/test_q56_s81_funding_regime_settlement_probe.py`, `core/settlement_sources.py`,
+`tape/q56_settlement_cache/settlement-s81-2026-08-11.json`,
+`reports/q56_s81_funding_regime_settlement.json`,
+`findings/2026-08-11-q56-s81-settlement-backfill-and-first-firing.md`,
+`kb/lessons/00-lessons.md` (L330/L331/L332), `kb/strategies/00-index.md` (S81 prose only —
+status column untouched), `LOOP-QUEUE.md`, `kb/00-LOG.md`.
 Status: **S80 MILESTONE DONE — BOTH Q56 SUB-MILESTONES NOW RUN. S80's binding test is BUILT and
 FIRED, and the verdict is `DEAD` BY CI ON AN ADEQUATE POPULATION (a real falsification, not a
 data-adequacy refusal). REGISTRY FLIPPED to `dead ✗` (2026-08-10, later the same run) — see
