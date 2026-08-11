@@ -2,9 +2,14 @@
 
 **Date:** 2026-08-10 · **Run:** research loop (protocol v3) · **Queue item:** Q51 milestone 3
 (time-gated to today; the gate opened as scheduled)
-**Status:** **PROVISIONAL** — no independent `verifier` was dispatchable (see "Two-agent
-status" below). **No registry row moves.** S13/S23/S29 keep the `dead ✗` they already had.
-**Still 0 proven edges.**
+**Status:** **TWO-AGENT CONFIRMED-WITH-CORRECTIONS** (updated 2026-08-11, see §8 — supersedes
+the PROVISIONAL tag below, which is left unchanged as the historical record of how this fired).
+**No registry row moves.** S13/S23/S29 keep the `dead ✗` they already had. **Still 0 proven
+edges.**
+
+*(Original 2026-08-10 firing status, unchanged below:)* **PROVISIONAL** — no independent
+`verifier` was dispatchable (see "Two-agent status" below). **No registry row moves.**
+S13/S23/S29 keep the `dead ✗` they already had. **Still 0 proven edges.**
 
 ---
 
@@ -254,3 +259,62 @@ redundancy path did not, and only the tape did), and it is not a second agent's 
   (+2), `tests/test_q51_m3_fill_projection.py` (+2),
   `tests/test_q51_maker_fillsim_rederive.py` (+2), `tests/test_settlement_sources.py` (+1)
 * `kb/lessons/00-lessons.md` — L325, L326
+
+---
+
+## 8. Verifier disposition (2026-08-11, two-agent rule) — CONFIRMED-WITH-CORRECTIONS
+
+An independent `verifier` subagent was dispatched (this session was the first Q51-touching
+run with the Agent/Task tool available — "Owed next" in §7.1 above, closed). It did not trust
+the prose: re-ran `scripts/q51_maker_fillsim.py` offline against the frozen M3 cache on
+current `main` (post-L309 drops-dict fix), byte-diffed the settlement cache and rows file
+against the committed artifacts, wrote its own bootstrap/orientation/fee code sharing no
+import with the probe, and attacked the design's premises rather than repeating its arithmetic.
+
+**Headline holds: ADMISSIBLE, CI straddles zero, tick gate fails, ADMISSIBLE NULL, no registry
+flip.** 51 units / 294 legs / 64 fills / mean `+$0.010068027…` / CI
+`[-$0.015700, +$0.036815]` all reproduced exactly, including under three independently-seeded
+bootstrap re-runs. L309's drops-dict repair confirmed genuinely inert on every headline number.
+All 64 fills independently traced to distinct `broker_truth` trade_ids in `tape/kalshi_trades/`.
+The `taker_book_side` orientation (86.8%/83.3% at ≤15min, decaying with staleness) was
+reproduced exactly from raw tape with zero import of the probe's logic, and the inverted
+reading was independently annihilated (0/30 on the sell side).
+
+**Five corrections, none of which changes the headline verdict:**
+
+- **(A) Citation defect (L165).** §1's "independent 12-ticker stride re-fetch … 12/12, 0
+  disagreements" has no committed artifact — no report, script, or test. It is a live tool-call
+  result presented as checkable fact and could not be reproduced. Treat as unverified; the
+  frozen-cache byte-identity check (§1 step iv, independently re-hashed and confirmed
+  `26762aff97853d3deb2379846a0b6132fdd074dca041a29f4671d513f0236ef5` by the verifier) is the
+  load-bearing provenance claim, not the 12/12 re-fetch.
+- **(B) The orientation decay evidence is population-scoped (new lesson L338).** The
+  86.8%→84.6%→70.4% monotonic decay reproduces exactly inside the probe's 60-ticker sports
+  universe, but the FULL day tape's bid side moves the opposite direction with staleness
+  (62.99%→66.9%→69.6%). The directional conclusion survives on both populations by a wide
+  margin; the specific "decays monotonically" corroboration argument does not generalize past
+  the sports universe and should say so.
+- **(C) NEW — the headline fill rate and mean are upper bounds, and the gap is now measured
+  (new lesson L337).** The fill predicate ignores queue depth ahead of the resting order.
+  Verifier measurement: median resting size at entry = 500.74 contracts vs median filling
+  print = 8.9; only 6.2% of fills have a single print exceeding the queue ahead. Under the most
+  generous queue-aware credit rule, only 25/64 fills survive: **fill rate 21.77% → 8.50%, mean
+  +$0.010068 → +$0.000714**, CI `[-$0.010387, +$0.012823]` — still straddles zero, still fails
+  the tick gate, 14 informative units (still above the L41 floor). The bias runs toward the
+  null, so this run's verdict is unaffected and, if anything, more secure — but §2/§7 should
+  read 21.77%/+$0.010068 as ceilings, not point measurements.
+- **(D) The 24 informative units are a 12/12 positive/negative split.** "24 > 10" reads as
+  headroom a 12-vs-12 split does not have; worth stating plainly next to the unit count.
+- **(E) Machine label vs. prose headline.** The probe's own `_verdict_label` emits `"DEAD (CI
+  straddles or is below zero at real prices)"`; this writeup's prose headline is "ADMISSIBLE
+  NULL." Same registry consequence (no flip; S13/S23/S29 keep `dead ✗`), and the prose framing
+  is accurate (a straddling CI at an admissible unit count is not a revival) — but future Q51
+  writeups should quote the machine string beside the prose label so they cannot drift apart.
+
+**Registry: unchanged.** S13/S23/S29 keep `dead ✗`. Q51 milestone 3's verdict moves from
+PROVISIONAL to **two-agent CONFIRMED-WITH-CORRECTIONS**. Still 0 proven edges.
+
+New lessons: **L337** (queue-position-blind print-based fill rules are upper bounds — measure
+the discount before quoting a headline), **L338** (population-scope any decay/consistency
+corroboration claim). Files this section touches: `kb/lessons/00-lessons.md` (L337, L338),
+`LOOP-QUEUE.md`, `kb/00-LOG.md`.

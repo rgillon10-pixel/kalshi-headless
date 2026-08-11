@@ -6,6 +6,65 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-11 18:0x ET — research loop: Q51 milestone-3 upgraded PROVISIONAL → two-agent CONFIRMED-WITH-CORRECTIONS
+
+Queue rescan: 0 eligible TODO/IN-PROGRESS items (5th consecutive idle-adjacent run), but this
+session is the first Q51-touching run with the Agent/Task tool exposed — closing the "owed"
+independent-verifier gap the 2026-08-10 milestone-3 firing explicitly left open (that firing's
+own harness had no `Task`/subagent tool; LOOP-QUEUE.md's Q51 section said so plainly). Treated
+closing that gap as this run's one milestone rather than generic idle-run busywork, since it
+directly serves the two-agent verdict rule.
+
+Dispatched a `verifier` subagent with the exact claim, the producing script
+(`scripts/q51_maker_fillsim.py`), and the frozen input
+(`tape/q51_settlement_cache/settlement-m3-2026-08-10.json`). It re-ran the probe offline on
+current `main` (post-L309 drops-dict fix — confirmed genuinely inert on every headline number),
+byte-diffed every committed artifact against a fresh re-derivation, and wrote independent
+orientation/bootstrap/fee code sharing no import with the probe rather than repeating its
+arithmetic.
+
+**Verdict: CONFIRMED-WITH-CORRECTIONS.** The headline (admissible=True, 95% CI `[-$0.015700,
++$0.036815]` straddles zero, L27 tick gate fails, ADMISSIBLE NULL, no registry flip) holds
+exactly — 51 units / 294 legs / 64 fills / mean +$0.010068 reproduced under three independently
+seeded bootstrap re-runs; all 64 fills independently traced to distinct `broker_truth`
+`trade_id`s. Five corrections filed (full text: `findings/2026-08-10-q51-m3-admissible-null-
+verdict.md` §8), the most consequential being genuinely new: the fill predicate is
+**queue-position-blind** — median resting size at the entry price is 500.74 contracts vs a
+median filling print of 8.9, so the headline 21.77% fill rate / +$0.010068 mean are *upper
+bounds*. Under the most generous queue-aware credit rule available, only 25/64 fills survive:
+fill rate 8.50%, mean +$0.000714, CI `[-$0.010387, +$0.012823]` — still straddles zero, still
+fails the tick gate, still 14 informative units above the L41 floor. The bias runs toward the
+null, so the verdict is unaffected and if anything more secure. A second correction scopes the
+`taker_book_side` orientation field's "monotonic decay" corroboration evidence to the probe's
+60-ticker sports population — the full day tape's bid side moves the *opposite* way with
+staleness, though the directional conclusion (bid lifts ask) survives on both populations by a
+wide margin. Two new lessons: **L337** (a print-based fill rule that ignores resting queue size
+is an upper bound — measure the discount before quoting a headline) and **L338** (a
+decay/consistency corroboration claim needs its population stated, since the same field can
+trend oppositely on a different slice). Registry unchanged: S13/S23/S29 keep `dead ✗`, Q51
+milestone 3 stays 0 proven edges — the milestone's own conclusion just moved from PROVISIONAL
+to two-agent confirmed.
+
+Gates: `pytest -q` and `python scripts/invariants.py --full` both re-confirmed green (docs +
+lessons only, no code touched, re-run per L162 rather than assumed). Step 0b sweep: no new
+stranded-tape content found beyond what PR #351 already recovered (the two newest `tape/hourly-*`
+branches are already merged into `main`, just not yet deleted — the branch-deletion step keeps
+hitting the known cloud-sandbox permission boundary, unchanged from every prior sweep this
+month). Step 9: `SHADOW_REGISTRY={s14_ladder_underwriting}`; no new tape landed this run, so the
+paper broker had nothing new to replay.
+
+Files: `findings/2026-08-10-q51-m3-admissible-null-verdict.md` (§8 appended, header updated),
+`kb/lessons/00-lessons.md` (L337, L338), `LOOP-QUEUE.md`, `kb/00-LOG.md`.
+
+**Next:** L165 citation hygiene (correction A) applies generally — any live tool-call agreement
+count quoted as evidence needs a committed artifact or an explicit "unverified, not reproducible"
+flag; worth a repo-wide sweep of past findings if a future idle run wants a policy-(a)-adjacent
+target. Q51's own next milestone is still the post-2026-08-24 terminal sweep (57 units / 330
+legs) and L309's now-fully-landed drops-dict repair; a queue-aware fill-sim variant (this run's
+correction C) is a new, real follow-on candidate but not yet a numbered queue item.
+
+---
+
 ## 2026-08-11 14:15 ET — IDLE RUN (a): L323's trade-print tie-break gets a measurement tool and a gating triage ratchet
 
 Queue rescan confirmed 0 eligible items (fourth consecutive idle run), so policy tier (a).
