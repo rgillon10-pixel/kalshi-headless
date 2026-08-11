@@ -1,0 +1,1748 @@
+{
+ "completeness": {
+  "cap_bound": false,
+  "completeness": 1.0,
+  "errors": {},
+  "n_attempted": 282,
+  "n_binary": 282,
+  "n_failed": 0,
+  "n_fetched": 282,
+  "n_listed_unsettled": 0,
+  "n_markets_after": 282,
+  "n_markets_before": 0,
+  "n_non_binary": 0,
+  "n_requested": 282
+ },
+ "markets": {
+  "KXBTC-26AUG0100-B63050": {
+   "close_time": "2026-08-01T04:00:00Z",
+   "event_ticker": "KXBTC-26AUG0100",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0103-B63150": {
+   "close_time": "2026-08-01T07:00:00Z",
+   "event_ticker": "KXBTC-26AUG0103",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0106-B63050": {
+   "close_time": "2026-08-01T10:00:00Z",
+   "event_ticker": "KXBTC-26AUG0106",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0109-B63150": {
+   "close_time": "2026-08-01T13:00:00Z",
+   "event_ticker": "KXBTC-26AUG0109",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0112-B63050": {
+   "close_time": "2026-08-01T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0112",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0118-B62850": {
+   "close_time": "2026-08-01T22:00:00Z",
+   "event_ticker": "KXBTC-26AUG0118",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0121-B62850": {
+   "close_time": "2026-08-02T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0121",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0203-B63550": {
+   "close_time": "2026-08-02T07:00:00Z",
+   "event_ticker": "KXBTC-26AUG0203",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0206-B63350": {
+   "close_time": "2026-08-02T10:00:00Z",
+   "event_ticker": "KXBTC-26AUG0206",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0212-B63150": {
+   "close_time": "2026-08-02T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0212",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0215-B63450": {
+   "close_time": "2026-08-02T19:00:00Z",
+   "event_ticker": "KXBTC-26AUG0215",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0218-B63650": {
+   "close_time": "2026-08-02T22:00:00Z",
+   "event_ticker": "KXBTC-26AUG0218",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0221-B63350": {
+   "close_time": "2026-08-03T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0221",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0300-B62950": {
+   "close_time": "2026-08-03T04:00:00Z",
+   "event_ticker": "KXBTC-26AUG0300",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0303-B62650": {
+   "close_time": "2026-08-03T07:00:00Z",
+   "event_ticker": "KXBTC-26AUG0303",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0312-B63750": {
+   "close_time": "2026-08-03T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0312",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0318-B63650": {
+   "close_time": "2026-08-03T22:00:00Z",
+   "event_ticker": "KXBTC-26AUG0318",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0403-B63750": {
+   "close_time": "2026-08-04T07:00:00Z",
+   "event_ticker": "KXBTC-26AUG0403",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0406-B63650": {
+   "close_time": "2026-08-04T10:00:00Z",
+   "event_ticker": "KXBTC-26AUG0406",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0412-B64250": {
+   "close_time": "2026-08-04T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0412",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0415-B64350": {
+   "close_time": "2026-08-04T19:00:00Z",
+   "event_ticker": "KXBTC-26AUG0415",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0418-B64250": {
+   "close_time": "2026-08-04T22:00:00Z",
+   "event_ticker": "KXBTC-26AUG0418",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0421-B64050": {
+   "close_time": "2026-08-05T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0421",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0509-B64350": {
+   "close_time": "2026-08-05T13:00:00Z",
+   "event_ticker": "KXBTC-26AUG0509",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0512-B64450": {
+   "close_time": "2026-08-05T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0512",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0516-B64950": {
+   "close_time": "2026-08-05T20:00:00Z",
+   "event_ticker": "KXBTC-26AUG0516",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0518-B64750": {
+   "close_time": "2026-08-05T22:00:00Z",
+   "event_ticker": "KXBTC-26AUG0518",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0521-B64750": {
+   "close_time": "2026-08-06T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0521",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0606-B64750": {
+   "close_time": "2026-08-06T10:00:00Z",
+   "event_ticker": "KXBTC-26AUG0606",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0609-B64450": {
+   "close_time": "2026-08-06T13:00:00Z",
+   "event_ticker": "KXBTC-26AUG0609",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0612-B64650": {
+   "close_time": "2026-08-06T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0612",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0618-B64450": {
+   "close_time": "2026-08-06T22:00:00Z",
+   "event_ticker": "KXBTC-26AUG0618",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0621-B64350": {
+   "close_time": "2026-08-07T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0621",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0700-B64350": {
+   "close_time": "2026-08-07T04:00:00Z",
+   "event_ticker": "KXBTC-26AUG0700",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0703-B64350": {
+   "close_time": "2026-08-07T07:00:00Z",
+   "event_ticker": "KXBTC-26AUG0703",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0709-B65350": {
+   "close_time": "2026-08-07T13:00:00Z",
+   "event_ticker": "KXBTC-26AUG0709",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0712-B64950": {
+   "close_time": "2026-08-07T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0712",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0715-B64750": {
+   "close_time": "2026-08-07T19:00:00Z",
+   "event_ticker": "KXBTC-26AUG0715",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0718-B65050": {
+   "close_time": "2026-08-07T22:00:00Z",
+   "event_ticker": "KXBTC-26AUG0718",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0721-B64950": {
+   "close_time": "2026-08-08T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0721",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0812-B65150": {
+   "close_time": "2026-08-08T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0812",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0821-B65050": {
+   "close_time": "2026-08-09T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0821",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0903-B64850": {
+   "close_time": "2026-08-09T07:00:00Z",
+   "event_ticker": "KXBTC-26AUG0903",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0906-B64950": {
+   "close_time": "2026-08-09T10:00:00Z",
+   "event_ticker": "KXBTC-26AUG0906",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0909-B64950": {
+   "close_time": "2026-08-09T13:00:00Z",
+   "event_ticker": "KXBTC-26AUG0909",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0912-B65250": {
+   "close_time": "2026-08-09T16:00:00Z",
+   "event_ticker": "KXBTC-26AUG0912",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG0921-B65050": {
+   "close_time": "2026-08-10T01:00:00Z",
+   "event_ticker": "KXBTC-26AUG0921",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26AUG1006-B65050": {
+   "close_time": "2026-08-10T10:00:00Z",
+   "event_ticker": "KXBTC-26AUG1006",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0302-B61550": {
+   "close_time": "2026-07-03T06:00:00Z",
+   "event_ticker": "KXBTC-26JUL0302",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0310-B62150": {
+   "close_time": "2026-07-03T14:00:00Z",
+   "event_ticker": "KXBTC-26JUL0310",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0316-B62250": {
+   "close_time": "2026-07-03T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL0316",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0416-B63350": {
+   "close_time": "2026-07-04T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL0416",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0516-B62850": {
+   "close_time": "2026-07-05T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL0516",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0616-B63850": {
+   "close_time": "2026-07-06T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL0616",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0716-B63850": {
+   "close_time": "2026-07-07T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL0716",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0800-B62750": {
+   "close_time": "2026-07-08T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL0800",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0801-B62750": {
+   "close_time": "2026-07-08T05:00:00Z",
+   "event_ticker": "KXBTC-26JUL0801",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0802-B62650": {
+   "close_time": "2026-07-08T06:00:00Z",
+   "event_ticker": "KXBTC-26JUL0802",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0803-B62750": {
+   "close_time": "2026-07-08T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL0803",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0804-B62950": {
+   "close_time": "2026-07-08T08:00:00Z",
+   "event_ticker": "KXBTC-26JUL0804",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0805-B62150": {
+   "close_time": "2026-07-08T09:00:00Z",
+   "event_ticker": "KXBTC-26JUL0805",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0806-B62150": {
+   "close_time": "2026-07-08T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL0806",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL0807-B62250": {
+   "close_time": "2026-07-08T11:00:00Z",
+   "event_ticker": "KXBTC-26JUL0807",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1016-B64050": {
+   "close_time": "2026-07-10T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1016",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1116-B64350": {
+   "close_time": "2026-07-11T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1116",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1216-B64350": {
+   "close_time": "2026-07-12T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1216",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1316-B62250": {
+   "close_time": "2026-07-13T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1316",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1416-B64650": {
+   "close_time": "2026-07-14T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1416",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1516-B64850": {
+   "close_time": "2026-07-15T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1516",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1601-B64550": {
+   "close_time": "2026-07-16T05:00:00Z",
+   "event_ticker": "KXBTC-26JUL1601",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1616-B64250": {
+   "close_time": "2026-07-16T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1616",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1716-B64050": {
+   "close_time": "2026-07-17T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL1716",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1806-B64050": {
+   "close_time": "2026-07-18T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL1806",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1809-B64250": {
+   "close_time": "2026-07-18T13:00:00Z",
+   "event_ticker": "KXBTC-26JUL1809",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1815-B64550": {
+   "close_time": "2026-07-18T19:00:00Z",
+   "event_ticker": "KXBTC-26JUL1815",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1818-B64850": {
+   "close_time": "2026-07-18T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL1818",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1821-B64850": {
+   "close_time": "2026-07-19T01:00:00Z",
+   "event_ticker": "KXBTC-26JUL1821",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1900-B64750": {
+   "close_time": "2026-07-19T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL1900",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1903-B64750": {
+   "close_time": "2026-07-19T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL1903",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1906-B64550": {
+   "close_time": "2026-07-19T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL1906",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1912-B64650": {
+   "close_time": "2026-07-19T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL1912",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1915-B64450": {
+   "close_time": "2026-07-19T19:00:00Z",
+   "event_ticker": "KXBTC-26JUL1915",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1918-B64450": {
+   "close_time": "2026-07-19T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL1918",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL1921-B64650": {
+   "close_time": "2026-07-20T01:00:00Z",
+   "event_ticker": "KXBTC-26JUL1921",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2000-B64950": {
+   "close_time": "2026-07-20T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL2000",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2003-B63950": {
+   "close_time": "2026-07-20T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL2003",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2006-B64250": {
+   "close_time": "2026-07-20T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL2006",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2009-B64750": {
+   "close_time": "2026-07-20T13:00:00Z",
+   "event_ticker": "KXBTC-26JUL2009",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2012-B65650": {
+   "close_time": "2026-07-20T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL2012",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2015-B65250": {
+   "close_time": "2026-07-20T19:00:00Z",
+   "event_ticker": "KXBTC-26JUL2015",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2018-B65350": {
+   "close_time": "2026-07-20T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL2018",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2021-B65550": {
+   "close_time": "2026-07-21T01:00:00Z",
+   "event_ticker": "KXBTC-26JUL2021",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2100-B65550": {
+   "close_time": "2026-07-21T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL2100",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2103-B65950": {
+   "close_time": "2026-07-21T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL2103",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2106-B66450": {
+   "close_time": "2026-07-21T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL2106",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2109-B66550": {
+   "close_time": "2026-07-21T13:00:00Z",
+   "event_ticker": "KXBTC-26JUL2109",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2115-B66350": {
+   "close_time": "2026-07-21T19:00:00Z",
+   "event_ticker": "KXBTC-26JUL2115",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2214-B66050": {
+   "close_time": "2026-07-22T18:00:00Z",
+   "event_ticker": "KXBTC-26JUL2214",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2218-B66150": {
+   "close_time": "2026-07-22T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL2218",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2221-B66150": {
+   "close_time": "2026-07-23T01:00:00Z",
+   "event_ticker": "KXBTC-26JUL2221",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2300-B65750": {
+   "close_time": "2026-07-23T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL2300",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2315-B64950": {
+   "close_time": "2026-07-23T19:00:00Z",
+   "event_ticker": "KXBTC-26JUL2315",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2318-B65150": {
+   "close_time": "2026-07-23T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL2318",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2321-B64950": {
+   "close_time": "2026-07-24T01:00:00Z",
+   "event_ticker": "KXBTC-26JUL2321",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2400-B65450": {
+   "close_time": "2026-07-24T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL2400",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2403-B65450": {
+   "close_time": "2026-07-24T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL2403",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2412-B64250": {
+   "close_time": "2026-07-24T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL2412",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2415-B64250": {
+   "close_time": "2026-07-24T19:00:00Z",
+   "event_ticker": "KXBTC-26JUL2415",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2422-B64150": {
+   "close_time": "2026-07-25T02:00:00Z",
+   "event_ticker": "KXBTC-26JUL2422",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2500-B64150": {
+   "close_time": "2026-07-25T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL2500",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2506-B64050": {
+   "close_time": "2026-07-25T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL2506",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2509-B64150": {
+   "close_time": "2026-07-25T13:00:00Z",
+   "event_ticker": "KXBTC-26JUL2509",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2512-B64250": {
+   "close_time": "2026-07-25T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL2512",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2518-B64350": {
+   "close_time": "2026-07-25T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL2518",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2522-B64550": {
+   "close_time": "2026-07-26T02:00:00Z",
+   "event_ticker": "KXBTC-26JUL2522",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2600-B64550": {
+   "close_time": "2026-07-26T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL2600",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2603-B64450": {
+   "close_time": "2026-07-26T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL2603",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2606-B64550": {
+   "close_time": "2026-07-26T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL2606",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2612-B64850": {
+   "close_time": "2026-07-26T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL2612",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2618-B64950": {
+   "close_time": "2026-07-26T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL2618",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2700-B65350": {
+   "close_time": "2026-07-27T04:00:00Z",
+   "event_ticker": "KXBTC-26JUL2700",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2703-B65450": {
+   "close_time": "2026-07-27T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL2703",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2709-B65150": {
+   "close_time": "2026-07-27T13:00:00Z",
+   "event_ticker": "KXBTC-26JUL2709",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2712-B64650": {
+   "close_time": "2026-07-27T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL2712",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2718-B64850": {
+   "close_time": "2026-07-27T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL2718",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2803-B63650": {
+   "close_time": "2026-07-28T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL2803",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2806-B63450": {
+   "close_time": "2026-07-28T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL2806",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2810-B63550": {
+   "close_time": "2026-07-28T14:00:00Z",
+   "event_ticker": "KXBTC-26JUL2810",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2812-B63850": {
+   "close_time": "2026-07-28T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL2812",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2818-B64050": {
+   "close_time": "2026-07-28T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL2818",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2903-B64450": {
+   "close_time": "2026-07-29T07:00:00Z",
+   "event_ticker": "KXBTC-26JUL2903",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2906-B64750": {
+   "close_time": "2026-07-29T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL2906",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL2916-B63950": {
+   "close_time": "2026-07-29T20:00:00Z",
+   "event_ticker": "KXBTC-26JUL2916",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3006-B64550": {
+   "close_time": "2026-07-30T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL3006",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3009-B64950": {
+   "close_time": "2026-07-30T13:00:00Z",
+   "event_ticker": "KXBTC-26JUL3009",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3018-B64750": {
+   "close_time": "2026-07-30T22:00:00Z",
+   "event_ticker": "KXBTC-26JUL3018",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3021-B64750": {
+   "close_time": "2026-07-31T01:00:00Z",
+   "event_ticker": "KXBTC-26JUL3021",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3106-B63750": {
+   "close_time": "2026-07-31T10:00:00Z",
+   "event_ticker": "KXBTC-26JUL3106",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3109-B63750": {
+   "close_time": "2026-07-31T13:00:00Z",
+   "event_ticker": "KXBTC-26JUL3109",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3112-B62750": {
+   "close_time": "2026-07-31T16:00:00Z",
+   "event_ticker": "KXBTC-26JUL3112",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXBTC-26JUL3121-B63050": {
+   "close_time": "2026-08-01T01:00:00Z",
+   "event_ticker": "KXBTC-26JUL3121",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0100-B1872": {
+   "close_time": "2026-08-01T04:00:00Z",
+   "event_ticker": "KXETH-26AUG0100",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0103-B1872": {
+   "close_time": "2026-08-01T07:00:00Z",
+   "event_ticker": "KXETH-26AUG0103",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0106-B1872": {
+   "close_time": "2026-08-01T10:00:00Z",
+   "event_ticker": "KXETH-26AUG0106",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0109-B1872": {
+   "close_time": "2026-08-01T13:00:00Z",
+   "event_ticker": "KXETH-26AUG0109",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0112-B1872": {
+   "close_time": "2026-08-01T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0112",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0118-B1847": {
+   "close_time": "2026-08-01T22:00:00Z",
+   "event_ticker": "KXETH-26AUG0118",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0121-B1847": {
+   "close_time": "2026-08-02T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0121",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0203-B1882": {
+   "close_time": "2026-08-02T07:00:00Z",
+   "event_ticker": "KXETH-26AUG0203",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0206-B1872": {
+   "close_time": "2026-08-02T10:00:00Z",
+   "event_ticker": "KXETH-26AUG0206",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0212-B1862": {
+   "close_time": "2026-08-02T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0212",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0215-B1877": {
+   "close_time": "2026-08-02T19:00:00Z",
+   "event_ticker": "KXETH-26AUG0215",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0218-B1892": {
+   "close_time": "2026-08-02T22:00:00Z",
+   "event_ticker": "KXETH-26AUG0218",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0221-B1877": {
+   "close_time": "2026-08-03T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0221",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0300-B1862": {
+   "close_time": "2026-08-03T04:00:00Z",
+   "event_ticker": "KXETH-26AUG0300",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0303-B1852": {
+   "close_time": "2026-08-03T07:00:00Z",
+   "event_ticker": "KXETH-26AUG0303",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0312-B1867": {
+   "close_time": "2026-08-03T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0312",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0318-B1867": {
+   "close_time": "2026-08-03T22:00:00Z",
+   "event_ticker": "KXETH-26AUG0318",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0403-B1857": {
+   "close_time": "2026-08-04T07:00:00Z",
+   "event_ticker": "KXETH-26AUG0403",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0406-B1862": {
+   "close_time": "2026-08-04T10:00:00Z",
+   "event_ticker": "KXETH-26AUG0406",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0412-B1877": {
+   "close_time": "2026-08-04T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0412",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0415-B1877": {
+   "close_time": "2026-08-04T19:00:00Z",
+   "event_ticker": "KXETH-26AUG0415",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0418-B1877": {
+   "close_time": "2026-08-04T22:00:00Z",
+   "event_ticker": "KXETH-26AUG0418",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0421-B1867": {
+   "close_time": "2026-08-05T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0421",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0509-B1877": {
+   "close_time": "2026-08-05T13:00:00Z",
+   "event_ticker": "KXETH-26AUG0509",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0512-B1877": {
+   "close_time": "2026-08-05T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0512",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0516-B1922": {
+   "close_time": "2026-08-05T20:00:00Z",
+   "event_ticker": "KXETH-26AUG0516",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0518-B1912": {
+   "close_time": "2026-08-05T22:00:00Z",
+   "event_ticker": "KXETH-26AUG0518",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0521-B1917": {
+   "close_time": "2026-08-06T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0521",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0606-B1912": {
+   "close_time": "2026-08-06T10:00:00Z",
+   "event_ticker": "KXETH-26AUG0606",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0609-B1902": {
+   "close_time": "2026-08-06T13:00:00Z",
+   "event_ticker": "KXETH-26AUG0609",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0612-B1912": {
+   "close_time": "2026-08-06T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0612",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0618-B1907": {
+   "close_time": "2026-08-06T22:00:00Z",
+   "event_ticker": "KXETH-26AUG0618",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0621-B1907": {
+   "close_time": "2026-08-07T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0621",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0700-B1902": {
+   "close_time": "2026-08-07T04:00:00Z",
+   "event_ticker": "KXETH-26AUG0700",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0703-B1907": {
+   "close_time": "2026-08-07T07:00:00Z",
+   "event_ticker": "KXETH-26AUG0703",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0709-B1937": {
+   "close_time": "2026-08-07T13:00:00Z",
+   "event_ticker": "KXETH-26AUG0709",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0712-B1922": {
+   "close_time": "2026-08-07T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0712",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0715-B1912": {
+   "close_time": "2026-08-07T19:00:00Z",
+   "event_ticker": "KXETH-26AUG0715",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0718-B1922": {
+   "close_time": "2026-08-07T22:00:00Z",
+   "event_ticker": "KXETH-26AUG0718",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0721-B1917": {
+   "close_time": "2026-08-08T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0721",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0812-B1927": {
+   "close_time": "2026-08-08T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0812",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0821-B1922": {
+   "close_time": "2026-08-09T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0821",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0903-B1922": {
+   "close_time": "2026-08-09T07:00:00Z",
+   "event_ticker": "KXETH-26AUG0903",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0906-B1922": {
+   "close_time": "2026-08-09T10:00:00Z",
+   "event_ticker": "KXETH-26AUG0906",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0909-B1922": {
+   "close_time": "2026-08-09T13:00:00Z",
+   "event_ticker": "KXETH-26AUG0909",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0912-B1927": {
+   "close_time": "2026-08-09T16:00:00Z",
+   "event_ticker": "KXETH-26AUG0912",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG0921-B1917": {
+   "close_time": "2026-08-10T01:00:00Z",
+   "event_ticker": "KXETH-26AUG0921",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26AUG1006-B1922": {
+   "close_time": "2026-08-10T10:00:00Z",
+   "event_ticker": "KXETH-26AUG1006",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0302-B1730": {
+   "close_time": "2026-07-03T06:00:00Z",
+   "event_ticker": "KXETH-26JUL0302",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0310-B1770": {
+   "close_time": "2026-07-03T14:00:00Z",
+   "event_ticker": "KXETH-26JUL0310",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0316-B1770": {
+   "close_time": "2026-07-03T20:00:00Z",
+   "event_ticker": "KXETH-26JUL0316",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0416-B1810": {
+   "close_time": "2026-07-04T20:00:00Z",
+   "event_ticker": "KXETH-26JUL0416",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0516-B1800": {
+   "close_time": "2026-07-05T20:00:00Z",
+   "event_ticker": "KXETH-26JUL0516",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0616-B1820": {
+   "close_time": "2026-07-06T20:00:00Z",
+   "event_ticker": "KXETH-26JUL0616",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0716-B1800": {
+   "close_time": "2026-07-07T20:00:00Z",
+   "event_ticker": "KXETH-26JUL0716",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0800-B1760": {
+   "close_time": "2026-07-08T04:00:00Z",
+   "event_ticker": "KXETH-26JUL0800",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0801-B1780": {
+   "close_time": "2026-07-08T05:00:00Z",
+   "event_ticker": "KXETH-26JUL0801",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0802-B1780": {
+   "close_time": "2026-07-08T06:00:00Z",
+   "event_ticker": "KXETH-26JUL0802",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0803-B1780": {
+   "close_time": "2026-07-08T07:00:00Z",
+   "event_ticker": "KXETH-26JUL0803",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0804-B1780": {
+   "close_time": "2026-07-08T08:00:00Z",
+   "event_ticker": "KXETH-26JUL0804",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0805-B1760": {
+   "close_time": "2026-07-08T09:00:00Z",
+   "event_ticker": "KXETH-26JUL0805",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0806-B1760": {
+   "close_time": "2026-07-08T10:00:00Z",
+   "event_ticker": "KXETH-26JUL0806",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL0807-B1760": {
+   "close_time": "2026-07-08T11:00:00Z",
+   "event_ticker": "KXETH-26JUL0807",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1016-B1820": {
+   "close_time": "2026-07-10T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1016",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1116-B1840": {
+   "close_time": "2026-07-11T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1116",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1216-B1850": {
+   "close_time": "2026-07-12T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1216",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1316-B1790": {
+   "close_time": "2026-07-13T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1316",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1416-B1900": {
+   "close_time": "2026-07-14T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1416",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1516-B1940": {
+   "close_time": "2026-07-15T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1516",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1601-B1940": {
+   "close_time": "2026-07-16T05:00:00Z",
+   "event_ticker": "KXETH-26JUL1601",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1616-B1900": {
+   "close_time": "2026-07-16T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1616",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1716-B1860": {
+   "close_time": "2026-07-17T20:00:00Z",
+   "event_ticker": "KXETH-26JUL1716",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1806-B1847": {
+   "close_time": "2026-07-18T10:00:00Z",
+   "event_ticker": "KXETH-26JUL1806",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1809-B1852": {
+   "close_time": "2026-07-18T13:00:00Z",
+   "event_ticker": "KXETH-26JUL1809",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1815-B1862": {
+   "close_time": "2026-07-18T19:00:00Z",
+   "event_ticker": "KXETH-26JUL1815",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1818-B1867": {
+   "close_time": "2026-07-18T22:00:00Z",
+   "event_ticker": "KXETH-26JUL1818",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1821-B1867": {
+   "close_time": "2026-07-19T01:00:00Z",
+   "event_ticker": "KXETH-26JUL1821",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1900-B1867": {
+   "close_time": "2026-07-19T04:00:00Z",
+   "event_ticker": "KXETH-26JUL1900",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1903-B1872": {
+   "close_time": "2026-07-19T07:00:00Z",
+   "event_ticker": "KXETH-26JUL1903",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1906-B1872": {
+   "close_time": "2026-07-19T10:00:00Z",
+   "event_ticker": "KXETH-26JUL1906",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1912-B1877": {
+   "close_time": "2026-07-19T16:00:00Z",
+   "event_ticker": "KXETH-26JUL1912",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1915-B1862": {
+   "close_time": "2026-07-19T19:00:00Z",
+   "event_ticker": "KXETH-26JUL1915",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1918-B1862": {
+   "close_time": "2026-07-19T22:00:00Z",
+   "event_ticker": "KXETH-26JUL1918",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXETH-26JUL1921-B1877": {
+   "close_time": "2026-07-20T01:00:00Z",
+   "event_ticker": "KXETH-26JUL1921",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2000-B1882": {
+   "close_time": "2026-07-20T04:00:00Z",
+   "event_ticker": "KXETH-26JUL2000",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2003-B1852": {
+   "close_time": "2026-07-20T07:00:00Z",
+   "event_ticker": "KXETH-26JUL2003",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2006-B1867": {
+   "close_time": "2026-07-20T10:00:00Z",
+   "event_ticker": "KXETH-26JUL2006",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2009-B1877": {
+   "close_time": "2026-07-20T13:00:00Z",
+   "event_ticker": "KXETH-26JUL2009",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2012-B1907": {
+   "close_time": "2026-07-20T16:00:00Z",
+   "event_ticker": "KXETH-26JUL2012",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2015-B1902": {
+   "close_time": "2026-07-20T19:00:00Z",
+   "event_ticker": "KXETH-26JUL2015",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2018-B1907": {
+   "close_time": "2026-07-20T22:00:00Z",
+   "event_ticker": "KXETH-26JUL2018",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2021-B1917": {
+   "close_time": "2026-07-21T01:00:00Z",
+   "event_ticker": "KXETH-26JUL2021",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2100-B1932": {
+   "close_time": "2026-07-21T04:00:00Z",
+   "event_ticker": "KXETH-26JUL2100",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2103-B1937": {
+   "close_time": "2026-07-21T07:00:00Z",
+   "event_ticker": "KXETH-26JUL2103",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2106-B1947": {
+   "close_time": "2026-07-21T10:00:00Z",
+   "event_ticker": "KXETH-26JUL2106",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2109-B1947": {
+   "close_time": "2026-07-21T13:00:00Z",
+   "event_ticker": "KXETH-26JUL2109",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2115-B1922": {
+   "close_time": "2026-07-21T19:00:00Z",
+   "event_ticker": "KXETH-26JUL2115",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2214-B1942": {
+   "close_time": "2026-07-22T18:00:00Z",
+   "event_ticker": "KXETH-26JUL2214",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2218-B1942": {
+   "close_time": "2026-07-22T22:00:00Z",
+   "event_ticker": "KXETH-26JUL2218",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2221-B1937": {
+   "close_time": "2026-07-23T01:00:00Z",
+   "event_ticker": "KXETH-26JUL2221",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2300-B1922": {
+   "close_time": "2026-07-23T04:00:00Z",
+   "event_ticker": "KXETH-26JUL2300",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2315-B1887": {
+   "close_time": "2026-07-23T19:00:00Z",
+   "event_ticker": "KXETH-26JUL2315",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2318-B1887": {
+   "close_time": "2026-07-23T22:00:00Z",
+   "event_ticker": "KXETH-26JUL2318",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2321-B1872": {
+   "close_time": "2026-07-24T01:00:00Z",
+   "event_ticker": "KXETH-26JUL2321",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2400-B1882": {
+   "close_time": "2026-07-24T04:00:00Z",
+   "event_ticker": "KXETH-26JUL2400",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2403-B1892": {
+   "close_time": "2026-07-24T07:00:00Z",
+   "event_ticker": "KXETH-26JUL2403",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2412-B1867": {
+   "close_time": "2026-07-24T16:00:00Z",
+   "event_ticker": "KXETH-26JUL2412",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2415-B1867": {
+   "close_time": "2026-07-24T19:00:00Z",
+   "event_ticker": "KXETH-26JUL2415",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2422-B1867": {
+   "close_time": "2026-07-25T02:00:00Z",
+   "event_ticker": "KXETH-26JUL2422",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2500-B1862": {
+   "close_time": "2026-07-25T04:00:00Z",
+   "event_ticker": "KXETH-26JUL2500",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2506-B1862": {
+   "close_time": "2026-07-25T10:00:00Z",
+   "event_ticker": "KXETH-26JUL2506",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2509-B1862": {
+   "close_time": "2026-07-25T13:00:00Z",
+   "event_ticker": "KXETH-26JUL2509",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2512-B1872": {
+   "close_time": "2026-07-25T16:00:00Z",
+   "event_ticker": "KXETH-26JUL2512",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2518-B1877": {
+   "close_time": "2026-07-25T22:00:00Z",
+   "event_ticker": "KXETH-26JUL2518",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2522-B1882": {
+   "close_time": "2026-07-26T02:00:00Z",
+   "event_ticker": "KXETH-26JUL2522",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2600-B1887": {
+   "close_time": "2026-07-26T04:00:00Z",
+   "event_ticker": "KXETH-26JUL2600",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2603-B1887": {
+   "close_time": "2026-07-26T07:00:00Z",
+   "event_ticker": "KXETH-26JUL2603",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2606-B1887": {
+   "close_time": "2026-07-26T10:00:00Z",
+   "event_ticker": "KXETH-26JUL2606",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2612-B1917": {
+   "close_time": "2026-07-26T16:00:00Z",
+   "event_ticker": "KXETH-26JUL2612",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2618-B1932": {
+   "close_time": "2026-07-26T22:00:00Z",
+   "event_ticker": "KXETH-26JUL2618",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2700-B1952": {
+   "close_time": "2026-07-27T04:00:00Z",
+   "event_ticker": "KXETH-26JUL2700",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2703-B1972": {
+   "close_time": "2026-07-27T07:00:00Z",
+   "event_ticker": "KXETH-26JUL2703",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2709-B1962": {
+   "close_time": "2026-07-27T13:00:00Z",
+   "event_ticker": "KXETH-26JUL2709",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2712-B1932": {
+   "close_time": "2026-07-27T16:00:00Z",
+   "event_ticker": "KXETH-26JUL2712",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2718-B1947": {
+   "close_time": "2026-07-27T22:00:00Z",
+   "event_ticker": "KXETH-26JUL2718",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2803-B1892": {
+   "close_time": "2026-07-28T07:00:00Z",
+   "event_ticker": "KXETH-26JUL2803",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2806-B1877": {
+   "close_time": "2026-07-28T10:00:00Z",
+   "event_ticker": "KXETH-26JUL2806",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2810-B1897": {
+   "close_time": "2026-07-28T14:00:00Z",
+   "event_ticker": "KXETH-26JUL2810",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2812-B1917": {
+   "close_time": "2026-07-28T16:00:00Z",
+   "event_ticker": "KXETH-26JUL2812",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2818-B1927": {
+   "close_time": "2026-07-28T22:00:00Z",
+   "event_ticker": "KXETH-26JUL2818",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2903-B1922": {
+   "close_time": "2026-07-29T07:00:00Z",
+   "event_ticker": "KXETH-26JUL2903",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2906-B1927": {
+   "close_time": "2026-07-29T10:00:00Z",
+   "event_ticker": "KXETH-26JUL2906",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL2916-B1902": {
+   "close_time": "2026-07-29T20:00:00Z",
+   "event_ticker": "KXETH-26JUL2916",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3006-B1922": {
+   "close_time": "2026-07-30T10:00:00Z",
+   "event_ticker": "KXETH-26JUL3006",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3009-B1927": {
+   "close_time": "2026-07-30T13:00:00Z",
+   "event_ticker": "KXETH-26JUL3009",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3018-B1922": {
+   "close_time": "2026-07-30T22:00:00Z",
+   "event_ticker": "KXETH-26JUL3018",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3021-B1917": {
+   "close_time": "2026-07-31T01:00:00Z",
+   "event_ticker": "KXETH-26JUL3021",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3106-B1887": {
+   "close_time": "2026-07-31T10:00:00Z",
+   "event_ticker": "KXETH-26JUL3106",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3109-B1882": {
+   "close_time": "2026-07-31T13:00:00Z",
+   "event_ticker": "KXETH-26JUL3109",
+   "result": "yes",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3112-B1867": {
+   "close_time": "2026-07-31T16:00:00Z",
+   "event_ticker": "KXETH-26JUL3112",
+   "result": "no",
+   "status": "finalized"
+  },
+  "KXETH-26JUL3121-B1867": {
+   "close_time": "2026-08-01T01:00:00Z",
+   "event_ticker": "KXETH-26JUL3121",
+   "result": "no",
+   "status": "finalized"
+  }
+ },
+ "price_source_tag": "broker_truth",
+ "pulled_at": "2026-08-11T00:32:26.594212+00:00",
+ "queue_item": "Q56",
+ "schema_version": "q56_settlement_cache.v1",
+ "selection": {
+  "n_already_settled": 574,
+  "n_distinct_leg_tickers": 856,
+  "n_entry_rows": 856,
+  "n_unjoinable": 282,
+  "settlement_coverage_before": {
+   "n_non_binary": 0,
+   "n_resolved": 574,
+   "per_source_hits": {
+    "crypto_hourly": 574,
+    "econ_prints": 0,
+    "q26_settlement_cache": 0,
+    "q27_settlement_cache": 0,
+    "q29_settlement_cache": 0,
+    "q30_settlement_cache": 0,
+    "q51_settlement_cache": 0,
+    "q56_settlement_cache": 0,
+    "settlement_ledger": 0,
+    "weather_actuals": 0
+   },
+   "requested": 856,
+   "summary": "856 requested / 574 resolved / 0 non-binary / 282 unresolved; hits: crypto_hourly=574"
+  },
+  "unjoinable_entry_rows_by_cell": {
+   "control": 164,
+   "informative": 118
+  },
+  "unjoinable_fillable_entry_rows_by_cell": {
+   "control": 117,
+   "informative": 90
+  }
+ },
+ "selection_rule": "EXHAUSTIVE and outcome-blind: every unjoinable leg_ticker produced by the sealed S81 probe's own candidate path (all cells, fillable and non-fillable), sorted, no early stop dependent on any fetched result.",
+ "source": "public_markets_by_ticker"
+}

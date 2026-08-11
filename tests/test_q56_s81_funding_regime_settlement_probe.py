@@ -324,6 +324,24 @@ def test_acceptance_fixed_slice_builds_informative_and_control_cells():
     assert {r["price_source_tag"] for r in rows if r["leg_ticker"]} == {"real_ask"}
 
 
+def _crypto_hourly_only_settled(tickers):
+    """Membership as `crypto_hourly.previous_settlement` ALONE can answer it.
+
+    L327's claim is about the EMBEDDED pairing, so the measurement that carries it must be
+    read through that one source. Scoping it here (2026-08-11, Q56 backfill run) keeps the
+    original assertion below byte-for-byte instead of relaxing it: the Q56/S81 backfill
+    (`tape/q56_settlement_cache/`, a TENTH declared family) legitimately resolves the very
+    tickers the embedded pairing missed, which would otherwise turn this pin red for a reason
+    that has nothing to do with the property under test (L325). The post-backfill state of the
+    FULL registry is measured in its own case below rather than absorbed into this one.
+    """
+    from core.settlement import is_binary_result
+    from core.settlement_sources import SETTLEMENT_SOURCES, resolve_market_results
+    embedded_only = [s for s in SETTLEMENT_SOURCES if s.name == "crypto_hourly"]
+    report = resolve_market_results(tickers, sources=embedded_only)
+    return frozenset(t for t, m in report.resolved.items() if is_binary_result(m.result))
+
+
 @_real_tape
 def test_acceptance_the_join_loses_most_of_the_informative_cell_to_settlement_pairing():
     """The load-bearing measurement (L327): `crypto_hourly.previous_settlement` reports ONLY
@@ -332,12 +350,32 @@ def test_acceptance_the_join_loses_most_of_the_informative_cell_to_settlement_pa
     hours = Q.funding_hours([str(p) for p in FUNDING_DAYS])
     runs = Q.regime_runs(hours)
     rows = Q.candidate_rows(Q.load_crypto_records([str(p) for p in CRYPTO_DAYS]), runs)
-    settled, _cov = Q.settled_ticker_set(sorted({r["leg_ticker"] for r in rows
-                                                 if r["leg_ticker"]}))
+    settled = _crypto_hourly_only_settled(sorted({r["leg_ticker"] for r in rows
+                                                  if r["leg_ticker"]}))
     informative = [r for r in rows if r["cell"] == "informative"]
     unjoined = [r for r in informative if r["leg_ticker"] not in settled]
     assert len(informative) >= 8
     assert len(unjoined) >= 1
+
+
+@_real_tape
+def test_acceptance_the_q56_backfill_closes_the_embedded_pairing_gap_on_this_slice():
+    """The other side of the case above, added 2026-08-11 with the Q56/S81 settlement backfill.
+
+    Through the FULL declared registry the same fixed slice now joins completely, and the
+    family that closes the gap is the backfill. Directional and growth-safe: the row set is
+    fixed (two committed day-files) and a settlement family can only ever RESOLVE more, so
+    `unjoined` can never climb back above 0.
+    """
+    hours = Q.funding_hours([str(p) for p in FUNDING_DAYS])
+    runs = Q.regime_runs(hours)
+    rows = Q.candidate_rows(Q.load_crypto_records([str(p) for p in CRYPTO_DAYS]), runs)
+    tickers = sorted({r["leg_ticker"] for r in rows if r["leg_ticker"]})
+    settled, coverage = Q.settled_ticker_set(tickers)
+    informative = [r for r in rows if r["cell"] == "informative"]
+    unjoined = [r for r in informative if r["leg_ticker"] not in settled]
+    assert len(unjoined) == 0
+    assert coverage["per_source_hits"].get("q56_settlement_cache", 0) >= 1
 
 
 @_real_tape
