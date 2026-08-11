@@ -6,6 +6,69 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-11 ~13:0x-14:5xZ UTC — research loop IDLE RUN (idle-run policy (c) / step-0b): recovered 26,063 genuinely-stranded tape line(s) + 3 capture_id(s) from two fresh `tape/hourly-*` branches
+
+**Step 0a:** PASS — merged PRs #348 (`origin/main` HEAD at run start), then #349/#350 (landed by a
+concurrent research-loop pass mid-run, see below) all reachable from `origin/main`;
+`kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-08-11, 0-day gap. `main` not
+rewound. **Claim check:** open PRs unchanged from the standing Ryan-review-only set
+(#125/#165/#166/#191/#208/#271/#330) — none claims live queue work.
+
+**Queue scan:** full Q0-Q56 status-line rescan — same conclusion as the two runs immediately
+before this one: Q56 fully closed, Q17 RESERVED for PR #46, every other item gated/blocked/done
+at its newest status line. **0 eligible TODO/IN-PROGRESS → IDLE RUN**, idle-run policy (c).
+
+**Step 0b found real work this time.** `tape/hourly-20260811T1010Z` (committed 10:10Z, >30min
+old) triaged `STILL MISSING` — 1,049 line(s) across 9 `.jsonl` families
+(`anomalies`/`crypto_hourly`/`econ_prints`/`hyperliquid_funding`/`perp_tape`/
+`polymarket_cpi_pairs`/`polymarket_macro_pairs`/`sports_pairs`/`weather_books`) plus 1 missing
+`orderbook_depth` `capture_id` (`20260811T095625Z`, size-guard-skipped from the line check, caught
+by the L216 capture_id-set path). Union-appended (line-level dedupe, JSON-dict-only per L247) —
+3,049 lines total — and `--assert-contained` confirmed `CONTAINED`, exit 0.
+
+While that commit's `pytest`/`invariants` gates were running (~2h), `origin/main` advanced with
+`#349`/`#350` (a concurrent research-loop pass's own idle-run: the unrelated L309 drops-unit-mixing
+repair below) **and** a second stranded branch appeared: `tape/hourly-20260811T1313Z` (committed
+13:14Z). Rebased onto the new `main` (clean, no conflicts — disjoint files) and triaged it too:
+1,014 lines across 7 families (`crypto_hourly`/`hyperliquid_funding`/`perp_tape`/
+`polymarket_macro_pairs`/`sports_pairs`/`weather_actuals`/`weather_books`) plus 2 missing
+capture_ids (`orderbook_depth` `20260811T125939Z`, `universe_sweep` `20260811T131322Z` — the
+latter alone is 20,000 lines, one bulk-family capture). Same union-append method — 23,014 lines —
+`--assert-contained` on BOTH branches together now reads `CONTAINED`, exit 0. **26,063 lines / 3
+capture_ids recovered across the two branches combined.** All appended content parses as JSON
+(spot-verified every line, every touched file, before commit).
+
+Attempted `git push origin --delete` on both now-empty-diff branches; blocked by the known cloud-
+sandbox `HTTP 403` permission boundary (same as every prior stranded-branch cleanup this month) —
+left for a local/VPS session or Ryan.
+
+Two-agent rule: N/A — pure tape recovery (union-append of already-captured, already-committed-
+elsewhere data), no registry flip, no bootstrap CI, no kill decision.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (non-empty). Ran
+`python3 scripts/paper_pass.py` after each tape commit: both times 0 newly processed (300
+already-in-ledger, 274 deferred on coverage — the recovered families don't feed S14's
+`crypto_hourly` candle-summary coverage requirement) — `paper/ledger/` unchanged this run.
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open
+notional $0.00`.
+
+Gates: `pytest -q` full suite green on the first commit — **3,799 passed, 0 failed, 1 warning**
+in 7,072.5s (1:57:52), exit 0 (captured AFTER that commit's last code change, before the second
+recovery commit landed). The second recovery commit added tape-only content (zero code/test
+changes), so per L162's floor-claim allowance the pytest count is restated here as a floor —
+**≥3,799 passed, 0 failed** — rather than re-running the ~2h suite a second time for a diff with
+no code in it. `python scripts/invariants.py --full` WAS re-run fresh after the second commit:
+exit 0, "invariants: all green", only pre-existing non-gating advisories (none new). Files:
+`tape/anomalies/dt=2026-08-11.jsonl`, `tape/crypto_hourly/dt=2026-08-11.jsonl`,
+`tape/econ_prints/dt=2026-08-11.jsonl`, `tape/hyperliquid_funding/dt=2026-08-11.jsonl`,
+`tape/perp_tape/dt=2026-08-11.jsonl`, `tape/polymarket_cpi_pairs/dt=2026-08-11.jsonl`,
+`tape/polymarket_macro_pairs/dt=2026-08-11.jsonl`, `tape/sports_pairs/dt=2026-08-11.jsonl`,
+`tape/weather_actuals/dt=2026-08-11.jsonl`, `tape/weather_books/dt=2026-08-11.jsonl`,
+`tape/orderbook_depth/dt=2026-08-11.jsonl`, `tape/universe_sweep/dt=2026-08-11.jsonl`,
+`LOOP-QUEUE.md`, `kb/00-LOG.md`.
+
+---
+
 ## 2026-08-11 05:32 ET — IDLE RUN: L309 drops-unit-mixing repair (Q51 milestone 3 closed, probe unfrozen)
 
 **Idle-run policy (a).** Full Q0-Q56 rescan found nothing eligible: Q17 is PR #46/Ryan-review-only,
