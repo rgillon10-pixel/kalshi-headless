@@ -264,6 +264,191 @@ def test_report_is_collection_only(tmp_path):
     assert rep["execution"]["coverage_is_ticker_scoped"] is True
 
 
+# --------------------------------------------------------------------------- #
+# PER-DAY-FILE push-wedge guard (the gap this item's 2026-08-09 status flagged)
+# --------------------------------------------------------------------------- #
+def _day_aware_runner(bytes_per_query: int, log=None):
+    """Unlike `_fake_runner`, writes into the day-file the QUERY names — the per-day-file
+    guard is meaningless against a fake that funnels every day into one file."""
+    def _f(tickers=None, min_ts=None, max_ts=None, store=None, client=None,
+           max_calls=None, min_interval=None, **kw):
+        store = Path(store)
+        store.mkdir(parents=True, exist_ok=True)
+        day = B.kt.day_of_ts(min_ts) if hasattr(B.kt, "day_of_ts") else None
+        if day is None:
+            import datetime as _dt
+            day = _dt.datetime.utcfromtimestamp(min_ts).strftime("%Y-%m-%d")
+        with (store / f"dt={day}.jsonl").open("a") as fh:
+            fh.write("x" * bytes_per_query + "\n")
+        if log is not None:
+            log.append((day, tuple(tickers or [])))
+        return {"n_pulled": 1, "n_lines": 1, "n_duplicate": 0, "call_count": 1,
+                "completeness_ok": True, "truncated": False, "n_truncated_queries": 0}
+    return _f
+
+
+def _seed_day(store: Path, day: str, nbytes: int) -> None:
+    store.mkdir(parents=True, exist_ok=True)
+    with (store / f"dt={day}.jsonl").open("wb") as fh:
+        fh.truncate(nbytes)
+
+
+def test_day_file_cap_default_is_the_sanctioned_push_limit_not_a_handrolled_number():
+    from core.push_limits import PUSH_SIZE_GATE_BYTES
+    assert B.DEFAULT_DAY_FILE_CAP_BYTES == PUSH_SIZE_GATE_BYTES
+
+
+def test_bootstrap_estimate_exceeds_the_heaviest_measured_ticker_day():
+    """The first decision of a pass has no measurement, so its estimate must be pessimistic.
+    Heaviest single ticker-day measured on committed tape (2026-08-11,
+    `tape/kalshi_trades/dt=2026-07-07.jsonl`): 16,645,764 bytes."""
+    assert B.BOOTSTRAP_BYTES_PER_TICKER_DAY > 16_645_764
+
+
+def test_days_of_counts_ticker_days_per_day():
+    g = "KXAAAGAME-001"
+    plan = B.plan_pulls({g: [("2026-07-07", g + "-A"), ("2026-07-07", g + "-B"),
+                             ("2026-07-08", g + "-A")]}, [g])
+    assert B.days_of(plan[0]) == {"2026-07-07": 2, "2026-07-08": 1}
+
+
+def test_project_day_file_bytes_adds_the_estimate_to_the_current_size():
+    g = "KXAAAGAME-001"
+    plan = B.plan_pulls({g: [("2026-07-07", g + "-A"), ("2026-07-07", g + "-B")]}, [g])
+    got = B.project_day_file_bytes(plan[0], {"2026-07-07": 1_000}, 500)
+    assert got == {"2026-07-07": 2_000}
+    # a day with no existing file starts from zero, never from a fabricated size
+    assert B.project_day_file_bytes(plan[0], {}, 500) == {"2026-07-07": 1_000}
+
+
+def test_guard_skips_a_game_aimed_at_a_near_limit_day_and_does_not_start_it(tmp_path):
+    """The family-TOTAL cap cannot see this: the total stays tiny while one day-file wedges."""
+    store = tmp_path / "kalshi_trades"
+    _seed_day(store, "2026-07-07", 9_000)
+    log = []
+    out = B.execute(_plan(3), store=store, cap_bytes=10**9, day_file_cap_bytes=10_000,
+                    runner=_day_aware_runner(100, log=log),
+                    verbose=False)
+    assert out["n_games_pulled"] == 0 and log == []       # never started -> no network call
+    assert out["n_games_skipped_day_file_cap"] == 3
+    assert out["stopped_reason"] == "plan_exhausted"      # a skip is not a stop
+    sk = out["skipped_day_file_cap"][0]
+    assert sk["reason"] == "day_file_cap" and sk["breaching_days"] == ["2026-07-07"]
+    assert sk["estimate_source"] == "bootstrap_no_measurement_yet"
+
+
+def test_a_skipped_game_does_not_veto_the_games_behind_it(tmp_path):
+    """League round-robin ordering means the blocked day's games are interleaved with
+    reachable ones; stopping at the first skip would silently truncate the selection."""
+    store = tmp_path / "kalshi_trades"
+    _seed_day(store, "2026-07-07", 9_000)
+    games = {"KXAAAGAME-001": [("2026-07-07", "KXAAAGAME-001-A")],
+             "KXBBBGAME-001": [("2026-07-08", "KXBBBGAME-001-A")]}
+    plan = B.plan_pulls(games, B.order_games(games))
+    out = B.execute(plan, store=store, cap_bytes=10**9, day_file_cap_bytes=10_000,
+                    bootstrap_bytes_per_ticker_day=1_500,
+                    runner=_day_aware_runner(100), verbose=False)
+    assert out["n_games_skipped_day_file_cap"] == 1
+    assert [e["game"] for e in out["manifest"]] == ["KXBBBGAME-001"]
+
+
+def test_guard_lets_a_game_through_when_the_target_day_has_room(tmp_path):
+    store = tmp_path / "kalshi_trades"
+    out = B.execute(_plan(2), store=store, cap_bytes=10**9, day_file_cap_bytes=10**9,
+                    bootstrap_bytes_per_ticker_day=10,
+                    runner=_day_aware_runner(100), verbose=False)
+    assert out["n_games_pulled"] == 2 and out["n_games_skipped_day_file_cap"] == 0
+    assert out["day_file_overflow"] is None
+
+
+def test_post_check_stops_and_names_the_whole_game_to_drop(tmp_path):
+    """A projection can be wrong; being wrong in the unsafe direction IS the 2026-08-09
+    failure. The measured post-check must stop the pass and name the remediation."""
+    store = tmp_path / "kalshi_trades"
+    out = B.execute(_plan(5), store=store, cap_bytes=10**9, day_file_cap_bytes=150,
+                    bootstrap_bytes_per_ticker_day=10, runner=_day_aware_runner(200),
+                    verbose=False)
+    assert out["stopped_reason"] == "day_file_cap_exceeded"
+    assert out["n_games_pulled"] == 1                      # stopped after the first landing
+    ov = out["day_file_overflow"]
+    assert ov["game"] == out["manifest"][0]["game"]
+    assert "whole-game atomicity" in ov["remediation"].lower() or "L315" in ov["remediation"]
+    assert "never truncate" in ov["remediation"].lower()
+
+
+def test_the_guard_never_deletes_or_truncates_tape(tmp_path):
+    """The remediation is REPORTED, never performed: this module must not shrink a file."""
+    store = tmp_path / "kalshi_trades"
+    _seed_day(store, "2026-07-07", 100)
+    before = B.day_file_sizes(store)
+    out = B.execute(_plan(3), store=store, cap_bytes=10**9, day_file_cap_bytes=150,
+                    bootstrap_bytes_per_ticker_day=10, runner=_day_aware_runner(50),
+                    verbose=False)
+    after = B.day_file_sizes(store)
+    assert out["stopped_reason"] == "day_file_cap_exceeded"
+    for day, n in before.items():
+        assert after[day] >= n                              # append-only, never shrinks
+
+
+def test_post_check_does_not_blame_a_game_for_a_day_it_never_touched(tmp_path):
+    """A day-file already over the ceiling before the pass began, and untouched by it, must
+    not stop the pass or be attributed to the game that happened to run next. The repo-wide
+    version of that condition is scripts/invariants.py's job, not this pass's."""
+    store = tmp_path / "kalshi_trades"
+    _seed_day(store, "2026-07-09", 5_000)                  # over cap, and never in any plan
+    out = B.execute(_plan(2), store=store, cap_bytes=10**9, day_file_cap_bytes=1_000,
+                    bootstrap_bytes_per_ticker_day=10, runner=_day_aware_runner(50),
+                    verbose=False)
+    assert out["day_file_overflow"] is None
+    assert out["stopped_reason"] == "plan_exhausted" and out["n_games_pulled"] == 2
+
+
+def test_estimator_switches_to_the_measured_max_after_the_first_game(tmp_path):
+    store = tmp_path / "kalshi_trades"
+    out = B.execute(_plan(2), store=store, cap_bytes=10**9, day_file_cap_bytes=10**9,
+                    bootstrap_bytes_per_ticker_day=10,
+                    runner=_day_aware_runner(100), verbose=False)
+    assert out["max_bytes_per_ticker_day_measured"] == 101   # 100 bytes + newline, 1 ticker
+    assert out["n_ticker_days_pulled"] == 2
+
+
+def test_report_records_the_day_file_ledger_on_both_ends(tmp_path):
+    store = tmp_path / "kalshi_trades"
+    _seed_day(store, "2026-07-07", 40)
+    out = B.execute(_plan(1), store=store, cap_bytes=10**9, day_file_cap_bytes=10**9,
+                    bootstrap_bytes_per_ticker_day=10, runner=_day_aware_runner(10),
+                    verbose=False)
+    assert out["day_file_bytes_start"] == {"2026-07-07": 40}
+    assert out["day_file_bytes_end"]["2026-07-07"] == 40 + 11
+    assert out["day_file_cap_bytes"] == 10**9
+
+
+def test_dry_run_guard_preview_is_offline_and_reports_the_blocked_days(tmp_path):
+    store = tmp_path / "kalshi_trades"
+    _seed_day(store, "2026-07-07", 9_000)
+    g = "KXAAAGAME-001"
+    plan = B.plan_pulls({g: [("2026-07-07", g + "-A")]}, [g])
+    prev = B.guard_preview(plan, store=store, day_file_cap_bytes=10_000,
+                           bytes_per_ticker_day=5_000)
+    assert prev["n_games_would_skip"] == 1
+    assert prev["blocked_days"] == {"2026-07-07": 1}
+    assert prev["current_day_bytes"] == {"2026-07-07": 9_000}
+
+
+def test_acceptance_real_tape_the_heaviest_day_is_the_one_the_guard_blocks():
+    """2026-08-11 measurement, asserted DIRECTIONALLY (tape only grows): the committed
+    `tape/kalshi_trades/dt=2026-07-07.jsonl` sits at 88,069,420 bytes against a 95,000,000
+    gate, and every remaining planned game that touches that day (169 of 328) is refused at
+    the pessimistic bootstrap estimate. If this ever reads 0 skipped, either the day-file was
+    sharded or the guard stopped seeing it — both worth a failing test."""
+    games, _stats = B.eligible_ticker_days()
+    plan = B.plan_pulls(games, B.order_games(games))
+    prev = B.guard_preview(plan)
+    assert prev["current_day_bytes"]["2026-07-07"] >= 88_069_420
+    assert prev["n_games_would_skip"] >= 1
+    assert list(prev["blocked_days"]) == ["2026-07-07"]
+
+
 def test_default_max_calls_covers_the_measured_worst_case_ticker_day():
     """L314: a page cap below a real ticker-day's depth writes a PREFIX with no marker.
 

@@ -6,6 +6,100 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-11 15:05 ET — Q52: the day-file guard it flagged, and the push wedge nobody was watching
+
+Q52 was the topmost eligible item, not an idle run. Everything above it is DONE / DEAD /
+BLOCKED / RESERVED / gated at its newest status, and Q51's three owed items are all shut for
+this harness: the independent `verifier` it owes is not dispatchable (no `Task` tool here, the
+same L287/L288/L290/L291/L295 situation the producing session hit), the second sweep is gated
+on 2026-08-24, and L309's repair already landed as PR #349. Q52's own 2026-08-09 status, by
+contrast, ends with a named deferral — "a day-file-size guard belongs in the script itself
+before the next phase, flagged for the next run, not built here."
+
+**The mechanism.** `--cap-mb` bounds what a backfill pass costs in TOTAL; GitHub's push block
+is per FILE, 100,000,000 bytes, enforced at pre-receive. Those answer different questions, and
+on 2026-08-09 the first was satisfied while the second was violated:
+`tape/kalshi_trades/dt=2026-07-07.jsonl` alone reached 109,151,185 bytes, the push was rejected
+outright, and one whole 35,144-line game was dropped by hand after it had already been fetched.
+The failure compounds three ways — the rejection is per-PUSH so it blocks unrelated bookkeeping
+riding along; it is permanent once the blob is committed, since only a history rewrite escapes
+and that is step 0a's max-priority incident; and step 0b's recovery union-appends stranded
+lines back into the very same day-file, recreating it. A wedged day-file strands tape the
+standing recovery cannot repair.
+
+**What got built.** `core/push_limits.py` is the single sanctioned threshold site (hard block
+100,000,000 / gate 95,000,000 / warn 50,000,000), same posture as `core/pricing.py` for fee
+rates; the gate sits 5,000,000 below the host limit on purpose, so a run that trips it still
+has room to land its own repair commit. `scripts/invariants.py::push_size_gate_failure` is
+GATING — unusual in that file, which is mostly advisories, and justified because the failure is
+cheap to detect, strictly worse if the run proceeds, and repairable by the same run that trips
+it. It is tracked-scoped (an untracked mid-write collector file cannot wedge a push) and
+degrades to a no-op where git is unavailable, because a gating check may never invent a
+violation for an environment reason. Beside it, a non-gating 50,000,000 warn-band advisory that
+excludes anything the gate already owns, so one file never reads as two problems.
+`scripts/push_size_limit_audit.py` is the measurement half.
+
+The guard itself, in `scripts/q52_q54_trades_backfill_phase1.py` (`--day-file-cap-bytes`), is
+preventive, pessimistic, post-checked and non-destructive. Preventive: project each target
+day-file before starting a game and skip the game, but do NOT stop the pass — the ordering is a
+league round-robin, so a game aimed at the overweight day must not veto the reachable games
+behind it. Pessimistic before it is informed: with no measurement yet it uses 25,000,000
+bytes/ticker-day, above the heaviest ticker-day measured on committed tape (16,645,764); after
+a game lands it switches to the realized MAX of the pass, never the mean, because one heavy
+game is the case it exists to stop. Post-checked: a projection can be wrong, and being wrong in
+the unsafe direction is exactly the 08-09 failure, so measured bytes are re-read after every
+game. Non-destructive: it names the whole game to drop (L315 atomicity) and never deletes,
+truncates or reorders tape — a test pins that no file shrinks.
+
+**What the audit found, which is the more interesting half.** 14,507 tracked files / 2.044 GB;
+7 files at or over the 50,000,000 warn band; 0 at or over the 95,000,000 gate; 0 over the hard
+block. But the three largest are `tape/universe_sweep/dt=2026-07-22.jsonl` at 90,470,557 bytes
+(9,529,443 of headroom), `dt=2026-07-18` at 88,177,721, and only then
+`tape/kalshi_trades/dt=2026-07-07.jsonl` at 88,069,420. The larger standing exposure is
+`universe_sweep`, not the family this queue item is about: it is actively written (newest day
+2026-08-11), its recent days still run 17-53 MB, and one busy day at about twice the 07-22
+level crosses the block on a file nobody touches deliberately. It is also absent from
+`scripts/tape_gap_monitor.py::FAMILY_CONFIG` — the same unregistered-family shape as
+L123/L126/L139 — which is why the audit derives "actively written" by measuring each family's
+newest committed day instead of reading the registry: a registry-driven check would have scored
+the biggest exposure in the repo as having no writer at all. Registering `universe_sweep` in
+`FAMILY_CONFIG` is named and deliberately left open.
+
+**What it means for Q52's next phase**, as a planning result and not a verdict: of the 328
+remaining planned games, 169 (51.5%) touch `dt=2026-07-07`. Against the 95,000,000 gate, every
+one of those 169 is refused at any bytes-per-ticker-day estimate at or above that day's
+realized p90 (9,422,469); 40 are refused at the realized mean (2,516,269); none at the median
+(570,619). The day-file has room for one or two median-weight games and none of the heavy ones,
+so the effective reachable population for a phase-3 backfill is 159 games, not 328, until
+`kalshi_trades` shards its 2026-07-07 writes. That is a sharper answer to the "per-cell quota
+strategy" question the 08-09 status raised than any byte budget: the binding constraint is one
+calendar day that half the population lives on. No backfill was run this milestone.
+
+No P&L, no fill rate, no CI, no edge, no registry change; S78 is unmoved and there are still 0
+proven edges. Two-agent rule N/A (collector-guard + invariant, the Q33/Q44/Q45/Q46 precedent),
+and no `Task`/subagent tool exists in this harness in any case — recorded here rather than
+implied. Step 0b was a genuine no-op: `--assert-contained` on the three newest tape branches
+(`tape/recover-hourly-20260811T1010Z`, `tape/hourly-20260811T1010Z`,
+`tape/hourly-20260811T1313Z`, the last of them created after PR #351 merged) returned CONTAINED
+for all three, exit 0 — nothing stranded beyond what #351 already recovered. Step 9 paper
+sub-pass ran: 0 processed / 0 deferred(caps) / 274 deferred(coverage) / 300 already-in-ledger,
+no new `paper/` lines against unchanged upstream tape; `daily_summary()` = `paper: 0 open
+position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional
+$0.00`.
+
+Lessons **L337** (a family budget cannot see a per-file limit; the guard must be pessimistic
+before it is informed) and **L338** (the biggest exposure sat in the family the cadence registry
+never knew about, so measure liveness from the artifact).
+
+Gates, fresh after the last code change: see the LOOP-QUEUE "Log of runs" line for this run.
+Notes: `findings/2026-08-11-q52-push-size-wedge-guard.md` · `core/push_limits.py` ·
+`scripts/push_size_limit_audit.py` · `scripts/invariants.py` ·
+`scripts/q52_q54_trades_backfill_phase1.py` · `tests/test_push_size_limit_audit.py` ·
+`tests/test_q52_q54_trades_backfill_phase1.py` · `reports/push_size_limit_audit.json` ·
+`kb/lessons/00-lessons.md` (L337, L338) · LOOP-QUEUE.md Q52.
+
+---
+
 ## 2026-08-11 14:15 ET — IDLE RUN (a): L323's trade-print tie-break gets a measurement tool and a gating triage ratchet
 
 Queue rescan confirmed 0 eligible items (fourth consecutive idle run), so policy tier (a).

@@ -1,0 +1,399 @@
+{
+  "active_families": [
+    "anomalies",
+    "crypto_hourly",
+    "econ_prints",
+    "hyperliquid_funding",
+    "orderbook_depth",
+    "perp_tape",
+    "polymarket_cpi_pairs",
+    "polymarket_macro_pairs",
+    "sports_pairs",
+    "universe_sweep",
+    "weather_actuals",
+    "weather_books"
+  ],
+  "append_path_glossary": {
+    "collector": "an hourly/daily collector leg appending to the CURRENT day's file (`collection/hourly_pass.py`)",
+    "q52_backfill": "the Q52/Q54 trade-print backfill pulling more games into named historical days (`scripts/q52_q54_trades_backfill_phase1.py`)",
+    "step0b_sweep": "LOOP-QUEUE step 0b's stranded-branch recovery union-appending missing lines into an EXISTING day-file (`scripts/tape_branch_sweep.py`)"
+  },
+  "families": {
+    "anomalies": {
+      "first_day": "2026-07-04",
+      "last_day": "2026-08-11",
+      "max_bytes": 3248457,
+      "max_day": "2026-07-14",
+      "max_fraction_of_block": 0.0325,
+      "max_headroom_bytes": 96751543,
+      "max_recent_bytes": 28071,
+      "max_recent_day": "2026-07-31",
+      "max_recent_fraction_of_block": 0.0003,
+      "n_days": 29,
+      "recent_window_days": 7
+    },
+    "crypto_hourly": {
+      "first_day": "2026-07-03",
+      "last_day": "2026-08-11",
+      "max_bytes": 10180347,
+      "max_day": "2026-07-14",
+      "max_fraction_of_block": 0.1018,
+      "max_headroom_bytes": 89819653,
+      "max_recent_bytes": 913883,
+      "max_recent_day": "2026-08-05",
+      "max_recent_fraction_of_block": 0.0091,
+      "n_days": 39,
+      "recent_window_days": 7
+    },
+    "crypto_hourly_historical_spot": {
+      "first_day": "2026-07-04",
+      "last_day": "2026-07-04",
+      "max_bytes": 15387,
+      "max_day": "2026-07-04",
+      "max_fraction_of_block": 0.0002,
+      "max_headroom_bytes": 99984613,
+      "max_recent_bytes": 15387,
+      "max_recent_day": "2026-07-04",
+      "max_recent_fraction_of_block": 0.0002,
+      "n_days": 1,
+      "recent_window_days": 1
+    },
+    "econ_prints": {
+      "first_day": "2026-07-05",
+      "last_day": "2026-08-11",
+      "max_bytes": 9830255,
+      "max_day": "2026-07-14",
+      "max_fraction_of_block": 0.0983,
+      "max_headroom_bytes": 90169745,
+      "max_recent_bytes": 6569775,
+      "max_recent_day": "2026-07-31",
+      "max_recent_fraction_of_block": 0.0657,
+      "n_days": 27,
+      "recent_window_days": 7
+    },
+    "hf_burst": {
+      "first_day": "2026-07-16",
+      "last_day": "2026-07-16",
+      "max_bytes": 10578,
+      "max_day": "2026-07-16",
+      "max_fraction_of_block": 0.0001,
+      "max_headroom_bytes": 99989422,
+      "max_recent_bytes": 10578,
+      "max_recent_day": "2026-07-16",
+      "max_recent_fraction_of_block": 0.0001,
+      "n_days": 1,
+      "recent_window_days": 1
+    },
+    "hyperliquid_funding": {
+      "first_day": "2026-07-17",
+      "last_day": "2026-08-11",
+      "max_bytes": 267855,
+      "max_day": "2026-07-17",
+      "max_fraction_of_block": 0.0027,
+      "max_headroom_bytes": 99732145,
+      "max_recent_bytes": 17518,
+      "max_recent_day": "2026-08-09",
+      "max_recent_fraction_of_block": 0.0002,
+      "n_days": 22,
+      "recent_window_days": 7
+    },
+    "kalshi_trades": {
+      "first_day": "2026-07-07",
+      "last_day": "2026-08-03",
+      "max_bytes": 88069420,
+      "max_day": "2026-07-07",
+      "max_fraction_of_block": 0.8807,
+      "max_headroom_bytes": 11930580,
+      "max_recent_bytes": 88069420,
+      "max_recent_day": "2026-07-07",
+      "max_recent_fraction_of_block": 0.8807,
+      "n_days": 6,
+      "recent_window_days": 6
+    },
+    "orderbook_depth": {
+      "first_day": "2026-07-07",
+      "last_day": "2026-08-11",
+      "max_bytes": 36125963,
+      "max_day": "2026-07-11",
+      "max_fraction_of_block": 0.3613,
+      "max_headroom_bytes": 63874037,
+      "max_recent_bytes": 10205029,
+      "max_recent_day": "2026-08-07",
+      "max_recent_fraction_of_block": 0.1021,
+      "n_days": 35,
+      "recent_window_days": 7
+    },
+    "perp_tape": {
+      "first_day": "2026-07-17",
+      "last_day": "2026-08-11",
+      "max_bytes": 1003526,
+      "max_day": "2026-07-17",
+      "max_fraction_of_block": 0.01,
+      "max_headroom_bytes": 98996474,
+      "max_recent_bytes": 178168,
+      "max_recent_day": "2026-08-07",
+      "max_recent_fraction_of_block": 0.0018,
+      "n_days": 26,
+      "recent_window_days": 7
+    },
+    "polymarket_cpi_pairs": {
+      "first_day": "2026-07-06",
+      "last_day": "2026-08-11",
+      "max_bytes": 601906,
+      "max_day": "2026-07-14",
+      "max_fraction_of_block": 0.006,
+      "max_headroom_bytes": 99398094,
+      "max_recent_bytes": 13709,
+      "max_recent_day": "2026-08-04",
+      "max_recent_fraction_of_block": 0.0001,
+      "n_days": 25,
+      "recent_window_days": 7
+    },
+    "polymarket_macro_pairs": {
+      "first_day": "2026-07-06",
+      "last_day": "2026-08-11",
+      "max_bytes": 1073731,
+      "max_day": "2026-07-14",
+      "max_fraction_of_block": 0.0107,
+      "max_headroom_bytes": 98926269,
+      "max_recent_bytes": 154068,
+      "max_recent_day": "2026-08-05",
+      "max_recent_fraction_of_block": 0.0015,
+      "n_days": 36,
+      "recent_window_days": 7
+    },
+    "polymarket_pairs": {
+      "first_day": "2026-07-04",
+      "last_day": "2026-07-15",
+      "max_bytes": 909984,
+      "max_day": "2026-07-05",
+      "max_fraction_of_block": 0.0091,
+      "max_headroom_bytes": 99090016,
+      "max_recent_bytes": 228436,
+      "max_recent_day": "2026-07-11",
+      "max_recent_fraction_of_block": 0.0023,
+      "n_days": 11,
+      "recent_window_days": 7
+    },
+    "s14_ladder_fillsim": {
+      "first_day": "2026-07-13",
+      "last_day": "2026-07-13",
+      "max_bytes": 2392307,
+      "max_day": "2026-07-13",
+      "max_fraction_of_block": 0.0239,
+      "max_headroom_bytes": 97607693,
+      "max_recent_bytes": 2392307,
+      "max_recent_day": "2026-07-13",
+      "max_recent_fraction_of_block": 0.0239,
+      "n_days": 1,
+      "recent_window_days": 1
+    },
+    "settlement_ledger": {
+      "first_day": "2026-07-17",
+      "last_day": "2026-07-22",
+      "max_bytes": 4192025,
+      "max_day": "2026-07-17",
+      "max_fraction_of_block": 0.0419,
+      "max_headroom_bytes": 95807975,
+      "max_recent_bytes": 4192025,
+      "max_recent_day": "2026-07-17",
+      "max_recent_fraction_of_block": 0.0419,
+      "n_days": 2,
+      "recent_window_days": 2
+    },
+    "sports_clv": {
+      "first_day": "2026-07-03",
+      "last_day": "2026-07-04",
+      "max_bytes": 106689,
+      "max_day": "2026-07-04",
+      "max_fraction_of_block": 0.0011,
+      "max_headroom_bytes": 99893311,
+      "max_recent_bytes": 106689,
+      "max_recent_day": "2026-07-04",
+      "max_recent_fraction_of_block": 0.0011,
+      "n_days": 2,
+      "recent_window_days": 2
+    },
+    "sports_history": {
+      "first_day": "2026-07-03",
+      "last_day": "2026-07-04",
+      "max_bytes": 148096,
+      "max_day": "2026-07-04",
+      "max_fraction_of_block": 0.0015,
+      "max_headroom_bytes": 99851904,
+      "max_recent_bytes": 148096,
+      "max_recent_day": "2026-07-04",
+      "max_recent_fraction_of_block": 0.0015,
+      "n_days": 2,
+      "recent_window_days": 2
+    },
+    "sports_maker_fillsim": {
+      "first_day": "2026-07-04",
+      "last_day": "2026-07-04",
+      "max_bytes": 93010,
+      "max_day": "2026-07-04",
+      "max_fraction_of_block": 0.0009,
+      "max_headroom_bytes": 99906990,
+      "max_recent_bytes": 93010,
+      "max_recent_day": "2026-07-04",
+      "max_recent_fraction_of_block": 0.0009,
+      "n_days": 1,
+      "recent_window_days": 1
+    },
+    "sports_pairs": {
+      "first_day": "2026-07-03",
+      "last_day": "2026-08-11",
+      "max_bytes": 10308223,
+      "max_day": "2026-07-17",
+      "max_fraction_of_block": 0.1031,
+      "max_headroom_bytes": 89691777,
+      "max_recent_bytes": 5569383,
+      "max_recent_day": "2026-08-09",
+      "max_recent_fraction_of_block": 0.0557,
+      "n_days": 39,
+      "recent_window_days": 7
+    },
+    "universe_sweep": {
+      "first_day": "2026-07-17",
+      "last_day": "2026-08-11",
+      "max_bytes": 90470557,
+      "max_day": "2026-07-22",
+      "max_fraction_of_block": 0.9047,
+      "max_headroom_bytes": 9529443,
+      "max_recent_bytes": 52776365,
+      "max_recent_day": "2026-08-07",
+      "max_recent_fraction_of_block": 0.5278,
+      "n_days": 22,
+      "recent_window_days": 7
+    },
+    "weather_actuals": {
+      "first_day": "2026-07-16",
+      "last_day": "2026-08-11",
+      "max_bytes": 347619,
+      "max_day": "2026-08-02",
+      "max_fraction_of_block": 0.0035,
+      "max_headroom_bytes": 99652381,
+      "max_recent_bytes": 347619,
+      "max_recent_day": "2026-08-02",
+      "max_recent_fraction_of_block": 0.0035,
+      "n_days": 12,
+      "recent_window_days": 7
+    },
+    "weather_books": {
+      "first_day": "2026-07-16",
+      "last_day": "2026-08-11",
+      "max_bytes": 26299480,
+      "max_day": "2026-07-17",
+      "max_fraction_of_block": 0.263,
+      "max_headroom_bytes": 73700520,
+      "max_recent_bytes": 5441707,
+      "max_recent_day": "2026-08-07",
+      "max_recent_fraction_of_block": 0.0544,
+      "n_days": 26,
+      "recent_window_days": 7
+    }
+  },
+  "files": [
+    {
+      "append_paths": [
+        "collector",
+        "step0b_sweep"
+      ],
+      "at_or_over_gate": false,
+      "bytes": 90470557,
+      "fraction_of_block": 0.9047,
+      "headroom_bytes": 9529443,
+      "over_hard_block": false,
+      "path": "tape/universe_sweep/dt=2026-07-22.jsonl"
+    },
+    {
+      "append_paths": [
+        "collector",
+        "step0b_sweep"
+      ],
+      "at_or_over_gate": false,
+      "bytes": 88177721,
+      "fraction_of_block": 0.8818,
+      "headroom_bytes": 11822279,
+      "over_hard_block": false,
+      "path": "tape/universe_sweep/dt=2026-07-18.jsonl"
+    },
+    {
+      "append_paths": [
+        "q52_backfill",
+        "step0b_sweep"
+      ],
+      "at_or_over_gate": false,
+      "bytes": 88069420,
+      "fraction_of_block": 0.8807,
+      "headroom_bytes": 11930580,
+      "over_hard_block": false,
+      "path": "tape/kalshi_trades/dt=2026-07-07.jsonl"
+    },
+    {
+      "append_paths": [
+        "collector",
+        "step0b_sweep"
+      ],
+      "at_or_over_gate": false,
+      "bytes": 72537877,
+      "fraction_of_block": 0.7254,
+      "headroom_bytes": 27462123,
+      "over_hard_block": false,
+      "path": "tape/universe_sweep/dt=2026-07-21.jsonl"
+    },
+    {
+      "append_paths": [
+        "collector",
+        "step0b_sweep"
+      ],
+      "at_or_over_gate": false,
+      "bytes": 54386963,
+      "fraction_of_block": 0.5439,
+      "headroom_bytes": 45613037,
+      "over_hard_block": false,
+      "path": "tape/universe_sweep/dt=2026-07-20.jsonl"
+    },
+    {
+      "append_paths": [
+        "collector",
+        "step0b_sweep"
+      ],
+      "at_or_over_gate": false,
+      "bytes": 53104187,
+      "fraction_of_block": 0.531,
+      "headroom_bytes": 46895813,
+      "over_hard_block": false,
+      "path": "tape/universe_sweep/dt=2026-07-17.jsonl"
+    },
+    {
+      "append_paths": [
+        "collector",
+        "step0b_sweep"
+      ],
+      "at_or_over_gate": false,
+      "bytes": 52776365,
+      "fraction_of_block": 0.5278,
+      "headroom_bytes": 47223635,
+      "over_hard_block": false,
+      "path": "tape/universe_sweep/dt=2026-08-07.jsonl"
+    }
+  ],
+  "gate_bytes": 95000000,
+  "generated_by": "scripts/push_size_limit_audit.py",
+  "hard_block_bytes": 100000000,
+  "largest_bytes": 90470557,
+  "largest_path": "tape/universe_sweep/dt=2026-07-22.jsonl",
+  "min_headroom_bytes": 9529443,
+  "n_at_or_over_gate": 0,
+  "n_at_or_over_warn": 7,
+  "n_measured_files": 14507,
+  "n_over_hard_block": 0,
+  "n_tracked_files": 14507,
+  "newest_tape_day": "2026-08-11",
+  "repair_note": "append-only-safe repair: STOP APPENDING to the offending path and shard the family's next writes into a new file; never truncate, rewrite or reorder committed tape lines to get under the limit",
+  "report_class": "REPOSITORY HEALTH (no P&L, no CI, no registry flip)",
+  "schema_version": "push_size_limit_audit.v1",
+  "total_tracked_bytes": 2044377813,
+  "warn_bytes": 50000000
+}

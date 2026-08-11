@@ -65,6 +65,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from collection import kalshi_trades as kt  # noqa: E402
+from core.push_limits import PUSH_SIZE_GATE_BYTES  # noqa: E402
 from core.settlement_sources import resolve_market_results  # noqa: E402
 from scripts.kalshi_trades_backfill_population_audit import (  # noqa: E402
     depth_day_files, eligible_tickers, scan_depth_day,
@@ -95,6 +96,25 @@ DEFAULT_CAP_MB = 40.0
 # case; anything that still hits it is reported as `truncated` and never silently upgraded
 # (L10), and whole games with a truncated query are counted in `n_games_incomplete`.
 DEFAULT_MAX_CALLS = 60
+
+# PER-DAY-FILE byte ceiling (L315 follow-up, the gap this item's own 2026-08-09 status flagged
+# for "the next run"). The `cap_bytes` above is a FAMILY-TOTAL budget; GitHub's push block is
+# PER FILE. On 2026-08-09 the family total sat comfortably inside its 50MB cap while
+# `tape/kalshi_trades/dt=2026-07-07.jsonl` reached 109,151,185 bytes, GitHub rejected the push
+# at pre-receive, and a whole 35,144-line game had to be dropped BY HAND after it had already
+# been fetched. A family-total cap cannot see that: the heaviest day absorbs a
+# disproportionate share of every league-diverse prefix. The ceiling itself is imported from
+# `core/push_limits.py`, the single sanctioned site — never hand-rolled here.
+DEFAULT_DAY_FILE_CAP_BYTES = PUSH_SIZE_GATE_BYTES
+
+# Conservative bootstrap for "how many bytes will this game add to that day-file?" before any
+# game in THIS pass has landed and supplied a measurement. Deliberately larger than any
+# ticker-day measured so far (the heaviest single game observed, `KXWCGAME-26JUL07ARGEGY`, was
+# 35,144 lines ~= 21MB across 3 outcome legs), so the FIRST game aimed at a near-limit day is
+# skipped rather than risked. Once a game lands, the estimator switches to the MAX realized
+# bytes-per-ticker-day of this pass — still the pessimistic order statistic, not the mean,
+# because one heavy game is exactly the case the guard exists to stop.
+BOOTSTRAP_BYTES_PER_TICKER_DAY = 25_000_000
 
 
 # --------------------------------------------------------------------------- #
@@ -183,11 +203,79 @@ def plan_pulls(games: Mapping[str, Sequence[Tuple[str, str]]],
 # --------------------------------------------------------------------------- #
 # bounded execution
 # --------------------------------------------------------------------------- #
+def guard_preview(plan: Sequence[Mapping[str, object]],
+                  store: Optional[Path] = None,
+                  day_file_cap_bytes: int = DEFAULT_DAY_FILE_CAP_BYTES,
+                  bytes_per_ticker_day: int = BOOTSTRAP_BYTES_PER_TICKER_DAY,
+                  ) -> Dict[str, object]:
+    """OFFLINE preview of the per-day-file guard against the CURRENT tape, no network.
+
+    Answers "which games would the guard refuse to start today, and which days are the
+    blocked ones?" using the pessimistic bootstrap estimate — i.e. the state the guard is in
+    at the top of a fresh pass, before any measurement exists. Reported in `--dry-run` so the
+    guard's effect on the selection is inspectable before anything is fetched.
+    """
+    store = Path(store) if store is not None else kt.TAPE
+    sizes = day_file_sizes(store)
+    blocked_days: Dict[str, int] = {}
+    skipped: List[str] = []
+    for unit in plan:
+        projected = project_day_file_bytes(unit, sizes, bytes_per_ticker_day)
+        breach = sorted(d for d, b in projected.items() if b >= day_file_cap_bytes)
+        if breach:
+            skipped.append(str(unit["game"]))
+            for d in breach:
+                blocked_days[d] = blocked_days.get(d, 0) + 1
+    return {
+        "day_file_cap_bytes": int(day_file_cap_bytes),
+        "bytes_per_ticker_day_estimate": int(bytes_per_ticker_day),
+        "estimate_source": "bootstrap_no_measurement_yet",
+        "current_day_bytes": dict(sorted(sizes.items())),
+        "n_games_planned": len(plan),
+        "n_games_would_skip": len(skipped),
+        "games_would_skip": sorted(skipped),
+        "blocked_days": dict(sorted(blocked_days.items())),
+    }
+
+
+
 def family_bytes(store: Path) -> int:
     store = Path(store)
     if not store.exists():
         return 0
     return sum(p.stat().st_size for p in store.glob("dt=*.jsonl"))
+
+
+def day_file_sizes(store: Path) -> Dict[str, int]:
+    """`{day: bytes}` for every `dt=<day>.jsonl` in the store. Missing store -> {}."""
+    store = Path(store)
+    if not store.exists():
+        return {}
+    out: Dict[str, int] = {}
+    for p in store.glob("dt=*.jsonl"):
+        out[p.name[len("dt="):-len(".jsonl")]] = p.stat().st_size
+    return out
+
+
+def days_of(unit: Mapping[str, object]) -> Dict[str, int]:
+    """`{day: n_ticker_days}` a planned game unit will write into."""
+    out: Dict[str, int] = {}
+    for q in unit["queries"]:                     # type: ignore[index]
+        out[str(q["day"])] = out.get(str(q["day"]), 0) + len(q["tickers"])
+    return out
+
+
+def project_day_file_bytes(unit: Mapping[str, object],
+                           sizes: Mapping[str, int],
+                           bytes_per_ticker_day: int) -> Dict[str, int]:
+    """Projected size of each day-file this game targets, if the game were pulled.
+
+    Projection, not measurement — and the guard treats it as an upper bound on purpose. An
+    under-projection is the only failure mode that matters here (it lets a wedging game start),
+    so the estimator is the pessimistic order statistic, never the mean.
+    """
+    return {day: int(sizes.get(day, 0)) + n * int(bytes_per_ticker_day)
+            for day, n in days_of(unit).items()}
 
 
 def execute(plan: Sequence[Mapping[str, object]],
@@ -198,11 +286,31 @@ def execute(plan: Sequence[Mapping[str, object]],
             max_calls: int = DEFAULT_MAX_CALLS,
             min_interval: float = 0.25,
             runner: Callable = kt.run,
+            day_file_cap_bytes: int = DEFAULT_DAY_FILE_CAP_BYTES,
+            bootstrap_bytes_per_ticker_day: int = BOOTSTRAP_BYTES_PER_TICKER_DAY,
             verbose: bool = True) -> Dict[str, object]:
     """Pull whole games until the DECLARED byte cap is reached. Measured, never extrapolated.
 
-    The cap is checked BEFORE starting a game and again after it lands, so a game is either
-    fully pulled or not started — a half-pulled game would be a silently biased unit.
+    The family-total cap is checked BEFORE starting a game and again after it lands, so a game
+    is either fully pulled or not started — a half-pulled game would be a silently biased unit.
+
+    TWO caps, because they answer different questions (the 2026-08-09 lesson):
+      * `cap_bytes` bounds how much tape this pass adds in TOTAL — a budget.
+      * `day_file_cap_bytes` bounds any SINGLE `dt=<day>.jsonl` — a push-wedge guard. GitHub
+        rejects a whole push over a per-FILE limit, and the rejection survives in the commit,
+        so the family total staying inside budget says nothing about whether the push will
+        land. The guard is PREVENTIVE (project each target day-file before starting a game and
+        skip the game if the projection breaches) and, because a projection can be wrong, also
+        POST-CHECKED against measured bytes after each game lands.
+
+    A skip does NOT stop the pass: the ordering is league round-robin, so a game aimed at the
+    one overweight day should not veto the games aimed at empty days behind it. Skips are
+    counted and named in `skipped_day_file_cap`, never silent.
+
+    This function NEVER deletes or truncates tape. If the post-check finds a day-file over the
+    ceiling anyway, it stops and reports exactly which whole game to drop (L315 whole-game
+    atomicity) — the manual repair the 2026-08-09 run had to improvise, now named for the
+    operator instead of discovered at `git push`.
     """
     store = Path(store) if store is not None else kt.TAPE
     if client is None and runner is kt.run:
@@ -212,11 +320,16 @@ def execute(plan: Sequence[Mapping[str, object]],
         from validation.v3_market import Kalshi, _load_venue_cfg
         client = Kalshi(_load_venue_cfg()["api_base"], min_interval=min_interval)
     start_bytes = family_bytes(store)
+    start_day_bytes = day_file_sizes(store)
     manifest: List[Dict[str, object]] = []
+    skipped: List[Dict[str, object]] = []
+    overflow: Optional[Dict[str, object]] = None
     n_written = 0
     n_pulled = 0
     n_calls = 0
     n_incomplete = 0
+    n_ticker_days_pulled = 0
+    max_bytes_per_ticker_day = 0
     stopped_reason = "plan_exhausted"
     t0 = time.time()
 
@@ -228,6 +341,29 @@ def execute(plan: Sequence[Mapping[str, object]],
         if grown >= cap_bytes:
             stopped_reason = "byte_cap"
             break
+        # PREVENTIVE per-day-file guard. `max_bytes_per_ticker_day` is 0 until a game lands,
+        # so the first decision uses the deliberately pessimistic bootstrap.
+        est = max_bytes_per_ticker_day or bootstrap_bytes_per_ticker_day
+        sizes_now = day_file_sizes(store)
+        projected = project_day_file_bytes(unit, sizes_now, est)
+        breach = {d: b for d, b in projected.items() if b >= day_file_cap_bytes}
+        if breach:
+            skipped.append({
+                "game": unit["game"], "series": unit["series"],
+                "reason": "day_file_cap",
+                "bytes_per_ticker_day_estimate": int(est),
+                "estimate_source": ("measured_max_this_pass" if max_bytes_per_ticker_day
+                                    else "bootstrap_no_measurement_yet"),
+                "projected_day_bytes": {d: int(b) for d, b in sorted(projected.items())},
+                "current_day_bytes": {d: int(sizes_now.get(d, 0))
+                                      for d in sorted(projected)},
+                "breaching_days": sorted(breach),
+            })
+            if verbose:
+                print(f"[phase1] SKIP {unit['game']}: would take "
+                      f"{sorted(breach)} past the {day_file_cap_bytes:,}B day-file cap",
+                      flush=True)
+            continue
         entry: Dict[str, object] = {"game": unit["game"], "series": unit["series"],
                                     "queries": [], "n_written": 0, "completeness_ok": True}
         for q in unit["queries"]:
@@ -252,10 +388,49 @@ def execute(plan: Sequence[Mapping[str, object]],
         if not entry["completeness_ok"]:
             n_incomplete += 1
         manifest.append(entry)
+
+        # Re-measure and refresh the estimator from what this game ACTUALLY cost per
+        # ticker-day. `max`, not mean: one heavy game is the case the guard exists to stop.
+        sizes_after = day_file_sizes(store)
+        game_days = days_of(unit)
+        for day, n_td in game_days.items():
+            delta = int(sizes_after.get(day, 0)) - int(sizes_now.get(day, 0))
+            if n_td > 0 and delta > 0:
+                max_bytes_per_ticker_day = max(max_bytes_per_ticker_day, delta // n_td)
+        n_ticker_days_pulled += sum(game_days.values())
+
         if verbose:
             mb = (family_bytes(store) - start_bytes) / (1024 * 1024)
             print(f"[phase1] {i+1}/{len(plan)} {unit['game']}: "
                   f"+{entry['n_written']} line(s), {mb:.1f} MB used", flush=True)
+
+        # POST-CHECK against MEASURED bytes: the projection above can be wrong, and being
+        # wrong in the unsafe direction is precisely the 2026-08-09 failure. Stop rather than
+        # keep appending, and name the whole game to drop instead of leaving it to `git push`.
+        # Scoped to the days THIS game wrote to. A whole-store scan would also flag a
+        # day-file that was already over the ceiling before the pass began and that this game
+        # never touched — stopping the pass and blaming the wrong game for it.
+        over = {d: int(sizes_after.get(d, 0)) for d in game_days
+                if int(sizes_after.get(d, 0)) >= day_file_cap_bytes}
+        if over:
+            overflow = {
+                "game": unit["game"],
+                "day_bytes": dict(sorted(over.items())),
+                "cap_bytes": int(day_file_cap_bytes),
+                "remediation": (
+                    f"day-file cap breached on {sorted(over)} AFTER `{unit['game']}` "
+                    f"landed — those are days this game itself wrote to. The append-only-safe "
+                    f"repair is to drop that WHOLE game's lines from the working tree before "
+                    f"committing (every outcome leg, ticker-prefix match — whole-game "
+                    f"atomicity, L315), or to shard the family's next writes into a new file. "
+                    f"Never truncate or reorder already-committed lines."
+                ),
+            }
+            stopped_reason = "day_file_cap_exceeded"
+            if verbose:
+                print(f"[phase1] STOP: {sorted(over)} at/over the "
+                      f"{day_file_cap_bytes:,}B day-file cap after {unit['game']}", flush=True)
+            break
 
     end_bytes = family_bytes(store)
     return {
@@ -269,6 +444,14 @@ def execute(plan: Sequence[Mapping[str, object]],
         "bytes_written": end_bytes - start_bytes,
         "mb_written": round((end_bytes - start_bytes) / (1024 * 1024), 3),
         "stopped_reason": stopped_reason,
+        "day_file_cap_bytes": int(day_file_cap_bytes),
+        "day_file_bytes_start": dict(sorted(start_day_bytes.items())),
+        "day_file_bytes_end": dict(sorted(day_file_sizes(store).items())),
+        "n_games_skipped_day_file_cap": len(skipped),
+        "skipped_day_file_cap": skipped,
+        "day_file_overflow": overflow,
+        "max_bytes_per_ticker_day_measured": int(max_bytes_per_ticker_day),
+        "n_ticker_days_pulled": n_ticker_days_pulled,
         "n_games_planned": len(plan),
         "n_games_pulled": len(manifest),
         "n_games_incomplete": n_incomplete,
@@ -295,6 +478,8 @@ def run(tape_root: Path = DEFAULT_TAPE_ROOT,
         runner: Callable = kt.run,
         max_calls: int = DEFAULT_MAX_CALLS,
         min_interval: float = 0.25,
+        day_file_cap_bytes: int = DEFAULT_DAY_FILE_CAP_BYTES,
+        bootstrap_bytes_per_ticker_day: int = BOOTSTRAP_BYTES_PER_TICKER_DAY,
         verbose: bool = True) -> Dict[str, object]:
     games, stats = eligible_ticker_days(tape_root, days, resolver=resolver)
     order = order_games(games)
@@ -310,18 +495,28 @@ def run(tape_root: Path = DEFAULT_TAPE_ROOT,
     if dry_run:
         report["dry_run"] = True
         report["execution"] = None
+        report["day_file_guard_preview"] = guard_preview(
+            plan, store=store, day_file_cap_bytes=day_file_cap_bytes,
+            bytes_per_ticker_day=bootstrap_bytes_per_ticker_day)
         return report
     report["dry_run"] = False
     report["execution"] = execute(
         plan, store=store, cap_bytes=int(cap_mb * 1024 * 1024), max_games=max_games,
         client=client, max_calls=max_calls, min_interval=min_interval, runner=runner,
-        verbose=verbose)
+        day_file_cap_bytes=day_file_cap_bytes,
+        bootstrap_bytes_per_ticker_day=bootstrap_bytes_per_ticker_day, verbose=verbose)
     return report
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--cap-mb", type=float, default=DEFAULT_CAP_MB)
+    ap.add_argument("--cap-mb", type=float, default=DEFAULT_CAP_MB,
+                    help="FAMILY-TOTAL byte budget for this pass (a budget)")
+    ap.add_argument("--day-file-cap-bytes", type=int, default=DEFAULT_DAY_FILE_CAP_BYTES,
+                    help="PER-DAY-FILE ceiling (a push-wedge guard, not a budget): a game "
+                         "whose projected write would take any target dt=<day>.jsonl to or "
+                         "past this is skipped, not started. Default is "
+                         "core.push_limits.PUSH_SIZE_GATE_BYTES.")
     ap.add_argument("--max-games", type=int, default=None)
     ap.add_argument("--days", nargs="*", default=list(DEFAULT_DAYS))
     ap.add_argument("--dry-run", action="store_true",
@@ -338,7 +533,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     rep = run(days=args.days, cap_mb=args.cap_mb, max_games=args.max_games,
               dry_run=args.dry_run, max_calls=args.max_calls,
-              min_interval=args.min_interval)
+              min_interval=args.min_interval,
+              day_file_cap_bytes=args.day_file_cap_bytes)
     text = json.dumps(rep, indent=2, sort_keys=True)
     if args.json == "-":
         print(text)
@@ -352,7 +548,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"[phase1] {ex['n_games_pulled']}/{ex['n_games_planned']} game(s), "
               f"{ex['n_lines_written']} new line(s), {ex['mb_written']} MB, "
               f"stopped: {ex['stopped_reason']}, "
-              f"{ex['n_games_incomplete']} game(s) with an incomplete query")
+              f"{ex['n_games_incomplete']} game(s) with an incomplete query, "
+              f"{ex['n_games_skipped_day_file_cap']} skipped on the day-file cap")
+        if ex["day_file_overflow"]:
+            print(f"[phase1] DAY-FILE CAP BREACHED: "
+                  f"{ex['day_file_overflow']['remediation']}")
+            return 1
         return 0 if ex["n_games_incomplete"] == 0 else 1
     return 0
 

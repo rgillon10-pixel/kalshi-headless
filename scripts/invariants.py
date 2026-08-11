@@ -35,6 +35,7 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import subprocess
@@ -53,6 +54,15 @@ EXCLUDE_DIRS = {".venv", "venv", "__pycache__", ".claude", ".git", "worktrees",
 # The single source of truth for the valid tags lives in core/source_tag.py; mirrored here
 # so the DB probe has no import-time dependency on the package being importable.
 VALID_SOURCE_TAGS = ("real_ask", "broker_truth", "midpoint", "synthetic")
+
+# Same mirroring rationale as VALID_SOURCE_TAGS above: the single source of truth for the
+# push-size thresholds is core/push_limits.py, mirrored here so this file keeps its zero
+# import-time dependency on the package being importable (it runs as a bare script, including
+# as a PreToolUse hook). `tests/test_push_size_limit_audit.py` pins the mirror equal to the
+# core module, so a drift is a test failure rather than a silent second source of truth.
+GITHUB_MAX_FILE_BYTES = 100_000_000
+PUSH_SIZE_GATE_BYTES = 95_000_000
+PUSH_SIZE_WARN_BYTES = 50_000_000
 
 # Files allowed to contain banned patterns by purpose (the rule-definition files and the
 # adversarial test fixtures). Relative to ROOT, POSIX separators.
@@ -673,6 +683,15 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
     "core/settlement_sources.py":
         "N/A: the trade tape appears in a docstring example of how to harvest a ticker set. "
         "This module resolves SETTLEMENTS and reads no print field.",
+    "scripts/push_size_limit_audit.py":
+        "N/A: a BYTE-SIZE audit. It stats tracked files and names which append path targets "
+        "each one; `kalshi_trades` appears only as a family name in the historical-append set "
+        "and in prose. It opens no print, reads no `created_time`/`yes_price`, and selects "
+        "nothing per print.",
+    "core/push_limits.py":
+        "N/A: threshold constants + prose. `tape/kalshi_trades/dt=2026-07-07.jsonl` is cited "
+        "in the module docstring as the file that actually tripped GitHub's push limit on "
+        "2026-08-09; the module reads no tape at all.",
 
     # ---- the writer whose append order IS the incidental tie-break ----
     "collection/kalshi_trades.py":
@@ -4713,6 +4732,116 @@ def tape_conflict_marker_failure(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Push-wedge size gate (GATING) + warn-band advisory ──────────────────────
+#
+# GitHub rejects a push at its pre-receive hook if ANY blob in ANY commit being pushed exceeds
+# 100,000,000 bytes. This repo commits append-only tape, so its day-files grow monotonically
+# toward that ceiling and never shrink, and three properties turn that into a WEDGE:
+#
+#   1. the rejection is per-PUSH, not per-file — one oversized blob blocks every unrelated
+#      bookkeeping/findings change riding in the same push;
+#   2. once the blob is in a commit the branch is permanently unpushable short of a history
+#      rewrite, which is exactly the max-priority incident LOOP-QUEUE step 0a exists to catch;
+#   3. the hourly collector falls back to a `tape/hourly-*` branch when its push fails, and
+#      step 0b recovers those by UNION-APPENDING into `main`'s day-files — recreating the same
+#      oversized file. A wedged day-file strands tape the standing recovery cannot repair.
+#
+# It has already bitten once: the 2026-08-09 Q52 phase-2 trade-print backfill measured
+# `tape/kalshi_trades/dt=2026-07-07.jsonl` at 109,151,185 bytes, had its push rejected
+# outright, and dropped a whole 35,144-line game by hand before it could commit — a manual,
+# discovered-at-push-time repair with nothing watching for the next one.
+#
+# GATING (unlike most checks in this file, which are advisories) because this is the rare case
+# where the failure is (a) cheap and unambiguous to detect, (b) strictly WORSE if the run
+# proceeds — every additional append moves the file further past the point of no return — and
+# (c) repairable by the same cloud run that trips it, append-only-safely: STOP APPENDING to
+# the offending path and shard the family's next writes into a new file. Never truncate,
+# rewrite or reorder committed tape lines to get under the limit.
+#
+# The gate sits at PUSH_SIZE_GATE_BYTES (95,000,000), 5,000,000 below the host's hard block,
+# so a run that trips it still has room to land the repair commit itself. Thresholds are
+# imported from `core/push_limits.py`, the single sanctioned site — hand-rolling them here
+# would be the same class of mistake as a hand-rolled fee rate.
+#
+# TRACKED-scoped, like the invalid-JSON gate and unlike the conflict-marker gate: an untracked,
+# mid-write collector file is not something a push can trip over, and a filesystem-wide scan
+# would gate on it. Measured on the 2026-08-11 tree: 14,507 tracked files / 2.044 GB, largest
+# `tape/universe_sweep/dt=2026-07-22.jsonl` at 90,470,557 bytes (9,529,443 of headroom),
+# 7 files at/over the 50,000,000 warn band, 0 at/over the gate.
+
+
+def _tracked_file_sizes(root: Path = ROOT) -> List[Tuple[int, str]]:
+    """(size, relpath) for every git-tracked file that exists on disk, largest first.
+
+    Best-effort/offline: if git is unavailable this returns [] so the gate degrades to a
+    no-op rather than failing the tree for an environment reason (the L156 DEFECT-1 posture,
+    applied to a GATING check: it may never invent a violation).
+    """
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z"],
+                             capture_output=True, text=True, check=True).stdout
+    except Exception:
+        return []
+    rows: List[Tuple[int, str]] = []
+    for rel in out.split("\0"):
+        if not rel:
+            continue
+        try:
+            rows.append((os.path.getsize(root / rel), rel))
+        except OSError:
+            continue
+    rows.sort(reverse=True)
+    return rows
+
+
+def _push_size_gate_issues(root: Path = ROOT) -> List[str]:
+    """Tracked files at or over this repo's own push-size gate. Sorted largest first."""
+    return [f"{rel}:{size}" for size, rel in _tracked_file_sizes(root)
+            if size >= PUSH_SIZE_GATE_BYTES]
+
+
+def _push_size_warn_issues(root: Path = ROOT) -> List[str]:
+    """Tracked files in the advisory band: at/over GitHub's documented 50 MB warn threshold
+    but below this repo's gate (a file at/over the gate is the GATE's report, not this one —
+    double-reporting one file as both a warning and a failure reads as two problems)."""
+    return [f"{rel}:{size}" for size, rel in _tracked_file_sizes(root)
+            if PUSH_SIZE_WARN_BYTES <= size < PUSH_SIZE_GATE_BYTES]
+
+
+def push_size_gate_failure(issues: List[str]) -> Optional[str]:
+    """GATING failure message when a tracked file has reached the push-size gate, else None.
+    Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = ", ".join(issues[:5]) + (", ..." if n > 5 else "")
+    return (
+        f"[push_size_gate] {n} tracked file(s) at or over the {PUSH_SIZE_GATE_BYTES:,}-byte "
+        f"push-size gate (e.g. {examples}); GitHub hard-blocks a push containing any blob "
+        f"over {GITHUB_MAX_FILE_BYTES:,} bytes, and the block is per-PUSH and permanent once "
+        f"committed. Repair is append-only-safe: STOP APPENDING to the path and shard the "
+        f"family's next writes into a new file — never truncate, rewrite or reorder committed "
+        f"tape lines. Measure with scripts/push_size_limit_audit.py; thresholds live in "
+        f"core/push_limits.py."
+    )
+
+
+def push_size_warn_warning(issues: List[str]) -> Optional[str]:
+    """Non-gating advisory for tracked files in the warn band, else None. Pure. NEVER flips
+    the exit code."""
+    if not issues:
+        return None
+    n = len(issues)
+    examples = "; ".join(issues[:5]) + ("; ..." if n > 5 else "")
+    return (
+        f"note: {n} tracked file(s) at or over GitHub's {PUSH_SIZE_WARN_BYTES:,}-byte "
+        f"per-file WARN threshold and still under this repo's "
+        f"{PUSH_SIZE_GATE_BYTES:,}-byte gate ({examples}). Advisory only — the exit code is "
+        f"unaffected. These are the files a routine append could wedge; "
+        f"scripts/push_size_limit_audit.py names which append path targets each one."
+    )
+
+
 # ─── Tape invalid-JSON gate (GATING, not advisory) ───────────────────────────
 #
 # L142 generalization: a git conflict marker (caught above) is only one shape of the same
@@ -5181,6 +5310,25 @@ def main() -> int:
         except BaseException:
             sys.stderr.write("note: fee-subtraction advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
+        # Push-wedge warn-band advisory: tracked files at/over GitHub's documented 50 MB
+        # per-file warn threshold and still under this repo's own gate. Non-gating — stderr
+        # only. Wrapped like the sibling advisories so neither the detector nor the formatter
+        # can reach the exit code (the L156 DEFECT-1 lesson).
+        try:
+            push_warn = push_size_warn_warning(_push_size_warn_issues())
+            if push_warn:
+                sys.stderr.write(push_warn + "\n")
+        except BaseException:
+            sys.stderr.write("note: push-size warn-band advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # GATING: a tracked file at or over the 95,000,000-byte push-size gate. GitHub
+        # hard-blocks any push containing a blob over 100,000,000 bytes, per-PUSH and
+        # permanently once committed, and step 0b's union-append recovery would recreate the
+        # oversized file — so proceeding is strictly worse than stopping. Repair is
+        # append-only-safe (stop appending, shard the next writes).
+        push_size_failure = push_size_gate_failure(_push_size_gate_issues())
+        if push_size_failure:
+            failures.append(push_size_failure)
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
         # code — cheap and unambiguous to catch.
