@@ -629,19 +629,39 @@ def assert_contained_report(triages: List[BranchTriage],
                              not_on_remote: Sequence[str] = ()) -> Tuple[str, bool]:
     """Render the post-recovery self-check (L301). Returns (text, ok).
 
-    `ok` is True only when EVERY named branch triages contained with zero missing lines and
-    zero missing capture_ids — the exact claim a "stranded lines recovered" commit message
-    makes. A branch the remote does not have, or one whose commit is not fetched, is a
-    FAILURE of the check, never a silent pass: an unverifiable claim is not a verified one.
+    `ok` is True only when EVERY named branch triages contained with zero missing
+    UNION-APPENDABLE lines and zero missing capture_ids — the exact claim a "stranded lines
+    recovered" commit message makes. A branch the remote does not have, or one whose commit
+    is not fetched, is a FAILURE of the check, never a silent pass: an unverifiable claim is
+    not a verified one.
+
+    L247-class branches (2026-08-11): a branch can carry a genuine byte-level diff that is
+    NOT tape to rescue at all — e.g. `tape/qNN_settlement_cache/settlement*.json`
+    (`core.settlement_sources.CACHE_MARKETS_MAP`) is a mutable, periodically-OVERWRITTEN
+    single-JSON snapshot (a market moves `status: "active"` -> `"finalized"` in place, never
+    appended), so an old branch's copy legitimately differs from HEAD's newer snapshot
+    without a single line of it being missing tape. `format_report` already surfaces this via
+    `all_missing_unappendable` (every missing line sits in a conflict marker or a non-`.jsonl`
+    file); this check must agree — a branch whose ENTIRE diff is unappendable-by-construction
+    has nothing left to union-append and IS the recovered state, so it must read CONTAINED,
+    never a perpetual STILL MISSING that no commit could ever clear (confirmed live 2026-08-11:
+    `tape/hourly-202608091000Z`/`-20260809T0057Z`/`-20260809T1608Z` each "missing" exactly
+    their stale `q51_settlement_cache/settlement.json` snapshot and nothing else).
     """
     lines = ["post-recovery containment check (L301):"]
     ok = True
     for t in triages:
         n_missing = sum(t.missing_files.values())
         n_cids = sum(t.capture_id_checked_files.values())
+        nothing_to_recover = n_missing and t.all_missing_unappendable and not n_cids
         if not t.fetched:
             lines.append(f"  UNVERIFIABLE {t.name}: commit {t.sha[:12]} not fetched locally")
             ok = False
+        elif nothing_to_recover:
+            lines.append(f"  CONTAINED    {t.name} (no strandable tape — every differing "
+                         "line is unappendable-by-construction, L247)")
+            for f, n in sorted(t.missing_files.items()):
+                lines.append(f"      - {f}: {n} line(s), none union-appendable")
         elif t.contained and not n_missing and not n_cids:
             note = " (capture_id-level only)" if t.capture_id_only else ""
             skipped = "" if t.fully_verified else " (WARNING: >=1 file size-guard-skipped)"
@@ -652,7 +672,9 @@ def assert_contained_report(triages: List[BranchTriage],
             lines.append(f"  STILL MISSING {t.name}: {n_missing} line(s), "
                          f"{n_cids} capture_id(s)")
             for f, n in sorted(t.missing_files.items()):
-                lines.append(f"      - {f}: {n} line(s)")
+                bad = t.unappendable_files.get(f, 0)
+                suffix = f" ({bad} not union-appendable)" if bad else ""
+                lines.append(f"      - {f}: {n} line(s){suffix}")
             for f, n in sorted(t.capture_id_checked_files.items()):
                 if n:
                     lines.append(f"      - {f}: {n} capture_id(s)")

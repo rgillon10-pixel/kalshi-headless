@@ -735,6 +735,68 @@ class TestUnionAppendabilityTriage:
 
 
 
+class TestAssertContainedTreatsUnappendableOnlyDiffsAsRecovered:
+    """L247, extended 2026-08-11: a branch whose ENTIRE diff is unappendable-by-construction
+    (a non-`.jsonl` file, or a conflict marker) carries no tape to rescue at all, so the
+    post-recovery self-check must not report it as perpetually 'STILL MISSING' — no commit
+    could ever clear that state. Confirmed live against `tape/hourly-202608091000Z` and
+    siblings, whose only diff vs HEAD is a stale `q51_settlement_cache/settlement.json`
+    snapshot (a mutable `CACHE_MARKETS_MAP`, never appended — see `core.settlement_sources`).
+    """
+
+    def test_a_branch_differing_only_in_a_non_jsonl_file_reads_contained(self, tmp_path):
+        remote = _init_repo(tmp_path / "remote3")
+        cache_dir = remote / "tape" / "q51_settlement_cache"
+        cache_dir.mkdir(parents=True)
+        cache = cache_dir / "settlement.json"
+        cache.write_text('{"markets": {"A": {"status": "active", "result": ""}}}\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "base")
+        _git(remote, "checkout", "-qb", "tape/hourly-20260809T1608Z")
+        cache.write_text('{"markets": {"A": {"status": "active", "result": "STALE"}}}\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "stale cache snapshot")
+        sha = _git(remote, "rev-parse", "HEAD").strip()
+
+        t = triage_branch(sha, "tape/hourly-20260809T1608Z", base_ref=sha + "^",
+                          cwd=str(remote))
+        assert t.contained is False  # the raw byte-level answer is unchanged
+        assert t.all_missing_unappendable is True
+
+        text, ok = assert_contained_report([t])
+        assert ok is True
+        assert "CONTAINED    tape/hourly-20260809T1608Z" in text
+        assert "no strandable tape" in text
+        assert "STILL MISSING" not in text
+
+    def test_a_branch_with_one_real_stranded_line_still_fails_even_alongside_a_cache_diff(
+            self, tmp_path):
+        """The new CONTAINED path must not swallow a genuine stranded line sitting beside
+        an unappendable one — only an ALL-unappendable diff may pass."""
+        remote = _init_repo(tmp_path / "remote4")
+        cache_dir = remote / "tape" / "q51_settlement_cache"
+        cache_dir.mkdir(parents=True)
+        cache = cache_dir / "settlement.json"
+        cache.write_text('{"markets": {}}\n')
+        day = remote / "tape" / "econ_prints"
+        day.mkdir(parents=True)
+        f = day / "dt=2026-08-09.jsonl"
+        f.write_text('{"capture_id": "A"}\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "base")
+        _git(remote, "checkout", "-qb", "tape/hourly-20260809T1900Z")
+        cache.write_text('{"markets": {"stale": true}}\n')
+        f.write_text('{"capture_id": "A"}\n{"capture_id": "REAL"}\n')
+        _git(remote, "add", "-A"); _git(remote, "commit", "-qm", "mixed diff")
+        sha = _git(remote, "rev-parse", "HEAD").strip()
+
+        t = triage_branch(sha, "tape/hourly-20260809T1900Z", base_ref=sha + "^",
+                          cwd=str(remote))
+        assert t.all_missing_unappendable is False
+
+        text, ok = assert_contained_report([t])
+        assert ok is False
+        assert "STILL MISSING tape/hourly-20260809T1900Z" in text
+        assert "econ_prints/dt=2026-08-09.jsonl: 1 line(s)" in text
+
+
 class TestAssertContainedPostRecoveryCheck:
     """L301 (2026-08-07): a commit that says it recovered a branch's stranded tape must
     prove it against its OWN post-append tree.

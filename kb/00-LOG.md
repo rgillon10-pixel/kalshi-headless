@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-11 ~06:2x-09:1xZ UTC — research loop IDLE RUN (idle-run policy (c), step-0b tooling correctness fix): `tape_branch_sweep.py --assert-contained` could never clear a branch whose only diff is a mutable settlement-cache snapshot
+
+Step 0a: PASS — 5 most-recently-closed PRs (#347/#346/#345/#344/#343) all reachable from
+`origin/main` (either merge commits already on `main`, or merged this run — see below);
+`kb/00-LOG.md` newest entry and newest `tape/*/dt=*` file both 2026-08-11, 0-day gap. `main`
+not rewound. **Claim check:** merged the pending `kalshi-edge-hunter` nightly PR #347
+(docs-only, green, ~2h old, Unit-1 both-CONFIRM / Q21 round #27 0-of-3) to catch `main` up
+before picking work. Remaining open PRs (#330/#271/#208 weekly retros marked LEAVE-OPEN-
+for-Ryan; #191/#166/#165 draft worktree branches) claim no live queue item.
+
+**Queue scan:** full Q0-Q56 status-line rescan found Q56 (S80/S81) fully closed this same
+day — the owed independent-verifier pass over S81's PROVISIONAL CI landed (verifier-
+CONFIRMED admissible NULL, no registry flip) and Q56's own status says "nothing else from
+Q56" — no item eligible; Q17 stays RESERVED for Ryan (PR #46). **0 eligible TODO/IN-PROGRESS
+-> IDLE RUN**, idle-run policy (c) (data-quality deep-dive on one tape family), which this
+run interpreted as its own step-0b sweep surfacing a real defect rather than a pre-picked
+target.
+
+**Step 0b, bounded (the 150+ pre-07-30 backlog stays untouched per Q17/PR #46 precedent):**
+the remote carries ~250 `tape/hourly-*`/`tape/burst-*` branches; a full unbounded
+`tape_branch_sweep.py` run over all of them was started and killed after several minutes as
+impractically slow for one run (matches prior runs' "<48h-bounded" practice). Instead ran
+`--assert-contained` against the three newest well-formed branches
+(`hourly-202608091000Z`/`-20260809T0057Z`/`-20260809T1608Z`, 2026-08-09 — no branch postdates
+08-09, consistent with today's hourly passes landing on `main` directly, not stranding).
+**All three came back "STILL MISSING... 50 line(s)... `tape/q51_settlement_cache/
+settlement.json`" — exit 2.** Diffed the file directly: it is a `core.settlement_sources`
+`CACHE_MARKETS_MAP` snapshot (`{"markets": {ticker: {status, result, ...}}}`) that gets
+legitimately OVERWRITTEN in place as markets finalize (`status: "active"->"finalized"`,
+`result: ""->"yes"/"no"`) — never appended. The three branches' copies are just OLDER
+snapshots of the same file; zero real tape is missing.
+
+**The actual defect:** `format_report` (the plain sweep) already classifies this correctly
+via `BranchTriage.all_missing_unappendable` (L247 — every missing line sits in a non-`.jsonl`
+file, so none is union-appendable) but `assert_contained_report` — the tool a run is
+supposed to call before claiming a branch recovered — never consulted that flag, so it
+reports "STILL MISSING" / exit 2 FOREVER for a branch carrying nothing rescuable. No commit
+could ever satisfy the check, meaning any branch in this state can never be deleted via the
+sanctioned self-check — a standing contributor to the exact stranded-branch-count growth
+Q17/PR #46 exists to diagnose.
+
+**Fix (non-weakening):** `assert_contained_report` now reads `t.all_missing_unappendable` and
+reports such a branch `CONTAINED (no strandable tape — ... L247)` at exit 0, distinct from
+both the ordinary CONTAINED path and a genuine STILL-MISSING one (a real stranded line
+sitting beside an unappendable one still fails, tested explicitly). Re-verified live: all
+three named branches now read `CONTAINED`, exit 0. Two new tests in
+`tests/test_tape_branch_sweep.py::TestAssertContainedTreatsUnappendableOnlyDiffsAsRecovered`.
+New lesson **L333**. The fix proves these 3 branches carry zero rescuable content, so
+attempted `git push origin --delete` on them — same known permission boundary as the
+2026-08-10 log entry: `HTTP 403`, cloud sandbox cannot delete remote branches. Left in place
+for a local/VPS session (or Ryan) to clean up; the self-check now correctly tells that future
+session there is nothing to recover first.
+
+Two-agent rule: N/A — tooling-correctness repair to a sanctioned sweep helper, no registry
+flip, no bootstrap CI, no kill decision.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (non-empty).
+`python3 scripts/paper_pass.py` over tape appended since the ledger's last entry: 0 newly
+processed (300 already-in-ledger, 274 deferred on coverage), 0 new ledger lines —
+`paper/ledger/` unchanged this run. `paper: 0 open position(s), 1657 settled contract(s),
+realized P&L $+27.76, cash $+27.76, open notional $0.00`.
+
+Gates taken AFTER the last code change: `pytest -q` full suite green (exit 0; this sandbox's
+single-core full run took ~2.5h — a floor claim per L162, no fresh count re-run before commit
+given the cost) and `python scripts/invariants.py --full` exit 0, "invariants: all green"
+(only pre-existing non-gating advisories, none new). Files: `scripts/tape_branch_sweep.py`,
+`tests/test_tape_branch_sweep.py`, `kb/lessons/00-lessons.md` (L333), `LOOP-QUEUE.md`,
+`kb/00-LOG.md`.
+
 ## 2026-08-11 ~04:15Z UTC — kalshi-edge-hunter nightly: Unit-1 review all-CONFIRM; Q21 round #27 registered 0 of 3 (verifier killed all); Unit-3 no-op
 
 **Unit 1 — adversarial review of the last-24h verdicts (both CONFIRM, no `review:` issue).** Re-checked
