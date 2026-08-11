@@ -284,7 +284,20 @@ def test_drops_unit_audit_names_the_mixed_units_explicitly():
     a = P.drops_unit_audit()
     assert a["keys_counting_tickers"] == ["single_snapshot"]
     assert "unsettled" in a["keys_counting_intervals"]
-    assert "UNCHANGED" in a["repair_status"]
+    assert "REPAIRED" in a["repair_status"]
+
+
+def test_drops_unit_audit_repair_is_live_on_the_fillsim_report():
+    """L309's own repair, verified against the actual build_rows() output (not just this
+    module's historical description of it)."""
+    import scripts.q51_maker_fillsim as M
+    tk = "KXTESTGAME-26AUG03AB-A"
+    one_snapshot = [{"ts": 0, "captured_at": "t0", "best_yes_bid": 0.60, "best_no_bid": 0.38,
+                      "best_yes_ask": 0.62}]
+    _, stats = M.build_rows({tk: one_snapshot}, {}, {}, [tk])
+    assert "single_snapshot" not in stats["drops"]
+    assert stats["dropped_tickers"]["single_snapshot"] == 1
+    assert set(P.drops_unit_audit()["keys_counting_intervals"]) == set(stats["drops"].keys())
 
 
 # --------------------------------------------------------------------------- #

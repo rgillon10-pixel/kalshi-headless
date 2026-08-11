@@ -6,6 +6,39 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-11 05:32 ET — IDLE RUN: L309 drops-unit-mixing repair (Q51 milestone 3 closed, probe unfrozen)
+
+**Idle-run policy (a).** Full Q0-Q56 rescan found nothing eligible: Q17 is PR #46/Ryan-review-only,
+Q33/Q47/Q48 are Ryan-/burst-gated, Q52 is not-runnable at 34/328 games, and Q56 (the last live
+item) closed out both its sub-milestones + the owed backfill on 2026-08-11 earlier today (S80
+`dead ✗`, S81 verifier-confirmed admissible NULL). Re-derived the open UNENFORCED-lesson set the
+same way L310 did (`scripts.invariants._parse_lesson_rows`/`_lesson_disposed_ids`): 9 open rows
+(`L213/L221/L222/L282/L309/L319/L320/L321/L323`). Of those, L213/L221/L222/L282 are explicit
+Ryan-action/DO-NOT-BUILD write-path halves, L319/L320's remaining halves are explicitly
+out-of-lane (semantic judgment / a frozen Q42 gate script), and L321/L323 both explicitly defer
+their fix to "the next milestone/probe" rather than naming a repair owed now. **L309 is the one
+whose own blocker just cleared:** it named its repair as owed "after the 08-10 firing, when the
+probe is free to change" — Q51 milestone 3 fired and closed 2026-08-10, and Q51's own status line
+already flagged the defect as "now unblocked."
+
+**The fix.** `scripts/q51_maker_fillsim.py::build_rows`'s `drops` dict mixed units — five keys
+counted INTERVALS, `single_snapshot` counted TICKERS (a ticker with <2 snapshots contributes ZERO
+intervals) — so `sum(drops.values())` was never a count of anything. `single_snapshot` now lives
+in its own ticker-counted `dropped_tickers` dict; `report['intervals']['drops']` is homogeneous.
+Verified (grep, whole repo) that no verdict/CI/population number anywhere reads
+`drops["single_snapshot"]`; the one other consumer, `q51_m3_preflight.py`'s
+`iv["drops"].get("unsettled")`, is untouched. `scripts/q51_m3_fill_projection.py::drops_unit_audit()`
+(L309's own read-only auditor) updated to record the repair; its historical description of the
+defect is preserved verbatim. New lesson **L334** (disposition, `DISPOSES: L309`). Two-agent rule:
+N/A — an accounting-shape fix inside a CLOSED probe's bookkeeping, not a registry status flip,
+bootstrap CI, or kill decision. No Q-item status changes (this is lesson-ledger bookkeeping, not a
+queue milestone). Gates after the last code change: see the Log-of-runs line below. Files:
+`scripts/q51_maker_fillsim.py`, `scripts/q51_m3_fill_projection.py`,
+`tests/test_q51_maker_fillsim.py`, `tests/test_q51_m3_fill_projection.py`,
+`kb/lessons/00-lessons.md` (L334).
+
+---
+
 ## 2026-08-11 ~06:2x-09:1xZ UTC — research loop IDLE RUN (idle-run policy (c), step-0b tooling correctness fix): `tape_branch_sweep.py --assert-contained` could never clear a branch whose only diff is a mutable settlement-cache snapshot
 
 Step 0a: PASS — 5 most-recently-closed PRs (#347/#346/#345/#344/#343) all reachable from
@@ -74,6 +107,8 @@ given the cost) and `python scripts/invariants.py --full` exit 0, "invariants: a
 (only pre-existing non-gating advisories, none new). Files: `scripts/tape_branch_sweep.py`,
 `tests/test_tape_branch_sweep.py`, `kb/lessons/00-lessons.md` (L333), `LOOP-QUEUE.md`,
 `kb/00-LOG.md`.
+
+---
 
 ## 2026-08-11 ~04:15Z UTC — kalshi-edge-hunter nightly: Unit-1 review all-CONFIRM; Q21 round #27 registered 0 of 3 (verifier killed all); Unit-3 no-op
 
