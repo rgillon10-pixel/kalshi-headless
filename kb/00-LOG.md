@@ -6,6 +6,59 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-11 14:15 ET — IDLE RUN (a): L323's trade-print tie-break gets a measurement tool and a gating triage ratchet
+
+Queue rescan confirmed 0 eligible items (fourth consecutive idle run), so policy tier (a).
+Re-read all eight open UNENFORCED rows rather than trusting the prior run's summary; seven
+held (L213/L221/L222/L282 Ryan-lane or live write-path, L319 terminal residual, L320 deferred
+to Q42, L321 sealed Q54 gate logic). L323 did not: its REPAIR half is genuinely blocked by
+L311's seal, but its measurement and triage halves had never been built and neither touches
+the sealed probe.
+
+Built `scripts/trade_print_tiebreak_audit.py` (read-only, committed tape only). Over the full
+`tape/kalshi_trades/` — 213,488 broker_truth prints, 6 days — 48.46% of prints sit inside a
+`(ticker, instant)` tie group (25,781 groups), 7,999 of those groups disagree on `yes_price`
+(spread p50 1c / p90 4c / max 61c), largest group 303. It also answers the question L323 left
+open ("`trade_id`, IF monotonic within a capture"): `trade_id` is present on 213,488/213,488,
+has 0 global collisions and totally orders every one of the 25,781 tie groups — the repair key
+EXISTS — but its concordance with clock order is 0.500282 over 109,950 untied pairs, i.e.
+random. Adopting `(created_time, trade_id)` therefore buys declaredness and reproducibility,
+never chronological truth, and a probe that switches must not imply otherwise (L335).
+
+Built `scripts/invariants.py::inv_trade_print_tiebreak_triage`, a GATING allowlisted ratchet on
+L319's pattern: any module under scripts/, execution/, core/ or collection/ that references the
+print tape or imports the shared `q51_maker_fillsim` loader must declare its tie-break in
+`TRADE_PRINT_TIEBREAK_TRIAGE`. It does not demand a fix; it demands the exposure be said on the
+record, and it fails closed for new consumers. The census it forced is the finding: the exposure
+was never confined to the sealed Q54 probe. `q56_s80_print_vwap_overshoot_maker_fade.py` and
+`q56_s80_rederive.py` had already adopted an explicit `(created_time, trade_id)` sort
+unilaterally, while `q51_maker_fillsim.load_prints` still sorts on `ts` alone and hands file
+order to Q54, `q51_m3_fill_projection` and `q51_book_anchor_audit` at once — despite already
+carrying `trade_id` on every loaded record. Nothing propagated the one fix that existed. The Q51
+loader is deliberately NOT repaired: it is pinned by real-tape acceptance tests and feeds Q51's
+closed milestone-3 verdict, so changing the selected print is verdict-class and owes its own
+milestone. `collection/kalshi_trades.py` is triaged WRITER and left alone (live write path, and
+re-ordering future writes cannot repair committed tape).
+
+Two defects caught in-build, both recorded. (1) L336: the first concordance estimator sorted by
+the very key it was testing and read 0.412 for a provably random id — a tie group ordered by
+`trade_id` makes its last member a max-of-k draw, which loses more often than chance.
+Singleton-only gives 0.500282 on the same tape. "Weakly anti-chronological" is a sentence
+someone would have written down. (2) `created_time` carries ragged fractional precision (1-6
+digits), so the key and every ordering now go through `core.timeutil.parse_iso_utc` and stay a
+`datetime` — a float epoch resolves to only ~0.24us at 2026 epochs, coarser than the tape's
+microseconds, which would manufacture ties.
+
+Not verdict-class (no registry flip, no bootstrap CI, no kill decision), so the two-agent rule is
+N/A. No Agent tool was available in the sub-context that built this, so it was a main-context
+build (L282's precedent), recorded as such in both new lesson rows. Lessons: L323's enforcement
+cell moved (text unchanged, L152 own-row rule); L335 and L336 added.
+
+Gates, fresh after the last code change: pytest 3,842 passed / 0 failed, run as an exhaustive
+4-way partition of all 127 test files (single-process exceeds 60 min), every shard exit 0;
+`python scripts/invariants.py --full` exit 0, "invariants: all green". 42 new tests (30 + 12).
+Branch `idle-run/l323-trade-print-tiebreak-ratchet-20260811`, commit `bfbf273`.
+
 ## 2026-08-11 ~13:0x-14:5xZ UTC — research loop IDLE RUN (idle-run policy (c) / step-0b): recovered 26,063 genuinely-stranded tape line(s) + 3 capture_id(s) from two fresh `tape/hourly-*` branches
 
 **Step 0a:** PASS — merged PRs #348 (`origin/main` HEAD at run start), then #349/#350 (landed by a

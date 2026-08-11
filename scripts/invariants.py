@@ -578,6 +578,151 @@ def inv_collector_self_tape_read_triage(path: Path, text: str) -> Optional[str]:
                 "future dedup-race audit doesn't need git-history archaeology")
 
 
+# ─── L323: trade-print tie-break triage (GATING allowlisted ratchet) ─────────
+#
+# L323 (2026-08-09, Q54 two-agent verifier re-check): exact-timestamp ties in
+# `tape/kalshi_trades/` are today resolved BY FILE READ ORDER — reproducible, but an artifact
+# of how the tape was written rather than a rule anyone declared. Measured live by
+# `scripts/trade_print_tiebreak_audit.py` over the full committed tape: 48.5% of admitted
+# prints sit inside a `(ticker, created_time)` tie group, 7,999 of those groups disagree on
+# `yes_price` (p90 spread 4c, max 61c), and `trade_id` IS an adequate explicit key (present on
+# 213,488/213,488 prints, 0 global collisions, 0 tie groups it fails to totally order) — though
+# NOT a chronological one (concordance with clock order 0.500 over 109,950 untied pairs, i.e.
+# random). See L335.
+#
+# Why a ratchet and not a bare assert: "does this module's reduction depend on the order of
+# equal-timestamp prints" is a per-file semantic judgment (the same reason L319's self-tape-read
+# rule is a ratchet), and the one repair L323 names is inside a SEALED probe (L311) that may not
+# be edited mid-verdict. So the rule does not demand a fix — it demands that every module which
+# touches the trade-print tape has SAID, on the record, which tie-break it relies on. It fails
+# CLOSED: a new print consumer is UNTRIAGED until someone writes the sentence.
+#
+# HONEST LIMIT (travels with the rule): the trigger is a reference to the tape family or an
+# import of the shared `q51_maker_fillsim` loader. A future module that consumes prints only
+# through some OTHER already-triaged helper, and never names the family, is invisible to this
+# check — it inherits its helper's disposition without being asked. That residual is the same
+# shape L319 records as terminal: recognizing a new module as a print consumer is a human call
+# the ratchet forces, not one it resolves.
+TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
+    # ---- order-sensitive selection, tie-break DECLARED (the target state) ----
+    "scripts/q56_s80_print_vwap_overshoot_maker_fade.py":
+        "DECLARED: `load_prints` sorts on `(created_time, trade_id)` and its docstring says "
+        "why. The first module in the repo to adopt L323's rule; the reason this ratchet "
+        "exists is that it did so unilaterally and nothing propagated it.",
+    "scripts/q56_s80_rederive.py":
+        "DECLARED: independent re-derivation of the above, sorts on `(x[0], x[4] or \"\")` "
+        "= (created_time, trade_id). Matching the probe it re-derives is load-bearing — a "
+        "different tie-break here would manufacture a false re-derivation mismatch.",
+
+    # ---- order-sensitive selection, tie-break INCIDENTAL (known exposure, frozen) ----
+    "scripts/q51_maker_fillsim.py":
+        "INCIDENTAL — KNOWN EXPOSURE, NOT REPAIRED HERE: `load_prints` sorts on `ts` alone, "
+        "so ties fall back to file order, and it is the SHARED loader Q51/Q54 both consume. "
+        "It already carries `trade_id` on every loaded record, so the repair is a one-key "
+        "sort change — deliberately not made by an idle run: this module's outputs are "
+        "pinned by real-tape acceptance tests and feed Q51's closed milestone-3 verdict, so "
+        "changing the selected print is a verdict-class edit needing its own milestone and "
+        "the two-agent rule.",
+    "scripts/q54_s79_flow_continuation_probe.py":
+        "INCIDENTAL — L323's ORIGIN SITE, SEALED: `first_agreeing_print` picks the first "
+        "print at/after the decision instant; `load_all_prints` delegates to the Q51 loader "
+        "and re-sorts on `ts` alone. 76 of Q54's 148 entry prices change under a reversed "
+        "tie-break (headline DEAD-by-CI unaffected). The probe is sealed mid-verdict (L311) "
+        "and must NOT be edited; L323's own row assigns the repair to a future milestone "
+        "after S79's verdict is closed out.",
+    "scripts/q51_book_anchor_audit.py":
+        "INCIDENTAL (inherited): imports `load_prints` from the Q51 loader verbatim, so it "
+        "inherits that module's file-order tie-break. Its own reductions are bracket "
+        "membership and per-ticker counts over whole windows, which no tie order can change; "
+        "tracked so a future per-print selection added here is not silently exposed.",
+    "scripts/q51_m3_fill_projection.py":
+        "INCIDENTAL (inherited): consumes `M.load_prints` and projects fills against the "
+        "loaded print series, so it inherits the Q51 loader's file-order tie-break. Repair "
+        "belongs with the shared loader, not with a second copy here (L279's lesson).",
+    "scripts/q51_trade_print_joinability.py":
+        "ORDER-INSENSITIVE: sorts prints on `ts` with no explicit key, but every downstream "
+        "reduction is a count/coverage aggregate over a whole window, so no tie order can "
+        "change an output. NOTE its loader does not retain `trade_id` at all, so adopting an "
+        "explicit key here would need a loader change, not just a sort-key change.",
+    "scripts/q51_trade_tape_quality.py":
+        "ORDER-INSENSITIVE: sorts on `ts` for reporting; outputs are per-day histograms, "
+        "percentiles and enum censuses over whole populations — permutation-invariant.",
+
+    # ---- no print ordering at all (tracked so a future one cannot evade the ratchet) ----
+    "scripts/trade_print_tiebreak_audit.py":
+        "N/A BY CONSTRUCTION — this ratchet's own measurement half: it iterates prints in "
+        "FILE ORDER deliberately (file order is the artifact under study) and its statistics "
+        "are permutation-invariant group aggregates. Its one order-dependent statistic, "
+        "`chronological_concordance`, is restricted to untied singleton prints precisely to "
+        "avoid the estimator bias a tie-ordered sort induces.",
+    "scripts/q51_m3_preflight.py":
+        "N/A: imports the Q51 loader module but consumes `load_depth`/`reconstruct_sample` "
+        "(orderbook snapshots and the ticker sample) only — it never loads a print.",
+    "scripts/q52_q54_trades_backfill_phase1.py":
+        "N/A: a backfill PLANNER. Reads the family to enumerate tickers/games and to size a "
+        "pull; it selects no print and compares no price.",
+    "scripts/kalshi_trades_ticker_inventory.py":
+        "N/A: read-only per-SERIES inventory — counts prints and days. Set/count reductions "
+        "only, permutation-invariant.",
+    "scripts/kalshi_trades_backfill_population_audit.py":
+        "N/A: population/eligibility audit over ticker sets and settlement resolution; no "
+        "per-print selection.",
+    "scripts/settlement_coverage_audit.py":
+        "N/A: uses a trade-tape day-file only as a `--tickers-from` source (a set of "
+        "tickers); it never reads `created_time` or `yes_price`.",
+    "core/settlement_sources.py":
+        "N/A: the trade tape appears in a docstring example of how to harvest a ticker set. "
+        "This module resolves SETTLEMENTS and reads no print field.",
+
+    # ---- the writer whose append order IS the incidental tie-break ----
+    "collection/kalshi_trades.py":
+        "WRITER — the source of the artifact, and deliberately unchanged: its append order "
+        "is what 'file order' means for every consumer above. It already dedupes on "
+        "`trade_id` and persists it on every record, which is why an explicit key was "
+        "available to measure at all. Emitting prints in a declared order would change a "
+        "LIVE collector's write path (out of a research run's lane, same posture as "
+        "L221/L222) and would not repair the already-committed tape regardless — the fix "
+        "belongs on the READ side, where each consumer declares its own key.",
+}
+
+_TRADE_PRINT_TAPE_RE = re.compile(
+    r'(tape[/\\]kalshi_trades|["\']kalshi_trades["\']|kalshi_trades[/\\])')
+_TRADE_PRINT_LOADER_RE = re.compile(
+    r'\bimport\s+q51_maker_fillsim\b|\bq51_maker_fillsim\s+as\b'
+    r'|\bfrom\s+scripts\.q51_maker_fillsim\b')
+_TRADE_PRINT_TRIAGE_DIRS = ("scripts/", "execution/", "core/", "collection/")
+
+
+def inv_trade_print_tiebreak_triage(path: Path, text: str) -> Optional[str]:
+    """L323 GATING ratchet: any module under scripts/|execution/|core/|collection/ that
+    references the `kalshi_trades` print tape (or imports the shared `q51_maker_fillsim`
+    loader) must be triaged in TRADE_PRINT_TIEBREAK_TRIAGE (see the banner above), recording
+    which tie-break it relies on for exact-timestamp print ties: DECLARED (an explicit key
+    such as `trade_id`), INCIDENTAL (file order — a known, named exposure), ORDER-INSENSITIVE,
+    N/A, or WRITER. Fails closed: a new print consumer is a gate failure until the sentence
+    is written."""
+    if _file_excluded(path):
+        return None
+    rel = _rel(path)
+    if not rel.startswith(_TRADE_PRINT_TRIAGE_DIRS):
+        return None
+    if rel in TRADE_PRINT_TIEBREAK_TRIAGE:
+        return None
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#")
+            and (_TRADE_PRINT_TAPE_RE.search(ln) or _TRADE_PRINT_LOADER_RE.search(ln))]
+    if not hits:
+        return None
+    return _fmt(path, hits,
+                "UNTRIAGED trade-print consumer — lesson L323: 48.5% of committed "
+                "`kalshi_trades` prints sit in an exact-timestamp `(ticker, created_time)` "
+                "tie and 7,999 tie groups disagree on price, so any per-print selection has "
+                "a tie-break whether or not it declares one. Add this file to "
+                "TRADE_PRINT_TIEBREAK_TRIAGE in scripts/invariants.py stating which it "
+                "relies on (DECLARED / INCIDENTAL / ORDER-INSENSITIVE / N/A / WRITER); "
+                "measure with scripts/trade_print_tiebreak_audit.py")
+
+
 STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_gefs", inv_no_gefs),
     ("no_bare_pstdev", inv_no_bare_pstdev),
@@ -591,6 +736,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("risk_caps_sanctioned", inv_risk_caps_sanctioned),
     ("no_raw_datetime_fromisoformat", inv_no_raw_datetime_fromisoformat),
     ("collector_self_tape_read_triage", inv_collector_self_tape_read_triage),
+    ("trade_print_tiebreak_triage", inv_trade_print_tiebreak_triage),
 ]
 
 

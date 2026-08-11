@@ -3223,3 +3223,123 @@ def test_collector_self_tape_triage_settlement_ledger_keys_actually_persisted():
             if {"ticker", "close_time", "result", "settlement_value"} <= rec.keys():
                 checked += 1
     assert checked > 0, "expected at least one settlement_ledger record with the full dedup key"
+
+
+# ─── Trade-print tie-break triage (L323: GATING, allowlisted ratchet) ─────────
+
+def _trade_print_triage_failures_over_real_tree():
+    """Every failure message the L323 ratchet produces over the REAL repo source tree."""
+    out = []
+    for p in inv._iter_source_files():
+        if p.suffix != ".py":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        msg = inv.inv_trade_print_tiebreak_triage(p, text)
+        if msg:
+            out.append(msg)
+    return out
+
+
+def test_acceptance_trade_print_tiebreak_triage_real_tree_is_clean():
+    # HARD acceptance test anchored to the REAL tree: TRADE_PRINT_TIEBREAK_TRIAGE exactly
+    # covers today's trade-print consumers, so the ratchet is green NOW and any new module
+    # that touches the print tape turns it red until its tie-break is stated on the record.
+    assert _trade_print_triage_failures_over_real_tree() == []
+
+
+def test_trade_print_triage_entries_all_point_at_files_that_exist_and_trigger():
+    # Guards the other direction: a stale allowlist entry (file deleted, or no longer a print
+    # consumer) would silently widen the sanctioned set. Every entry must still match.
+    for rel in sorted(inv.TRADE_PRINT_TIEBREAK_TRIAGE):
+        path = ROOT / rel
+        assert path.exists(), f"triage entry for missing file: {rel}"
+        text = path.read_text(encoding="utf-8")
+        hit = any(
+            not ln.lstrip().startswith("#")
+            and (inv._TRADE_PRINT_TAPE_RE.search(ln) or inv._TRADE_PRINT_LOADER_RE.search(ln))
+            for _, ln in inv._scan_lines(text))
+        assert hit, f"triage entry no longer matches the trigger: {rel}"
+
+
+def test_trade_print_triage_covers_the_known_sealed_and_declared_sites():
+    # The two sites the lesson is actually about must be present and correctly characterised:
+    # Q54 is the sealed origin site (incidental file order), Q56 the one that already declared
+    # an explicit key. If either disappears from the allowlist the ratchet has lost its point.
+    t = inv.TRADE_PRINT_TIEBREAK_TRIAGE
+    assert t["scripts/q54_s79_flow_continuation_probe.py"].startswith("INCIDENTAL")
+    assert "SEALED" in t["scripts/q54_s79_flow_continuation_probe.py"]
+    assert t["scripts/q56_s80_print_vwap_overshoot_maker_fade.py"].startswith("DECLARED")
+    assert t["scripts/q51_maker_fillsim.py"].startswith("INCIDENTAL")
+    assert t["collection/kalshi_trades.py"].startswith("WRITER")
+
+
+def test_trade_print_triage_fires_on_an_untriaged_tape_reference():
+    src = 'TRADES = ROOT / "tape" / "kalshi_trades"\n'
+    msg = inv.inv_trade_print_tiebreak_triage(ROOT / "scripts" / "zz_new_probe.py", src)
+    assert msg is not None
+    assert "UNTRIAGED trade-print consumer" in msg
+    assert "L323" in msg
+    assert "TRADE_PRINT_TIEBREAK_TRIAGE" in msg
+    assert "trade_print_tiebreak_audit.py" in msg
+
+
+def test_trade_print_triage_fires_on_an_untriaged_shared_loader_import():
+    # The indirect path: a probe that never names the family but consumes the shared Q51
+    # loader inherits its file-order tie-break, so it must be triaged too.
+    p = ROOT / "scripts" / "zz_new_probe.py"
+    assert inv.inv_trade_print_tiebreak_triage(
+        p, "from scripts import q51_maker_fillsim as M\n") is not None
+    assert inv.inv_trade_print_tiebreak_triage(
+        p, "from scripts.q51_maker_fillsim import load_prints\n") is not None
+
+
+def test_trade_print_triage_matches_the_path_and_glob_forms():
+    p = ROOT / "scripts" / "zz_new_probe.py"
+    for src in ('g = "tape/kalshi_trades/dt=*.jsonl"\n',
+                'g = os.path.join(REPO, "tape", "kalshi_trades", "dt=*.jsonl")\n',
+                "d = base / 'kalshi_trades'\n"):
+        assert inv.inv_trade_print_tiebreak_triage(p, src) is not None, src
+
+
+def test_trade_print_triage_silent_on_a_triaged_consumer():
+    src = 'TRADES = ROOT / "tape" / "kalshi_trades"\n'
+    assert inv.inv_trade_print_tiebreak_triage(
+        ROOT / "scripts" / "q54_s79_flow_continuation_probe.py", src) is None
+
+
+def test_trade_print_triage_scoped_to_source_dirs_only():
+    # tests/ and top-level modules are out of scope: a fixture or a test naming the family is
+    # not a consumer whose selection rule anyone relies on.
+    src = 'TRADES = ROOT / "tape" / "kalshi_trades"\n'
+    assert inv.inv_trade_print_tiebreak_triage(ROOT / "tests" / "test_zz.py", src) is None
+    assert inv.inv_trade_print_tiebreak_triage(ROOT / "zz_top_level.py", src) is None
+
+
+def test_trade_print_triage_ignores_comment_lines():
+    src = '# reads tape/kalshi_trades some day\n'
+    assert inv.inv_trade_print_tiebreak_triage(
+        ROOT / "scripts" / "zz_new_probe.py", src) is None
+
+
+def test_trade_print_triage_does_not_fire_on_a_bare_prose_mention():
+    # Deliberate precision limit: a backticked family name with no path/quote/glob form is a
+    # prose reference (e.g. a lesson citation in a docstring), not a consumer.
+    src = 'x = 1  # noqa\n"""compare with the `kalshi_trades` family (L280)"""\n'
+    assert inv.inv_trade_print_tiebreak_triage(
+        ROOT / "scripts" / "zz_new_probe.py", src) is None
+
+
+def test_trade_print_triage_respects_file_exclusions():
+    src = 'TRADES = ROOT / "tape" / "kalshi_trades"\n'
+    assert inv.inv_trade_print_tiebreak_triage(
+        ROOT / "scripts" / "invariants.py", src) is None
+    assert inv.inv_trade_print_tiebreak_triage(
+        ROOT / "tests" / "test_invariants.py", src) is None
+
+
+def test_trade_print_triage_is_registered_as_a_gating_static_invariant():
+    names = [n for n, _ in inv.STATIC_INVARIANTS]
+    assert "trade_print_tiebreak_triage" in names
