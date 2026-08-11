@@ -359,16 +359,22 @@ def leg_pnl(rest_price: float, won: bool, rate: float = FEE_RATE) -> float:
 # --------------------------------------------------------------------------- #
 def build_rows(snaps: Dict[str, List[dict]], prints: Dict[str, List[dict]],
                settlement: Dict[str, dict], universe: Sequence[str]) -> Tuple[List[dict], dict]:
-    """One row per (ticker, interval, side). Drops (and counts) anything unscoreable."""
+    """One row per (ticker, interval, side). Drops (and counts) anything unscoreable.
+
+    `drops` counts INTERVALS only (L309: mixing a ticker-counted key into an interval-counted
+    dict makes `sum(drops.values())` meaningless). A ticker with <2 snapshots contributes ZERO
+    intervals by construction, so it is counted separately in `dropped_tickers`, never folded
+    into `drops`."""
     rows: List[dict] = []
     drops = {"no_settlement": 0, "non_binary_result": 0, "unsettled": 0,
-             "not_two_sided": 0, "post_close": 0, "single_snapshot": 0}
+             "not_two_sided": 0, "post_close": 0}
+    dropped_tickers = {"single_snapshot": 0}
     n_intervals = 0
     n_covered = 0
     for tk in universe:
         ss = snaps.get(tk) or []
         if len(ss) < 2:
-            drops["single_snapshot"] += 1
+            dropped_tickers["single_snapshot"] += 1
             continue
         sett = settlement.get(tk)
         if sett is None:
@@ -422,6 +428,7 @@ def build_rows(snaps: Dict[str, List[dict]], prints: Dict[str, List[dict]],
         "n_covered_intervals": n_covered,
         "interval_coverage": (n_covered / n_intervals) if n_intervals else None,
         "drops": drops,
+        "dropped_tickers": dropped_tickers,
     }
     return rows, stats
 
@@ -579,7 +586,7 @@ def main(argv: Optional[List[str]] = None) -> int:
           f"traded={p['sports_tickers_with_prints']}  settled+binary={p['binary_settlement_filter']}")
     print(f"[q51:fillsim] intervals={iv['n_intervals']}  covered={iv['n_covered_intervals']}  "
           f"coverage={iv['interval_coverage']}")
-    print(f"[q51:fillsim] drops={iv['drops']}")
+    print(f"[q51:fillsim] drops={iv['drops']}  dropped_tickers={iv['dropped_tickers']}")
     print(f"[q51:fillsim] fills traced to broker_truth prints: "
           f"{report['fill_traceability']['n_fills_traced_to_broker_truth_print']}"
           f"/{report['fill_traceability']['n_fills']}")

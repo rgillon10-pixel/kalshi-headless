@@ -221,7 +221,8 @@ def test_single_snapshot_ticker_contributes_no_interval():
     tk = "KXTESTGAME-26AUG03AB-A"
     rows, stats = M.build_rows({tk: [_snap(0)]}, {}, {tk: _settle()}, [tk])
     assert rows == [] and stats["n_intervals"] == 0
-    assert stats["drops"]["single_snapshot"] == 1
+    assert stats["dropped_tickers"]["single_snapshot"] == 1
+    assert "single_snapshot" not in stats["drops"]  # L309: never mixed into the interval dict
 
 
 def test_one_sided_book_is_dropped_never_mirrored_into_a_synthetic_quote():

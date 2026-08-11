@@ -327,23 +327,27 @@ def compression(rows: Sequence[dict], base: str, target: str) -> dict:
 
 
 def drops_unit_audit() -> dict:
-    """`scripts/q51_maker_fillsim.py::build_rows`'s `drops` dict MIXES UNITS: five keys count
-    INTERVALS (`+= len(ss) - 1`, or `+= 1` inside the per-interval loop) while
-    `single_snapshot` counts TICKERS (`+= 1` in the per-ticker loop, for a ticker that
-    contributes ZERO intervals). The dict is emitted under `report["intervals"]` beside
-    `n_intervals`, which invites reading every value as an interval count and summing them.
-    Read-only observation: milestone 3's spec requires the probe to run UNCHANGED, so this is
-    reported, not repaired. Same defect class as L289/L296 (a counter whose denominator means
-    two different things)."""
+    """Historical record of L309: `scripts/q51_maker_fillsim.py::build_rows`'s `drops` dict used
+    to MIX UNITS — five keys counted INTERVALS (`+= len(ss) - 1`, or `+= 1` inside the
+    per-interval loop) while `single_snapshot` counted TICKERS (`+= 1` in the per-ticker loop,
+    for a ticker that contributes ZERO intervals) — emitted under `report["intervals"]` beside
+    `n_intervals`, which invited reading every value as an interval count and summing them.
+    Milestone 3 (2026-08-10) was the last firing that required the probe to run byte-UNCHANGED;
+    once it fired, `single_snapshot` was moved to its own ticker-counted `dropped_tickers` dict
+    (2026-08-11, idle-run policy (a)) so `report['intervals']['drops']` is now homogeneous.
+    Same defect class as L289/L296 (a counter whose denominator means two different things)."""
     return {
         "keys_counting_intervals": ["no_settlement", "non_binary_result", "unsettled",
                                     "not_two_sided", "post_close"],
         "keys_counting_tickers": ["single_snapshot"],
-        "consequence": ("sum(drops.values()) is not a count of anything; a ticker with <2 "
-                        "snapshots contributes 0 intervals yet adds 1 to the dict"),
+        "consequence_historical": ("before the repair, sum(drops.values()) was not a count of "
+                                   "anything; a ticker with <2 snapshots contributed 0 intervals "
+                                   "yet added 1 to the dict"),
         "milestone_2_observed": {"single_snapshot": 3, "unsettled": 145},
-        "repair_status": ("REPORTED NOT REPAIRED — milestone 3 requires "
-                          "scripts/q51_maker_fillsim.py to run UNCHANGED"),
+        "repair_status": ("REPAIRED (2026-08-11, idle-run policy (a), L309 disposition) — "
+                          "scripts/q51_maker_fillsim.py::build_rows now reports "
+                          "single_snapshot under a separate dropped_tickers dict; "
+                          "report['intervals']['drops'] counts intervals only."),
     }
 
 
