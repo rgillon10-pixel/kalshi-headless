@@ -68,16 +68,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.bootstrap import block_bootstrap, clears_tick_magnitude  # noqa: E402
 from core.pricing import (  # noqa: E402
     MAKER_FEE_RATE,
+    POLYMARKET_MAKER_REBATE_CONSERVATIVE,
+    POLYMARKET_MAKER_REBATE_US,
     TAKER_FEE_RATE,
     fee_per_contract,
     polymarket_fee_per_contract,
 )
 
-# ── Counterfactual fee-line constants (INDICATIVE for the rebates, pool-funded — NOT sanctioned
-# core rates; the Polymarket taker rate IS a core.pricing constant). Same provenance as Q35:
-# LOOP-QUEUE.md 2026-07-15 regime-change note (~+0.5c conservative, ~+1.25c Polymarket-US). ──
-PM_MAKER_REBATE_CONSERVATIVE = 0.005   # +$0.005/contract maker rebate (conservative)
-PM_MAKER_REBATE_US = 0.0125            # +$0.0125/contract maker rebate (Polymarket-US figure)
+# ── Counterfactual fee-line constants (INDICATIVE for the rebates, pool-funded). Same
+# provenance as Q35: LOOP-QUEUE.md 2026-07-15 regime-change note (~+0.5c conservative, ~+1.25c
+# Polymarket-US). Since 2026-08-12 (L343) they are ALIASES of the one sanctioned
+# fee-coefficient site, `core.pricing` — they used to be independent literals duplicating Q35's
+# own copies, so a revision of the indicative figure could have landed in one script and not the
+# other while both re-price the SAME graveyard strategies. Values unchanged by the move. ──
+PM_MAKER_REBATE_CONSERVATIVE = POLYMARKET_MAKER_REBATE_CONSERVATIVE  # +$0.005/contract
+PM_MAKER_REBATE_US = POLYMARKET_MAKER_REBATE_US                      # +$0.0125/contract
 
 PRICE_TICK = 0.01
 MIN_CI_UNITS = 10  # shared data-adequacy floor (S19/Q24/Q27/Q30/S24 all use it)

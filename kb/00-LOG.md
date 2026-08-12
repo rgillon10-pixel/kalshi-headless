@@ -6,6 +6,72 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-12 ~18:xx UTC — research loop: IDLE RUN policy (a), L343 — the one-site fee rule was blind to the SECOND venue, and the coefficient it missed had already been copied
+
+Queue drained again (full Q0-Q56 read of each item's LATEST status; the same-day `kalshi-edge-hunter` Q21
+round #28 independently found 0 eligible), so idle-run policy (a). **Step 0b first, and it was not a
+no-op:** two stranded collector branches (`tape/hourly-20260812T1318Z`, `tape/hourly-20260812T1605Z`)
+carried real content — union-appended **+27,431 lines** into `main`'s `dt=2026-08-12` day-files across 9
+families (crypto_hourly +8, hyperliquid_funding +2, orderbook_depth +4,000, perp_tape +34,
+polymarket_macro_pairs +84, sports_pairs +2,677, universe_sweep +20,000, weather_actuals +20 [a day-file
+`main` did not have at all], weather_books +606). The big numbers are the capture_id-granularity path: for
+day-files over the sweep's size guard the check is per-capture_id, and ONE missing bulk-family capture_id
+is thousands of lines. Order preserved, every appended line validated as a JSON object
+(`missing_line_is_appendable`, L247), nothing rewritten or reordered; `scripts/tape_branch_sweep.py
+--assert-contained` re-run against this run's OWN post-append tree per L301 -> both branches `CONTAINED`,
+exit 0.
+
+**The milestone.** Re-derived the open UNENFORCED set with the ledger's own scanner and read the
+enforcement cells rather than trusting the markers. **L5**'s cell still said "UNENFORCED as a static 'no
+hand-rolled fee constants' invariant" — but that invariant HAS existed for a long time
+(`inv_no_handrolled_fee_rate`, gating). Reading it is what found the real defect: it bans the KALSHI
+schedule BY VALUE (0.07 / 0.0175 / 0.035), and Polymarket's schedule — 0.05 (US + intl-sports taker), 0.03
+(the optimistic sports floor), and the indicative maker rebates 0.005 / 0.0125 — is made of numbers far too
+common to ban that way (`NEAR_ZERO_FILL_RATE = 0.05` is a FILL rate; `EDGE_BAR = 0.05` is a threshold).
+So the rule was silent while **the same two rebate figures lived as four literals in two files**:
+`scripts/q35_maker_rebate_reframe.py` (whose "2/5 flip to a fee-line CI-positive candidate" reading rests
+on them) and `scripts/q39_graveyard_counterfactual_sweep.py` (which re-prices the SAME graveyard
+strategies under the SAME rebate). Both carried a comment arguing the duplication was fine because the
+figures are "INDICATIVE ... NOT a sanctioned core rate" — which is precisely how a money coefficient
+acquires two homes: revise one, miss the other, and two scripts disagree about one counterfactual with no
+test able to see it.
+
+**Built:** (1) `core/pricing.py` gains `POLYMARKET_MAKER_REBATE_US = 0.0125` and
+`POLYMARKET_MAKER_REBATE_CONSERVATIVE = 0.005` at the one sanctioned fee-coefficient site, with the units
+stated explicitly; both probes now import them and keep their old module-level names as ALIASES, so every
+caller, test and report key is untouched and **no number moved**. (2) A new GATING invariant
+`scripts/invariants.py::inv_polymarket_fee_coeff_sanctioned` keyed on the CONJUNCTION rather than the
+value — a module-level CONSTANT whose name carries both a venue token (POLY/POLYMARKET/PM) and a
+fee-family token (FEE/RATE/REBATE/COEFF) and binds a schedule literal, plus a production-only shape for a
+literal passed positionally into `polymarket_fee_per_contract()`. Live tree AFTER: **0** sites (was 4 in 2
+files). (3) **13 new tests** in `tests/test_invariants.py`: 7 fire-cases, 7 must-not-fire cases, the
+comment-line and sanctioned-site misses, a production-only/tests-exempt pin, a HARD real-tree acceptance
+test asserting 0 live sites, and an acceptance test that both probes resolve to the SAME core object at
+the pre-move values. TWO DELIBERATE BLIND SPOTS are pinned as MISSes: a lowercase kwarg at a call site
+(`pm_rate=0.05`) and the call-site shape inside `tests/` — an explicitly-passed rate there is a
+sensitivity or fixture value, not a second home for the schedule (the live case,
+`tests/test_q31_cross_venue_arb_probe.py:77`, already pins the schedule against the core constant on its
+own separate line). The rule guards where a coefficient LIVES, not everywhere one is quoted.
+
+**Named open question, deliberately NOT resolved:** both probes model the rebate as a FLAT $/contract
+income line, while LOOP-QUEUE.md's 2026-07-15 regime-change note lists "maker rebate ~-0.0125" inside a
+sentence otherwise listing RATES. At 50c the two readings differ 4x ($0.0125 flat vs 0.0125*0.5*0.5 =
+$0.003125 through the p*(1-p) shape). Consolidating a site must not silently move a number, so the value
+is unchanged and the ambiguity is recorded at the one place a future milestone would change it. New lesson
+**L343**; **L5**'s stale cell corrected with the original preserved verbatim (L152 own-row-update rule,
+L25/L74/L109/L120/L123 precedent). Q35's queue status re-stated as UNCHANGED — this is not its Milestone B
+(that is the Polymarket collector, still gated).
+
+**No verdict-class output** — no registry flip, no bootstrap CI, no P&L, no kill decision;
+`kb/strategies/00-index.md` untouched. Two-agent rule N/A for a lesson->invariant conversion
+(L104/L110/L118/L126/L127/L137 precedent) and unsatisfiable regardless: this harness exposes no
+`Task`/subagent tool (L287/L288/L290/L291/L295/L342 precedent). **Step-9 paper sub-pass:**
+`SHADOW_REGISTRY` non-empty (`s14_ladder_underwriting`); `scripts/paper_pass.py` -> 0 processed / 0
+deferred(caps) / 276 deferred(coverage) / 300 already-in-ledger, no new `paper/` lines; `daily_summary()`:
+0 open positions, 1657 settled contracts, realized P&L **$+27.76** unchanged (paper tier, evidence not
+verdict). **Gates after the last code change (L162):** `python3 scripts/invariants.py --full` exit **0**,
+all green (pre-existing non-gating advisories only); `python3 -m pytest -q -p xdist -n 4` -> **3,950 passed, 0 failed, 1 warning, exit 0** (50m47s, 4-way parallel; count taken AFTER this diff's last CODE change — only documentation lines were edited afterwards, per L162).
+
 ## 2026-08-12 ~13:xx UTC — research loop: IDLE RUN policy (a), L321 enforced — the minority-side floor counts the wrong units, and the defect is worse on today's larger tape
 
 Queue drained (Q21 round #28 rescan same day found 0 eligible items), so idle-run policy (a): re-derived the open UNENFORCED set with the ledger's own scanner (338 rows, 42 marked, 33 disposed, **9 open** — L213/L221/L222/L282/L319/L320/L321/L323/L338) and took **L321**, the only row with a buildable in-lane enforcement (the rest are Ryan-lane write-path halves, terminal-by-admission residuals, Q42-frozen, or prose-only). Built three halves around a repair that may not be made: (1) `core/bootstrap.py::minority_side_unit_census` + `::sign_variation_admissible` — reports `units_per_side` (TOUCHING, the pre-L321 semantics) beside `exclusive_units_per_side`/`n_mixed_units` and floors on the EXCLUSIVE count, sibling to `bootstrap_verdict_admissible` (L41) and `clears_tick_magnitude` (L27); (2) `scripts/invariants.py::inv_minority_side_gate_triage` — GATING fail-closed ratchet (`MINORITY_SIDE_GATE_TRIAGE`), every module carrying the `minority_side*`/`sign_variation*` shape must declare which count its floor uses, same discipline as L319/L323; (3) `scripts/q54_minority_exclusivity_audit.py` — re-derives Q54's population through the SEALED probe's own outcome-blind path inside a context manager that stubs `outcome_map`/`score_rows` to raise, so it cannot read a settlement direction or a P&L, and writes nothing unless `--json PATH` is passed. **Measured over all 6 committed trade days (221 entry candidates, 214 scoreable, 45 game units, `broker_truth`): touching `{no: 6, yes: 45}` — the sealed gate OPEN at 3x its floor of 2 — while EXCLUSIVE is `{no: 0, yes: 39}`, all 6 minority units mixed, so L321's rule reads SHUT.** New lesson **L342**: this defect does not self-heal with more tape, it degrades — units 24→45 and minority-touching 2→6 since 08-09 while exclusive stayed 0, because at Kalshi's 80/20 retail buy skew (L279) a NO entry almost always lands in a game that also produced YES entries. `scripts/q54_s79_flow_continuation_probe.py` untouched (L311 seal intact, digest unchanged); L321's cell moved per the L152 own-row-update rule with the original preserved verbatim; the repair half stays genuinely UNENFORCED. **No verdict-class output** — no registry flip, no CI, no P&L, no kill; S79 stays DEAD, `kb/strategies/00-index.md` untouched. No `Task`/subagent tool in this harness (L287/L288/L290/L291/L295 precedent), so the two-agent rule was unsatisfiable and not required; the headline numbers were computed twice on independent reductions as redundancy, explicitly not verification. Step-9 paper sub-pass ran (SHADOW_REGISTRY non-empty, S14): 0 processed, 274 deferred(coverage), 300 already-in-ledger, realized P&L $+27.76, no new ledger lines. Gates after the last edit: `python scripts/invariants.py --full` **exit 0, all green** (2m38s; only drift is the L152 stale-candidate advisory 13→17 hits across 5→6 rows, by design); `pytest` **3,928 collected**, touched files fresh-green (162 passed on `tests/test_bootstrap.py` + `tests/test_q54_minority_exclusivity_audit.py`; 30 passed/343 deselected on the ledger- and ratchet-sensitive `tests/test_invariants.py` selection), full-suite stated as a floor per L162 — **≥3,730 of 3,928 executed, 0 failed** (the suite's slowest file exceeds this sandbox's practical wall-clock; this diff touches it only additively).

@@ -54,16 +54,24 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.bootstrap import block_bootstrap, clears_tick_magnitude  # noqa: E402
-from core.pricing import MAKER_FEE_RATE, fee_per_contract  # noqa: E402
+from core.pricing import (  # noqa: E402
+    MAKER_FEE_RATE,
+    POLYMARKET_MAKER_REBATE_CONSERVATIVE,
+    POLYMARKET_MAKER_REBATE_US,
+    fee_per_contract,
+)
 
-# ── Polymarket maker-rebate constants (INDICATIVE, pool-funded — NOT a sanctioned core rate) ──
-# Q35 spec: there is no `POLYMARKET_MAKER_REBATE` in core/pricing.py yet (that is Milestone B's
-# job, gated on the Polymarket collector — out of scope here). Fee Structure V2 makes Polymarket
-# TAKER-only and PAYS makers a rebate funded from the taker-fee pool; the rate is indicative and
-# varies with volume (LOOP-QUEUE.md 2026-07-15 regime-change note: ~+0.5c/contract conservative,
-# ~+1.25c/contract the Polymarket US venue figure). These are local script constants ONLY.
-POLYMARKET_REBATE_CONSERVATIVE = 0.005   # +$0.005/contract — conservative maker rebate
-POLYMARKET_REBATE_US = 0.0125            # +$0.0125/contract — Polymarket US venue figure
+# ── Polymarket maker-rebate constants (INDICATIVE, pool-funded) ───────────────────────────
+# HISTORY (2026-08-12, L343): these two figures used to be LOCAL literals here, on the reasoning
+# that core/pricing.py had no `POLYMARKET_MAKER_REBATE` yet and adding one was Milestone B's job.
+# `scripts/q39_graveyard_counterfactual_sweep.py` then copied the same two numbers, so ONE money
+# coefficient existed as FOUR literals across two scripts that re-price the same graveyard
+# strategies. The constants now live at the one sanctioned fee-coefficient site
+# (`core.pricing`); these module-level names are kept as ALIASES so every existing caller, test
+# and report key is unchanged. VALUES ARE IDENTICAL — the consolidation moved no number, and the
+# flat-dollars-vs-rate ambiguity in the source is recorded (unresolved) in core/pricing.py + L343.
+POLYMARKET_REBATE_CONSERVATIVE = POLYMARKET_MAKER_REBATE_CONSERVATIVE  # +$0.005/contract
+POLYMARKET_REBATE_US = POLYMARKET_MAKER_REBATE_US                      # +$0.0125/contract
 
 PRICE_TICK = 0.01
 

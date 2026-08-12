@@ -151,6 +151,31 @@ POLYMARKET_US_TAKER_RATE = 0.05   # Polymarket US (QCX/QCEX) taker — Ryan's re
 POLYMARKET_SPORTS_TAKER_RATE = 0.05             # conservative (harder bar): high end of 0.03–0.05
 POLYMARKET_SPORTS_TAKER_RATE_OPTIMISTIC = 0.03  # sensitivity floor: most-generous end of the range
 
+# ─── Polymarket MAKER-REBATE figures — the counterfactual fee line (Q35 / Q39, L343) ─────
+# Fee Structure V2 is TAKER-only and PAYS makers a rebate funded out of the taker-fee pool.
+# These two figures are INDICATIVE (volume-tiered, not a published fixed schedule) and are the
+# ones LOOP-QUEUE.md's 2026-07-15 regime-change note names: ~+0.5c/contract conservative,
+# ~+1.25c/contract the Polymarket-US venue figure. They live HERE, not in a probe, for the same
+# reason every other fee coefficient does: core/pricing.py is the ONE sanctioned fee-coefficient
+# site (Hard-rule lineage L5/L36), and until 2026-08-12 these exact two numbers existed as FOUR
+# separate literals in two probe files (`scripts/q35_maker_rebate_reframe.py`,
+# `scripts/q39_graveyard_counterfactual_sweep.py`) that re-price the SAME graveyard strategies —
+# a revision applied to one and missed in the other would have made the two scripts disagree
+# about the same counterfactual with no test able to see it (L343).
+#
+# UNITS, stated explicitly because the source is ambiguous and this is a MONEY coefficient:
+# both probes model the rebate as a FLAT DOLLARS-PER-CONTRACT income line added to a P&L
+# (`new_pnl = as_is_pnl + kalshi_fee + rebate`), NOT as a `rate` fed through the p*(1-p) shape
+# that `polymarket_fee_per_contract` applies. The regime-change note lists "maker rebate
+# ~-0.0125" inside a sentence otherwise listing RATES, so a rate reading is also possible; at
+# 50c the two readings differ 4x (flat $0.0125 vs 0.0125*0.5*0.5 = $0.003125). NOT resolved
+# here and NOT changed: consolidating the site must not silently move a number. The open
+# question is recorded in L343; whichever reading a future milestone establishes, it now has
+# exactly one place to change. Consumers that need the p*(1-p) shape should pass a RATE to
+# `polymarket_fee_per_contract` instead of using these flat figures.
+POLYMARKET_MAKER_REBATE_CONSERVATIVE = 0.005   # +$0.005/contract  (flat, indicative)
+POLYMARKET_MAKER_REBATE_US = 0.0125            # +$0.0125/contract (flat, indicative, PM-US)
+
 
 def polymarket_fee_per_contract(price: float, rate: float = POLYMARKET_US_TAKER_RATE) -> float:
     """Polymarket taker fee per contract, in dollars: fee = rate · P · (1−P) (Fee Structure V2,

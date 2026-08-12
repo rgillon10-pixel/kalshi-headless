@@ -31,6 +31,7 @@ VIOLATIONS = {
     "no_yes_ask_arithmetic": "p = yes_ask / bracket_sum",
     "no_static_rho_point_four": "rho = 0.4",
     "no_handrolled_fee_rate": "FEE_RATE = 0.07",
+    "polymarket_fee_coeff_sanctioned": "POLYMARKET_MAKER_REBATE_US = 0.0125",
     "no_http_server": "from fastapi import FastAPI",
     "order_endpoints_confined": "resp = client.place_order(ticker, px, qty)",
     "risk_caps_sanctioned": "MAX_CONTRACTS_PER_ORDER = 500",
@@ -110,6 +111,116 @@ def test_fee_rate_rule_silent_on_benign_substring_names(snippet):
     # pattern A is token-delimited: fee/rate/coeff must be a whole underscore-delimited
     # segment, so identifiers that merely CONTAIN the substring must not fire (verifier catch).
     assert not any("[no_handrolled_fee_rate]" in f for f in inv.scan_text(GENERIC, snippet))
+
+
+# ─── polymarket_fee_coeff_sanctioned (L343) ───────────────────────────────────
+# The Kalshi-schedule rule above cannot see the Polymarket schedule (0.05 / 0.03 / 0.005 /
+# 0.0125): those literals are far too common to ban by value, so this rule keys on the
+# CONJUNCTION of a venue token and a fee-family token in a module-level CONSTANT name.
+
+@pytest.mark.parametrize("snippet", [
+    "POLYMARKET_MAKER_REBATE_US = 0.0125",        # the exact literal L343 found duplicated
+    "PM_MAKER_REBATE_CONSERVATIVE = 0.005",       # the q39 copy of the same figure
+    "POLYMARKET_REBATE_US = 0.0125",              # the q35 copy (no FEE/RATE token, REBATE is)
+    "PM_TAKER_FEE = .05",                         # leading-dot literal form
+    "FEE_RATE_PM = 0.03",                         # tokens in the reverse order still fire
+    "POLYMARKET_US_TAKER_RATE: float = 0.05",     # annotated form
+    "fee = polymarket_fee_per_contract(p, 0.03)",  # positional literal into the PM fee call
+])
+def test_polymarket_fee_coeff_rule_fires(snippet):
+    failures = inv.scan_text(GENERIC, snippet)
+    assert any("[polymarket_fee_coeff_sanctioned]" in f for f in failures), (snippet, failures)
+
+
+def test_polymarket_fee_coeff_rule_exempt_in_sanctioned_pricing_site():
+    # core/pricing.py is the single home of every fee coefficient, Kalshi's and Polymarket's.
+    assert inv.scan_text(ROOT / "core" / "pricing.py", "POLYMARKET_US_TAKER_RATE = 0.05") == []
+
+
+def test_polymarket_fee_coeff_rule_skips_comment_lines():
+    assert not any("[polymarket_fee_coeff_sanctioned]" in f
+                   for f in inv.scan_text(GENERIC, "# PM_MAKER_REBATE_US = 0.0125 (the figure)"))
+
+
+@pytest.mark.parametrize("snippet", [
+    "NEAR_ZERO_FILL_RATE = 0.05",       # a FILL rate (s19) — same literal, not a fee
+    "EDGE_BAR = 0.05",                  # a threshold (weather_rehab_s5) — no venue/fee token
+    "PM_PRICE = 0.05",                  # venue token but no fee-family token
+    "MIN_RATE = 0.05",                  # fee-family token but no venue token
+    "PM_MAKER_REBATE_US = POLYMARKET_MAKER_REBATE_US",  # the ALIAS shape the repair uses
+    "PM_TAKER = 'pm_taker_fee'",        # a config STRING, not a coefficient
+    "PM_FEE_RATE = 0.0175",             # a KALSHI literal — the L5 rule's job, not this one
+])
+def test_polymarket_fee_coeff_rule_silent_on_non_coefficients(snippet):
+    assert not any("[polymarket_fee_coeff_sanctioned]" in f
+                   for f in inv.scan_text(GENERIC, snippet))
+
+
+@pytest.mark.parametrize("snippet", [
+    "    e = two_legged_arb_edge(0.3, 0.6, pm_rate=0.05)",
+    "    disl = dislocation_scan(b, poly_fee_rate=0.05)",
+])
+def test_polymarket_fee_coeff_rule_deliberately_misses_lowercase_call_kwargs(snippet):
+    """DELIBERATE BLIND SPOT, pinned so it is a decision and not an accident.
+
+    Passing an explicit rate into a function that TAKES a rate parameter is a legitimate
+    sensitivity or unit-test call (both snippets are real live call sites), not a second
+    home for the schedule. The rule guards where a coefficient LIVES. If this ever needs
+    tightening it must come with a way to tell a sensitivity call from a hand-rolled one."""
+    assert not any("[polymarket_fee_coeff_sanctioned]" in f
+                   for f in inv.scan_text(GENERIC, snippet))
+
+
+def test_polymarket_fee_coeff_call_shape_is_production_only():
+    """Shape (B) fires in a probe and is silent in a test — the second declared blind spot.
+
+    A literal rate fed to the fee function inside `tests/` is a FIXTURE value (the live case:
+    tests/test_q31_cross_venue_arb_probe.py round-trips an explicitly-passed rate, and pins the
+    schedule itself against `core.pricing.POLYMARKET_US_TAKER_RATE` on its own separate line).
+    The same line in a probe is a hand-rolled coefficient."""
+    line = "    fee = polymarket_fee_per_contract(p, 0.05)\n"
+    assert any("[polymarket_fee_coeff_sanctioned]" in f
+               for f in inv.scan_text(ROOT / "scripts" / "some_probe.py", line))
+    assert not any("[polymarket_fee_coeff_sanctioned]" in f
+                   for f in inv.scan_text(ROOT / "tests" / "test_some_probe.py", line))
+    # shape (A) is NOT carved out for tests/ — a module constant there is still a second home
+    assert any("[polymarket_fee_coeff_sanctioned]" in f
+               for f in inv.scan_text(ROOT / "tests" / "test_some_probe.py",
+                                      "PM_MAKER_REBATE_US = 0.0125\n"))
+
+
+def test_acceptance_live_tree_has_no_handrolled_polymarket_coefficient():
+    """HARD acceptance test against the REAL tree: after the L343 repair the whole repo has
+    ZERO hand-rolled Polymarket coefficients. Before it, `scripts/q35_maker_rebate_reframe.py`
+    and `scripts/q39_graveyard_counterfactual_sweep.py` carried four."""
+    hits = []
+    for path in inv._iter_source_files():
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        out = inv.inv_polymarket_fee_coeff_sanctioned(path, text)
+        if out:
+            hits.append(out)
+    assert hits == [], hits
+
+
+def test_acceptance_the_two_repaired_probes_read_the_sanctioned_constant():
+    """The repair's substance, not just its absence of literals: both graveyard-counterfactual
+    probes must resolve to the SAME object as core.pricing, so a future revision of the
+    indicative rebate figure cannot land in one script and miss the other (L343)."""
+    import importlib
+
+    pricing = importlib.import_module("core.pricing")
+    q35 = importlib.import_module("scripts.q35_maker_rebate_reframe")
+    q39 = importlib.import_module("scripts.q39_graveyard_counterfactual_sweep")
+    assert q35.POLYMARKET_REBATE_US == pricing.POLYMARKET_MAKER_REBATE_US == 0.0125
+    assert q39.PM_MAKER_REBATE_US == pricing.POLYMARKET_MAKER_REBATE_US
+    assert q35.POLYMARKET_REBATE_CONSERVATIVE == pricing.POLYMARKET_MAKER_REBATE_CONSERVATIVE
+    assert q39.PM_MAKER_REBATE_CONSERVATIVE == pricing.POLYMARKET_MAKER_REBATE_CONSERVATIVE
+    # and the consolidation moved NO number (the values the two probes used before the move)
+    assert (pricing.POLYMARKET_MAKER_REBATE_US,
+            pricing.POLYMARKET_MAKER_REBATE_CONSERVATIVE) == (0.0125, 0.005)
 
 
 # ─── stranded-tape warning (L17: non-gating advisory) ─────────────────────────

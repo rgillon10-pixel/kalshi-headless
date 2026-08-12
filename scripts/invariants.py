@@ -231,6 +231,65 @@ def inv_no_handrolled_fee_rate(path: Path, text: str) -> Optional[str]:
                 "SP500_NDX_FEE_RATE, never a literal") if hits else None
 
 
+def inv_polymarket_fee_coeff_sanctioned(path: Path, text: str) -> Optional[str]:
+    """L343 No hand-rolled POLYMARKET fee/rebate coefficient outside core/pricing.py.
+
+    `inv_no_handrolled_fee_rate` (L5) bans the KALSHI schedule literals (0.07 / 0.0175 /
+    0.035) wherever a fee-ish identifier binds one. It cannot see the Polymarket schedule:
+    those coefficients are 0.05 (US + intl-sports taker), 0.03 (intl-sports optimistic
+    floor), and the indicative maker rebates 0.005 / 0.0125 — and those literals are far too
+    common in this repo to ban by value alone (`NEAR_ZERO_FILL_RATE = 0.05` is a FILL rate,
+    `EDGE_BAR = 0.05` is a threshold; neither is a fee). So this rule keys on the
+    CONJUNCTION: a module-level CONSTANT whose name carries BOTH a Polymarket venue token
+    (POLY / POLYMARKET / PM) AND a fee-family token (FEE / RATE / REBATE / COEFF), bound to
+    a Polymarket schedule literal. That conjunction is what a hand-rolled venue coefficient
+    looks like, and the 2026-08-12 live tree had exactly two files carrying four of them
+    (`scripts/q35_maker_rebate_reframe.py`, `scripts/q39_graveyard_counterfactual_sweep.py`
+    — the SAME two numbers, duplicated, in two scripts that re-price the same graveyard
+    strategies; see L343). Shape (B) additionally catches a schedule literal passed
+    positionally into `polymarket_fee_per_contract()`, mirroring L5's pat_b.
+
+    TWO DELIBERATE BLIND SPOTS, both pinned as MISSes in tests so they are decisions and
+    not accidents: (1) a lowercase kwarg at a CALL site (`two_legged_arb_edge(...,
+    pm_rate=0.05)`) does NOT fire — passing an explicit rate into a function that takes a
+    rate parameter is a legitimate sensitivity call, not a second home for the schedule;
+    (2) shape (B) is skipped inside `tests/`, where a literal fed to the fee function is a
+    FIXTURE value (`polymarket_fee_per_contract(0.3, 0.05)` in
+    tests/test_q31_cross_venue_arb_probe.py round-trips an explicitly-passed rate; that
+    file already pins the schedule itself against the core constant on its own line). The
+    rule guards where a coefficient LIVES, not every place one is quoted; shape (A) still
+    applies inside tests/, because a module-level constant there IS a second home.
+
+    Comment lines are skipped (L5's convention). core/pricing.py is the sanctioned site."""
+    if _file_excluded(path) or _rel(path) == SANCTIONED["fee_rate"]:
+        return None
+    # (A) module-level CONSTANT: <...POLY|POLYMARKET|PM...> and <...FEE|RATE|REBATE|COEFF...>
+    #     bound to a Polymarket schedule literal. Both tokens must be whole underscore-delimited
+    #     segments, in either order (POLYMARKET_MAKER_REBATE_US / PM_TAKER_FEE / FEE_RATE_PM).
+    seg = r'[A-Z0-9]+'
+    venue = r'(?:POLY|POLYMARKET|PM)'
+    fam = r'(?:FEE|RATE|REBATE|COEFF)'
+    pat_a = re.compile(
+        r'^(?=[A-Z0-9_]*_?' + venue + r'(?:_|\b))'
+        r'(?=[A-Z0-9_]*_?' + fam + r'(?:_|\b))'
+        r'[A-Z0-9_]+\s*(?::\s*[a-zA-Z_.\[\]]+\s*)?=\s*0?\.(?:05|03|0125|005)\b'
+    )
+    # (B) positional schedule literal into the Polymarket fee call — production code only
+    #     (see the blind-spot note above for why tests/ is exempt from THIS shape).
+    in_tests = _rel(path).startswith("tests/")
+    pat_b = re.compile(r'polymarket_fee_per_contract\s*\([^)]*[,(]\s*0?\.(?:05|03|0125|005)\b')
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#")
+            and (pat_a.search(ln) or (not in_tests and pat_b.search(ln)))]
+    return _fmt(path, hits,
+                "hand-rolled Polymarket fee/rebate coefficient — lesson L343 (the same two "
+                "indicative rebate figures lived as four literals in two probes that re-price "
+                "the same strategies): import core.pricing.POLYMARKET_US_TAKER_RATE / "
+                "POLYMARKET_SPORTS_TAKER_RATE[_OPTIMISTIC] / "
+                "POLYMARKET_MAKER_REBATE_US / POLYMARKET_MAKER_REBATE_CONSERVATIVE, "
+                "never a literal") if hits else None
+
+
 def inv_no_http_server(path: Path, text: str) -> Optional[str]:
     """#6 No FastAPI / HTTP server framework."""
     if _file_excluded(path):
@@ -834,6 +893,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_yes_ask_arithmetic", inv_no_yes_ask_arithmetic),
     ("no_static_rho_point_four", inv_no_static_rho_point_four),
     ("no_handrolled_fee_rate", inv_no_handrolled_fee_rate),
+    ("polymarket_fee_coeff_sanctioned", inv_polymarket_fee_coeff_sanctioned),
     ("no_http_server", inv_no_http_server),
     ("order_endpoints_confined", inv_order_endpoints_confined),
     ("no_private_ws_channel_subscription", inv_no_private_ws_channel_subscription),
