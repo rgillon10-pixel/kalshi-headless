@@ -2554,6 +2554,44 @@ aimed at populations whose book tape already exists (never venue-wide — storag
 **Honest expectation:** this is an INPUT, not an edge. It reopens a family that died for lack
 of measurement; it does not predict that family now clears the bar.
 
+Status: **L337 CONVERTED — QUEUE-AWARE FILL-SIM SENSITIVITY BUILT, PROVISIONAL pending
+independent verifier confirmation (dispatched same run).** (2026-08-12, research loop, IDLE RUN
+policy (a) — full Q0-Q56 rescan found every numbered item DONE/BLOCKED/CLOSED/DEAD/gated, so
+this run converts an UNENFORCED lesson per the v3 idle-run policy.) **Q51 milestone 3's own
+verdict is UNCHANGED** (S13/S23/S29 stay `dead ✗`, no registry flip, no new kill/edge). Of the 10
+genuinely open `UNENFORCED` rows (re-derived via `scripts.invariants._parse_lesson_rows`/
+`_lesson_disposed_ids`, filtered to rows whose enforcement cell actually STARTS WITH
+"UNENFORCED" after stripping markdown bold — a naive substring match false-positives at 68
+because most rows quote "UNENFORCED" inside preserved historical text): L213/L221/L222/L282 are
+Ryan-action/collector-write-path lanes, L319/L320/L321 defer to a future milestone or are
+semantic-judgment halves, L323's buildable half already landed 2026-08-11, L338 is explicitly
+"not statically assertable" per its own cell — **L337 was the one fresh, unclaimed, buildable
+row.** Built `scripts/q51_queue_aware_fillsim.py` (+`tests/test_q51_queue_aware_fillsim.py`, 36
+tests): a companion probe (not a flag on `scripts/q51_maker_fillsim.py`, which carries a binding
+forbidden-token invariant against "queue" in its own report) importing the headline probe's
+readers/predicates/fee/bootstrap/admissibility machinery unchanged, applying the "most generous
+queue-aware credit rule" the 2026-08-11 verifier used ad hoc: resting size = the order's own-side
+ladder at its own price on the entry snapshot, qualifying volume = the SUM of every qualifying
+print's `count` in the interval, credited iff cumulative qualifying volume `>=` resting size
+(inclusive — strict `>` pinned as a DIFFERENT, wrong answer via regression test: 24 fills/8.163%/
+mean +$0.002449). Reproduces the ad hoc numbers exactly from committed tape (seed=42,
+n_boot=10000): 64→**25** fills, 21.769%→**8.503%**, mean +$0.010068→**+$0.000714**, CI
+**[-$0.010387, +$0.012823]**, 24→**14** informative units — every deterministic count exact.
+Also disambiguates the original "6.2% cleared by a single print" figure to the *earliest
+qualifying* print specifically (the "largest print in interval" reading gives 20.3% instead).
+Registered in the L323 trade-print tie-break triage (`scripts/invariants.py`): order-insensitive
+on the verdict, incidental-inherited on one diagnostic only (measured, not asserted — see
+`kb/lessons/00-lessons.md` L337). **Two-agent rule:** a `verifier` agent was dispatched this same
+run to independently confirm the rule is implemented as claimed and the numbers reproduce
+independently; its result was not yet back when this status line was written, so this entry is
+recorded PROVISIONAL per protocol and nothing was flipped — a follow-up entry will record the
+verifier's disposition. Gates fresh after last edit: `pytest -q` full suite 3,878/3,878 passed
+exit 0 (sharded, ~2.5-3h serial wall time, no code changed since); `python3 scripts/invariants.py
+--full` exit 0, all green. Files: `scripts/q51_queue_aware_fillsim.py`,
+`tests/test_q51_queue_aware_fillsim.py`, `scripts/invariants.py`,
+`reports/q51_queue_aware_fillsim.json`, `reports/q51_queue_aware_fillsim_rows.jsonl`,
+`kb/lessons/00-lessons.md` (L337 enforcement cell), `kb/00-LOG.md`.
+
 ### Q52 — S78 toxicity-filtered selective maker (measurable-adverse-selection S11 lane) — COLLECT-AND-REVISIT
 Status update (2026-08-09, research loop — PHASE-2 BACKFILL, continuing the same script past its
 phase-1 stopping point; does NOT alter S78's REGISTERED status below): re-ran

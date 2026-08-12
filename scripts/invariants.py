@@ -639,6 +639,18 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
         "INCIDENTAL (inherited): consumes `M.load_prints` and projects fills against the "
         "loaded print series, so it inherits the Q51 loader's file-order tie-break. Repair "
         "belongs with the shared loader, not with a second copy here (L279's lesson).",
+    "scripts/q51_queue_aware_fillsim.py":
+        "ORDER-INSENSITIVE ON THE VERDICT, INCIDENTAL (inherited) ON ONE DIAGNOSTIC: the "
+        "L337 queue-aware size gate reduces each interval to the SUM of every qualifying "
+        "print's `count` and compares it to the resting size, so no tie order can change a "
+        "fill, a P&L or a CI. Its `crediting_print_size` diagnostics DO inherit the Q51 "
+        "loader's file-order tie-break (it reports the EARLIEST qualifying print): measured "
+        "on dt=2026-08-03, 14 of the 64 headline fills have a tie at the crediting instant "
+        "and 12 of those disagree on `count`, and reversing the tie order moves "
+        "`n_headline_fills_cleared_by_the_crediting_print` 4 -> 5 and "
+        "`median_crediting_print_size` 8.905 -> 11.22 while every fill count, mean and CI "
+        "is byte-identical. Stated rather than repaired: the repair belongs to the shared "
+        "loader (L279), which is pinned by Q51's closed milestone-3 verdict.",
     "scripts/q51_trade_print_joinability.py":
         "ORDER-INSENSITIVE: sorts prints on `ts` with no explicit key, but every downstream "
         "reduction is a count/coverage aggregate over a whole window, so no tie order can "
