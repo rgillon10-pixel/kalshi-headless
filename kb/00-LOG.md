@@ -66,6 +66,76 @@ terminal sweep).
 
 ---
 
+## 2026-08-12 ~06:3xZ UTC — IDLE RUN (policy (a)): a test pinning a LIVE `reports/` artifact went red on correct data — frozen, and the class is now an invariant advisory (L341)
+
+**Steps 0a/0/0b (done by the orchestrating session).** History-integrity PASS (`origin/main` HEAD
+`a83d276`, PR #354 merged; newest `kb/00-LOG.md` entry and newest `tape/*/dt=*` both 2026-08-12,
+0-day gap, no rewind). Claim check: only the standing Ryan-review-only proposal PRs plus two stale
+abandoned ones (#166, #191) — none claims a queue item. Step-0b: newest remote `tape/hourly-*`
+branches (`20260811T1010Z`, `20260811T1313Z`) already swept via PR #351; **no new stranded tape**
+(the ~228-branch historical backlog stays Q17/Ryan-lane, untouched).
+
+**Queue: 0 eligible → IDLE RUN.** Re-verified the items the orchestrator could not close by
+file shape. The one that looked runnable — **Q54** ("DATA GATE OPEN — Q54 IS NOW RUNNABLE", its
+topmost status, 2026-08-08) — is in fact **CLOSED**: a later status further down the same section
+records `Q54 CLOSED — VERDICT DEAD-by-CI, TWO-AGENT VERIFIER-CONFIRMED (2026-08-09)`, and
+`kb/strategies/00-index.md` already carries S79 as `dead ✗`. (Noted for the next reader: Q54's
+close was appended BELOW its older statuses instead of prepended, so the "topmost status" reading
+rule mis-reports it.) Q52 stays data-gated by its own 08-09 measurement (34/328 games backfilled,
+short of what a train/holdout split needs), Q55 m3 truncation-gated, Q56 fully closed 08-11,
+Q19/Q32/Q33/Q35-build/Q36/Q42/Q43/Q47/Q48 gated or credential-blocked. This morning's
+kalshi-edge-hunter round #28 independently rescanned Q0–Q56 and also found 0 eligible.
+
+**What the eligibility check itself broke — and the milestone that came out of it.** Verifying
+Q54's gate meant re-running its sealed probe (`scripts/q54_s79_flow_continuation_probe.py`,
+unmodified, `PREREG_SHA256` intact). That probe deliberately SELF-ACTIVATES: it globs every
+committed trade day rather than pinning a DAY constant. Since the verdict-bearing 2026-08-09
+firing, the phase-2 backfill landed, so the run rewrote `reports/q54_s79_flow_continuation.json`
+in place — **24 game units / 133 obs → 45 / 214** — and
+`tests/test_bootstrap.py::test_acceptance_q54_s79_frozen_report_reproduces_l322s_effective_n`
+(L322's own enforcement, which read that LIVE path and asserted `== 24` / `== 133`) would have
+turned the suite RED while every number involved was correct. That is **L325's mutable-artifact
+rule recurring in `reports/`**, and it is the run's unit of work:
+
+- **Frozen:** `reports/q54_s79_flow_continuation-2026-08-09.json` (the verdict-bearing snapshot),
+  pinned by **sha256** `8c58c7a5…f951` so the comparand cannot be silently swapped (L284/L325
+  pattern). The L322 acceptance test now reads the frozen file; a sibling test asserts it never
+  names the live artifact again; a third asserts only a DIRECTION on the live one
+  (`n_units_now >= n_units_frozen`), so a shrinking population is still caught.
+- **Generalized:** `scripts/invariants.py::_mutable_report_pin_issues` / `mutable_report_pin_warning`
+  / `MUTABLE_REPORT_PIN_ALLOWLIST` — an AST advisory (non-gating, `BaseException`-wrapped per L156
+  DEFECT-1, wired into `--full`) that flags any file under `tests/` building a
+  `Path(...) / "reports" / "<name>.json"` chain for an artifact a non-test module also names,
+  unless the basename carries a date/`frozen`/`snapshot`/`-mN-` marker or the reading function is
+  declared in the allowlist (today: exactly one — the direction-only test above). Live tree AFTER
+  the repair: **0** sites. Live-fire verified: re-inserting the old pin produces exactly **1** site
+  with the correct path/line/writer, then removed. New lesson **L341** (renumbered same-day
+  from a collision with PR #356's own L339/L340).
+- **14 new tests** (11 in `tests/test_invariants.py`, 3 in `tests/test_bootstrap.py`), including a
+  HARD real-tree acceptance test and a deliberate blind spot pinned as a MISS (a bare
+  `"reports/x.json"` string comparison is not a read).
+
+**Side observation, NOT a verdict (S79 stays `dead ✗`, nothing flipped).** The larger population
+reproduces the closed verdict: block-bootstrap by game, n_units **45**, n_obs **214**, mean
+**−$0.0771**, 95% CI **[−$0.2190, +$0.0692]**, `clears_tick_magnitude: false` → **DEAD-by-CI**.
+Prices `broker_truth` on both legs (entry = an executed print, exit = venue settlement), ONE taker
+fee from `core.pricing`. This run had **no `Task`/subagent tool** (Read/Grep/Glob/Bash only), so no
+independent `verifier` was dispatchable — the number is therefore recorded PROVISIONAL as this
+run's own product, but it is corroborated by a separate agent: the kalshi-edge-hunter's verifier
+quoted the identical 45 / −0.077 / [−0.219, +0.069] hours earlier in
+`findings/2026-08-12-q21-round28-idea-gen.md`. The milestone itself (lesson → advisory + tests) is
+not verdict-class: no registry flip, no kill, no new CI claim.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (a `dead ✗` strategy,
+paper-infra only): `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76,
+cash $+27.76, open notional $0.00` — 0 newly processed, no new ledger lines (no new tape for the
+shadow since the last advance).
+
+**Gates (fresh, after the last code change):** see the LOOP-QUEUE "Log of runs" line. Still
+**0 proven edges**.
+
+---
+
 ## 2026-08-12 ~04:15Z UTC — kalshi-edge-hunter nightly: adversarial review clean · Q21 round #28 = 0/3 (verifier-refuted)
 
 **Steps 0a/0/0b.** History-integrity PASS: recent merged PRs #348–#353 all reachable from
