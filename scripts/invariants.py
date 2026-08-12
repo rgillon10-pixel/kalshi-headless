@@ -827,6 +827,124 @@ def inv_minority_side_gate_triage(path: Path, text: str) -> Optional[str]:
                 "which floors on the exclusive count and reports both")
 
 
+# ── L320: a frozen population pin used as a live pass/fail gate ──────────────────────
+# Q42's `scripts/q42_crossvenue_funding_join.py` carried `PART1_BTC_ZERO_FRACTION = 0.669`
+# (tolerance 0.05) as a sanity check re-evaluated on every run against a population that grows
+# with every collector pass. Measured on that exact code with NO edit in between: the boolean
+# read False on 2026-08-09 (0.7222, 198 windows/asset, |Δ|=0.0532) and True again on
+# 2026-08-12 (0.7048, 210 windows/asset, |Δ|=0.0358). A pass/fail whose value is decided by
+# which DAY it ran is not a check — and re-pinning it to the newer reading would have been the
+# wrong repair too, since the drift is non-monotone.
+#
+# The rule: any module under scripts/|core/|collection/|execution/ that compares a
+# freshly-derived value against a module-level numeric constant inside `abs(x - CONST) <op>
+# TOL` must DECLARE that constant in a module-level `HISTORICAL_POPULATION_PINS` mapping (or
+# collection) IN THE SAME FILE, stating its disposition. The declaration is deliberately
+# site-local rather than a central registry: the question "is this constant frozen against an
+# older population?" is answerable only where the constant is defined.
+#
+# HONEST LIMITS (L155 — a 0-issue report is PRECISION evidence, never recall):
+#   * the trigger is one AST shape, `abs(<expr> - NAME)` / `abs(NAME - <expr>)` where NAME is a
+#     module-level int/float. A frozen pin compared with a bare `<`/`>`, through a helper
+#     function, via a dict lookup, or against a constant assembled at runtime is INVISIBLE.
+#   * declaring a constant does not make it correct. The declaration records a disposition; it
+#     never asserts the disposition is the good one (the L319/L321/L323 residual, restated).
+#   * `scripts/invariants.py` is `_file_excluded` from every static invariant, so this rule
+#     cannot see its own definition site.
+_HISTORICAL_PIN_DECL_NAMES = ("HISTORICAL_POPULATION_PINS",)
+_FROZEN_PIN_DIRS = ("scripts/", "execution/", "core/", "collection/")
+
+
+def _module_level_numeric_constants(tree: "ast.Module") -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for node in tree.body:
+        targets = []
+        if isinstance(node, ast.Assign):
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            targets = [node.target]
+        if not targets or not isinstance(getattr(node, "value", None), ast.Constant):
+            continue
+        val = node.value.value
+        if isinstance(val, bool) or not isinstance(val, (int, float)):
+            continue
+        for t in targets:
+            out[t.id] = val
+    return out
+
+
+def _declared_historical_pins(tree: "ast.Module") -> Set[str]:
+    """Names declared in this module's own `HISTORICAL_POPULATION_PINS` (dict keys, or the
+    string elements of a list/tuple/set)."""
+    declared: Set[str] = set()
+    for node in tree.body:
+        targets = []
+        if isinstance(node, ast.Assign):
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            targets = [node.target]
+        if not any(t.id in _HISTORICAL_PIN_DECL_NAMES for t in targets):
+            continue
+        value = getattr(node, "value", None)
+        if isinstance(value, ast.Dict):
+            for k in value.keys:
+                if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                    declared.add(k.value)
+        elif isinstance(value, (ast.List, ast.Tuple, ast.Set)):
+            for e in value.elts:
+                if isinstance(e, ast.Constant) and isinstance(e.value, str):
+                    declared.add(e.value)
+    return declared
+
+
+def inv_frozen_population_pin_declared(path: Path, text: str) -> Optional[str]:
+    """L320 GATING ratchet: a module-level numeric constant compared against a freshly-derived
+    value inside `abs(x - CONST) <op> TOL` must be declared in this file's own
+    `HISTORICAL_POPULATION_PINS` (see the banner above). Fails closed: a new frozen pin is a
+    gate failure until its status is written down at the site."""
+    if _file_excluded(path):
+        return None
+    rel = _rel(path)
+    if not rel.startswith(_FROZEN_PIN_DIRS):
+        return None
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    consts = _module_level_numeric_constants(tree)
+    if not consts:
+        return None
+    declared = _declared_historical_pins(tree)
+    hits: List[Tuple[int, str]] = []
+    lines = text.splitlines()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "abs" and node.args):
+            continue
+        arg = node.args[0]
+        if not (isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Sub)):
+            continue
+        operands = [o for o in (arg.left, arg.right) if isinstance(o, ast.Name)]
+        for name_node in operands:
+            nm = name_node.id
+            if nm in consts and nm not in declared:
+                ln = node.lineno
+                src = lines[ln - 1] if 0 < ln <= len(lines) else nm
+                if SENTINEL in src:
+                    continue
+                hits.append((ln, src))
+    if not hits:
+        return None
+    return _fmt(path, hits,
+                "UNDECLARED frozen population pin — lesson L320: a module-level numeric "
+                "constant is compared against a freshly-derived value, so an honestly GROWING "
+                "population silently turns into a pass/fail flip (Q42's part1-BTC pin read "
+                "False on 2026-08-09 and True again on 2026-08-12 with no code change). "
+                "Declare the constant in a module-level HISTORICAL_POPULATION_PINS mapping in "
+                "THIS file stating its disposition, and re-derive any live bound from the "
+                "CURRENT population instead")
+
+
 STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_gefs", inv_no_gefs),
     ("no_bare_pstdev", inv_no_bare_pstdev),
@@ -842,6 +960,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("collector_self_tape_read_triage", inv_collector_self_tape_read_triage),
     ("trade_print_tiebreak_triage", inv_trade_print_tiebreak_triage),
     ("minority_side_gate_triage", inv_minority_side_gate_triage),
+    ("frozen_population_pin_declared", inv_frozen_population_pin_declared),
 ]
 
 

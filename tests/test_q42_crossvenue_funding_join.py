@@ -16,6 +16,8 @@ _spec = importlib.util.spec_from_file_location(
 J = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(J)
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 # --------------------------------------------------------------------------- #
 # fixture builders
@@ -184,3 +186,85 @@ def test_analyze_end_to_end_sanity_and_zero_fractions():
     assert a["join_sanity"]["joined_matches_full_population"] is True
     assert a["differential_mean"] is not None
     assert a["price_source_tag"] == "broker_truth"
+
+
+# --------------------------------------------------------------------------- #
+# L320 — the part-1 BTC constant is a HISTORICAL PIN, not a live pass/fail gate
+# --------------------------------------------------------------------------- #
+def test_l320_historical_pin_drift_reports_sign_and_magnitude():
+    d = J.historical_pin_drift(0.7222, 0.669, 0.05)
+    assert d["pin"] == 0.669 and d["current"] == 0.7222
+    assert round(d["drift"], 4) == 0.0532 and round(d["abs_drift"], 4) == 0.0532
+    assert d["beyond_tolerance"] is True
+    # the record must say, in itself, that it is not a gate — a reader cannot mistake
+    # `beyond_tolerance: true` for a defect.
+    assert d["is_live_gate"] is False
+    assert "L320" in d["note"]
+
+
+def test_l320_historical_pin_drift_signs_both_directions_and_respects_tolerance():
+    below = J.historical_pin_drift(0.60, 0.669, 0.05)
+    assert below["drift"] < 0 and below["beyond_tolerance"] is True
+    inside = J.historical_pin_drift(0.7048, 0.669, 0.05)
+    assert inside["drift"] > 0 and inside["beyond_tolerance"] is False
+    # exactly at the tolerance is NOT beyond it (strict >)
+    assert J.historical_pin_drift(0.719, 0.669, 0.05)["beyond_tolerance"] is False
+
+
+def test_l320_historical_pin_drift_none_population_fabricates_nothing():
+    assert J.historical_pin_drift(None, 0.669, 0.05) is None
+
+
+def test_l320_report_carries_the_drift_record_and_keeps_the_legacy_keys():
+    fts = ["2026-06-03T20:00:00Z", "2026-06-04T04:00:00Z"]
+    kprints = [_kprint("KXBTCPERP", fts[0], 0.0), _kprint("KXBTCPERP", fts[1], 0.0002)]
+    hlprints = _hours_for(fts[0], [0.0000125] * 8) + _hours_for(fts[1], [0.00002] * 8)
+    rep = J.analyze([_kalshi_record(kprints)], [_hl_record("BTC", hlprints)],
+                    asset_map={"BTC": {"kalshi_ticker": "KXBTCPERP", "hl_coin": "BTC"}})
+    s = rep["assets"]["BTC"]["join_sanity"]
+    # legacy keys retained verbatim (append-only report shape)
+    assert s["expected_part1_btc"] == J.PART1_BTC_ZERO_FRACTION
+    assert "within_tolerance_of_part1_btc" in s
+    # and the new record declares the disposition
+    pin = s["part1_btc_historical_pin"]
+    assert pin["is_live_gate"] is False
+    assert pin["current"] == rep["assets"]["BTC"]["kalshi_zero_fraction"]
+    # the LIVE gate is the re-derived full-population one, and it is unaffected
+    assert s["joined_matches_full_population"] is True
+
+
+def test_l320_the_pin_is_declared_in_the_modules_own_registry():
+    """The L320 invariant's site-local escape hatch must actually name this constant —
+    a declaration that drifts out of sync silently re-arms the false alarm."""
+    assert "PART1_BTC_ZERO_FRACTION" in J.HISTORICAL_POPULATION_PINS
+    assert "NOT A GATE" in J.HISTORICAL_POPULATION_PINS["PART1_BTC_ZERO_FRACTION"]
+
+
+def test_l320_acceptance_real_tape_pin_drift_is_reported_not_gated():
+    """HARD acceptance test over REAL committed tape (L191), written growth-safe (L320's own
+    lesson: a floor/direction property, never an equality on a growing population).
+
+    The point is NOT the value of the drift — it moved from +0.0532 (2026-08-09, 198
+    windows/asset) to +0.0358 (2026-08-12, 210 windows/asset) with no code change, which is
+    exactly why it may not be a gate. The pinned properties are structural: the join is
+    healthy against the CURRENT population, and the historical pin is reported as drift."""
+    perp = J.load_records(str(ROOT / "tape" / "perp_tape" / "dt=*.jsonl"))
+    hl = J.load_records(str(ROOT / "tape" / "hyperliquid_funding" / "dt=*.jsonl"))
+    if not perp or not hl:
+        return  # tape absent in this checkout: nothing to pin, never a fabricated pass
+    rep = J.analyze(perp, hl)
+    btc = rep["assets"]["BTC"]
+    if not btc["n_windows_joined"]:
+        return
+    s = btc["join_sanity"]
+    # 1. the LIVE gate — re-derived from the current population — passes.
+    assert s["joined_matches_full_population"] is True
+    # 2. the population only grows (floor, not equality).
+    assert btc["n_windows_joined"] >= 198
+    # 3. the historical pin is a drift record, never a pass/fail.
+    pin = s["part1_btc_historical_pin"]
+    assert pin["is_live_gate"] is False
+    assert pin["pin"] == 0.669
+    assert isinstance(pin["beyond_tolerance"], bool)
+    # 4. and the drift is real: today's reading is NOT the frozen number.
+    assert pin["current"] != pin["pin"]
