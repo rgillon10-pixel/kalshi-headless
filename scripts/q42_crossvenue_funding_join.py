@@ -26,7 +26,18 @@ THE JOIN (apples-to-apples across two funding cadences):
 A window is only joined if all 8 HL hours are present; a partial window (HL history gap /
 boundary) is counted and EXCLUDED, never zero-filled (a missing rate is not a zero — same
 discipline as part 1). The Kalshi zero-fraction on the JOINED set is reported as a join-sanity
-check: it must reproduce part 1's ~67% BTC figure, else the join lost/duplicated windows.
+check: it must reproduce THIS RUN's full-population zero-fraction, else the join lost or
+duplicated windows. That bound is re-derived from the CURRENT population on every run.
+
+L320 (2026-08-12): part 1's published BTC figure (`PART1_BTC_ZERO_FRACTION`) is a HISTORICAL
+PIN, not a live gate. The joined population grows with every collector pass, so the statistic
+drifts honestly away from — and back toward — a number frozen on a smaller population. Measured
+twice on this exact code with no edit in between: 0.7222 on 2026-08-09 (198 windows/asset,
+|Δ|=0.0532 > 0.05 tol → the boolean read False on healthy data) and 0.7048 on 2026-08-12 (210
+windows/asset, |Δ|=0.0358 → True again). A pass/fail whose value is decided by which day it ran
+is not a check; the drift is now REPORTED with its sign and magnitude and is explicitly not a
+gate. Re-pinning the constant to the newer reading would have been the wrong repair too — the
+drift is non-monotone.
 
 Read-only. NO network. Run:
     python3 scripts/q42_crossvenue_funding_join.py
@@ -60,9 +71,23 @@ ASSET_MAP = {
 HOUR_MS = 3600_000
 WINDOW_HOURS = 8  # Kalshi finalizes every 8h; each window sums 8 HL hourly rates
 
-# part-1 BTC zero-fraction (66.9%); a joined-set zero-fraction far from this flags a join bug.
+# part-1 BTC zero-fraction (66.9%). HISTORICAL PIN — a reference value measured on an OLDER,
+# SMALLER population, kept verbatim so its drift stays measurable. It is NOT a live pass/fail
+# gate (L320): the live join gate is `joined_matches_full_population`, which re-derives its
+# bound from the CURRENT population on every run.
 PART1_BTC_ZERO_FRACTION = 0.669
 JOIN_SANITY_TOLERANCE = 0.05
+
+# L320 declaration (read by scripts/invariants.py::inv_frozen_population_pin_declared): every
+# module-level numeric constant this file compares against a freshly-derived value inside an
+# `abs(... - CONST) <= TOL` test must be named here, with its disposition stated. Naming a
+# constant here does not make it correct; it makes its status explicit at the site.
+HISTORICAL_POPULATION_PINS = {
+    "PART1_BTC_ZERO_FRACTION":
+        "HISTORICAL PIN, NOT A GATE — Q42 part 1's published BTC zero-fraction, frozen on a "
+        "smaller population. Its drift vs the current run is reported (sign + magnitude) and "
+        "read as population growth, never as a join defect (L320).",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -266,6 +291,30 @@ def _sign_split(joined: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def historical_pin_drift(current: Optional[float], pin: float,
+                        tolerance: float = JOIN_SANITY_TOLERANCE) -> Optional[Dict[str, Any]]:
+    """L320: report a frozen reference value's DRIFT against the current population instead of
+    a pass/fail. Returns the pin, the current reading, the signed drift, and whether the drift
+    exceeds `tolerance` — with `is_live_gate: False` stated in the record itself, so a reader
+    cannot mistake `beyond_tolerance: true` for a defect. `None` current (empty population)
+    yields `None` rather than a fabricated comparison."""
+    if current is None:
+        return None
+    drift = current - pin
+    return {
+        "pin": pin,
+        "current": current,
+        "drift": drift,
+        "abs_drift": abs(drift),
+        "tolerance": tolerance,
+        "beyond_tolerance": abs(drift) > tolerance,
+        "is_live_gate": False,
+        "note": ("historical reference measured on an older, smaller population; drift is "
+                 "honest population growth, NOT a join defect (L320). The live join gate is "
+                 "joined_matches_full_population."),
+    }
+
+
 def characterize_asset(joined: Sequence[Dict[str, Any]], n_partial: int,
                        full_pop_zero_fraction: Optional[float] = None,
                        is_btc: bool = False) -> Dict[str, Any]:
@@ -289,9 +338,13 @@ def characterize_asset(joined: Sequence[Dict[str, Any]], n_partial: int,
                  or abs(kalshi_zero_frac - full_pop_zero_fraction) <= JOIN_SANITY_TOLERANCE),
         }
         if is_btc:
+            # Legacy keys retained verbatim (append-only report shape); their MEANING is now
+            # declared by `part1_btc_historical_pin` below — a drift record, never a gate (L320).
             sanity["expected_part1_btc"] = PART1_BTC_ZERO_FRACTION
             sanity["within_tolerance_of_part1_btc"] = (
                 abs(kalshi_zero_frac - PART1_BTC_ZERO_FRACTION) <= JOIN_SANITY_TOLERANCE)
+            sanity["part1_btc_historical_pin"] = historical_pin_drift(
+                kalshi_zero_frac, PART1_BTC_ZERO_FRACTION, JOIN_SANITY_TOLERANCE)
     return {
         "n_windows_joined": n,
         "n_windows_partial_excluded": n_partial,
@@ -377,9 +430,12 @@ def _print_report(rep: Dict[str, Any]) -> None:
         s = a.get("join_sanity")
         if s is not None:
             msg = f"    join-sanity: joined matches full-population = {s['joined_matches_full_population']}"
-            if "within_tolerance_of_part1_btc" in s:
-                msg += (f"   |   part1-BTC cross-check ({PART1_BTC_ZERO_FRACTION}) = "
-                        f"{s['within_tolerance_of_part1_btc']}")
+            pin = s.get("part1_btc_historical_pin")
+            if pin is not None:
+                msg += (f"   |   part1-BTC HISTORICAL PIN {pin['pin']} (NOT a gate, L320): "
+                        f"drift={pin['drift']:+.4f} "
+                        f"({'beyond' if pin['beyond_tolerance'] else 'within'} "
+                        f"tol {pin['tolerance']}) — population growth, not a join defect")
             print(msg)
         print(f"  HL zero-fraction (joined set)     = {_f(a['hl_zero_fraction'], 4)}  "
               f"({a['hl_zero_count']}/{a['n_windows_joined']})")

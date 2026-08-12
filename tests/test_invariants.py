@@ -3,6 +3,7 @@ finds the real tree clean. These are adversarial fixtures by design (this file i
 engine's EXCLUDE_FILES list so its own banned-pattern strings don't self-trip)."""
 from __future__ import annotations
 
+import ast
 import importlib.util
 import pathlib
 import sqlite3
@@ -3582,3 +3583,148 @@ def test_minority_side_triage_sealed_probe_entry_records_the_touching_exposure()
     assert entry.startswith("TOUCHING")
     assert "L311" in entry
     assert inv.MINORITY_SIDE_GATE_TRIAGE["core/bootstrap.py"].startswith("EXCLUSIVE")
+
+
+# ─── Frozen population pin declared (L320: GATING, site-local declaration) ───
+
+def _frozen_pin_failures_over_real_tree():
+    """Every failure message the L320 ratchet produces over the REAL repo source tree."""
+    out = []
+    for p in inv._iter_source_files():
+        if p.suffix != ".py":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        msg = inv.inv_frozen_population_pin_declared(p, text)
+        if msg:
+            out.append(msg)
+    return out
+
+
+def test_acceptance_frozen_population_pin_real_tree_is_clean():
+    # HARD acceptance test against the REAL tree: the one site that carries the shape
+    # (Q42's part1-BTC pin) declares it, so the ratchet is green NOW and a new undeclared
+    # frozen pin turns it red.
+    assert _frozen_pin_failures_over_real_tree() == []
+
+
+def test_acceptance_q42_is_the_known_site_and_it_declares_its_pin():
+    """The L320 origin site must still carry BOTH halves: the abs()-comparison shape the rule
+    keys on, and the declaration that disarms it. If a future edit removes the declaration,
+    this test and the ratchet both go red."""
+    rel = "scripts/q42_crossvenue_funding_join.py"
+    text = (ROOT / rel).read_text(encoding="utf-8")
+    assert "PART1_BTC_ZERO_FRACTION" in text
+    assert "HISTORICAL_POPULATION_PINS" in text
+    tree = ast.parse(text)
+    assert "PART1_BTC_ZERO_FRACTION" in inv._declared_historical_pins(tree)
+    assert "PART1_BTC_ZERO_FRACTION" in inv._module_level_numeric_constants(tree)
+    assert inv.inv_frozen_population_pin_declared(ROOT / rel, text) is None
+
+
+def test_frozen_pin_fires_on_a_new_undeclared_pin():
+    p = ROOT / "scripts" / "q99_some_new_probe.py"
+    src = ("PART1_ZERO_FRACTION = 0.669\n"
+           "TOL = 0.05\n"
+           "def sanity(current):\n"
+           "    return abs(current - PART1_ZERO_FRACTION) <= TOL\n")
+    msg = inv.inv_frozen_population_pin_declared(p, src)
+    assert msg is not None
+    assert "UNDECLARED frozen population pin" in msg
+    assert "HISTORICAL_POPULATION_PINS" in msg
+
+
+def test_frozen_pin_silent_once_declared_in_the_same_file():
+    p = ROOT / "scripts" / "q99_some_new_probe.py"
+    src = ("PART1_ZERO_FRACTION = 0.669\n"
+           "TOL = 0.05\n"
+           "HISTORICAL_POPULATION_PINS = {'PART1_ZERO_FRACTION': 'historical, not a gate'}\n"
+           "def sanity(current):\n"
+           "    return abs(current - PART1_ZERO_FRACTION) <= TOL\n")
+    assert inv.inv_frozen_population_pin_declared(p, src) is None
+
+
+def test_frozen_pin_declaration_accepts_a_tuple_or_list_form():
+    base = ("PIN = 0.5\n"
+            "def f(v):\n"
+            "    return abs(PIN - v) < 0.01\n")
+    for decl in ("HISTORICAL_POPULATION_PINS = ('PIN',)\n",
+                 "HISTORICAL_POPULATION_PINS = ['PIN']\n",
+                 "HISTORICAL_POPULATION_PINS = {'PIN'}\n"):
+        src = decl + base
+        assert inv.inv_frozen_population_pin_declared(
+            ROOT / "scripts" / "q99_some_new_probe.py", src) is None
+
+
+def test_frozen_pin_declaration_of_a_DIFFERENT_name_does_not_disarm_the_rule():
+    src = ("PIN_A = 0.5\n"
+           "PIN_B = 0.6\n"
+           "HISTORICAL_POPULATION_PINS = {'PIN_A': 'declared'}\n"
+           "def f(v):\n"
+           "    return abs(v - PIN_B) < 0.01\n")
+    msg = inv.inv_frozen_population_pin_declared(
+        ROOT / "scripts" / "q99_some_new_probe.py", src)
+    assert msg is not None and "PIN_B" in msg
+
+
+def test_frozen_pin_ignores_non_module_level_and_non_numeric_names():
+    # a LOCAL constant is not a frozen population pin: it is recomputed on every call.
+    local = ("def f(v):\n"
+             "    expected = compute_expected()\n"
+             "    return abs(v - expected) < 0.01\n")
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "scripts" / "q99_some_new_probe.py", local) is None
+    # a module-level STRING is not a pin either.
+    strc = ("LABEL = 'x'\n"
+            "def f(v):\n"
+            "    return abs(v - LABEL) < 1\n")
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "scripts" / "q99_some_new_probe.py", strc) is None
+    # a bare `abs(x)` or a non-subtraction argument is not the shape.
+    other = ("PIN = 0.5\n"
+             "def f(v):\n"
+             "    return abs(v) + abs(v * PIN) < 1\n")
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "scripts" / "q99_some_new_probe.py", other) is None
+
+
+def test_frozen_pin_scoped_to_source_dirs_only():
+    src = ("PIN = 0.669\n"
+           "def f(v):\n"
+           "    return abs(v - PIN) <= 0.05\n")
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "tests" / "test_some_probe.py", src) is None
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "validation" / "v1_actuals.py", src) is None
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "scripts" / "q99_some_new_probe.py", src) is not None
+
+
+def test_frozen_pin_respects_file_exclusions():
+    # The engine's own definition site is excluded from every static invariant.
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "scripts" / "invariants.py",
+        "PIN = 0.5\ndef f(v):\n    return abs(v - PIN) < 1\n") is None
+
+
+def test_frozen_pin_survives_garbage_input():
+    assert inv.inv_frozen_population_pin_declared(
+        ROOT / "scripts" / "q99_some_new_probe.py", "\x00\x01 not python") is None
+
+
+def test_frozen_pin_registered_in_static_invariants():
+    names = [n for n, _fn in inv.STATIC_INVARIANTS]
+    assert "frozen_population_pin_declared" in names
+
+
+def test_frozen_pin_banner_records_its_honest_limits():
+    """L155: the rule's own source must state that a 0-issue report is precision, not recall —
+    the AST shape is one of several ways a frozen pin can be compared."""
+    src = (ROOT / "scripts" / "invariants.py").read_text(encoding="utf-8")
+    i = src.index("_HISTORICAL_PIN_DECL_NAMES")
+    banner = src[max(0, i - 2600):i]
+    assert "L320" in banner
+    assert "L155" in banner
+    assert "INVISIBLE" in banner
