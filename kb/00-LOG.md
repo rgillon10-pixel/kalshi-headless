@@ -64,6 +64,74 @@ L162 floor-claim allowance for a docs-only diff). Files: `findings/2026-08-12-q2
 
 ---
 
+## 2026-08-12 ~03:xx ET — research loop IDLE RUN (policy a): L337 converted — Q51 queue-aware fill-sim sensitivity built, PROVISIONAL pending verifier
+
+Full Q0-Q56 rescan: every numbered queue item reads DONE/BLOCKED/CLOSED/DEAD/time-or-data-gated
+(Q56, the newest item, fully closed 2026-08-11 with both sub-milestones two-agent confirmed) —
+IDLE RUN, idle-run policy (a). Re-derived the genuinely open `UNENFORCED` lesson rows via
+`scripts.invariants._parse_lesson_rows`/`_lesson_disposed_ids`, filtering to rows whose
+enforcement cell actually STARTS WITH "UNENFORCED" after stripping markdown bold (a naive
+substring search false-positives at 68 rows; the correct count is 10: L213, L221, L222, L282,
+L319, L320, L321, L323, L337, L338). Of those, L213/L221/L222/L282 are Ryan-action or live
+collector-write-path lanes out of scope for a cloud run, L319/L320/L321 defer to a future
+milestone or a semantic-judgment half, L323's buildable half already landed in the 2026-08-11
+14:15 idle run, and L338 explicitly states its own candidate is "not statically assertable."
+**L337 was the one fresh, unclaimed, buildable row.**
+
+L337 (filed 2026-08-11, from Q51 milestone 3's two-agent verifier disposition): the headline
+`scripts/q51_maker_fillsim.py` credits a maker fill on ANY qualifying executed print in a window
+with no accounting for the SIZE resting ahead of the order at its own price, making the headline
+fill rate/mean an UPPER BOUND. The verifier had measured the discount ad hoc (not committed as
+code): 64→25 fills, 21.77%→8.50%, mean +$0.010068→+$0.000714, CI [-$0.010387,+$0.012823], 14
+informative units. L337's own candidate text asked for a "`--queue-aware` sensitivity mode (or
+standalone follow-on script)."
+
+Built `scripts/q51_queue_aware_fillsim.py` (+`tests/test_q51_queue_aware_fillsim.py`, 36 tests):
+a companion probe, not a flag on the headline module (which carries a binding forbidden-token
+invariant against the word "queue" appearing in its own report), importing the headline probe's
+readers/predicates/fee/bootstrap/admissibility machinery unchanged. Implements the exact rule
+the ad hoc measurement used: resting size = the order's own-side ladder at its own price on the
+entry snapshot (no cross-side mirroring); qualifying volume = the SUM of every qualifying print's
+`count` in the interval, not just the first; credited iff cumulative qualifying volume `>=`
+resting size — inclusive, pinned by a regression test showing strict `>` gives a different, wrong
+answer (24 fills / 8.163% / mean +$0.002449). Reproduces the ad hoc numbers exactly from committed
+tape (seed=42, n_boot=10000): every deterministic count exact (64→25 fills, 24→14 informative
+units, 294/116 legs, 51/25 resample units) and every mean/CI matched to the reported digits with
+zero wobble on this platform. Side-finding: the original "6.2% cleared by a single print" figure
+only reproduces under the *earliest qualifying (crediting)* print specifically — "largest print
+in interval" gives 20.3% instead, a 3x difference the original note didn't disambiguate.
+Registered the new consumer in the L323 trade-print tie-break triage
+(`scripts/invariants.py::TRADE_PRINT_TIEBREAK_TRIAGE`): order-insensitive on the verdict (the
+gate is a sum, no tie order moves it), incidental-inherited on one diagnostic only — measured,
+not asserted: 14/64 headline fills tie at the crediting instant, 12 disagree on `count`,
+reversing tie order moves the diagnostic 4→5 / 8.905→11.22 while every fill count, mean and CI
+stays byte-identical. No existing invariant relaxed.
+
+**No registry change** — S13/S23/S29 stay `dead ✗`; this is reproducibility tooling for an
+already two-agent CONFIRMED-WITH-CORRECTIONS number, not a new verdict, so it does not by itself
+require the two-agent rule to commit. A `verifier` agent was nonetheless dispatched this same
+run (bootstrap-CI work gets the same rigor regardless of verdict class) to independently confirm
+the rule is implemented as claimed and the reproduction is genuine, not tuned to the target. Its
+result was not back when this entry and the PR were committed — recorded PROVISIONAL, to be
+updated with a same-day follow-up once it returns.
+
+Gates fresh after the last code edit: `pytest -q` full suite → 3,878/3,878 passed, exit 0 (run
+sharded due to ~2.5-3h serial wall time on this hardware; no code changed since the shard run).
+`python3 scripts/invariants.py --full` → exit 0, all green, no new advisories. Step 0b: newest
+stranded `tape/hourly-*`/`burst-*` branches are `20260811T1010Z`/`20260811T1313Z`, both already
+recovered into `main` by PR #351 — nothing new to sweep. Step 9: `SHADOW_REGISTRY` non-empty
+(`s14_ladder_underwriting`); paper broker advanced separately, see the Log-of-runs line.
+
+Files: `scripts/q51_queue_aware_fillsim.py`, `tests/test_q51_queue_aware_fillsim.py`,
+`scripts/invariants.py` (triage entry only), `reports/q51_queue_aware_fillsim.json`,
+`reports/q51_queue_aware_fillsim_rows.jsonl`, `kb/lessons/00-lessons.md` (L337 enforcement cell),
+`LOOP-QUEUE.md`, `kb/00-LOG.md`.
+
+**Next:** fold in the verifier's disposition once it returns (same-day follow-up, Q56-style);
+still 0 proven edges.
+
+---
+
 ## 2026-08-11 18:0x ET — research loop: Q51 milestone-3 upgraded PROVISIONAL → two-agent CONFIRMED-WITH-CORRECTIONS
 
 Queue rescan: 0 eligible TODO/IN-PROGRESS items (5th consecutive idle-adjacent run), but this
