@@ -3153,6 +3153,158 @@ def ladder_size_coercion_warning(sites: List[str]) -> Optional[str]:
     )
 
 
+# ─── Mutable reports/ artifact pinned by a test (L325/L341: non-gating, offline-safe) ──
+
+#: Artifact suffixes this advisory reasons about. `reports/` holds probe OUTPUT, and a probe
+#: that self-activates over committed tape rewrites its own output whenever the tape grows.
+MUTABLE_REPORT_EXTS = (".json", ".jsonl")
+
+#: A basename carrying a date stamp or an explicit freeze marker is treated as a SNAPSHOT — the
+#: repair L325 prescribes (freeze a dated copy, pin that) — and is never flagged.
+_FROZEN_ARTIFACT_RE = re.compile(r"(\d{4}-\d{2}-\d{2}|frozen|snapshot|-m\d+-)", re.IGNORECASE)
+
+
+#: Tests that read a LIVE `reports/` artifact ON PURPOSE, declared here rather than silently
+#: exempted. The one sanctioned shape: a test that asserts a DIRECTION (the population may only
+#: grow) instead of pinning a value, which is exactly what L341 says a live artifact may carry.
+MUTABLE_REPORT_PIN_ALLOWLIST = {
+    "tests/test_bootstrap.py::test_acceptance_live_q54_report_if_present_is_a_superset_population",
+}
+
+
+def _docstring_constant_ids(tree: "ast.AST") -> set:
+    """Node ids of every module/class/function docstring Constant, so prose mentioning an
+    artifact path is never mistaken for code that reads it."""
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = getattr(node, "body", None) or []
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                    and isinstance(body[0].value.value, str):
+                out.add(id(body[0].value))
+    return out
+
+
+def _report_writer_index(root: Path = ROOT) -> Dict[str, List[str]]:
+    """basename -> the non-test modules that appear to WRITE it under `reports/`.
+
+    A module counts as a writer of `name.json` if it names both `reports` (as a path segment
+    or inside a `reports/...` literal) and `name.json` as string constants. Deliberately
+    coarse: this advisory only needs to know that some code regenerates the artifact, not
+    where the write statement sits."""
+    out: Dict[str, List[str]] = {}
+    try:
+        for p in _iter_source_files(root, exts=(".py",)):
+            rel = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
+            if rel.split("/", 1)[0] == "tests":
+                continue
+            try:
+                tree = ast.parse(p.read_text())
+            except Exception:
+                continue
+            consts = [n.value for n in ast.walk(tree)
+                      if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+            if not any(c == "reports" or "reports/" in c for c in consts):
+                continue
+            for c in consts:
+                base = c.rsplit("/", 1)[-1]
+                if base.endswith(MUTABLE_REPORT_EXTS):
+                    out.setdefault(base, [])
+                    if rel not in out[base]:
+                        out[base].append(rel)
+        return {k: sorted(v) for k, v in out.items()}
+    except Exception:
+        return {}
+
+
+def _mutable_report_pin_issues(root: Path = ROOT) -> List[str]:
+    """Tests that BUILD a path to a live `reports/` artifact some module regenerates (L341).
+
+    The 2026-08-12 incident: `tests/test_bootstrap.py` pinned `n_units == 24` / `n_obs == 133`
+    read straight out of `reports/q54_s79_flow_continuation.json`, which
+    `scripts/q54_s79_flow_continuation_probe.py` rewrites every time it fires — and it fires
+    over EVERY committed trade day, so the phase-2 backfill moved the population to 45/214 and
+    the suite went red on correct data. Same class as L325 (a mutable artifact frozen for one
+    consumer while sibling readers kept reading the live one), one directory over.
+
+    DETECTED SHAPE (one, deliberately): a `Path(...) / "reports" / "<name>.json"`-style `/`
+    chain inside a file under `tests/`, whose named artifact is also named by a non-test
+    module and whose basename carries no freeze marker. Best-effort/offline: any exception
+    skips a file and can never poison the gate. Returns sorted `path:line -> artifact` labels."""
+    out: List[str] = []
+    try:
+        writers = _report_writer_index(root)
+        if not writers:
+            return []
+        for p in _iter_source_files(root, exts=(".py",)):
+            rel = str(p.resolve().relative_to(root.resolve())).replace("\\", "/")
+            if rel.split("/", 1)[0] != "tests" or rel in EXCLUDE_FILES:
+                continue
+            try:
+                tree = ast.parse(p.read_text())
+            except Exception:
+                continue
+            docstrings = _docstring_constant_ids(tree)
+            owner: Dict[int, str] = {}
+            for fn in ast.walk(tree):
+                if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    for sub in ast.walk(fn):
+                        owner.setdefault(id(sub), fn.name)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Div):
+                    continue
+                if f"{rel}::{owner.get(id(node), '<module>')}" in MUTABLE_REPORT_PIN_ALLOWLIST:
+                    continue
+                parts = [n.value for n in ast.walk(node)
+                         if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                         and id(n) not in docstrings]
+                if "reports" not in parts:
+                    continue
+                for c in parts:
+                    base = c.rsplit("/", 1)[-1]
+                    if not base.endswith(MUTABLE_REPORT_EXTS):
+                        continue
+                    if _FROZEN_ARTIFACT_RE.search(base):
+                        continue
+                    if base not in writers:
+                        continue
+                    label = f"{rel}:{node.lineno} -> reports/{base} (written by " \
+                            f"{', '.join(writers[base])})"
+                    if label not in out:
+                        out.append(label)
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def mutable_report_pin_warning(sites: List[str]) -> Optional[str]:
+    """Non-gating advisory when a test reads a live, regenerable `reports/` artifact, else
+    None. Pure.
+
+    States the tested shape and the blind spots rather than the intent: reporting 0 sites is
+    evidence of PRECISION only, never of RECALL (L155)."""
+    if not sites:
+        return None
+    n = len(sites)
+    examples = "; ".join(sites[:3]) + ("; ..." if n > 3 else "")
+    return (
+        f"warning (non-gating): {n} test site(s) read a LIVE `reports/` artifact that a "
+        f"non-test module regenerates (e.g. {examples}). A probe that self-activates over "
+        f"committed tape rewrites its own report whenever the tape grows, so any exact count "
+        f"pinned against the live path turns RED on correct data — the 2026-08-12 Q54 incident "
+        f"(24 units/133 obs -> 45/214), L325's pattern recurring in `reports/`. Repair: freeze "
+        f"a dated snapshot (`<name>-YYYY-MM-DD.json`), pin THAT with a sha256 identity check, "
+        f"and let the live artifact move. COVERAGE (tested shape, one only): a `Path(...) / "
+        f"\"reports\" / \"<name>.json\"` division chain in a file under `tests/`, artifact "
+        f"named by some non-test module, basename without a date/`frozen`/`snapshot`/`-mN-` "
+        f"marker. KNOWN BLIND SPOTS (deliberate): bare `\"reports/x.json\"` string literals "
+        f"(a path asserted or compared is not a read), `os.path.join`, paths assembled through "
+        f"a fixture/helper in another module, conftest indirection, and artifacts under any "
+        f"other directory — a 0-site report does NOT mean the tree is clean. Advisory only "
+        f"— does NOT affect the exit code. See kb/lessons/00-lessons.md L325, L341."
+    )
+
+
 # ─── Raw datetime.fromisoformat advisory (L138 residue: non-gating, offline-safe) ──
 
 _DATETIME_FROMISOFORMAT_RE = re.compile(r"\bdatetime\.fromisoformat\s*\(")
@@ -5192,6 +5344,19 @@ def main() -> int:
                 sys.stderr.write(fee_sub_warning + "\n")
         except BaseException:
             sys.stderr.write("note: fee-subtraction advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L341 advisory: a test that pins values read from a LIVE `reports/` artifact which a
+        # probe regenerates (the 2026-08-12 Q54 incident — the sealed probe self-activates over
+        # every committed trade day, so the population moved 24->45 units and a pinned test went
+        # red on correct data; L325's mutable-artifact pattern, one directory over). Non-gating —
+        # stderr only, wrapped like the sibling advisories so neither the detector nor the
+        # formatter raising can reach the exit code (the L156 DEFECT-1 lesson).
+        try:
+            report_pin_warning = mutable_report_pin_warning(_mutable_report_pin_issues())
+            if report_pin_warning:
+                sys.stderr.write(report_pin_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: mutable-report-pin advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit

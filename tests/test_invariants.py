@@ -3343,3 +3343,136 @@ def test_trade_print_triage_respects_file_exclusions():
 def test_trade_print_triage_is_registered_as_a_gating_static_invariant():
     names = [n for n, _ in inv.STATIC_INVARIANTS]
     assert "trade_print_tiebreak_triage" in names
+
+
+# ─── L341: a test pinning a MUTABLE reports/ artifact (non-gating advisory) ──────────
+
+def _l339_tree(tmp_path, test_body: str, writer_body: str | None = None):
+    """A minimal repo-shaped tree: one non-test writer module, one test file."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "reports").mkdir()
+    if writer_body is None:
+        writer_body = (
+            'from pathlib import Path\n'
+            'REPORT_PATH = Path(".") / "reports" / "zz_probe.json"\n'
+        )
+    (tmp_path / "scripts" / "zz_probe.py").write_text(writer_body)
+    (tmp_path / "tests" / "test_zz.py").write_text(test_body)
+    return tmp_path
+
+
+def test_l339_flags_a_test_building_a_path_to_a_live_regenerated_report(tmp_path):
+    root = _l339_tree(tmp_path, (
+        'from pathlib import Path\n'
+        'def test_x():\n'
+        '    p = Path(__file__).parent.parent / "reports" / "zz_probe.json"\n'
+        '    assert p.is_file()\n'
+    ))
+    issues = inv._mutable_report_pin_issues(root)
+    assert len(issues) == 1
+    assert "tests/test_zz.py:3" in issues[0]
+    assert "reports/zz_probe.json" in issues[0]
+    assert "scripts/zz_probe.py" in issues[0]
+
+
+def test_l339_does_not_flag_a_frozen_dated_snapshot(tmp_path):
+    root = _l339_tree(tmp_path, (
+        'from pathlib import Path\n'
+        'def test_x():\n'
+        '    p = Path(".") / "reports" / "zz_probe-2026-08-09.json"\n'
+        '    assert p\n'
+    ))
+    assert inv._mutable_report_pin_issues(root) == []
+
+
+def test_l339_does_not_flag_an_artifact_no_module_writes(tmp_path):
+    root = _l339_tree(tmp_path, (
+        'from pathlib import Path\n'
+        'def test_x():\n'
+        '    p = Path(".") / "reports" / "hand_written_fixture.json"\n'
+        '    assert p\n'
+    ))
+    assert inv._mutable_report_pin_issues(root) == []
+
+
+def test_l339_does_not_flag_a_docstring_mention(tmp_path):
+    root = _l339_tree(tmp_path, (
+        'def test_x():\n'
+        '    """compare against reports/zz_probe.json by hand."""\n'
+        '    assert True\n'
+    ))
+    assert inv._mutable_report_pin_issues(root) == []
+
+
+def test_l339_does_not_flag_a_bare_string_comparison(tmp_path):
+    # Deliberate blind spot, pinned as a MISS: a path asserted or compared is not a read.
+    root = _l339_tree(tmp_path, (
+        'def test_x():\n'
+        '    rel = "reports/zz_probe.json"\n'
+        '    assert rel == "reports/zz_probe.json"\n'
+    ))
+    assert inv._mutable_report_pin_issues(root) == []
+
+
+def test_l339_ignores_non_test_readers(tmp_path):
+    root = _l339_tree(tmp_path, 'def test_x():\n    assert True\n')
+    (root / "scripts" / "zz_consumer.py").write_text(
+        'from pathlib import Path\n'
+        'p = Path(".") / "reports" / "zz_probe.json"\n'
+    )
+    assert inv._mutable_report_pin_issues(root) == []
+
+
+def test_l339_allowlisted_function_is_not_flagged(tmp_path, monkeypatch):
+    root = _l339_tree(tmp_path, (
+        'from pathlib import Path\n'
+        'def test_direction_only():\n'
+        '    p = Path(".") / "reports" / "zz_probe.json"\n'
+        '    assert p\n'
+    ))
+    monkeypatch.setattr(inv, "MUTABLE_REPORT_PIN_ALLOWLIST",
+                        {"tests/test_zz.py::test_direction_only"})
+    assert inv._mutable_report_pin_issues(root) == []
+
+
+def test_l339_garbage_input_never_raises(tmp_path):
+    root = _l339_tree(tmp_path, "def test_x(:\n  syntax error\n")
+    assert inv._mutable_report_pin_issues(root) == []
+    assert inv._mutable_report_pin_issues(tmp_path / "does-not-exist") == []
+
+
+def test_l339_warning_is_none_when_clean_and_names_the_repair_when_not():
+    assert inv.mutable_report_pin_warning([]) is None
+    msg = inv.mutable_report_pin_warning(
+        ["tests/test_zz.py:3 -> reports/zz_probe.json (written by scripts/zz_probe.py)"])
+    assert msg is not None
+    assert msg.startswith("warning (non-gating):")
+    assert "freeze" in msg.lower()
+    assert "sha256" in msg.lower()
+    assert "BLIND SPOTS" in msg
+    assert "L325" in msg and "L341" in msg
+
+
+def test_l339_advisory_never_gates_the_exit_code():
+    # Same posture as every sibling advisory: it is not a registered STATIC/DB invariant.
+    names = [n for n, _ in inv.STATIC_INVARIANTS]
+    assert "mutable_report_pin" not in names
+    assert "mutable_report_pin_warning" not in names
+
+
+def test_acceptance_l339_live_tree_is_clean_after_the_2026_08_12_repair():
+    """HARD real-tree acceptance test: the incident this advisory was built from is repaired.
+
+    On 2026-08-12 a research run re-fired `scripts/q54_s79_flow_continuation_probe.py` (sealed,
+    self-activating over every committed trade day). The population moved 24 units/133 obs ->
+    45/214 and `tests/test_bootstrap.py`'s L322 acceptance test — which pinned `== 24` / `== 133`
+    read out of the LIVE report — would have gone red on correct data. The repair froze
+    `reports/q54_s79_flow_continuation-2026-08-09.json` and repointed the pin at it. This test
+    fails if any test ever pins the live artifact again."""
+    assert inv._mutable_report_pin_issues() == []
+    frozen = ROOT / "reports" / "q54_s79_flow_continuation-2026-08-09.json"
+    assert frozen.is_file()
+    assert inv.MUTABLE_REPORT_PIN_ALLOWLIST == {
+        "tests/test_bootstrap.py::"
+        "test_acceptance_live_q54_report_if_present_is_a_superset_population"}
