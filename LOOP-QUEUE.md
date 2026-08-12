@@ -2592,6 +2592,42 @@ exit 0 (sharded, ~2.5-3h serial wall time, no code changed since); `python3 scri
 `reports/q51_queue_aware_fillsim.json`, `reports/q51_queue_aware_fillsim_rows.jsonl`,
 `kb/lessons/00-lessons.md` (L337 enforcement cell), `kb/00-LOG.md`.
 
+Status: **L337 FOLLOW-ON — TWO-AGENT CONFIRMED-WITH-CORRECTIONS. NO REGISTRY FLIP, NO NUMBER
+CHANGED.** (2026-08-12, research loop, same-day follow-up to the PROVISIONAL status above.) An
+independent `verifier` agent (dispatched before the PROVISIONAL commit landed, returned after)
+re-ran `scripts/q51_queue_aware_fillsim.py` and wrote a from-scratch reimplementation sharing no
+code with either the headline or the follow-on probe. **All six deterministic counts and every
+mean/CI reproduced bit-for-bit** (294/116 legs, 64→25 fills, 51/25 units, 24→14 informative,
+mean +$0.000714, CI [-$0.010387,+$0.012823]); the rule was confirmed genuinely implemented as
+specified (own-side ladder read — strengthened by `collection/normalize.py`'s own field
+definitions showing the YES/NO asks, not the bids, are the derived/mirrored fields, so reading
+the bid's own side was the only correct choice; cumulative sum over ALL qualifying prints, not
+first-print-only; `>=` boundary confirmed load-bearing against an independently re-derived
+strict-`>` alternative); the reused fee/bootstrap/admissibility/tick-gate machinery was confirmed
+imported, not reimplemented (zero hand-rolled fee/bootstrap literals found by grep); the headline
+module and its test file were confirmed byte-untouched; the `invariants.py` diff was confirmed
+purely additive (fail-closed behavior for every OTHER consumer verified intact by deleting the
+new triage key at runtime and observing the ratchet fire); both side-findings (6.25% vs 20.3%
+crediting-print reading, the 14/64-tied/12-disagreeing tie exposure) were independently
+reproduced; no registry file was touched. **Two corrections, neither moving a number or the
+verdict — both already folded into the module's docstring and `kb/lessons/00-lessons.md`'s L337
+cell in this same commit, and given their own lesson rows (L339/L340):** (1) "the MOST GENEROUS
+rule available" overclaimed — a strictly more generous rule of a DIFFERENT family (price-priority
+credit on any print strictly through the resting price) exists on the same tape and gives 32/294
+fills, not 25/294; the shipped rule is the most generous member of its OWN family
+(cumulative-volume-vs-resting-size), which is what "available" should have been scoped to. The
+more generous alternative is also more negative (mean −$0.006938, CI still straddling zero), so
+the correction strengthens rather than weakens the discount finding. (2) The docstring's "~14x on
+the rate and ~2.5x on the mean" had the two factors swapped against their quantities — corrected
+to ~2.56x on the rate (21.77%→8.50%) and ~14.1x on the mean (+$0.010068→+$0.000714). Gates:
+verifier personally ran `pytest tests/test_q51_queue_aware_fillsim.py tests/test_q51_maker_fillsim.py`
+(84 passed) and `python3 scripts/invariants.py --full` (exit 0, all green); did not re-run the
+full ~2.5-3h serial suite, corroborated instead by `pytest --collect-only` matching the
+PROVISIONAL commit's stated 3,878-test denominator. Files (this follow-up):
+`scripts/q51_queue_aware_fillsim.py` (docstring corrections), `kb/lessons/00-lessons.md` (L337
+enforcement cell amended in place + new L339/L340), `LOOP-QUEUE.md`, `kb/00-LOG.md`. Still 0
+proven edges.
+
 ### Q52 — S78 toxicity-filtered selective maker (measurable-adverse-selection S11 lane) — COLLECT-AND-REVISIT
 Status update (2026-08-09, research loop — PHASE-2 BACKFILL, continuing the same script past its
 phase-1 stopping point; does NOT alter S78's REGISTERED status below): re-ran
