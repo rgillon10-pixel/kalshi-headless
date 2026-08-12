@@ -6,6 +6,64 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-12 ~04:15Z UTC — kalshi-edge-hunter nightly: adversarial review clean · Q21 round #28 = 0/3 (verifier-refuted)
+
+**Steps 0a/0/0b.** History-integrity PASS: recent merged PRs #348–#353 all reachable from
+`origin/main` (present in `git log`); `main` not rewound (the fetch "forced update" was only the
+fresh-clone baseline moving). `kb/00-LOG.md` newest (08-11) vs newest `tape/*/dt=*` (08-12) = 1-day
+gap, within tolerance. Claim check: open PRs are the standing Ryan-review-only set
+(#125/#165/#166/#191/#208/#271/#330) — none claims an eligible queue item. Step-0b: **228**
+`tape/hourly-*` + ~10 `tape/burst-*` remote branches; the two newest (08-11) were already recovered
+by PR #351 and the 08-09 branches confirmed contained by PR #348 — no new stranded tape.
+
+**Unit 1 — adversarial review of the last 24h of verdicts: CLEAN, no issue opened.** The two
+verdict-class findings of the window — Q51 milestone-3 admissible-null (#353) and Q56/S81
+first-firing admissible-null — were both already two-agent verifier-confirmed. Independently
+re-checked Q51-m3's three named load-bearing dimensions: maker fee is
+`core.pricing.MAKER_FEE_RATE=0.0175` (imported at `scripts/q51_maker_fillsim.py:108`, never
+hardcoded; fee-control shows the verdict is fee-rate-insensitive, +$0.010068 @0.0175 vs +$0.008061
+@0.07), fills are `broker_truth` (64/64 traced to distinct `trade_id`s), bootstrap is block-by-game.
+Nothing failed my re-check → no `review:` issue.
+
+**Unit 2 — pipeline replenishment: Q21 round #28, 0 eligible < 2 → round fired.** `tape/kalshi_trades/`
+byte-frozen at 6 backfill days (last `dt=2026-08-03`; collector Ryan-key-gated) — same surface
+rounds #25–#27 worked. Producer proposed **S82/S83/S84**, three mechanisms round #27 (α/β/γ) did
+NOT test; the dispatched independent `verifier` refuted all three on committed tape. **S82**
+(size-conditioned informed-flow follow) KILL — 66 settled games, block-by-game net-taker CI
+straddles zero at every size decile AND worsens monotonically with size (directly refutes the
+Easley–O'Hara informed-trade-larger premise — bigger prints settle worse). **S83** (realized
+effective-half-spread maker-capture on the print×book join) KILL/FOLD — the producer's own
+"0.46% data-inadequate" kill was WRONG (62.76% of prints join a ≤15-min book), but the
+`|print−mid|−fee=+0.1185 CI[+0.081,+0.140]` headline is a **stale-mid drift artifact** (|print−mid|
+0.160→0.031 as quote age 15min→30s while the book's own half-spread is a flat 0.7¢); real 0.7¢ < 1¢
+maker fee → the S6/S13 wall reproduces, and the resting-maker P&L IS S78's markout lane. **S84**
+(trade-intensity burst → settlement direction) KILL — 59 settled games, block-by-game net-taker CI
+fully negative [−0.168,−0.010], adds nothing past L130 mid-efficiency. **0 registered, no S-numbers
+burned → next free stays S82. Two-agent idea-stage rule satisfied (producer + independent verifier).**
+Deferred lesson (kb-distiller): `|print − contemporaneous_mid|` off a sparse book is drift-dominated,
+never a capturable half-spread — compare against `(best_ask−best_bid)/2`; the pt1 synthetic-as-fill
+error in a new costume. Still **0 proven edges.**
+
+**Unit 3 — probe-prep: N/A.** No queue gate opens within ~72h (Q51 milestone-4 terminal sweep is
+gated to 2026-08-24, and its `scripts/q51_maker_fillsim.py` stays UNCHANGED — nothing to pre-build).
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY={s14_ladder_underwriting}`; no new tape landed this
+run, so the paper broker had nothing to replay — ledger unchanged (`paper: 0 open position(s),
+1657 settled contract(s), realized P&L $+27.76, cash $+27.76` — dead-strategy paper-infra
+validation only, NOT edge evidence).
+
+**Housekeeping:** no active stale `kalshi-burst-*` triggers visible in this account's scope (the
+July one-shots the retros flag are Ryan-side, not actionable here); the open-PR review backlog
+(#125/#165/#166/#191/#208/#271/#330) is unchanged and already named by prior retros — no new
+information, so not re-escalated (avoids the alert-fatigue the channel already suffered).
+
+Gates AFTER the last edit (docs/findings-only diff — zero code/tests touched):
+`python scripts/invariants.py --full` re-run green; `pytest` green by construction (no code changed,
+L162 floor-claim allowance for a docs-only diff). Files: `findings/2026-08-12-q21-round28-idea-gen.md`,
+`LOOP-QUEUE.md`, `kb/00-LOG.md`. See `findings/2026-08-12-q21-round28-idea-gen.md`.
+
+---
+
 ## 2026-08-11 18:0x ET — research loop: Q51 milestone-3 upgraded PROVISIONAL → two-agent CONFIRMED-WITH-CORRECTIONS
 
 Queue rescan: 0 eligible TODO/IN-PROGRESS items (5th consecutive idle-adjacent run), but this
