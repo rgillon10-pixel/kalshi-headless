@@ -972,3 +972,155 @@ def _median_of(xs: Sequence[float]):
         return None
     m = len(vals) // 2
     return vals[m] if len(vals) % 2 else (vals[m - 1] + vals[m]) / 2.0
+
+
+# --------------------------------------------------------------------------- #
+# L321 — minority-side (sign-variation) adequacy, counted on EXCLUSIVE units
+# --------------------------------------------------------------------------- #
+# L312 introduced a sign-variation floor ("the minority arm must span >= N units, so an
+# ALIVE reading is conditioned on genuine sign variation rather than on a handful of
+# minority rows"). L321 found the floor, as first coded, counts units TOUCHED by at least
+# one minority-sign observation. That is strictly weaker than it reads: a block containing
+# one NO entry alongside twenty-four YES entries clears the floor, yet the block bootstrap
+# (L6 — the block, not the observation, is the resampling unit) can never draw a
+# minority-only configuration from it. The population the floor exists to require is the
+# set of blocks that are EXCLUSIVELY minority-side.
+#
+# Both counts are reported side by side on purpose: the touching count is what every
+# existing report quotes, so a reader can see the two numbers disagree rather than having
+# one silently replaced by the other.
+
+def minority_side_unit_census(unit_sides: Dict[str, Sequence[str]], *,
+                              sides: Sequence[str] = None) -> dict:
+    """Per-side unit counts for a sign-variation gate, TOUCHING and EXCLUSIVE (L321).
+
+    `unit_sides` maps a bootstrap unit key (game/hour/ticker — whatever the caller already
+    blocked on, per L6; this module never guesses a blocking key) to that unit's sequence of
+    per-observation SIDE labels. Labels are opaque and caller-defined: "yes"/"no", "long"/
+    "short", or any other hashable label; nothing here is Kalshi-specific.
+
+    `sides` optionally declares the label universe so a side that the data never exhibits is
+    reported as 0 rather than omitted (L289/L296: an absent key reads as "not measured",
+    which is exactly how a single-sided population passes for un-checked). Labels found in
+    the data but missing from `sides` are still included — a narrow `sides` can add a zero
+    row, never hide a side.
+
+    Returns:
+      `n_units`            units carrying >= 1 labelled observation (the bootstrap blocks),
+      `n_units_unlabelled` units present in the mapping with no observations (reported, not
+                           silently dropped),
+      `sides`              the label universe actually reported, sorted,
+      `units_per_side`     side -> number of units carrying >= 1 observation on that side.
+                           This reproduces the pre-L321 semantics EXACTLY, so a caller can
+                           print both numbers and see them disagree,
+      `exclusive_units_per_side`
+                           side -> number of units whose observations are ALL on that side,
+      `n_mixed_units`      units carrying >= 2 distinct side labels (the difference between
+                           the two counts above lives entirely here),
+      `minority_side`      the side with the fewest TOUCHING units (ties broken by fewest
+                           exclusive units, then by sorted label — deterministic, never
+                           dependent on dict order); `None` when fewer than two sides are
+                           reported OR when no unit carries a labelled observation, which is
+                           an honest "there is no minority arm to speak of", not a 0 count,
+      `minority_side_units_touching` / `minority_side_units_exclusive`
+                           the two counts for that side; both 0 when `minority_side` is None.
+
+    A `None` side label raises `ValueError` rather than being silently bucketed — an
+    unlabelled observation cannot be assigned a side and guessing one would fabricate the
+    very variation this gate exists to require. Empty input returns an honest zeroed report.
+    """
+    universe: List[str] = []
+    seen = set()
+    for s in (sides or ()):
+        if s is None:
+            raise ValueError("declared side labels must not be None")
+        if s not in seen:
+            seen.add(s)
+            universe.append(s)
+
+    by_unit: Dict[str, set] = {}
+    n_unlabelled = 0
+    for unit, labels in unit_sides.items():
+        labs = list(labels)
+        if not labs:
+            n_unlabelled += 1
+            continue
+        bucket = set()
+        for lab in labs:
+            if lab is None:
+                raise ValueError(f"unit {unit!r} carries a None side label")
+            bucket.add(lab)
+            if lab not in seen:
+                seen.add(lab)
+                universe.append(lab)
+        by_unit[unit] = bucket
+
+    universe = sorted(universe, key=lambda s: str(s))
+    touching = {s: sum(1 for b in by_unit.values() if s in b) for s in universe}
+    exclusive = {s: sum(1 for b in by_unit.values() if b == {s}) for s in universe}
+    n_mixed = sum(1 for b in by_unit.values() if len(b) > 1)
+
+    minority = None
+    if len(universe) >= 2 and by_unit:
+        minority = sorted(universe,
+                          key=lambda s: (touching[s], exclusive[s], str(s)))[0]
+    return {
+        "n_units": len(by_unit),
+        "n_units_unlabelled": n_unlabelled,
+        "sides": tuple(universe),
+        "units_per_side": dict(sorted(touching.items(), key=lambda kv: str(kv[0]))),
+        "exclusive_units_per_side": dict(sorted(exclusive.items(),
+                                                key=lambda kv: str(kv[0]))),
+        "n_mixed_units": n_mixed,
+        "minority_side": minority,
+        "minority_side_units_touching": touching[minority] if minority is not None else 0,
+        "minority_side_units_exclusive": exclusive[minority] if minority is not None else 0,
+    }
+
+
+def sign_variation_admissible(unit_sides: Dict[str, Sequence[str]], *,
+                              min_exclusive_minority_units: int = 2,
+                              sides: Sequence[str] = None) -> dict:
+    """The L321 sign-variation gate: floor on EXCLUSIVELY-minority-side units.
+
+    Sibling to `bootstrap_verdict_admissible` (L41's unit floor) and `clears_tick_magnitude`
+    (L27's magnitude floor), and shaped like them — returns a dict, never a bare bool, so a
+    verdict report can record WHY a CI was inadmissible.
+
+    The floor is applied to `minority_side_units_exclusive`, NOT to the touching count L312's
+    first implementation used: a block bootstrap resamples whole blocks, so a minority arm
+    that lives entirely inside otherwise-majority blocks can never appear alone in ANY
+    resample. Q54/S79 is the exhibit — the touching count reads 6 of 45 units against a floor
+    of 2 while the exclusive count is 0.
+
+    `reasons` is drawn from {"empty", "single_sided", "below_min_exclusive_minority_units"}
+    (empty list when admissible). "single_sided" is judged on the OBSERVED data (fewer than
+    two sides carry any unit), never on the declared `sides` universe — declaring a label the
+    tape never exhibits must not make a one-sided population look two-sided. A single-sided
+    population reports BOTH "single_sided" and the floor miss: they are different facts (no
+    minority arm exists at all vs. one exists but is too small), and collapsing them loses
+    the distinction a reader needs.
+
+    The full census travels with the verdict under `census`, so both counts stay visible.
+    """
+    floor = int(min_exclusive_minority_units)
+    if floor < 0:
+        raise ValueError(f"min_exclusive_minority_units must be >= 0 (got {floor})")
+    census = minority_side_unit_census(unit_sides, sides=sides)
+    reasons: List[str] = []
+    n_sides_observed = sum(1 for n in census["units_per_side"].values() if n > 0)
+    if census["n_units"] == 0:
+        reasons.append("empty")
+    elif n_sides_observed < 2:
+        reasons.append("single_sided")
+    if census["minority_side_units_exclusive"] < floor:
+        reasons.append("below_min_exclusive_minority_units")
+    return {
+        "admissible": not reasons,
+        "min_exclusive_minority_units": floor,
+        "minority_side": census["minority_side"],
+        "minority_side_units_exclusive": census["minority_side_units_exclusive"],
+        "minority_side_units_touching": census["minority_side_units_touching"],
+        "reasons": reasons,
+        "census": census,
+    }

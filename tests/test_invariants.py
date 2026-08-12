@@ -3476,3 +3476,109 @@ def test_acceptance_l339_live_tree_is_clean_after_the_2026_08_12_repair():
     assert inv.MUTABLE_REPORT_PIN_ALLOWLIST == {
         "tests/test_bootstrap.py::"
         "test_acceptance_live_q54_report_if_present_is_a_superset_population"}
+
+
+# ─── Minority-side / sign-variation gate triage (L321: GATING, allowlisted) ──
+
+def _minority_side_triage_failures_over_real_tree():
+    """Every failure message the L321 ratchet produces over the REAL repo source tree."""
+    out = []
+    for p in inv._iter_source_files():
+        if p.suffix != ".py":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        msg = inv.inv_minority_side_gate_triage(p, text)
+        if msg:
+            out.append(msg)
+    return out
+
+
+def test_acceptance_minority_side_triage_real_tree_is_clean():
+    # HARD acceptance test against the REAL tree: MINORITY_SIDE_GATE_TRIAGE covers every
+    # module today carrying the sign-variation gate shape, so the ratchet is green NOW and a
+    # new untriaged sign-variation gate turns it red.
+    assert _minority_side_triage_failures_over_real_tree() == []
+
+
+def test_minority_side_triage_registry_paths_all_exist_and_match_the_pattern():
+    for rel in inv.MINORITY_SIDE_GATE_TRIAGE:
+        path = ROOT / rel
+        assert path.exists(), f"triaged path no longer exists: {rel}"
+        text = path.read_text(encoding="utf-8")
+        hits = [ln for _i, ln in inv._scan_lines(text)
+                if not ln.lstrip().startswith("#")
+                and inv._MINORITY_SIDE_GATE_RE.search(ln)]
+        assert hits, f"triaged file no longer carries the gate shape: {rel}"
+
+
+def test_minority_side_triage_fires_on_a_new_untriaged_gate():
+    p = ROOT / "scripts" / "q99_some_new_probe.py"
+    src = ("def population_report(rows):\n"
+           "    minority_side_units = len(units_by_side['no'])\n"
+           "    return {'ok': minority_side_units >= 2}\n")
+    msg = inv.inv_minority_side_gate_triage(p, src)
+    assert msg is not None
+    assert "UNTRIAGED minority-side" in msg
+    assert "MINORITY_SIDE_GATE_TRIAGE" in msg
+    assert "sign_variation_admissible" in msg
+
+
+def test_minority_side_triage_silent_on_a_triaged_file():
+    rel = "core/bootstrap.py"
+    assert rel in inv.MINORITY_SIDE_GATE_TRIAGE
+    src = (ROOT / rel).read_text(encoding="utf-8")
+    assert inv.inv_minority_side_gate_triage(ROOT / rel, src) is None
+
+
+def test_minority_side_triage_scoped_to_source_dirs_only():
+    src = "sign_variation = {'minority_side_units': 2}\n"
+    assert inv.inv_minority_side_gate_triage(
+        ROOT / "tests" / "test_some_probe.py", src) is None
+    assert inv.inv_minority_side_gate_triage(
+        ROOT / "findings" / "notes.py", src) is None
+    assert inv.inv_minority_side_gate_triage(
+        ROOT / "scripts" / "q99_some_new_probe.py", src) is not None
+
+
+def test_minority_side_triage_ignores_comment_lines():
+    src = ("# minority_side_units is discussed here but never computed\n"
+           "# sign_variation as a concept\n"
+           "VALUE = 1\n")
+    assert inv.inv_minority_side_gate_triage(
+        ROOT / "scripts" / "q99_some_new_probe.py", src) is None
+
+
+def test_minority_side_triage_does_not_fire_on_unrelated_source():
+    src = "def f(x):\n    return x * 2\n"
+    assert inv.inv_minority_side_gate_triage(
+        ROOT / "scripts" / "q99_some_new_probe.py", src) is None
+
+
+def test_minority_side_triage_respects_file_exclusions():
+    # The engine's own definition site is excluded from every static invariant, so the
+    # tokens quoted in its registry can never self-trip (documented limit in the banner).
+    assert inv.inv_minority_side_gate_triage(
+        ROOT / "scripts" / "invariants.py",
+        "minority_side_units = 1\n") is None
+
+
+def test_minority_side_triage_survives_garbage_input():
+    assert inv.inv_minority_side_gate_triage(
+        ROOT / "scripts" / "q99_some_new_probe.py", "\x00\x01 not python ☃") is None
+
+
+def test_minority_side_triage_registered_in_static_invariants():
+    names = [n for n, _fn in inv.STATIC_INVARIANTS]
+    assert "minority_side_gate_triage" in names
+
+
+def test_minority_side_triage_sealed_probe_entry_records_the_touching_exposure():
+    """The registry must say WHICH count the sealed probe's floor uses — the sentence is the
+    whole point of the ratchet (L323 precedent)."""
+    entry = inv.MINORITY_SIDE_GATE_TRIAGE["scripts/q54_s79_flow_continuation_probe.py"]
+    assert entry.startswith("TOUCHING")
+    assert "L311" in entry
+    assert inv.MINORITY_SIDE_GATE_TRIAGE["core/bootstrap.py"].startswith("EXCLUSIVE")

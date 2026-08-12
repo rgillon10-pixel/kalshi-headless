@@ -735,6 +735,98 @@ def inv_trade_print_tiebreak_triage(path: Path, text: str) -> Optional[str]:
                 "measure with scripts/trade_print_tiebreak_audit.py")
 
 
+# ─── L321: minority-side (sign-variation) gate triage (GATING allowlisted ratchet) ─────
+#
+# L321 (2026-08-09, Q54 two-agent verifier re-check): L312's sign-variation floor
+# ("the minority arm must span >= N bootstrap units") was first coded as a count of units
+# TOUCHED by at least one minority-sign entry. A block bootstrap resamples whole blocks
+# (L6), so a minority arm living entirely inside otherwise-majority blocks can never appear
+# alone in ANY resample — the floor can open on exactly the population it exists to refuse.
+# Q54/S79 is the live exhibit and it did not heal as tape grew: measured 2026-08-12 over the
+# full committed trade tape through the SEALED probe's own outcome-blind path, the touching
+# count reads 6 minority (NO-side) units of 45 against a floor of 2 (3x headroom), while the
+# EXCLUSIVELY-minority count is 0 — all 6 are mixed blocks that also carry YES entries.
+# (Reproduce: `python3 scripts/q54_minority_exclusivity_audit.py`.)
+#
+# Why a ratchet and not a bare assert (same reasoning as L319's self-tape-read rule and
+# L323's tie-break rule): whether a given module's gate is order-of-magnitude equivalent to
+# a sign-variation floor is a per-file semantic judgment, and the one repair L321 names sits
+# inside a probe SEALED mid-verdict (L311) that may not be edited. So the rule does not
+# demand a fix — it demands that every module carrying the gate shape has SAID, on the
+# record, which count its floor is applied to. It fails CLOSED: a new sign-variation gate is
+# UNTRIAGED until someone writes the sentence.
+#
+# HONEST LIMITS (they travel with the rule):
+#   * the trigger is LEXICAL — the `minority_side*` / `sign_variation` token family. A future
+#     probe that floors on minority-side units under different names (e.g. `n_short_blocks`)
+#     is invisible to this check. Recognizing it is a human call the ratchet forces on the
+#     names it knows, not one it resolves in general (the L319/L323 residual, restated).
+#   * `scripts/invariants.py` is `_file_excluded` from every static invariant, so this rule
+#     cannot see its own definition site; the registry below therefore carries no entry for
+#     it, and the tokens quoted in this banner are comments, which `_scan_lines` callers skip.
+#   * a name match is not proof of a defect: an entry may legitimately declare EXCLUSIVE
+#     counting, or declare the gate absent. The registry records the disposition; it never
+#     asserts the disposition is the good one.
+MINORITY_SIDE_GATE_TRIAGE: Dict[str, str] = {
+    # ---- floors on the EXCLUSIVE count (the target state, L321's own rule) ----
+    "core/bootstrap.py":
+        "EXCLUSIVE — the shared helper this ratchet points new probes at. "
+        "`minority_side_unit_census` reports `units_per_side` (touching, the pre-L321 "
+        "semantics, kept visible on purpose) BESIDE `exclusive_units_per_side`, and "
+        "`sign_variation_admissible` floors on the EXCLUSIVE count. Sibling to "
+        "`bootstrap_verdict_admissible` (L41) and `clears_tick_magnitude` (L27).",
+
+    # ---- floors on the TOUCHING count: known exposure, frozen, not repaired here ----
+    "scripts/q54_s79_flow_continuation_probe.py":
+        "TOUCHING — L321's ORIGIN SITE, SEALED AND DELIBERATELY UNCHANGED: "
+        "`population_report`'s `sign_variation` counts units TOUCHED by a side "
+        "(`units_by_side[side].add(unit)`), so its `min_minority_side_units = 2` floor opened "
+        "on 6 minority units of which 0 are exclusively minority-side. The probe is sealed "
+        "mid-verdict (L311) and its pre-registration digest is pinned by a test, so a "
+        "research run may not touch its gate logic; S79's headline verdict is DEAD-by-CI on "
+        "its own terms and is NOT affected either way. L321 assigns the repair to the next "
+        "milestone in which a sign-variation-gated probe reads ALIVE — at which point the "
+        "gate must be re-pre-registered against `core.bootstrap.sign_variation_admissible`.",
+
+    # ---- measurement half: reports both counts, floors on neither ----
+    "scripts/q54_minority_exclusivity_audit.py":
+        "N/A BY CONSTRUCTION — this ratchet's measurement half. It re-derives the sealed "
+        "probe's population through its outcome-blind path and REPORTS both counts; it "
+        "gates nothing and computes no return, so it has no floor to misapply.",
+}
+
+_MINORITY_SIDE_GATE_RE = re.compile(r"\bminority_side\w*\b|\bsign_variation\w*\b")
+_MINORITY_SIDE_TRIAGE_DIRS = ("scripts/", "execution/", "core/", "collection/")
+
+
+def inv_minority_side_gate_triage(path: Path, text: str) -> Optional[str]:
+    """L321 GATING ratchet: any module under scripts/|execution/|core/|collection/ carrying
+    the minority-side / sign-variation gate shape must be triaged in
+    MINORITY_SIDE_GATE_TRIAGE (see the banner above), recording which count its floor is
+    applied to: EXCLUSIVE (units whose observations are ALL minority-side — L321's rule),
+    TOUCHING (units merely containing a minority entry — a known, named exposure), or N/A.
+    Fails closed: a new sign-variation gate is a gate failure until the sentence is written."""
+    if _file_excluded(path):
+        return None
+    rel = _rel(path)
+    if not rel.startswith(_MINORITY_SIDE_TRIAGE_DIRS):
+        return None
+    if rel in MINORITY_SIDE_GATE_TRIAGE:
+        return None
+    hits = [(i, ln) for i, ln in _scan_lines(text)
+            if not ln.lstrip().startswith("#") and _MINORITY_SIDE_GATE_RE.search(ln)]
+    if not hits:
+        return None
+    return _fmt(path, hits,
+                "UNTRIAGED minority-side / sign-variation gate — lesson L321: a floor that "
+                "counts units TOUCHED by a minority-sign entry can open with ZERO "
+                "independently-resamplable minority blocks (Q54/S79: 6 touching, 0 "
+                "exclusive, floor 2). Add this file to MINORITY_SIDE_GATE_TRIAGE in "
+                "scripts/invariants.py stating which count the floor uses (EXCLUSIVE / "
+                "TOUCHING / N/A), and prefer core.bootstrap.sign_variation_admissible, "
+                "which floors on the exclusive count and reports both")
+
+
 STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_gefs", inv_no_gefs),
     ("no_bare_pstdev", inv_no_bare_pstdev),
@@ -749,6 +841,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_raw_datetime_fromisoformat", inv_no_raw_datetime_fromisoformat),
     ("collector_self_tape_read_triage", inv_collector_self_tape_read_triage),
     ("trade_print_tiebreak_triage", inv_trade_print_tiebreak_triage),
+    ("minority_side_gate_triage", inv_minority_side_gate_triage),
 ]
 
 
