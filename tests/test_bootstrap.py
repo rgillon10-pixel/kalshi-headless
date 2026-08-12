@@ -17,7 +17,9 @@ from core.bootstrap import (
     headline_fill_rate,
     hit_magnitude_decomposition,
     kish_effective_n,
+    minority_side_unit_census,
     sign_bounded_objective,
+    sign_variation_admissible,
     turnover_rule_saturation,
     TURNOVER_SATURATION_RATIO,
     TURNOVER_SATURATION_FILL_RATE,
@@ -1398,3 +1400,129 @@ def test_l250_fixture_carries_its_own_provenance():
     assert "q49_s68_bothside_maker_fillsim.py" in prov["producer"]
     assert "real_bid" in prov["price_source_tag"]
     assert "broker_truth(settlement)" in prov["price_source_tag"]
+
+
+# ─── minority-side unit census + sign-variation gate (L321) ─────────────────
+#
+# L321: a sign-variation floor that counts units TOUCHED by a minority-sign entry can open
+# with zero independently-resamplable minority blocks. The census must report both counts;
+# the gate must floor on the exclusive one.
+
+def test_l321_census_reports_touching_and_exclusive_separately():
+    census = minority_side_unit_census(
+        {"g1": ["yes", "no"], "g2": ["yes", "yes"], "g3": ["no"]},
+        sides=("yes", "no"))
+    assert census["n_units"] == 3
+    assert census["units_per_side"] == {"no": 2, "yes": 2}
+    assert census["exclusive_units_per_side"] == {"no": 1, "yes": 1}
+    assert census["n_mixed_units"] == 1
+    assert census["sides"] == ("no", "yes")
+
+
+def test_l321_the_exhibit_gate_opens_on_touching_and_shuts_on_exclusive():
+    """The exact L321 shape: the minority side touches 2 units, is exclusive to none.
+
+    A block bootstrap resamples whole units, so no resample can ever be minority-only —
+    which is the entire population the floor exists to require."""
+    unit_sides = {f"g{i}": ["yes"] for i in range(22)}
+    unit_sides["g22"] = ["yes"] * 24 + ["no"]      # minority entry inside a majority block
+    unit_sides["g23"] = ["yes"] * 5 + ["no"]
+    census = minority_side_unit_census(unit_sides, sides=("yes", "no"))
+    assert census["n_units"] == 24
+    assert census["minority_side"] == "no"
+    assert census["minority_side_units_touching"] == 2      # the pre-L321 count: floor met
+    assert census["minority_side_units_exclusive"] == 0     # the L321 count: floor missed
+
+    gate = sign_variation_admissible(unit_sides, min_exclusive_minority_units=2,
+                                     sides=("yes", "no"))
+    assert gate["admissible"] is False
+    assert gate["reasons"] == ["below_min_exclusive_minority_units"]
+    assert gate["minority_side_units_touching"] == 2
+    assert gate["census"]["n_mixed_units"] == 2
+
+
+def test_l321_gate_opens_when_the_minority_side_owns_whole_units():
+    unit_sides = {"g1": ["no"], "g2": ["no", "no"], "g3": ["yes"], "g4": ["yes"],
+                  "g5": ["yes"], "g6": ["yes", "no"]}
+    gate = sign_variation_admissible(unit_sides, min_exclusive_minority_units=2)
+    assert gate["admissible"] is True
+    assert gate["reasons"] == []
+    assert gate["minority_side"] == "no"
+    assert gate["minority_side_units_exclusive"] == 2
+
+
+def test_l321_single_sided_population_is_named_as_such():
+    gate = sign_variation_admissible({"g1": ["yes"], "g2": ["yes"]},
+                                     min_exclusive_minority_units=2, sides=("yes", "no"))
+    assert gate["admissible"] is False
+    # BOTH facts, not one collapsed into the other: no minority arm exists at all, AND the
+    # floor is missed. A declared-but-unobserved side must not make it look two-sided.
+    assert gate["reasons"] == ["single_sided", "below_min_exclusive_minority_units"]
+    assert gate["census"]["units_per_side"] == {"no": 0, "yes": 2}
+
+
+def test_l321_declared_sides_add_a_zero_row_but_cannot_hide_an_observed_one():
+    census = minority_side_unit_census({"g1": ["yes"], "g2": ["short"]}, sides=("yes", "no"))
+    assert census["units_per_side"] == {"no": 0, "short": 1, "yes": 1}
+    assert set(census["sides"]) == {"no", "short", "yes"}
+
+
+def test_l321_empty_population_is_honest_not_a_pass():
+    gate = sign_variation_admissible({}, min_exclusive_minority_units=1, sides=("yes", "no"))
+    assert gate["admissible"] is False
+    assert "empty" in gate["reasons"]
+    assert gate["census"]["minority_side"] is None
+    assert gate["minority_side_units_exclusive"] == 0
+
+
+def test_l321_unlabelled_units_are_reported_not_silently_dropped():
+    census = minority_side_unit_census({"g1": ["yes"], "g2": [], "g3": ["no"]})
+    assert census["n_units"] == 2
+    assert census["n_units_unlabelled"] == 1
+
+
+def test_l321_all_units_mixed_means_zero_exclusive_on_every_side():
+    census = minority_side_unit_census({"g1": ["yes", "no"], "g2": ["no", "yes"]})
+    assert census["units_per_side"] == {"no": 2, "yes": 2}
+    assert census["exclusive_units_per_side"] == {"no": 0, "yes": 0}
+    assert census["n_mixed_units"] == 2
+    assert sign_variation_admissible({"g1": ["yes", "no"], "g2": ["no", "yes"]},
+                                     min_exclusive_minority_units=1)["admissible"] is False
+
+
+def test_l321_minority_selection_is_deterministic_under_a_tie():
+    a = minority_side_unit_census({"g1": ["yes"], "g2": ["no"]})
+    b = minority_side_unit_census({"g2": ["no"], "g1": ["yes"]})
+    assert a["minority_side"] == b["minority_side"] == "no"   # tie -> sorted label
+
+
+def test_l321_three_labels_are_supported_and_the_smallest_arm_is_the_minority():
+    census = minority_side_unit_census(
+        {"g1": ["a"], "g2": ["a"], "g3": ["b"], "g4": ["b"], "g5": ["c", "a"]})
+    assert census["minority_side"] == "c"
+    assert census["minority_side_units_touching"] == 1
+    assert census["minority_side_units_exclusive"] == 0
+
+
+def test_l321_a_none_side_label_raises_rather_than_being_bucketed():
+    with pytest.raises(ValueError):
+        minority_side_unit_census({"g1": ["yes", None]})
+    with pytest.raises(ValueError):
+        minority_side_unit_census({"g1": ["yes"]}, sides=("yes", None))
+
+
+def test_l321_negative_floor_raises():
+    with pytest.raises(ValueError):
+        sign_variation_admissible({"g1": ["yes"]}, min_exclusive_minority_units=-1)
+
+
+def test_l321_census_reproduces_the_touching_semantics_the_sealed_probe_uses():
+    """The touching count must match a naive `units_by_side[side].add(unit)` reduction —
+    the pre-L321 semantics — or the two numbers cannot be compared side by side."""
+    unit_sides = {"g1": ["yes", "no"], "g2": ["yes"], "g3": ["no"], "g4": ["yes", "yes"]}
+    naive = {}
+    for unit, labels in unit_sides.items():
+        for lab in labels:
+            naive.setdefault(lab, set()).add(unit)
+    census = minority_side_unit_census(unit_sides)
+    assert census["units_per_side"] == {k: len(v) for k, v in sorted(naive.items())}
