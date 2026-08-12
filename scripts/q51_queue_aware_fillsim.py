@@ -6,9 +6,12 @@ L337 (2026-08-11): `scripts/q51_maker_fillsim.py` credits a fill whenever ANY qu
 executed print lands in the interval, with NO accounting for the SIZE already resting ahead
 of the order at its own price. That makes its 64/294 fills (21.77%) and +$0.010068 mean an
 UPPER BOUND, not a measurement — the gap measured ad hoc by an independent verifier was
-~14x on the fill count-derived rate and ~2.5x on the mean. This module is that lesson's
-"standalone follow-on script": it recomputes the SAME population through the SAME verdict
-machinery under a queue-aware fill rule and reports the discount factor beside the headline.
+~2.56x on the fill rate (21.77% -> 8.50%) and ~14.1x on the mean (+$0.010068 -> +$0.000714).
+This module is that lesson's "standalone follow-on script": it recomputes the SAME population
+through the SAME verdict machinery under a queue-aware fill rule and reports the discount
+factor beside the headline. (2026-08-12 verifier correction: an earlier draft of this
+docstring had the two factors swapped against their quantities — corrected here, not just in
+prose, per the L337-extension lesson this run also filed.)
 
 WHY A SEPARATE MODULE, not a `--queue-aware` flag on the original. The original module is
 bound by `tests/test_q51_maker_fillsim.py::test_module_computes_no_queue_position_or_time_to_fill_number`,
@@ -25,11 +28,17 @@ resting at the order's own price, never WHERE in that queue the order sat or WHE
 have filled. The ~3h cadence ceiling from milestone 2/3 is unchanged and restated in the
 report.
 
-THE RULE (deliberately the MOST GENEROUS size-aware rule the tape supports — it credits the
-interval's ENTIRE cumulative qualifying volume against the queue, i.e. it assumes the order
-sits at the BACK of its own price level but that every qualifying print in the interval eats
-into that level; a real order also faces size joining behind/ahead intra-interval, which
-this tape cannot see):
+THE RULE (deliberately the MOST GENEROUS rule OF THE CUMULATIVE-VOLUME-VS-RESTING-SIZE FAMILY
+the tape supports — NOT a claim that no more generous rule of any kind exists. 2026-08-12
+verifier correction: a price-priority credit rule — crediting any leg with >=1 qualifying
+print strictly THROUGH the resting price, on the theory that the whole level in front must
+have cleared first — is strictly more generous on this tape (32/294 fills vs this rule's 25),
+and arguably more physically defensible; it was not adopted here because it is a different
+family of assumption (price priority vs "the resting order is at the back of its own level"),
+not because it was checked and rejected as too generous. It credits the interval's ENTIRE
+cumulative qualifying volume against the queue, i.e. it assumes the order sits at the BACK of
+its own price level but that every qualifying print in the interval eats into that level; a
+real order also faces size joining behind/ahead intra-interval, which this tape cannot see):
 
   1. RESTING SIZE AHEAD = the size at the order's own price level on the ENTRY snapshot's
      OWN-SIDE ladder in `tape/orderbook_depth/`: the `yes_bids` ladder for a `yes_bid` leg,

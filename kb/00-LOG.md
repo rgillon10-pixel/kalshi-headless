@@ -6,6 +6,66 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-12 ~07:xx UTC — research loop: L337 follow-on upgraded PROVISIONAL → two-agent CONFIRMED-WITH-CORRECTIONS
+
+Same-day follow-up to the L337/`scripts/q51_queue_aware_fillsim.py` build below (PR #355,
+merged). The `verifier` agent dispatched alongside that build returned after the PR had already
+merged (protocol-sanctioned: no registry flip was pending, so the merge did not need to wait).
+
+**Verdict: CONFIRMED-WITH-CORRECTIONS.** The verifier re-ran the committed script directly and
+also wrote a from-scratch reimplementation importing nothing from `scripts/` — both reproduce
+every headline number bit-for-bit (64→25 fills, 21.769%→8.503%, mean +$0.010068→+$0.000714, CI
+[-$0.010387,+$0.012823], 24→14 informative units). It confirmed the rule is implemented exactly
+as specified: `collection/normalize.py` shows the YES/NO best-bid fields are NATIVE and the asks
+are the DERIVED mirrors, so reading each leg's own-side bid ladder (never mirroring) was the only
+correct choice, not an arbitrary pick; the qualifying-volume sum covers ALL prints in the window,
+not just the first; the `>=` boundary is genuinely load-bearing (an independently-derived strict
+`>` gives 24/8.163%/+$0.002449, matching the shipped module's own pinned regression); the fee,
+bootstrap, admissibility and tick-gate logic are imported from the headline probe and `core/`,
+never reimplemented (zero hand-rolled fee/bootstrap literals). The headline module and its test
+file are confirmed byte-untouched; the `invariants.py` triage addition is confirmed purely
+additive (fail-closed behavior for every other consumer verified intact by deleting the new key
+at runtime and watching the ratchet fire). No registry file was touched by either the build or
+this verification.
+
+**Two corrections, load-bearing on WORDING only — no number or verdict moved:**
+1. **The "MOST GENEROUS...available" superlative overclaimed.** A strictly more generous rule of
+   a DIFFERENT family — price-priority credit: crediting a leg with ≥1 qualifying print strictly
+   THROUGH the resting price, on the theory the whole level in front must have cleared for that
+   print to trade — exists on the identical tape and gives **32/294** fills, not this rule's
+   25/294. The shipped rule is genuinely the most generous member of ITS OWN family
+   (cumulative-volume-vs-resting-size); "available" should have named that family instead of
+   implying an exhaustive search. Not verdict-moving: the more generous alternative is also MORE
+   negative (mean −$0.006938, CI still straddling zero) — the correction strengthens the discount
+   finding rather than undermining it.
+2. **The docstring's discount-factor pair was inverted.** "~14x on the rate and ~2.5x on the
+   mean" had the ratios bound to the wrong quantities; recomputed directly from the script's own
+   output, the correct pairing is **~2.56x on the fill rate** (21.77%→8.50%) and **~14.1x on the
+   mean** (+$0.010068→+$0.000714). The ambiguous ordered-pair phrasing in L337's own cell (which
+   predates this run) is what let the swap happen one hop later.
+
+Both corrections are fixed in `scripts/q51_queue_aware_fillsim.py`'s module docstring and in
+`kb/lessons/00-lessons.md`'s L337 enforcement cell (amended in place, lesson TEXT preserved
+verbatim per L152) in this commit. Two new lesson rows filed: **L339** (a generosity superlative
+must name the family it maximizes over, or a reader treats a family-local maximum as a global
+one) and **L340** (a discount cited as two "Nx" factors must bind each factor to its quantity in
+the same clause — a bare ordered pair is one restatement away from being silently transposed).
+
+Gates the verifier personally ran: `pytest tests/test_q51_queue_aware_fillsim.py
+tests/test_q51_maker_fillsim.py` → 84 passed; `python3 scripts/invariants.py --full` → exit 0,
+all green. Re-confirmed fresh on this session's own checkout after applying the docstring fixes:
+`pytest -q tests/test_q51_queue_aware_fillsim.py tests/test_q51_maker_fillsim.py` → 86 passed;
+`python3 scripts/invariants.py --full` → exit 0, all green, no new advisories.
+
+Files: `scripts/q51_queue_aware_fillsim.py` (docstring corrections only, no logic change),
+`kb/lessons/00-lessons.md` (L337 enforcement cell amended + new L339/L340), `LOOP-QUEUE.md`,
+`kb/00-LOG.md`.
+
+**Next:** still 0 proven edges. Q51's own remaining next step is unchanged (the post-2026-08-24
+terminal sweep).
+
+---
+
 ## 2026-08-12 ~04:15Z UTC — kalshi-edge-hunter nightly: adversarial review clean · Q21 round #28 = 0/3 (verifier-refuted)
 
 **Steps 0a/0/0b.** History-integrity PASS: recent merged PRs #348–#353 all reachable from
