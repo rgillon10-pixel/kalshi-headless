@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import pathlib
 import sqlite3
 
@@ -3728,3 +3729,220 @@ def test_frozen_pin_banner_records_its_honest_limits():
     assert "L320" in banner
     assert "L155" in banner
     assert "INVISIBLE" in banner
+
+
+# ─── L344: within-instant logical-duplicate surface (declaration GATE + census) ──────────
+
+def _write_fam_tape(root, family, day, rows, name=None):
+    """Write JSONL rows into tape/<family>/dt=<day>.jsonl under `root`."""
+    fam = root / family
+    fam.mkdir(parents=True, exist_ok=True)
+    path = fam / (name or f"dt={day}.jsonl")
+    path.write_text("\n".join(json.dumps(r, sort_keys=True) for r in rows) + "\n")
+    return path
+
+
+def _ob_depth_row(ticker, capture_id, captured_at, **over):
+    row = {"capture_id": capture_id, "captured_at": captured_at, "ticker": ticker,
+           "venue": "kalshi", "best_yes_ask": 0.51, "raw_sha256": "aaa"}
+    row.update(over)
+    return row
+
+
+L344_KEYS = {"orderbook_depth": ("ticker",), "anomalies": (), "kalshi_trades": ("trade_id",)}
+
+
+def test_l344_family_of_strips_dt_partition_dirs():
+    assert inv._tape_family_of("orderbook_depth/dt=2026-08-13.jsonl") == "orderbook_depth"
+    assert inv._tape_family_of("weather_books/meta/dt=2026-08-13.jsonl") == "weather_books/meta"
+    assert inv._tape_family_of(
+        "sports_pairs/dt=2026-07-02/pass-20260702T231651Z.jsonl") == "sports_pairs"
+    assert inv._tape_family_of("loose.jsonl") == ""
+
+
+def test_l344_declaration_gate_green_on_declared_family(tmp_path):
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13",
+                    [_ob_depth_row("KXA", "c1", "t1")])
+    assert inv._tape_row_identity_declaration_issues(
+        tmp_path, identity_keys=L344_KEYS, non_capture={}) == []
+
+
+def test_l344_declaration_gate_fails_closed_on_new_capture_family(tmp_path):
+    """A brand-new collector's family must not land silently — the gate fails until someone
+    writes down what one of its rows means."""
+    _write_fam_tape(tmp_path, "brand_new_collector", "2026-08-13",
+                    [{"capture_id": "c1", "captured_at": "t1", "ticker": "KXA"}])
+    undeclared = inv._tape_row_identity_declaration_issues(
+        tmp_path, identity_keys=L344_KEYS, non_capture={})
+    assert undeclared == ["brand_new_collector"]
+    msg = inv.tape_row_identity_declaration_failure(undeclared)
+    assert msg is not None
+    assert "brand_new_collector" in msg
+    assert "TAPE_ROW_IDENTITY_KEYS" in msg
+    assert "L344" in msg
+
+
+def test_l344_declaration_gate_accepts_a_declared_non_capture_family(tmp_path):
+    _write_fam_tape(tmp_path, "derived_cache", "2026-08-13",
+                    [{"capture_id": "c1", "captured_at": "t1"}])
+    assert inv._tape_row_identity_declaration_issues(
+        tmp_path, identity_keys={}, non_capture={"derived_cache": "derived"}) == []
+
+
+def test_l344_declaration_gate_ignores_family_without_capture_id(tmp_path):
+    """No capture_id anywhere in the sample => not capture tape => nothing to declare."""
+    _write_fam_tape(tmp_path, "some_artefact", "2026-08-13",
+                    [{"ticker": "KXA", "price": 0.5}])
+    assert inv._tape_row_identity_declaration_issues(
+        tmp_path, identity_keys={}, non_capture={}) == []
+
+
+def test_l344_declaration_failure_is_none_when_clean():
+    assert inv.tape_row_identity_declaration_failure([]) is None
+
+
+def test_l344_fires_on_same_instant_differing_payload(tmp_path):
+    """THE class this closes: one pass, one instant, one ticker, two different answers."""
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.51),
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.58),
+    ])
+    issues = inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS)
+    assert len(issues) == 1
+    issue = issues[0]
+    assert issue["family"] == "orderbook_depth"
+    assert issue["day"] == "2026-08-13"
+    assert issue["n_duplicate_groups"] == 1
+    assert issue["n_extra_rows"] == 1
+    assert issue["allowlisted"] is False
+    assert issue["examples"][0]["row_identity"] == ["KXA"]
+    assert issue["examples"][0]["n_distinct_payloads"] == 2
+
+
+def test_l344_does_not_report_the_l285_byte_identical_class(tmp_path):
+    """Byte-identical lines are L285's lane; reporting them here would double-count an
+    incident under two lesson IDs and blur which detector owns which defect."""
+    row = _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00")
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [row, dict(row)])
+    assert inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS) == []
+
+
+def test_l344_does_not_report_the_l218_capture_id_collision_class(tmp_path):
+    """Same capture_id, DIFFERENT captured_at is L218's lane (two invocations colliding on a
+    second-granularity id) — different groups here, so this detector stays silent."""
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00.100000+00:00", best_yes_ask=0.51),
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00.500000+00:00", best_yes_ask=0.58),
+    ])
+    assert inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS) == []
+
+
+def test_l344_different_capture_ids_are_never_a_duplicate(tmp_path):
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.51),
+        _ob_depth_row("KXA", "c2", "2026-08-13T02:00:00+00:00", best_yes_ask=0.58),
+    ])
+    assert inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS) == []
+
+
+def test_l344_coarse_key_false_positive_is_prevented_by_the_declared_key(tmp_path):
+    """The regression this whole ratchet exists for: keyed on `ticker`, a day of trade prints
+    looks like 145k duplicates; keyed on the DECLARED `trade_id` it is clean."""
+    rows = [{"capture_id": "c1", "captured_at": "t1", "ticker": "KXA",
+             "trade_id": f"t{i}", "yes_price": 40 + i} for i in range(5)]
+    _write_fam_tape(tmp_path, "kalshi_trades", "2026-08-13", rows)
+    assert inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS) == []
+    wrong = inv._tape_within_instant_duplicate_issues(
+        tmp_path, identity_keys={"kalshi_trades": ("ticker",)})
+    assert len(wrong) == 1 and wrong[0]["n_extra_rows"] == 4
+
+
+def test_l344_empty_key_means_one_row_per_pass(tmp_path):
+    """`anomalies` declares `()`: two differing summary rows at one instant ARE duplicates."""
+    _write_fam_tape(tmp_path, "anomalies", "2026-08-13", [
+        {"capture_id": "c1", "captured_at": "t1", "n_anomalies": 3},
+        {"capture_id": "c1", "captured_at": "t1", "n_anomalies": 4},
+    ])
+    issues = inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS)
+    assert len(issues) == 1 and issues[0]["n_extra_rows"] == 1
+
+
+def test_l344_within_pass_sequence_field_structurally_exempts(tmp_path):
+    """A burst ladder legitimately revisits a strike inside one round. The exemption keys on
+    the PRESENCE of a sequence field, never on a family name-list, so a future burst
+    collector inherits it with no edit here (the L218 discipline)."""
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.51,
+                      capture_seq=1),
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.58,
+                      capture_seq=2),
+    ])
+    assert inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS) == []
+
+
+def test_l344_rows_missing_capture_identity_are_skipped_not_merged(tmp_path):
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [
+        {"ticker": "KXA", "best_yes_ask": 0.51},
+        {"ticker": "KXA", "best_yes_ask": 0.58},
+        {"capture_id": "c1", "ticker": "KXA", "best_yes_ask": 0.60},
+    ])
+    assert inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS) == []
+
+
+def test_l344_malformed_line_is_skipped_never_counted(tmp_path):
+    fam = tmp_path / "orderbook_depth"
+    fam.mkdir(parents=True)
+    good = json.dumps(_ob_depth_row("KXA", "c1", "t1"), sort_keys=True)
+    (fam / "dt=2026-08-13.jsonl").write_text(good + "\nnot json at all\n" + good + "\n")
+    # the two GOOD lines are byte-identical -> L285's lane, not this one
+    assert inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS) == []
+
+
+def test_l344_missing_tape_root_is_empty(tmp_path):
+    assert inv._tape_within_instant_duplicate_issues(tmp_path / "nope") == []
+    assert inv._tape_row_identity_declaration_issues(tmp_path / "nope") == []
+
+
+def test_l344_allowlist_marks_a_known_incident(tmp_path):
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.51),
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.58),
+    ])
+    issues = inv._tape_within_instant_duplicate_issues(
+        tmp_path, identity_keys=L344_KEYS,
+        allowlist=frozenset({"orderbook_depth@dt=2026-08-13"}))
+    assert len(issues) == 1 and issues[0]["allowlisted"] is True
+    msg = inv.tape_within_instant_duplicate_warning(issues)
+    assert msg is not None and "known historical incident" in msg
+
+
+def test_l344_warning_is_none_when_clean():
+    assert inv.tape_within_instant_duplicate_warning([]) is None
+
+
+def test_l344_warning_content_names_the_class_and_the_lesson(tmp_path):
+    _write_fam_tape(tmp_path, "orderbook_depth", "2026-08-13", [
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.51),
+        _ob_depth_row("KXA", "c1", "2026-08-13T01:00:00+00:00", best_yes_ask=0.58),
+    ])
+    msg = inv.tape_within_instant_duplicate_warning(
+        inv._tape_within_instant_duplicate_issues(tmp_path, identity_keys=L344_KEYS))
+    assert msg is not None
+    assert "non-gating" in msg
+    assert "L344" in msg
+    assert "tape/orderbook_depth/dt=2026-08-13.jsonl" in msg
+
+
+def test_l344_real_tree_every_capture_family_is_declared():
+    """HARD acceptance test on the REAL committed tape: no family may carry a capture_id
+    without a declared row identity. Structural, count-free — it stays true as tape grows,
+    and goes red the day a new collector lands undeclared."""
+    assert inv._tape_row_identity_declaration_issues() == []
+
+
+def test_l344_real_tree_declarations_are_disjoint_and_nonempty():
+    overlap = set(inv.TAPE_ROW_IDENTITY_KEYS) & set(inv.NON_CAPTURE_TAPE_FAMILIES)
+    assert overlap == set(), overlap
+    assert inv.TAPE_ROW_IDENTITY_KEYS
+    assert all(isinstance(v, tuple) for v in inv.TAPE_ROW_IDENTITY_KEYS.values())
+    assert all(isinstance(v, str) and v for v in inv.NON_CAPTURE_TAPE_FAMILIES.values())
