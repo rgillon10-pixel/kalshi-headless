@@ -6,6 +6,53 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-13 00:1x ET — kalshi-edge-hunter nightly: Unit-1 review CLEAN · Q21 round #29 = 0/3 (verifier-refuted) · Unit-3 N/A · still 0 proven edges
+**Steps 0a/0/0b:** history-integrity PASS (newest `kb/00-LOG.md` 08-12 vs newest `tape/*/dt=` 08-12,
+0-day gap; last merged PRs #357–#361 all present in `origin/main`'s linear history, no rewind — the
+fresh-clone "forced update" is the baseline moving, not a rewind). Claim-check: the only open PRs are
+the standing Ryan-review-only set (#125/#165/#166/#191/#208/#271/#330) — none claims an eligible queue
+item. Step-0b: 233 `tape/hourly-*` + 10 `tape/burst-*` remote branches; the newest fallback branches
+were already recovered by the 08-12 idle runs (#358/#359) — no NEW stranded tape this run.
+**Unit 1 — adversarial review of last-24h verdicts: CLEAN, no `review:` issue.** Re-checked one
+load-bearing number per finding: the fee constants underpinning every recent verdict live in
+`core.pricing` (`TAKER_FEE_RATE=0.07`, `MAKER_FEE_RATE=0.0175`) and are IMPORTED, not hand-rolled —
+`scripts/q51_maker_fillsim.py` and `scripts/q51_queue_aware_fillsim.py` do `from core.pricing import
+MAKER_FEE_RATE, fee_per_contract`; `scripts/q54_s79_flow_continuation_probe.py` does `from core.pricing
+import TAKER_FEE_RATE` with `FEE_RATE = TAKER_FEE_RATE`, prices `broker_truth`, entry-at-print,
+held-to-settlement. S79's re-derived DEAD-by-CI headline (mean −$0.077, CI [−$0.219,+$0.069], 45
+game-blocked units) and the Q51 queue-aware fill-sim (25 fills, mean +$0.000714, CI
+[−$0.010,+$0.013], maker fee 0.0175) reproduce their provenance/fee/bootstrap-unit claims. Nothing
+failed → no issue opened.
+**Unit 2 — Q21 round #29: eligible < 2 → round fired; 0 registered.** Full Q0–Q56 file-shape rescan
+(L25): 0 eligible (Q56 done, Q52/S78 + Q54/S79 data-gated collect-and-revisit, rest DONE / cred- or
+burst-gated / on a dead strategy). `tape/kalshi_trades/` byte-frozen at 6 days (last `dt=2026-08-03`,
+Ryan-key-gated) — same surface rounds #25–#28 worked, so this round reached PAST it into three
+un-attacked corners. Producer proposed **S82/S83/S84**; an independent `verifier` attacked all three
+on committed tape BEFORE registration (two-agent idea-stage rule) → **KILL / KILL / KILL.**
+**S82** (perp-funding dispersion → BTC/ETH relative directional taker): KILL — `|BTC−ETH|` funding max
+3.607e-05/hr ⇒ $2.16 drift vs $100 bracket (~46× too small, S76 magnitude wall), and the RELATIVE form
+holds BOTH range legs → SUMS two overrounds (BTC 187% + ETH 302%). **S83** (perp-anchored disagreement
+taker on crypto_hourly near-money): KILL — near-money yes_ask 0.84 vs fair 0.293 (overpay 0.547,
+WALL-A), no size field (hollow book), and the perp anchor is the SAME spot that settles the binary (not
+independent — the escape-vs-S53 premise fails). **S84** (cross-venue macro dislocation on Kalshi's
+delisting lag): KILL — only 1 settled FOMC on tape (≪ L41), Kalshi delists the decided market AT the
+decision (50 pre / 0 post records, L231), and the still-listed leg is the international CLOB, not
+Ryan's fillable Polymarket US (single-venue directional, not arb; L57/L63). **No S-numbers burned →
+next free stays S82.** Deferred lesson (kb-distiller): a "relative"/spread reframing of a
+dimensionally-negligible factor inherits the magnitude death AND sums the legs' overrounds.
+**Unit 3 — probe-prep: N/A.** No calendar gate opens within ~72h (next is Q51 milestone-4 terminal
+sweep after 2026-08-24, 11 days out, and `q51_maker_fillsim.py` stays UNCHANGED — nothing to pre-build).
+**Housekeeping:** all 5 `kalshi-burst-*` triggers have July event dates (passed) — name-for-deletion
+(retro/Ryan; `fomc-0729` still `enabled=true`, others disabled). 243 remote tape branches (233
+`hourly-*` + 10 `burst-*`), still compounding. Standing Ryan-review-only PR backlog unchanged — NOT
+re-flagged (no new info; flagging it again would only train the channel to be ignored, L-precedent).
+**Step 9 paper sub-pass:** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra validation
+only, NOT edge evidence); no new tape for the shadow this run → ledger unchanged, realized P&L ~$+27.76.
+**Gates:** `python scripts/invariants.py --full` → exit 0, all green (only pre-existing non-gating
+advisories). `pytest` green by construction — docs/findings-only diff, zero code/tests touched (L162
+floor allowance, prior docs-only PR precedent). Files: `findings/2026-08-13-q21-round29-idea-gen.md`,
+`LOOP-QUEUE.md`, `kb/00-LOG.md`. Still **0 proven edges.**
+
 ## 2026-08-12 20:2x ET — research loop: IDLE RUN policy (c) — `tape/q42_hl_funding_cache/` audited: clean data, orphaned pipeline
 
 Queue re-derived first (Q0–Q56 all DONE/BLOCKED/gated at current status, 9th consecutive idle-adjacent run, consistent with `kalshi-edge-hunter` round #28 the day before). Policy (a) empty: all 9 open `UNENFORCED` lesson rows are Ryan/VPS-gated or explicitly "not statically assertable" by their own text. Policy (b) has no target: no queue item names an unopened calendar gate right now. Took policy (c) on `tape/q42_hl_funding_cache/` — zero prior lesson mentions, so genuinely unaudited.
