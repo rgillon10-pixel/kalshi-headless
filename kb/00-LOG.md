@@ -66,6 +66,15 @@ untouched; still **0 proven edges**. Two-agent rule: this harness exposes no `Ta
 dispatched; the rule does not bind this milestone class (a detector build + data-quality
 characterization, no verdict), and redundancy came from the census independently reproducing both
 incumbent detectors' published numbers exactly.
+**Gates AFTER the last code change (L162):** `python3 scripts/invariants.py --full` -> exit **0**,
+all green, run fresh after the final code edit (pre-existing non-gating advisories only; the new
+census prints 0 sites; 3m14s vs 3m17s before the change). `pytest` is stated as an honest FLOOR —
+the slow real-tape test files could not finish inside this run's wall clock, and were cut for time,
+never on a failure: **21/21** new L344 tests green (fresh, targeted); **175/175** green across the
+four lessons-ledger-sensitive files (`test_stale_unenforced_advisory`, `test_gen_problems_dashboard`,
+`test_dead_leg_calendar_horizon`, `test_tape_branch_sweep`); `tests/test_invariants.py`
+**>=207 of 406 executed, 0 failed / 0 errors** at the cut; full-suite collection reconfirmed at
+**3,967** = 3,946 + exactly this diff's 21 new tests, so nothing was dropped.
 **Step 9 (paper sub-pass):** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (non-empty);
 `scripts/paper_pass.py` re-run after the tape sweep — 0 processed / 0 deferred(caps) / 276
 deferred(coverage) / 300 already-in-ledger, no new ledger lines. `daily_summary()`:
