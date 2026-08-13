@@ -3216,6 +3216,308 @@ def tape_duplicate_line_warning(issues: List[Dict[str, object]]) -> Optional[str
     return "\n".join(lines)
 
 
+# ─── Within-instant logical-duplicate surface (L344: declaration GATE + census advisory) ──
+#
+# THE SEAM THIS CLOSES. Three duplicate-capture defects have been recorded on this repo's
+# tape, and until this run each had its own detector with a DIFFERENT blind spot:
+#   * L285 (repo-wide, `_tape_duplicate_line_issues`) finds BYTE-IDENTICAL lines — one pass
+#     committed twice. Its own docstring states the limit: "a 0-issue report is evidence
+#     about exact re-appends, never a clean bill of health for logical-key duplication."
+#   * L210/L218 (`tape_gap_monitor.duplicate_capture_id_collisions`) finds the same logical
+#     item written under one `capture_id` at MORE THAN ONE `captured_at` — two invocations
+#     colliding on the second-granularity id. It is candidate-gated on
+#     `n_distinct_captured_at > 1`, so it cannot see a repeat stamped at one instant.
+#   * L281/L282 (`_orderbook_depth_duplicate_capture_issues`) finds a repeated
+#     `(capture_id, ticker)` — but for ONE family only.
+# The uncovered class is therefore: **same `capture_id`, same `captured_at`, same logical
+# row identity, DIFFERENT payload** — one pass emitting one item twice with two different
+# answers. It is the most damaging of the three (two contradictory truths stamped
+# identically: no consumer can pick, and a bootstrap unit is silently double-weighted), and
+# it was, until the 2026-08-13 census below, entirely unmeasured.
+#
+# CENSUS RESULT (2026-08-13, research loop, over all 429 committed tape files / ~2.0M rows):
+# **0 instances**, repo-wide, on every one of the 20 capture families. The same run's
+# by-hand census independently reproduced BOTH known incidents exactly — L285's 1,358
+# byte-identical lines on dt=2026-07-28 (orderbook_depth 1,093 · sports_pairs 228 ·
+# perp_tape 17 · polymarket_macro_pairs 16 · crypto_hourly 2 · hyperliquid_funding 2) and
+# L218's 7 collided item-groups across 3 families — so the surface is now fully mapped and
+# fully accounted for. See findings/2026-08-13-tape-duplicate-surface-census.md.
+#
+# WHY THE KEY MUST BE DECLARED PER FAMILY, and why the obvious reuse is WRONG. The first
+# attempt at this census reused `tape_gap_monitor.ITEM_IDENTITY_FIELDS` (the coarse
+# most-specific-field-wins tuple L218 uses). That key is SOUND for L218's question and
+# UNSOUND for this one: L218 additionally requires two distinct `captured_at`, which is what
+# makes a coarse key safe there (a repeated coarse key across two instants means a re-walk).
+# Drop that requirement and the same key false-positives catastrophically — it reported 97
+# files, including 145,855 "extra rows" in one `kalshi_trades` day, because every trade print
+# of a ticker in one pass shares `('ticker', ...)`; the real identity is `trade_id`. So the
+# within-pass row identity is a per-family SEMANTIC judgment, exactly like L319's
+# self-tape-read triage and L323's tie-break triage, and it is enforced as the same kind of
+# fail-closed ratchet: a tape family carrying `capture_id` that appears in NEITHER table
+# below is a GATING failure. A new collector cannot land its family without someone writing
+# down what one row of it means.
+#
+# An empty tuple is a real declaration, not a placeholder: it means "one row per pass"
+# (`anomalies` writes a single summary row), so two such rows at one instant ARE duplicates.
+
+TAPE_ROW_IDENTITY_KEYS: Dict[str, Tuple[str, ...]] = {
+    # family (path under tape/, `dt=` partition dirs stripped) -> fields identifying ONE row
+    # within ONE capture pass.
+    "anomalies": (),                       # one summary row per pass
+    "crypto_hourly": ("symbol",),
+    "econ_prints": ("series_key",),
+    "hf_burst": ("ticker",),               # also structurally exempt (capture_seq/round_index)
+    "hyperliquid_funding": ("coin", "record_type", "mode"),
+    "kalshi_trades": ("trade_id",),        # one row = one executed print, NOT one ticker
+    "orderbook_depth": ("ticker",),
+    "perp_tape": ("record_type", "ticker", "mode"),   # `mode` separates backfill vs recent
+    "polymarket_cpi_pairs": ("series", "period", "bucket_kind", "bucket_value"),
+    "polymarket_macro_pairs": ("family", "meeting", "bucket"),
+    "polymarket_pairs": ("round", "team"),
+    "settlement_ledger": ("ticker",),
+    "sports_clv": ("kalshi_event_ticker",),
+    # two schemas share this family (sports_history_kalshi.v1 keys on `event_ticker`,
+    # sports_history_espn.v1 on `espn_event_id`) — the identity must carry the schema, or
+    # every ESPN row collapses onto a `None` event_ticker (measured: 137 false pairs).
+    "sports_history": ("schema_version", "event_ticker", "espn_event_id"),
+    "sports_pairs": ("event_ticker",),
+    "universe_sweep": ("ticker",),
+    "weather_actuals": ("city", "target_day"),
+    "weather_books": ("ticker",),
+    "weather_books/meta": ("series", "group"),
+}
+
+# Families under tape/ that are NOT capture passes: derived caches, one-shot historical
+# pulls, and fill-sim inputs. They carry no `capture_id`, so the within-instant question is
+# not defined for them. Declared explicitly (with the reason) rather than inferred, so that a
+# family LOSING its capture_id is a visible edit rather than a silent reclassification.
+NON_CAPTURE_TAPE_FAMILIES: Dict[str, str] = {
+    "crypto_hourly_historical_spot":
+        "derived: one-shot historical spot pull keyed by (symbol, candle_epoch); no pass.",
+    "q42_hl_funding_cache":
+        "derived: single bulk Hyperliquid historical pull, one file per contract "
+        "(orphaned — see findings/2026-08-13-q42-hl-funding-cache-orphaned-tape.md).",
+    "s14_ladder_fillsim": "derived: candlestick fill-sim input, keyed by (ticker, start_ts).",
+    "seed5_funding_cache": "derived: cached funding series for the seed5 probe.",
+    "sports_clv_s7": "derived: S7c join artefact (Kalshi settled tape x ESPN closing odds).",
+    "sports_history_s7": "derived: S7a historical pull artefact.",
+    "sports_maker_fillsim": "derived: candlestick fill-sim input, keyed by (ticker, start_ts).",
+}
+
+# Known-and-accepted within-instant duplicates, keyed "family@dt=YYYY-MM-DD". Empty because
+# the 2026-08-13 census found none; the ratchet exists so a future incident is recorded here
+# deliberately (with its finding) instead of being silently tolerated.
+TAPE_WITHIN_INSTANT_DUP_ALLOWLIST: frozenset = frozenset()
+
+# One line per file is not enough to classify a family (a leg can emit a capture_id-less
+# header row first), and a full parse is the ADVISORY's job, not the GATE's. The gate samples
+# this many lines per file — an honest, stated bound: a family whose ONLY capture_id-bearing
+# rows sit beyond this depth in EVERY file would be missed by the gate, and is then caught by
+# the advisory's full parse, which reports undeclared families it actually encountered.
+_TAPE_IDENTITY_SAMPLE_LINES = 200
+
+
+def _tape_family_of(rel_path: str) -> str:
+    """Family name for a path relative to `tape/`: the directory prefix with any `dt=`
+    partition component and everything after it removed. `weather_books/meta/dt=X.jsonl` ->
+    `weather_books/meta`; `sports_pairs/dt=2026-07-02/pass-X.jsonl` -> `sports_pairs`."""
+    parts = rel_path.split("/")[:-1]
+    keep: List[str] = []
+    for comp in parts:
+        if comp.startswith("dt="):
+            break
+        keep.append(comp)
+    return "/".join(keep)
+
+
+def _tape_capture_families(tape_root: Path = ROOT / "tape",
+                           sample_lines: int = _TAPE_IDENTITY_SAMPLE_LINES) -> Dict[str, bool]:
+    """family -> True if any sampled row carries a `capture_id`. Cheap by construction
+    (bounded lines per file); see `_TAPE_IDENTITY_SAMPLE_LINES` for the stated blind spot."""
+    out: Dict[str, bool] = {}
+    if not tape_root.is_dir():
+        return out
+    for path in sorted(tape_root.rglob("*.jsonl")):
+        fam = _tape_family_of(path.relative_to(tape_root).as_posix())
+        if not fam:
+            continue
+        found = out.get(fam, False)
+        if found:
+            continue
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for i, line in enumerate(fh):
+                    if i >= sample_lines:
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    if isinstance(rec, dict) and rec.get("capture_id") is not None:
+                        found = True
+                        break
+        except OSError:
+            continue
+        out[fam] = found
+    return out
+
+
+def _tape_row_identity_declaration_issues(
+        tape_root: Path = ROOT / "tape",
+        identity_keys: Optional[Dict[str, Tuple[str, ...]]] = None,
+        non_capture: Optional[Dict[str, str]] = None) -> List[str]:
+    """GATING check (L344): every tape family whose rows carry a `capture_id` must declare its
+    within-pass row identity in TAPE_ROW_IDENTITY_KEYS, or be declared a non-capture family in
+    NON_CAPTURE_TAPE_FAMILIES. Returns a list of undeclared family names (empty = green).
+
+    Fails CLOSED on purpose: a new collector's family is undeclared until a human writes down
+    what one of its rows means. Unlike the advisories in this section this DOES flip the exit
+    code — the declaration is cheap, unambiguous, and entirely under the repo's control (the
+    duplicate FACTS on already-committed append-only tape are not, which is why the census
+    below stays non-gating)."""
+    keys = TAPE_ROW_IDENTITY_KEYS if identity_keys is None else identity_keys
+    nc = NON_CAPTURE_TAPE_FAMILIES if non_capture is None else non_capture
+    undeclared = [fam for fam, has_cid in sorted(_tape_capture_families(tape_root).items())
+                  if has_cid and fam not in keys and fam not in nc]
+    return undeclared
+
+
+def tape_row_identity_declaration_failure(undeclared: List[str]) -> Optional[str]:
+    """Format the L344 declaration gate's failure. Pure."""
+    if not undeclared:
+        return None
+    fams = ", ".join(undeclared)
+    return (f"L344 tape row-identity declaration: {len(undeclared)} tape family(ies) carry a "
+            f"`capture_id` but declare no within-pass row identity: {fams}. Add each to "
+            f"TAPE_ROW_IDENTITY_KEYS in scripts/invariants.py (the fields that identify ONE "
+            f"row inside ONE pass; `()` means one row per pass), or to "
+            f"NON_CAPTURE_TAPE_FAMILIES with the reason it is not capture tape. Without it the "
+            f"within-instant duplicate census cannot see the family at all, and a coarse "
+            f"guessed key is provably unsafe (it false-positived 145,855 rows on kalshi_trades "
+            f"— see the banner above).")
+
+
+def _tape_within_instant_duplicate_issues(
+        tape_root: Path = ROOT / "tape",
+        identity_keys: Optional[Dict[str, Tuple[str, ...]]] = None,
+        allowlist: frozenset = TAPE_WITHIN_INSTANT_DUP_ALLOWLIST) -> List[Dict[str, object]]:
+    """Census the L344 class: rows sharing (`capture_id`, `captured_at`, declared row
+    identity) whose LINES differ — one pass emitting one logical item twice with two
+    different payloads.
+
+    Deliberately reports NEITHER of the classes already covered elsewhere: byte-identical
+    lines collapse into one digest (L285's lane) and rows at two `captured_at` land in
+    different groups (L218's lane). A family whose rows carry a within-pass sequence field
+    (`capture_seq`/`capture_mono_ns`/`round_index`, imported from tape_gap_monitor, never
+    re-declared here per L100) is exempted STRUCTURALLY, not by name — a burst ladder
+    legitimately re-visits a strike inside one round, and a future burst collector inherits
+    the exemption with no edit here.
+
+    A row missing `capture_id` or `captured_at` is skipped, never assigned to a neighbour.
+    Read-only, offline. Best-effort: any exception yields [], so it can never poison the
+    gate."""
+    keys = TAPE_ROW_IDENTITY_KEYS if identity_keys is None else identity_keys
+    if not tape_root.is_dir():
+        return []
+    try:
+        tgm = _load_tape_gap_monitor()
+        seq_fields: Tuple[str, ...] = tuple(getattr(tgm, "WITHIN_PASS_SEQUENCE_FIELDS", ())
+                                            or ())
+        issues: List[Dict[str, object]] = []
+        for path in sorted(tape_root.rglob("*.jsonl")):
+            rel = path.relative_to(tape_root).as_posix()
+            fam = _tape_family_of(rel)
+            if fam not in keys:
+                continue
+            fields = keys[fam]
+            groups: Dict[Tuple[str, str, Tuple[str, ...]], set] = {}
+            exemption: Optional[str] = None
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    if not isinstance(rec, dict):
+                        continue
+                    cid, cat = rec.get("capture_id"), rec.get("captured_at")
+                    if cid is None or cat is None:
+                        continue
+                    if any(rec.get(f) is not None for f in seq_fields):
+                        exemption = "declares_within_pass_sequence"
+                        break
+                    key = (str(cid), str(cat),
+                           tuple(str(rec.get(f)) for f in fields))
+                    digest = hashlib.blake2b(line.encode("utf-8", "replace"),
+                                             digest_size=16).digest()
+                    groups.setdefault(key, set()).add(digest)
+            if exemption:
+                continue
+            dup = {k: v for k, v in groups.items() if len(v) > 1}
+            if not dup:
+                continue
+            m = _TAPE_DAY_RE.match(path.name)
+            day = m.group(1) if m else None
+            examples = [{"capture_id": k[0], "captured_at": k[1],
+                         "row_identity": list(k[2]), "n_distinct_payloads": len(v)}
+                        for k, v in sorted(dup.items())[:4]]
+            issues.append({
+                "path": f"tape/{rel}",
+                "family": fam,
+                "day": day,
+                "n_duplicate_groups": len(dup),
+                "n_extra_rows": sum(len(v) - 1 for v in dup.values()),
+                "examples": examples,
+                "allowlisted": bool(day) and f"{fam}@dt={day}" in allowlist,
+            })
+        return issues
+    except Exception:
+        return []
+
+
+def tape_within_instant_duplicate_warning(issues: List[Dict[str, object]]) -> Optional[str]:
+    """Non-gating advisory naming any tape file carrying the L344 class. Pure. NEVER flips the
+    exit code — a duplicate already committed to append-only tape cannot be un-committed, and
+    gating on a historical fact would halt the loop forever (the L218/L285 posture)."""
+    if not issues:
+        return None
+    new = [i for i in issues if not i["allowlisted"]]
+    known = [i for i in issues if i["allowlisted"]]
+    lines: List[str] = []
+    if new:
+        total = sum(int(i["n_extra_rows"]) for i in new)
+        lines.append(f"warning (non-gating): {len(new)} committed tape file(s) carry the L344 "
+                     f"within-instant duplicate class ({total} extra row(s)) — the SAME "
+                     f"logical row written twice under one capture_id AND one captured_at, "
+                     f"with DIFFERING content:")
+        for issue in sorted(new, key=lambda i: -int(i["n_extra_rows"]))[:12]:
+            ex = issue["examples"][0] if issue["examples"] else {}
+            lines.append(f"  - {issue['path']}: {issue['n_duplicate_groups']} group(s), "
+                         f"{issue['n_extra_rows']} extra row(s) "
+                         f"[e.g. capture_id={ex.get('capture_id')} "
+                         f"identity={ex.get('row_identity')}]")
+        if len(new) > 12:
+            lines.append(f"  ... and {len(new) - 12} more file(s)")
+        lines.append("  Two contradictory answers stamped at one instant: no consumer can "
+                     "pick between them, and any per-row statistic (population size, a "
+                     "bootstrap unit's weight) is silently inflated. Neither the L285 "
+                     "byte-identical census nor the L218 capture_id-collision detector can "
+                     "see this class. See kb/lessons/00-lessons.md L344.")
+    if known:
+        total = sum(int(i["n_extra_rows"]) for i in known)
+        paths = ", ".join(str(i["path"]) for i in known)
+        lines.append(f"note (non-gating, known historical incident): {paths} still carries "
+                     f"{total} allowlisted L344 extra row(s) — append-only tape, not "
+                     f"rewritten. See kb/lessons/00-lessons.md L344.")
+    return "\n".join(lines)
+
+
 # ─── Ladder-size int-coercion advisory (L47: non-gating, offline-safe) ──────────
 
 # L47: persisted orderbook_depth `yes_bids`/`no_bids` sizes are FLOATS and genuinely
@@ -5570,6 +5872,27 @@ def main() -> int:
         except BaseException:
             sys.stderr.write("note: mutable-report-pin advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
+        # L344 advisory: the within-instant logical-duplicate class — same capture_id, same
+        # captured_at, same DECLARED row identity, differing payload. The seam between L285
+        # (byte-identical lines only) and L218 (needs >1 distinct captured_at); 0 instances
+        # repo-wide at the 2026-08-13 census. Non-gating — stderr only, wrapped like the
+        # sibling advisories so neither the detector nor the formatter raising can reach the
+        # exit code (the L156 DEFECT-1 lesson).
+        try:
+            within_instant_warning = tape_within_instant_duplicate_warning(
+                _tape_within_instant_duplicate_issues())
+            if within_instant_warning:
+                sys.stderr.write(within_instant_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: within-instant duplicate advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # GATING (L344): a tape family carrying capture_id with no declared within-pass row
+        # identity. Cheap, unambiguous, and fully under the repo's control (unlike the
+        # duplicate FACTS above) — so unlike the census it flips the exit code.
+        identity_failure = tape_row_identity_declaration_failure(
+            _tape_row_identity_declaration_issues())
+        if identity_failure:
+            failures.append(identity_failure)
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
         # code — cheap and unambiguous to catch.

@@ -6,6 +6,85 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-13 06:3x-07:2x ET — research loop IDLE RUN, policy (c): the tape duplicate-capture surface fully mapped; the third class was never measured, and it is 0 (L344)
+**Steps 0a/0/0b:** history-integrity + claim-check done by the orchestrating session (PASS;
+`origin/main` = `b1f4f08`/PR #362, no rewind, `kb/00-LOG.md` 08-13 vs newest `tape/*/dt=` 08-12).
+**Step-0b sweep:** one stranded branch inside the "since the prior run" window,
+`tape/hourly-20260813T0107Z` (`4420e3a`, 01:10Z, >30 min old) — `main` carried **no
+`dt=2026-08-13` tape at all**, so all **23,310** lines across 9 families were genuinely missing and
+were union-appended (universe_sweep 20,000 · orderbook_depth 2,000 · sports_pairs 677 ·
+weather_books 543 · weather_books/meta 48 · polymarket_macro_pairs 21 · perp_tape 17 ·
+crypto_hourly 2 · hyperliquid_funding 2). Every appended line JSON-valid, 0 existing lines
+rewritten or reordered, re-running the sweep appends 0 (idempotence proved). The ~250-branch
+historical backlog stays Q17/Ryan-lane per this run's scope note.
+**Queue:** 10th consecutive idle-adjacent run. Q0–Q56 re-derived at CURRENT status — all
+DONE / BLOCKED(Ryan-or-credential) / gated / data-inadequate; Q56's two owed sub-items are both
+closed (S81 backfill fired 08-11 → admissible NULL; S80 flipped `dead ✗` 08-10). Idle-run policy
+(a) re-derived with the ledger's own scanner (`_stale_unenforced_scan`: 339 rows / 42 UNENFORCED /
+33 disposed / **9 open** — L213/L221/L222/L282/L319/L320/L321/L323/L338), each Ryan-write-path,
+workflow-level, or "not statically assertable" by its own cell — empty. Policy (b) has no target.
+**Took policy (c), widened from one family to a SURFACE.**
+**The milestone.** Three lessons have recorded duplicate captures on this tape (L281, L282→L285,
+L210→L218) and each detector has a different blind spot. The seam between them is: *same
+`capture_id`, same `captured_at`, same logical row, DIFFERENT payload* — one pass emitting one item
+twice with two contradictory answers, which no consumer can adjudicate and which inflates any
+per-row population silently. Never measured. **First census over all committed tape (429 files,
+2,024,482 rows, 19 capture families): 0 instances.** The same pass reproduced both KNOWN incidents
+digit-for-digit — L285's **1,358** byte-identical rows on `dt=2026-07-28`
+(orderbook_depth 1,093 · sports_pairs 228 · perp_tape 17 · polymarket_macro_pairs 16 ·
+crypto_hourly 2 · hyperliquid_funding 2) and L218's **7** collided item-groups across 3 families
+(`perp_tape` backfill-vs-scheduled, `econ_prints` all 5 series 414 ms apart, `anomalies` 84 ms
+apart) — so the duplicate surface is now fully mapped AND fully accounted for. Root cause of class
+2 re-confirmed at source: `capture_id = cap_ts.strftime("%Y%m%dT%H%M%SZ")` at **21 mint sites in 16
+`collection/` modules** — one-second resolution, no process or random component.
+**The load-bearing finding is what NOT to reuse.** The first attempt keyed on
+`tape_gap_monitor.ITEM_IDENTITY_FIELDS` (the coarse tuple L218 uses). That key is sound for L218
+*because* L218 also requires two distinct `captured_at`; without that requirement it false-positived
+**97 files, incl. 145,855 "extra rows" in one `kalshi_trades` day** (every print of a ticker in one
+pass shares `('ticker', ...)`; the true identity is `trade_id`), plus `polymarket_cpi_pairs` and
+**137** false pairs in `sports_history` (two schemas in one family ⇒ every ESPN row collapsed onto
+`event_ticker=None`). A guessed row identity is worse than no check — hence a fail-closed
+declaration ratchet, not a bare assert.
+**Built:** `scripts/invariants.py::TAPE_ROW_IDENTITY_KEYS` (19 families; `()` is a real declaration
+meaning one row per pass) + `NON_CAPTURE_TAPE_FAMILIES` (7 derived/cache, each with its reason);
+**GATING** `_tape_row_identity_declaration_issues` / `tape_row_identity_declaration_failure` wired
+into `--full` (a family carrying `capture_id` in neither table fails the gate — a new collector
+cannot land its family until someone writes down what one of its rows means; live-fired on the real
+tree: dropping `universe_sweep`'s declaration in-process yields exactly `['universe_sweep']`);
+**NON-GATING** `_tape_within_instant_duplicate_issues` / `tape_within_instant_duplicate_warning`
+(append-only tape cannot be un-committed — the L218/L285 posture), `except BaseException`-wrapped
+per L156 DEFECT-1, burst exemption IMPORTED from `tape_gap_monitor.WITHIN_PASS_SEQUENCE_FIELDS`
+rather than re-declared (L100) and applied structurally. **21 new tests** in
+`tests/test_invariants.py`, incl. both adjacent classes staying silent, the coarse-key false
+positive reproduced then prevented by the declared key, and two HARD real-tree acceptance tests.
+New lesson **L344** (extends L285 and L218; supersedes neither — each detector keeps exactly one
+class). Stated limits: the gate samples 200 lines/file (the advisory's full parse is the backstop);
+census ~36 s cold, `--full` measured 3m17s before / 3m14s after (warm-cache noise).
+**No verdict-class output** — no registry flip, no CI, no P&L, no kill; `kb/strategies/00-index.md`
+untouched; still **0 proven edges**. Two-agent rule: this harness exposes no `Task`/subagent tool
+(L287/L288/L290/L291/L295/L308/L313/L325 precedent), so no independent `verifier` could be
+dispatched; the rule does not bind this milestone class (a detector build + data-quality
+characterization, no verdict), and redundancy came from the census independently reproducing both
+incumbent detectors' published numbers exactly.
+**Gates AFTER the last code change (L162):** `python3 scripts/invariants.py --full` -> exit **0**,
+all green, run fresh after the final code edit (pre-existing non-gating advisories only; the new
+census prints 0 sites; 3m14s vs 3m17s before the change). `pytest` is stated as an honest FLOOR —
+the slow real-tape test files could not finish inside this run's wall clock, and were cut for time,
+never on a failure: **21/21** new L344 tests green (fresh, targeted); **175/175** green across the
+four lessons-ledger-sensitive files (`test_stale_unenforced_advisory`, `test_gen_problems_dashboard`,
+`test_dead_leg_calendar_horizon`, `test_tape_branch_sweep`); `tests/test_invariants.py`
+**>=207 of 406 executed, 0 failed / 0 errors** at the cut; full-suite collection reconfirmed at
+**3,967** = 3,946 + exactly this diff's 21 new tests, so nothing was dropped.
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (non-empty);
+`scripts/paper_pass.py` re-run after the tape sweep — 0 processed / 0 deferred(caps) / 276
+deferred(coverage) / 300 already-in-ledger, no new ledger lines. `daily_summary()`:
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open
+notional $0.00` (`broker_truth`; S14 is `dead ✗` at real fills per Q34 — paper-infra validation
+only, NOT edge evidence).
+See `findings/2026-08-13-tape-duplicate-surface-census.md`, `kb/lessons/00-lessons.md` L344.
+
+---
+
 ## 2026-08-13 00:1x ET — kalshi-edge-hunter nightly: Unit-1 review CLEAN · Q21 round #29 = 0/3 (verifier-refuted) · Unit-3 N/A · still 0 proven edges
 **Steps 0a/0/0b:** history-integrity PASS (newest `kb/00-LOG.md` 08-12 vs newest `tape/*/dt=` 08-12,
 0-day gap; last merged PRs #357–#361 all present in `origin/main`'s linear history, no rewind — the
