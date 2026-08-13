@@ -34,7 +34,7 @@ MECHANISM UNDER TEST (the S13/S23/S29 shape, coarsened to what this tape can car
   BELOW the best bid 83.3% (n=30); the effect decays monotonically as the reference quote
   goes stale (86.8% -> 84.6% -> 70.4% at <=15min / <=60min / any age).
 
-  *** SCOPE OF THAT DECAY ARGUMENT (L338, corrected by L347 — READ BEFORE CITING IT). ***
+  *** SCOPE OF THAT DECAY ARGUMENT (L338, corrected by L349 — READ BEFORE CITING IT). ***
   Those three rates are measured under THIS module's own join rule, in which a print must
   fall strictly inside a CONSECUTIVE snapshot pair (t_i, t_{i+1}], and on the 60-ticker
   sports sample described under POPULATION below. L338 first recorded the caveat as a

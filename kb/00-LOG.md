@@ -6,7 +6,18 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
-## 2026-08-13 13:0x-14:xx ET — research loop IDLE RUN, policy (a): L338 converted to a test — and running the factorial showed L338's own stated mechanism was wrong (new L347)
+## 2026-08-13 13:0x-14:xx ET — research loop IDLE RUN, policy (a): L338 converted to a test — and running the factorial showed L338's own stated mechanism was wrong (new L349)
+
+**Concurrency note (added during merge by the orchestrating session):** this run's new lesson was
+minted as **L347**, the next free number as of `origin/main` `4003c0a` — but by the time this branch
+was rebased onto current `main`, TWO other concurrent firings had already claimed and even
+re-claimed that number the same day: PR #365 took **L347** for an unrelated Q52/S78 redundancy
+finding (after PR #364 had already taken L345/L346), and PR #366's settlement-root fix, ALSO first
+minted as L347, was renumbered to **L348** during its own rebase for the same reason. This is the
+third collision on the same number in one day. Renumbered **L347 → L349** throughout this entry and
+the ledger row during the rebase; L347 and L348 are unchanged and are the correct owners of those
+numbers — see their entries' own concurrency notes.
+
 **Steps 0a/0/0b (done by the orchestrating session):** history-integrity + claim-check PASS
 (`origin/main` HEAD `4003c0a`, "idle-run(c): Q52/S78 split-feasibility audited ... (#364)", no
 rewind; `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` both 2026-08-13). Open PRs: only the
@@ -75,7 +86,7 @@ redundancy fallback ran and is reported as redundancy, never as verification:
 walk instead of a binary search. It reproduces every cell to 1e-12 and reaches both conclusions
 independently. Nothing verdict-class was produced, so nothing was flipped.
 
-New lesson **L347** (supersedes L338's mechanism; L338's row text left intact per the ledger's
+New lesson **L349** (supersedes L338's mechanism; L338's row text left intact per the ledger's
 append-only rule, only its enforcement cell moves `UNENFORCED` -> `UNENFORCED (prose-judgment half) +
 test (measurement and attribution halves BUILT)`, per L152). Acceptance tests are growth-safe per
 L320 — floors and directions, never equalities, except the population IDENTITY, which is structural.
@@ -83,7 +94,7 @@ L320 — floors and directions, never equalities, except the population IDENTITY
 Files: `scripts/l338_trend_claim_scope_audit.py`, `scripts/l338_rederive.py`,
 `tests/test_l338_trend_claim_scope_audit.py`, `tests/test_l338_rederive.py`,
 `scripts/q51_maker_fillsim.py` (docstring only), `scripts/invariants.py`,
-`reports/l338_trend_claim_scope.json`, `kb/lessons/00-lessons.md` (L338 cell + L347),
+`reports/l338_trend_claim_scope.json`, `kb/lessons/00-lessons.md` (L338 cell + L349),
 `LOOP-QUEUE.md` (Q51 status line + Log of runs), `kb/00-LOG.md`.
 
 **Step 9 (paper), run by the orchestrating session after the tape sweep landed:**
