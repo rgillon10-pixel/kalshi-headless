@@ -6,6 +6,20 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-12 20:2x ET — research loop: IDLE RUN policy (c) — `tape/q42_hl_funding_cache/` audited: clean data, orphaned pipeline
+
+Queue re-derived first (Q0–Q56 all DONE/BLOCKED/gated at current status, 9th consecutive idle-adjacent run, consistent with `kalshi-edge-hunter` round #28 the day before). Policy (a) empty: all 9 open `UNENFORCED` lesson rows are Ryan/VPS-gated or explicitly "not statically assertable" by their own text. Policy (b) has no target: no queue item names an unopened calendar gate right now. Took policy (c) on `tape/q42_hl_funding_cache/` — zero prior lesson mentions, so genuinely unaudited.
+
+**The tape itself is excellent:** 13 files, one per Kalshi's 13 active crypto-perp contracts, each exactly 1,042 rows, 0 duplicate timestamps, perfectly uniform 1-hour spacing across the whole window (2026-06-03T11:00 → 2026-07-16T20:00Z), all `broker_truth`. **But it's orphaned:** `git log --all -S "q42_hl_funding_cache" -- scripts/` and a live-tree grep both return zero hits — no script anywhere in history reads this path. The live cross-venue join (`scripts/q42_crossvenue_funding_join.py`) reads a *different* family, `tape/hyperliquid_funding/`, which — newly confirmed this run — covers **BTC/ETH only**. So this cache isn't a stale duplicate; it's a disjoint, 13-asset historical snapshot that got prototyped for the 07-17 Q42 first-cut and then left behind when the pipeline moved to the incremental 2-asset collector. Flagged, not fixed: it's stale (27 days, non-overlapping window) so must never be read as "current," but it's a ready resource if a future Q42 milestone wants the other 11 assets over that historical window. Wiring it in or deleting it is a deliberate call for Ryan / a dedicated milestone.
+
+Q42's own verdict is unchanged (H1 UNDECIDABLE, no CI, no registry change, no P&L). No code modified. Two-agent rule N/A (data-quality characterization, same class as L104/L110/L118/L126/L127/L137/L287/L318).
+
+**Step-0b sweep (done first):** two stranded branches from 2026-08-12 (`tape/hourly-20260812T1605Z`, `tape/hourly-20260812T1858Z`, both >30min old) carried **1,375** genuinely-missing lines between them (4 `crypto_hourly`, 42 `polymarket_macro_pairs`, 1,329 `sports_pairs`) — union-appended into today's `dt=2026-08-12.jsonl` files, all valid JSON, 0 duplicates introduced, no existing line touched.
+
+Gates AFTER the last code change: see Log-of-runs line below for the fresh count. Files: `findings/2026-08-13-q42-hl-funding-cache-orphaned-tape.md`, `LOOP-QUEUE.md`, `kb/00-LOG.md`, 3 `tape/*/dt=2026-08-12.jsonl` files (step-0b sweep). Still **0 proven edges**.
+
+---
+
 ## 2026-08-12 ~16:xx UTC — research loop: IDLE RUN policy (a), L320 enforced — and re-measuring the false alarm first showed it had healed itself (L343)
 
 Queue re-derived top-to-bottom this run rather than trusted: every item **Q0–Q56** reads DONE / BLOCKED(Ryan-or-credential) / gated / data-inadequate at its CURRENT status line, so idle (8th consecutive idle-adjacent run; independently consistent with `kalshi-edge-hunter` round #28 the same day). Two file-shape traps re-confirmed and worked around: **Q24 and Q53 each carry a STALE `TODO` as their FIRST status line with the real verdict BELOW it** (L152-class — cross-checked against `kb/strategies/00-index.md`: S21 is `dead ✗`, and Q53's milestone 3 is two-agent CONFIRMED as of 08-07), so "first Status line wins" is not safe on its own; the registry is the tiebreaker.
