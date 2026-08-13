@@ -6,6 +6,103 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-13 12:2x-13:0x ET — research loop IDLE RUN, policy (a): L345 enforced — a relative tape root manufactures an empty population, and the lesson's OWN proposed check would have missed 7 of the 10 sites (new L348)
+
+**Concurrency note (added during merge by the orchestrating session):** this run's new lesson was
+minted as **L347**, the next free number as of `origin/main` `4003c0a` — but by the time this branch
+was rebased onto current `main`, PR #365 (the `~12:0x-13:xx ET` entry immediately below) had already
+landed and independently claimed **L347** for its own (unrelated) Q52/S78 sealed-probe redundancy
+finding, itself a *second* renumbering because PR #364 had already taken L345/L346. Two concurrent
+firings computing "next free lesson number" off the same stale base landed on the same number twice
+in one day. Renumbered **L347 → L348** throughout this entry and the ledger row during the rebase;
+PR #365's L347 is unchanged and is the correct owner of that number. See its entry's own concurrency
+note below for the earlier collision.
+
+**Steps 0a/0/0b (done by the orchestrating session, verified fresh):** history-integrity PASS —
+`origin/main` HEAD `4003c0a` ("idle-run(c): Q52/S78 split-feasibility audited … (#364)"), local main
+byte-equal to it, no rewind; `kb/00-LOG.md` newest entry and newest `tape/*/dt=` both 2026-08-13
+(0-day gap). Claim-check: the only open PRs are the standing Ryan-review-only set
+(#125/#165/#166/#191/#208/#271/#330) — none claims eligible queue work. Step-0b: 243 historical
+`tape/hourly-*`/`tape/burst-*` branches (the known Q17/Ryan-lane backlog, out of scope for one
+firing); the single newest branch was line-diffed against every tape file it touches — 0 lines
+missing from main. Nothing new to sweep.
+
+**Queue: 0 eligible (12th consecutive idle-adjacent run).** Q0–Q56 re-derived by reading each item's
+FULL status history rather than its topmost line — Q4/Q9/Q11/Q12/Q16/Q23/Q27 all carry a stale
+`TODO` BELOW their real DONE verdict, and Q24/Q53 carry theirs ABOVE, so neither "topmost" nor
+"bottom-most" is a safe rule. Q56's two owed sub-items closed 08-10/08-11; Q52 data-gated, Q55-m3
+truncation-gated, Q19/Q32/Q35/Q36/Q37/Q42/Q43/Q47/Q48 gated or credential-blocked, Q17 RESERVED.
+Idle-run **policy (a)** had a genuinely new target this time: `kb/lessons/00-lessons.md` gained
+**L345** and **L346** hours earlier (previous runs' 9 triaged-away rows are unchanged), and L345 is
+the rare UNENFORCED row that is both statically assertable and live-risk-bearing.
+
+**The defect, measured.** `core.settlement_sources`' four readers all defaulted `root` to the bare
+relative string `"tape"`. A caller that omitted it resolved the tape against `os.getcwd()`, so from
+any working directory but the repo root `resolve_market_results` returns **0 resolved at exit code
+0, with no error and no warning** — an empty population indistinguishable from a genuine data gate.
+Reproduced live from `/tmp` on real committed tape, same 42 tickers from `dt=2026-08-03`:
+`root='tape'` → `42 requested / 0 resolved / 0 non-binary / 42 unresolved; hits: none`, anchored root
+→ `42 requested / 32 resolved / 5 non-binary / 10 unresolved; hits: q51_settlement_cache=32`
+(`broker_truth`). A probe wired this way reports a fabricated data gate, which is exactly the class
+of silent-zero the prime directive exists to stop.
+
+**The load-bearing correction — new L348.** L345's own candidate enforcement was "a repo-wide check
+that every `resolve_market_results(` call site passes an explicit `root=`". Live-firing the built
+gate against the PRE-repair tree shows that check would have MISSED most of the surface: **11
+fragile sites (10 call sites + 1 declaration) across 5 modules, and 7 of the 10 calls already passed
+an explicit `root=`** — the value they passed was their own parameter defaulting to the relative
+constant (`q54_s79_flow_continuation_probe.py` at both its sites, `settlement_coverage_audit.py` at
+three, `core/settlement_sources.py`'s own two internal forwards). Only 3 of 10 omitted `root=`
+outright (`q56_s80` ×1, `q56_s81` ×2). Explicitness is not the property that matters; **anchoring**
+is. Second half of the same lesson: fixing the ONE shared declaration site rather than N call sites
+repaired all 10 **without editing a byte of the three verdict-bearing probes** — `q54_s79` (SEALED
+mid-verdict, L311), `q56_s80` (`dead ✗`), `q56_s81` (admissible NULL) — which L309/L311 forbid
+touching. Corollary for the whole enforcement queue: an `UNENFORCED` row's suggested candidate is a
+hypothesis, not a spec.
+
+**Built.** (1) `core/settlement_sources.py`: `REPO_ROOT` + `DEFAULT_TAPE_ROOT =
+os.path.join(REPO_ROOT, "tape")`, absolute and derived from `__file__` — a behavioural no-op from the
+repo root (the only way any committed result was ever produced) and a silent-zero fix everywhere
+else. (2) `scripts/invariants.py::_settlement_root_anchoring_issues` /
+`settlement_root_anchoring_failure` — **GATING**, wired into `--full`: it classifies the VALUE that
+reaches each reader's `root` (following module constants, enclosing-function parameter defaults,
+`from x import CONST` re-exports and cross-module `module.CONST` attribute reads) as
+anchored / relative / runtime / unknown, fails on relative-or-unknown, and fails CLOSED via a
+written-reason `SETTLEMENT_ROOT_ANCHORING_EXEMPT` registry (empty today) — the L319/L323/L344 shape.
+A call that omits `root` is classified against `core`'s own default, so reverting that one constant
+turns every such site red at once. (3) **16 new tests** in `tests/test_invariants.py`: the
+explicit-`root=`-from-a-relative-default case, the cross-module `P.CONST` hop, a positional-root
+call, the fail-closed `unknown` + exemption path, a `tests/`-out-of-scope case, a scan-coverage guard
+so an empty denominator cannot make the acceptance test vacuously green (L191/L296), and a HARD
+real-tree acceptance test. **Stated limits:** static single-assignment resolution only (an env-var or
+helper-built root classifies `unknown` and must be declared); `tests/` deliberately out of scope,
+because a test SHOULD point the reader at a `tmp_path`.
+
+**Redundancy (two-agent rule).** Not a verdict class — no registry flip, no bootstrap CI, no kill, no
+P&L; `kb/strategies/00-index.md` untouched, S78 stays `collect-and-revisit`, still **0 proven edges**.
+No `Task`/subagent tool exists in this harness (the L287/L288/L290/L291/L295/L308/L313/L325
+precedent), so no `verifier` was dispatchable and the sanctioned redundancy fallback was used: an
+independent RUNTIME probe sharing no code with the static resolver (imports each module in a `cwd=/`
+process and reads the actual default via `inspect.signature`, then asks `os.path.isabs`) reports
+**8 of 8 settlement entry points relative before the repair, 0 of 8 after**, agreeing with the static
+gate module for module. The pre-repair tree was materialised as a `git worktree` of HEAD, so the
+"before" numbers are read off the committed code, not off memory.
+
+**Gates AFTER the last code change (L162).** See the Log-of-runs line in `LOOP-QUEUE.md`.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (non-empty), so
+`scripts/paper_pass.py` was re-run over committed tape: 0 processed, 0 deferred(caps), 276
+deferred(coverage), 300 already-in-ledger; **no new ledger lines** (no tape appended since the last
+pass). `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76,
+open notional $0.00` — `broker_truth`, paper-infra validation only; S14 is `dead ✗` at real fills per
+Q34, so this is never edge evidence.
+
+Files: `core/settlement_sources.py`, `scripts/invariants.py`, `tests/test_invariants.py`,
+`kb/lessons/00-lessons.md` (L345 enforcement cell → built; new L348), `LOOP-QUEUE.md` (Q52 status +
+Log of runs), `kb/00-LOG.md`.
+
+---
+
 ## 2026-08-13 ~12:0x-13:xx ET — research loop IDLE RUN, policy (b): Q52/S78's binding test is now WRITTEN AND SEALED, and its data gate is OPEN for the first time (no verdict, no CI, nothing flipped)
 **Concurrency note (added during merge by the orchestrating session):** this run and the
 `09:3x-11:xx ET` entry immediately below it are TWO INDEPENDENT research-loop firings that both

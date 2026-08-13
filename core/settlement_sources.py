@@ -77,7 +77,34 @@ from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, 
 
 from core.settlement import is_binary_result, normalize_result
 
-DEFAULT_TAPE_ROOT = "tape"
+# The tape root every settlement reader defaults to.
+#
+# ANCHORED TO THE REPO, NOT TO `os.getcwd()` (L345, 2026-08-13). This constant was the bare
+# relative string "tape" from the day this module landed (2026-08-09, commit `2a4fb9e`) until
+# 2026-08-13. Every caller that omitted `root=`
+# therefore resolved it against the PROCESS working directory: run the exact same script from
+# any directory other than the repo root and `resolve_market_results` returned a report with
+# `n_resolved == 0`, at exit code 0, with no error and no warning — indistinguishable from a
+# genuine "the tape does not cover these tickers" data gate. A `verifier` round caught it live
+# on `scripts/q52_s78_split_feasibility_audit.py` (`cd /tmp && python3 <abs path>` printed
+# "0 resolved" / n_train=0 / n_holdout=0 against the repo-root run's real 34/29).
+#
+# The fix is here, at the one shared declaration site (L100), rather than at each call site,
+# because the L345 candidate enforcement ("make every caller pass an explicit `root=`") does
+# NOT close the hole: 7 of the 10 fragile call sites already passed an explicit `root=`.
+# `scripts/q54_s79_flow_continuation_probe.py` DOES pass `root=` at both
+# of its call sites and was still cwd-fragile, because the value it passes is its own
+# parameter defaulting to this constant. Anchoring here also repairs the THREE sealed /
+# verdict-bearing probes (`q54_s79_flow_continuation_probe.py`, `q56_s81_funding_regime_
+# settlement_probe.py`, `q56_s80_print_vwap_overshoot_maker_fade.py`) without editing a single
+# byte of them — L309/L311 forbid touching a sealed probe's logic.
+#
+# Behaviourally this is a NO-OP for every run made from the repo root (the only way any
+# committed result was ever produced): "tape" and "<repo>/tape" name the same directory.
+# `scripts/invariants.py::_settlement_root_anchoring_issues` gates on this staying absolute —
+# reverting it to a relative literal turns every settlement call site in the repo red.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_TAPE_ROOT = os.path.join(REPO_ROOT, "tape")
 
 # --- source classes -------------------------------------------------------------------
 MARKET_RESULT = "market_result"   # answers "did THIS ticker settle yes/no?"
