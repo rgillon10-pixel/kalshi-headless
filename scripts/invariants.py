@@ -605,6 +605,19 @@ def inv_collector_self_tape_read_triage(path: Path, text: str) -> Optional[str]:
 # the ratchet forces, not one it resolves.
 TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
     # ---- order-sensitive selection, tie-break DECLARED (the target state) ----
+    "scripts/q52_s78_population_rederive.py":
+        "DECLARED: the independent re-derivation of the above sorts its own reader's output "
+        "on `(created_time, trade_id)` — matching the probe's tie-break is load-bearing, "
+        "since a different one here would manufacture a false redundancy mismatch. Its only "
+        "per-print selection is the markout mark, which takes the LAST print in the horizon "
+        "and skips the entry's own instant, and its fill leg sums consuming volume.",
+    "scripts/q52_s78_toxicity_filtered_maker_probe.py":
+        "DECLARED (inherited): consumes the S80 probe's `load_prints`, which sorts on "
+        "`(created_time, trade_id)`. Its own per-print selection is the markout MARK — "
+        "`mark_price_after` takes the LAST print inside the 30-minute horizon and skips any "
+        "print sharing the entry's own instant, so an exact-timestamp tie can neither be "
+        "the entry nor the mark; the queue-aware fill leg reduces an interval to the SUM of "
+        "consuming volume, which no tie order can change.",
     "scripts/q56_s80_print_vwap_overshoot_maker_fade.py":
         "DECLARED: `load_prints` sorts on `(created_time, trade_id)` and its docstring says "
         "why. The first module in the repo to adopt L323's rule; the reason this ratchet "
@@ -774,6 +787,11 @@ def inv_trade_print_tiebreak_triage(path: Path, text: str) -> Optional[str]:
 #     asserts the disposition is the good one.
 MINORITY_SIDE_GATE_TRIAGE: Dict[str, str] = {
     # ---- floors on the EXCLUSIVE count (the target state, L321's own rule) ----
+    "scripts/q52_s78_toxicity_filtered_maker_probe.py":
+        "EXCLUSIVE — the first probe built against L321's rule from the start. Its "
+        "`population_report` delegates entirely to `core.bootstrap.sign_variation_admissible` "
+        "(min_exclusive_minority_units=2), so the floor is applied to the EXCLUSIVE count and "
+        "the touching count is reported beside it, never floored on.",
     "core/bootstrap.py":
         "EXCLUSIVE — the shared helper this ratchet points new probes at. "
         "`minority_side_unit_census` reports `units_per_side` (touching, the pre-L321 "
