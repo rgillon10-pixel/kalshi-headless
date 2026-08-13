@@ -3946,3 +3946,192 @@ def test_l344_real_tree_declarations_are_disjoint_and_nonempty():
     assert inv.TAPE_ROW_IDENTITY_KEYS
     assert all(isinstance(v, tuple) for v in inv.TAPE_ROW_IDENTITY_KEYS.values())
     assert all(isinstance(v, str) and v for v in inv.NON_CAPTURE_TAPE_FAMILIES.values())
+
+
+# ─── L345: settlement-root anchoring gate ────────────────────────────────────────────────
+#
+# A relative settlement tape root resolves against os.getcwd(), so the reader returns
+# "0 resolved" at exit code 0 from any other working directory — a manufactured empty
+# population that is indistinguishable from a real data gate. These fixtures build tiny
+# fake repos (own core/settlement_sources.py) so the classifier is exercised end to end,
+# including the cross-module resolution the real tree depends on.
+
+_FAKE_CORE_ANCHORED = '''\
+import os
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_TAPE_ROOT = os.path.join(REPO_ROOT, "tape")
+
+
+def resolve_market_results(tickers, root=DEFAULT_TAPE_ROOT, sources=None):
+    return None
+'''
+
+_FAKE_CORE_RELATIVE = '''\
+import os
+DEFAULT_TAPE_ROOT = "tape"
+
+
+def resolve_market_results(tickers, root=DEFAULT_TAPE_ROOT, sources=None):
+    return None
+'''
+
+
+def _fake_repo(tmp_path, core_src=_FAKE_CORE_ANCHORED, scripts=None):
+    (tmp_path / "core").mkdir(exist_ok=True)
+    (tmp_path / "core" / "settlement_sources.py").write_text(core_src, encoding="utf-8")
+    (tmp_path / "scripts").mkdir(exist_ok=True)
+    for name, src in (scripts or {}).items():
+        (tmp_path / "scripts" / name).write_text(src, encoding="utf-8")
+    return tmp_path
+
+
+def test_l345_omitted_root_is_green_when_the_shared_default_is_anchored(tmp_path):
+    repo = _fake_repo(tmp_path, scripts={"probe.py": (
+        "from core.settlement_sources import resolve_market_results\n"
+        "rep = resolve_market_results(['A'])\n")})
+    assert inv._settlement_root_anchoring_issues(repo) == []
+
+
+def test_l345_omitted_root_goes_red_when_the_shared_default_is_relative(tmp_path):
+    """The ratchet: reverting core's one constant to a relative literal turns EVERY
+    root-omitting call site red at once, which is what makes the anchoring load-bearing."""
+    repo = _fake_repo(tmp_path, core_src=_FAKE_CORE_RELATIVE, scripts={"probe.py": (
+        "from core.settlement_sources import resolve_market_results\n"
+        "rep = resolve_market_results(['A'])\n")})
+    issues = inv._settlement_root_anchoring_issues(repo)
+    assert [i["file"] for i in issues] == ["core/settlement_sources.py", "scripts/probe.py"]
+    assert {i["verdict"] for i in issues} == {"relative"}
+
+
+def test_l345_explicit_relative_literal_root_is_caught(tmp_path):
+    repo = _fake_repo(tmp_path, scripts={"probe.py": (
+        "from core.settlement_sources import resolve_market_results\n"
+        "rep = resolve_market_results(['A'], root='tape')\n")})
+    issues = inv._settlement_root_anchoring_issues(repo)
+    assert len(issues) == 1
+    assert issues[0]["verdict"] == "relative"
+    assert "root='tape'" in issues[0]["expr"]
+
+
+def test_l345_explicit_root_from_a_relative_default_is_still_caught(tmp_path):
+    """THE load-bearing case, and the one L345's own proposed candidate check would have
+    MISSED: the call passes an explicit `root=`, but the value is a parameter defaulting to
+    a relative constant. 7 of this repo's 10 originally-fragile sites had exactly this shape."""
+    repo = _fake_repo(tmp_path, scripts={"probe.py": (
+        "from core.settlement_sources import resolve_market_results\n"
+        "MY_TAPE_ROOT = 'tape'\n"
+        "def settled(tickers, root=MY_TAPE_ROOT):\n"
+        "    return resolve_market_results(tickers, root=root)\n")})
+    issues = inv._settlement_root_anchoring_issues(repo)
+    kinds = {(i["kind"], i["verdict"]) for i in issues}
+    assert ("call", "relative") in kinds
+    assert ("const", "relative") in kinds
+
+
+def test_l345_repo_anchored_join_and_path_shapes_are_green(tmp_path):
+    repo = _fake_repo(tmp_path, scripts={"probe.py": (
+        "import os\n"
+        "from pathlib import Path\n"
+        "from core.settlement_sources import resolve_market_results\n"
+        "REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\n"
+        "A_TAPE_ROOT = os.path.join(REPO, 'tape')\n"
+        "B_TAPE_ROOT = Path(__file__).resolve().parents[1] / 'tape'\n"
+        "def a(t, root=A_TAPE_ROOT):\n"
+        "    return resolve_market_results(t, root=root)\n"
+        "def b(t, root=B_TAPE_ROOT):\n"
+        "    return resolve_market_results(t, root=str(root))\n")})
+    assert inv._settlement_root_anchoring_issues(repo) == []
+
+
+def test_l345_caller_supplied_root_with_no_default_is_runtime_not_a_failure(tmp_path):
+    repo = _fake_repo(tmp_path, scripts={"probe.py": (
+        "from core.settlement_sources import resolve_market_results\n"
+        "def settled(tickers, root):\n"
+        "    return resolve_market_results(tickers, root=root)\n")})
+    assert inv._settlement_root_anchoring_issues(repo) == []
+
+
+def test_l345_unclassifiable_root_fails_closed_and_the_exemption_clears_it(tmp_path):
+    repo = _fake_repo(tmp_path, scripts={"probe.py": (
+        "import os\n"
+        "from core.settlement_sources import resolve_market_results\n"
+        "rep = resolve_market_results(['A'], root=os.environ['TAPE'])\n")})
+    issues = inv._settlement_root_anchoring_issues(repo)
+    assert [i["verdict"] for i in issues] == ["unknown"]
+    assert inv._settlement_root_anchoring_issues(
+        repo, exempt={"scripts/probe.py": "reason recorded here"}) == []
+
+
+def test_l345_cross_module_attribute_root_is_followed(tmp_path):
+    """`from scripts import probe as P` + `P.DEFAULT_TAPE_ROOT` — the shape
+    scripts/q54_minority_exclusivity_audit.py uses. Resolution must follow BOTH hops."""
+    repo = _fake_repo(tmp_path, core_src=_FAKE_CORE_RELATIVE, scripts={
+        "probe.py": ("from core.settlement_sources import DEFAULT_TAPE_ROOT\n"),
+        "audit.py": ("from core.settlement_sources import resolve_market_results\n"
+                     "from scripts import probe as P\n"
+                     "rep = resolve_market_results(['A'], root=P.DEFAULT_TAPE_ROOT)\n")})
+    issues = [i for i in inv._settlement_root_anchoring_issues(repo)
+              if i["file"] == "scripts/audit.py"]
+    assert len(issues) == 1 and issues[0]["verdict"] == "relative"
+
+
+def test_l345_positional_root_argument_is_classified(tmp_path):
+    repo = _fake_repo(tmp_path, scripts={"probe.py": (
+        "from core.settlement_sources import resolve_market_results\n"
+        "rep = resolve_market_results(['A'], 'tape')\n")})
+    issues = inv._settlement_root_anchoring_issues(repo)
+    assert len(issues) == 1 and issues[0]["verdict"] == "relative"
+
+
+def test_l345_tests_directory_is_out_of_scope(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text(
+        "from core.settlement_sources import resolve_market_results\n"
+        "rep = resolve_market_results(['A'], root='tape')\n", encoding="utf-8")
+    repo = _fake_repo(tmp_path)
+    assert inv._settlement_root_anchoring_issues(repo) == []
+
+
+def test_l345_failure_message_names_the_lesson_the_sites_and_the_wrong_fix():
+    msg = inv.settlement_root_anchoring_failure(
+        [{"file": "scripts/p.py", "line": 7, "kind": "call",
+          "expr": "resolve_market_results(..., root='tape')", "verdict": "relative"}])
+    assert msg is not None
+    assert "L345" in msg
+    assert "scripts/p.py:7" in msg
+    assert "os.getcwd()" in msg
+    assert "explicit `root=` is NOT the fix" in msg
+
+
+def test_l345_failure_message_is_none_when_clean():
+    assert inv.settlement_root_anchoring_failure([]) is None
+
+
+def test_l345_real_tree_every_production_settlement_root_is_anchored():
+    """HARD acceptance test on the REAL tree: no production settlement call site may reach a
+    relative or unclassifiable tape root. Count-free and structural, so it survives tape
+    growth and goes red the day a new script re-introduces the L345 shape."""
+    assert inv._settlement_root_anchoring_issues() == []
+
+
+def test_l345_real_core_default_is_absolute_and_points_at_this_repo():
+    import core.settlement_sources as ss
+    assert pathlib.Path(ss.DEFAULT_TAPE_ROOT).is_absolute()
+    assert pathlib.Path(ss.DEFAULT_TAPE_ROOT) == ROOT / "tape"
+
+
+def test_l345_real_tree_scan_actually_covers_the_known_call_sites():
+    """Guards the scan itself: a resolver that silently walked ZERO files would make the
+    acceptance test above vacuously green (the L191/L296 empty-denominator failure mode)."""
+    files = inv._settlement_scan_files()
+    rels = {p.relative_to(ROOT).as_posix() for p in files}
+    assert "core/settlement_sources.py" in rels
+    assert "scripts/q54_s79_flow_continuation_probe.py" in rels
+    assert not any(r.startswith("tests/") for r in rels)
+    assert len(files) > 50
+
+
+def test_l345_exempt_registry_entries_carry_a_written_reason():
+    for mod, reason in inv.SETTLEMENT_ROOT_ANCHORING_EXEMPT.items():
+        assert (ROOT / mod).is_file(), mod
+        assert isinstance(reason, str) and len(reason) > 20, mod

@@ -5583,6 +5583,346 @@ def handle_pre_edit_hook() -> int:
 
 # ─── CLI ────────────────────────────────────────────────────────────────────
 
+# ─── Settlement-root anchoring (L345 -> gating, 2026-08-13) ──────────────────────────────
+#
+# THE FAILURE MODE. `core.settlement_sources`' readers all take a `root` (the tape directory).
+# From 2026-08-07 to 2026-08-13 that root defaulted to the bare RELATIVE string "tape", so a
+# caller that omitted it resolved the tape against `os.getcwd()`. Run the identical script
+# from anywhere but the repo root and `resolve_market_results` returns `n_resolved == 0` at
+# EXIT CODE 0, with no error and no warning — a silently empty population that is
+# indistinguishable from a genuine data gate. Measured live this run from `/tmp` on the real
+# 08-03 trade day: `root="tape"` -> "42 requested / 0 resolved / 42 unresolved; hits: none",
+# anchored root -> "42 requested / 32 resolved / 5 non-binary / 10 unresolved". A probe that
+# manufactures an empty population and reports it as a data gate is the exact class of error
+# the prime directive exists to stop.
+#
+# WHY THE CHECK IS SHAPED LIKE THIS, and why L345's own proposed candidate ("a repo-wide
+# check that every `resolve_market_results(` call site passes an explicit `root=`") would
+# NOT have worked: 7 of the 10 cwd-fragile production call sites in this repo DID pass an
+# explicit `root=` (measured by live-firing this gate against the pre-repair tree: 10 call
+# sites + 1 declaration went red across core/settlement_sources.py, q54_s79_flow_
+# continuation_probe.py, q56_s80_print_vwap_overshoot_maker_fade.py, q56_s81_funding_
+# regime_settlement_probe.py and settlement_coverage_audit.py; only 3 of the 10 omitted
+# `root=` at all). `scripts/q54_s79_flow_continuation_probe.py` passes `root=root` at both
+# sites — where `root` is its own parameter defaulting to the relative constant. Explicitness
+# is not the property that matters; ANCHORING is. So this check classifies the VALUE that
+# reaches the `root` parameter (following module constants, enclosing-function defaults,
+# `from x import CONST` re-exports and `module.CONST` attribute reads) and fails on any value
+# that resolves to a relative path.
+#
+# It fails CLOSED, like the L319/L323/L344 ratchets: a `root` expression this resolver cannot
+# classify is a GATING failure unless its module is written into
+# SETTLEMENT_ROOT_ANCHORING_EXEMPT with a reason. A value that comes from a parameter with NO
+# default, or from argparse, is "runtime" and passes — the caller supplies it, and the CLI
+# default is separately classified where it is declared.
+#
+# STATED LIMITS (honest, per L344's precedent): resolution is static and single-assignment —
+# a constant rebound at runtime, a root read from an env var, or one built by a helper
+# function this resolver does not model, classifies as "unknown" and must be declared. The
+# scan covers `core/`, `scripts/`, `collection/`, `execution/`; `tests/` is deliberately out
+# of scope (a test SHOULD point the reader at a tmp_path root).
+
+# callee name -> positional index of its `root` parameter, for a positional-argument call.
+SETTLEMENT_ROOT_FUNCS: Dict[str, int] = {
+    "resolve_market_results": 1,
+    "iter_source_results": 2,
+    "source_files_present": 1,
+    "undeclared_settlement_dirs": 0,
+}
+
+SETTLEMENT_ROOT_SCAN_DIRS: Tuple[str, ...] = ("core", "scripts", "collection", "execution")
+
+# Module (repo-relative posix path) -> written reason it may carry an unclassifiable root.
+# Empty is the honest current state: every production call site classifies today.
+SETTLEMENT_ROOT_ANCHORING_EXEMPT: Dict[str, str] = {}
+
+# A module-level constant whose NAME says it is a tape/settlement root is a declaration site;
+# if it is relative it will poison every default that reaches it, so it is checked directly
+# even when no call site in that module uses it.
+_SETTLEMENT_ROOT_CONST_RE = re.compile(r"(?:^|_)(?:TAPE|SETTLEMENT)_ROOT$")
+
+_ANCHOR_MAX_DEPTH = 8
+
+
+def _settlement_scan_files(root: Path = ROOT) -> List[Path]:
+    """Production .py files in scope for the L345 anchoring gate. Sorted, tests excluded."""
+    out: List[Path] = []
+    for d in SETTLEMENT_ROOT_SCAN_DIRS:
+        base = root / d
+        if base.is_dir():
+            out.extend(sorted(p for p in base.rglob("*.py")
+                              if "__pycache__" not in p.parts))
+    return sorted(out)
+
+
+def _module_symbols(path: Path) -> Dict[str, object]:
+    """Module-level symbol table for the anchoring resolver.
+
+    Returns {"consts": {name: value_node}, "from": {name: (dotted_module, orig_name)},
+    "alias": {alias: dotted_module}}. Pure; parse failures give empty tables."""
+    empty: Dict[str, object] = {"consts": {}, "from": {}, "alias": {}}
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, SyntaxError):
+        return empty
+    consts: Dict[str, ast.AST] = {}
+    froms: Dict[str, Tuple[str, str]] = {}
+    alias: Dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for tgt in node.targets:
+                if isinstance(tgt, ast.Name):
+                    consts[tgt.id] = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.value is not None:
+                consts[node.target.id] = node.value
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            for a in node.names:
+                bound = a.asname or a.name
+                # `from scripts import mod as P` binds a MODULE, not a symbol.
+                froms[bound] = (node.module, a.name)
+                alias[bound] = f"{node.module}.{a.name}"
+        elif isinstance(node, ast.Import):
+            for a in node.names:
+                alias[a.asname or a.name.split(".")[0]] = a.name
+    return {"consts": consts, "from": froms, "alias": alias}
+
+
+def _module_path_for(dotted: str, root: Path = ROOT) -> Optional[Path]:
+    """Repo file for a dotted module name, or None if it is not a repo module. Pure."""
+    cand = root / (dotted.replace(".", "/") + ".py")
+    return cand if cand.is_file() else None
+
+
+def _dotted_name(node: ast.AST) -> str:
+    """`os.path.join` for an Attribute/Name chain, else "". Pure."""
+    parts: List[str] = []
+    cur = node
+    while isinstance(cur, ast.Attribute):
+        parts.append(cur.attr)
+        cur = cur.value
+    if isinstance(cur, ast.Name):
+        parts.append(cur.id)
+        return ".".join(reversed(parts))
+    return ""
+
+
+_PATH_PASSTHROUGH_CALLS = ("str", "Path", "PurePath", "os.fspath", "fspath",
+                           "os.path.join", "join", "os.path.abspath", "os.path.realpath",
+                           "os.path.normpath", "os.path.expanduser", "abspath", "realpath")
+_ANCHOR_ROOTING_TOKENS = ("__file__",)
+
+
+def _anchor_class(node: Optional[ast.AST], module: Path,
+                  params: Optional[Dict[str, Optional[ast.AST]]] = None,
+                  depth: int = 0,
+                  seen: Optional[Set[str]] = None,
+                  repo: Path = ROOT) -> str:
+    """Classify a `root` expression as 'anchored' | 'relative' | 'runtime' | 'unknown'.
+
+    'anchored'  — an absolute path, or an expression derived from `__file__`.
+    'relative'  — a relative string literal, or a name that resolves to one. THE BUG.
+    'runtime'   — supplied by the caller (a parameter with no default, argparse, etc.).
+    'unknown'   — not statically resolvable; fails closed unless the module is exempted.
+    Pure: reads source only."""
+    params = params or {}
+    seen = seen or set()
+    if node is None or depth > _ANCHOR_MAX_DEPTH:
+        return "unknown"
+    # Any expression built out of `__file__` is anchored to the source tree by construction,
+    # whatever path shape it wears (`Path(__file__).resolve().parents[1] / "tape"`,
+    # `os.path.dirname(os.path.abspath(__file__))`, ...). Checked before the node-kind cases
+    # so an attribute/subscript chain over such a call does not fall through to 'unknown'.
+    if not isinstance(node, (ast.Constant, ast.Name)):
+        try:
+            if any(tok in ast.unparse(node) for tok in _ANCHOR_ROOTING_TOKENS):
+                return "anchored"
+        except Exception:
+            pass
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, str):
+            return "anchored" if node.value.startswith(("/", "~")) else "relative"
+        return "unknown"
+    if isinstance(node, ast.Name):
+        name = node.id
+        if name == "__file__":
+            return "anchored"
+        if name in seen:
+            return "unknown"
+        seen = seen | {name}
+        if name in params:
+            default = params[name]
+            if default is None:
+                return "runtime"
+            return _anchor_class(default, module, params, depth + 1, seen, repo)
+        syms = _module_symbols(module)
+        consts = syms["consts"]           # type: ignore[index]
+        froms = syms["from"]              # type: ignore[index]
+        if name in consts:
+            return _anchor_class(consts[name], module, {}, depth + 1, seen, repo)
+        if name in froms:
+            dotted, orig = froms[name]    # type: ignore[misc]
+            other = _module_path_for(dotted, repo)
+            if other is not None:
+                return _anchor_class(ast.Name(id=orig, ctx=ast.Load()), other, {},
+                                     depth + 1, seen - {name}, repo)
+        return "unknown"
+    if isinstance(node, ast.Attribute):
+        base = node.value
+        if isinstance(base, ast.Name):
+            syms = _module_symbols(module)
+            alias = syms["alias"]         # type: ignore[index]
+            dotted = alias.get(base.id)   # type: ignore[union-attr]
+            if dotted:
+                other = _module_path_for(dotted, repo)
+                if other is not None:
+                    return _anchor_class(ast.Name(id=node.attr, ctx=ast.Load()), other, {},
+                                         depth + 1, set(), repo)
+        return "unknown"
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        # `Path(...) / "tape"` — the anchoring lives in the left operand.
+        return _anchor_class(node.left, module, params, depth + 1, seen, repo)
+    if isinstance(node, (ast.Subscript, ast.Starred)):
+        return _anchor_class(node.value, module, params, depth + 1, seen, repo)
+    if isinstance(node, ast.IfExp):
+        a = _anchor_class(node.body, module, params, depth + 1, seen, repo)
+        b = _anchor_class(node.orelse, module, params, depth + 1, seen, repo)
+        if "relative" in (a, b):
+            return "relative"
+        if a == b:
+            return a
+        if {a, b} <= {"anchored", "runtime"}:
+            return "anchored" if "anchored" in (a, b) else "runtime"
+        return "unknown"
+    if isinstance(node, ast.Call):
+        name = _dotted_name(node.func)
+        if any(tok in ast.unparse(node) for tok in _ANCHOR_ROOTING_TOKENS):
+            return "anchored"
+        short = name.split(".")[-1]
+        if name in _PATH_PASSTHROUGH_CALLS or short in _PATH_PASSTHROUGH_CALLS:
+            if node.args:
+                return _anchor_class(node.args[0], module, params, depth + 1, seen, repo)
+            return "unknown"
+        return "unknown"
+    return "unknown"
+
+
+def _enclosing_param_defaults(func: ast.AST) -> Dict[str, Optional[ast.AST]]:
+    """param name -> its default node (None when it has no default). Pure."""
+    out: Dict[str, Optional[ast.AST]] = {}
+    if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return out
+    args = func.args
+    positional = list(args.posonlyargs) + list(args.args)
+    defaults: List[Optional[ast.AST]] = ([None] * (len(positional) - len(args.defaults))
+                                         + list(args.defaults))
+    for a, d in zip(positional, defaults):
+        out[a.arg] = d
+    for a, d in zip(args.kwonlyargs, args.kw_defaults):
+        out[a.arg] = d
+    return out
+
+
+def _settlement_root_anchoring_issues(root: Path = ROOT,
+                                      exempt: Optional[Dict[str, str]] = None
+                                      ) -> List[Dict[str, object]]:
+    """GATING check (L345): every settlement `root` in production code must be repo-anchored.
+
+    One issue dict per offending site: {file, line, kind, expr, verdict}. `kind` is
+    'call' (a call into a `SETTLEMENT_ROOT_FUNCS` reader) or 'const' (a module-level
+    `*_TAPE_ROOT`/`*_SETTLEMENT_ROOT` declaration). Empty list = green. Pure."""
+    ex = SETTLEMENT_ROOT_ANCHORING_EXEMPT if exempt is None else exempt
+    issues: List[Dict[str, object]] = []
+    for path in _settlement_scan_files(root):
+        rel = path.relative_to(root).as_posix()
+        if rel in ex:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, SyntaxError):
+            continue
+        # (a) declaration sites: a module-level *_TAPE_ROOT / *_SETTLEMENT_ROOT constant.
+        for node in tree.body:
+            targets = (node.targets if isinstance(node, ast.Assign)
+                       else [node.target] if isinstance(node, ast.AnnAssign) else [])
+            for tgt in targets:
+                if not isinstance(tgt, ast.Name) or not _SETTLEMENT_ROOT_CONST_RE.search(tgt.id):
+                    continue
+                value = node.value if not isinstance(node, ast.AnnAssign) else node.value
+                verdict = _anchor_class(value, path, repo=root)
+                if verdict in ("relative", "unknown"):
+                    issues.append({"file": rel, "line": tgt.lineno, "kind": "const",
+                                   "expr": f"{tgt.id} = {ast.unparse(value) if value else '?'}",
+                                   "verdict": verdict})
+        # (b) call sites: the value that actually reaches a reader's `root` parameter.
+        # `func_of` maps each Call to the function that lexically encloses it, so a
+        # `root=root` argument can be resolved against that function's own parameter default
+        # (the shape that makes an explicit `root=` still cwd-fragile).
+        func_of: Dict[int, Optional[ast.AST]] = {}
+
+        def walk(n: ast.AST, enclosing: Optional[ast.AST]) -> None:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                enclosing = n
+            if isinstance(n, ast.Call):
+                func_of[id(n)] = enclosing
+            for child in ast.iter_child_nodes(n):
+                walk(child, enclosing)
+
+        walk(tree, None)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            callee = (node.func.id if isinstance(node.func, ast.Name)
+                      else node.func.attr if isinstance(node.func, ast.Attribute) else "")
+            if callee not in SETTLEMENT_ROOT_FUNCS:
+                continue
+            params = _enclosing_param_defaults(func_of.get(id(node)))  # type: ignore[arg-type]
+            root_node: Optional[ast.AST] = None
+            for kw in node.keywords:
+                if kw.arg == "root":
+                    root_node = kw.value
+            if root_node is None:
+                idx = SETTLEMENT_ROOT_FUNCS[callee]
+                if len(node.args) > idx:
+                    root_node = node.args[idx]
+            if root_node is None:
+                # No root given: the value is the CALLEE's own default, declared in
+                # core/settlement_sources.py. Classify it there — so reverting that one
+                # constant to a relative literal turns every such call site red at once.
+                src = _module_path_for("core.settlement_sources", root)
+                verdict = ("unknown" if src is None
+                           else _anchor_class(ast.Name(id="DEFAULT_TAPE_ROOT",
+                                                       ctx=ast.Load()), src, repo=root))
+                expr = f"{callee}(...)  # root omitted -> core DEFAULT_TAPE_ROOT"
+            else:
+                verdict = _anchor_class(root_node, path, params, repo=root)
+                expr = f"{callee}(..., root={ast.unparse(root_node)})"
+            if verdict in ("relative", "unknown"):
+                issues.append({"file": rel, "line": node.lineno, "kind": "call",
+                               "expr": expr, "verdict": verdict})
+    return sorted(issues, key=lambda d: (d["file"], d["line"], d["expr"]))  # type: ignore[index]
+
+
+def settlement_root_anchoring_failure(issues: List[Dict[str, object]]) -> Optional[str]:
+    """Format the L345 anchoring gate's failure. Pure."""
+    if not issues:
+        return None
+    lines = [f"L345 settlement-root anchoring: {len(issues)} site(s) resolve a settlement tape "
+             f"root to a RELATIVE or unclassifiable path. A relative root resolves against "
+             f"os.getcwd(), so the reader returns 0 resolved at exit code 0 from any other "
+             f"working directory — a silently empty population that reads exactly like a "
+             f"genuine data gate (measured: 42 requested / 0 resolved from /tmp vs 32 "
+             f"resolved from the repo root, same tickers, same tape)."]
+    for iss in issues:
+        lines.append(f"  - {iss['file']}:{iss['line']} [{iss['verdict']}] {iss['expr']}")
+    lines.append("  Fix: anchor the value on the repo (os.path.join(REPO, 'tape') or the "
+                 "already-anchored core.settlement_sources.DEFAULT_TAPE_ROOT), or add the "
+                 "module to SETTLEMENT_ROOT_ANCHORING_EXEMPT in scripts/invariants.py with "
+                 "the reason it cannot be. Note that passing an explicit `root=` is NOT the "
+                 "fix by itself — 7 of the 10 originally-fragile sites passed one.")
+    return "\n".join(lines)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="kalshi.headless Hard-Rule invariants")
     p.add_argument("--pre-edit-hook", action="store_true",
@@ -5916,6 +6256,14 @@ def main() -> int:
             _tape_row_identity_declaration_issues())
         if identity_failure:
             failures.append(identity_failure)
+        # GATING (L345): a settlement tape root that resolves to a RELATIVE path. A reader
+        # given one returns 0 resolved at exit code 0 from any cwd but the repo root — a
+        # manufactured empty population that reads like a genuine data gate. Cheap, static,
+        # and fully under the repo's control, so it flips the exit code.
+        anchoring_failure = settlement_root_anchoring_failure(
+            _settlement_root_anchoring_issues())
+        if anchoring_failure:
+            failures.append(anchoring_failure)
         # GATING: an unresolved git conflict marker committed into tape/**/*.jsonl is never
         # valid data (2026-07-23 incident). Unlike the advisories above, this flips the exit
         # code — cheap and unambiguous to catch.
