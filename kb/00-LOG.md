@@ -6,6 +6,108 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-13 09:3x-11:xx ET — research loop IDLE RUN, policy (c): Q52/S78 split-feasibility audited — this item's own stated blocker holds, and a two-round verifier catches a real relative-path bug plus two prose-accuracy overclaims along the way
+**Steps 0a/0/0b:** history-integrity + claim-check PASS (`origin/main` HEAD `8a9c459`, "idle-run(c):
+tape duplicate-capture surface fully mapped ... (#363)", no rewind; `kb/00-LOG.md` newest entry and
+newest `tape/*/dt=*` both 2026-08-13). Open PRs: only the standing Ryan-review-only set
+(#125/#165/#166/#191/#208/#271/#330) — none claim eligible queue work. Step-0b: newest
+`tape/hourly-*`/`tape/burst-*` remote branch is `tape/hourly-20260813T0107Z`, already swept by the
+prior run (PR #363) — nothing new to sweep this firing.
+
+**Queue:** full Q0–Q56 rescan (each item's topmost/newest `Status:` line — noted the reading rule
+is NOT uniform: Q24 and Q53 both append their newest status BELOW an older `TODO` line rather than
+above it, a hazard for a future run that trusts "topmost is newest" mechanically) — 0 eligible
+TODO/IN-PROGRESS, matching `kalshi-edge-hunter`'s independent round #29 the same day. Idle-run
+policy (a) re-verified empty: the same 9 open UNENFORCED rows as prior runs (L213/L221/L222/L282/
+L319/L320/L321/L323/L338), each Ryan/VPS-gated or not statically assertable — this run additionally
+confirmed the artifacts each row NAMES actually exist in the tree (not just a name-match) before
+ruling them out. Policy (b) surfaced a genuine target — **Q52/S78 has no probe script at all**,
+unlike every other gated item — but the full sealed pre-registered probe (mirroring Q54/S79's
+architecture) needs a `Task`-tool `verifier` dispatch mid-build to satisfy the two-agent rule on its
+eventual verdict, which the `research-lead` seat that scoped it could not obtain (`Task` reported
+disabled in that seat this run — flagged for Ryan below). Fell back to **policy (c)**: before that
+probe can be written, measure whether a train/holdout split of the S78 population is even feasible.
+
+**What was built.** `scripts/q52_s78_split_feasibility_audit.py` (+26 offline tests in
+`tests/test_q52_s78_split_feasibility_audit.py`), read-only over `tape/kalshi_trades/` ×
+`tape/orderbook_depth/` × settlement (via `core.settlement_sources.resolve_market_results`, L300 —
+never a single family). Outcome-blind by construction (settlement used only as a binary/non-binary
+label, never by direction) — same discipline as the S78/S79 sealed probes.
+
+**The corrected headline: Q52's own stated blocker HOLDS, not falsified.** A natural chronological
+split (train = 07-07/08/10/11/12, holdout = 08-03) gives 34/29/0 units, clearing the undivided L41
+n>=10 floor — but Q52's status line qualifies its claim with `<=4 cells`, and at 4 cells that's
+8.5/7.25 units per cell, both below the floor. Two structural walls sit under the arithmetic: only 4
+of 18 train / 4 of 14 holdout series overlap (a cell design must be series-agnostic), and
+`orderbook_depth`'s own capture density (unconfounded — independent collector, whole-day-file count)
+steps from 25 capture instants on 07-22 to 3 on 07-23, matching the documented VPS-death lesson chain
+(L117/L127/L177/L213/L304). **Load-bearing caveat:** the July `kalshi_trades` day-files are a
+ticker-scoped BACKFILL of one 34-game manifest, not complete venue days (`reports/
+q52_q54_trades_backfill_phase1_phase2.json::execution.coverage_is_ticker_scoped=true`) — the
+July-side unit/series counts are a property of the backfill's selection, not a random day-sample;
+surfaced structurally in the output (`backfill_scope_caveat`), not just asserted in prose.
+
+**The verifier trail is the actual story of this run.** Round 1 **REFUTED** the first draft: every
+raw count reproduced independently to the digit, but the INTERPRETATION was wrong on four counts —
+(1) dropped Q52's own `<=4-cell` qualifier and called a true statement false; (2) claimed the
+starved-era gap distribution was "cleanly unimodal" from 4 percentiles alone, when a histogram shows
+it's multi-modal (clusters near ~180/360/540/900 min); (3) a live bug — `core.settlement_sources.
+resolve_market_results` defaults `root="tape"` (RELATIVE), and the script anchored every other path
+via absolute `REPO` but left this one on the default, so `cd /tmp && python3 .../this_script.py`
+silently returned "0 resolved" / n_train=0 / n_holdout=0 at exit 0, no warning — the opposite
+headline; (4) never surfaced the backfill-scope confound. All four fixed (`per_cell_split` reports
+both readings; `gap_histogram_30min_bins` replaces the unimodality assertion;
+`DEFAULT_SETTLEMENT_ROOT` is now absolute; `backfill_scope_caveat` reads the manifest live). Round 2
+**CONFIRMED-WITH-CORRECTIONS**: all four breaks genuinely closed (the `/tmp` re-run is now
+byte-identical to the repo-root run), but found two NEW prose-accuracy defects — the corrected
+docstring cited `book_cadence_by_era` as evidence for the era-boundary step, but that block is keyed
+by trade day and has a 3-week hole straddling the boundary itself (could not show what was claimed —
+recreating round 1's own failure mode one layer up); and "tens of captures/day pre-07-23 vs single
+digits after" was contradicted by the script's own data (07-10 = 9, a single digit, pre-boundary).
+Plus three minor nits (a misleading finite-looking histogram overflow-bin label; `main()`'s
+`sort_keys=True` silently re-sorting the histogram dict lexicographically, discarding the numeric
+order; dead code). All fixed: added `era_boundary_evidence` (scans every raw `orderbook_depth` day
+file near the boundary, independent of trade days, so the docstring's claim is now checkable against
+a real emitted field — 25 -> 3, confirmed); corrected the cadence description; histogram now returns
+an ordered list of pairs with an explicit `"[960,+inf)"` overflow label; removed dead code.
+
+**New lessons L345** (a script mixing an absolute repo-root constant with a shared helper's relative
+default gets a silently-wrong-zero result depending on cwd, rc=0, no warning — `resolve_market_
+results`'s specific case) **and L346** (a docstring's "see field X in the output" is itself a
+checkable claim — grep the field before shipping, or the citation can recreate the exact failure a
+correction exists to fix, one layer up).
+
+**Gates AFTER the last code change (L162):** `python3 -m pytest -q tests/test_q52_s78_split_
+feasibility_audit.py` -> 26 passed, 0 failed (fresh run, post-correction). `python3 scripts/
+invariants.py --full` -> exit 0, all green (two GATING violations caught and fixed during this run's
+own build — a raw `datetime.fromisoformat` call site, repaired to `core.timeutil.parse_iso_utc`
+per L136/L150; an untriaged `kalshi_trades`-tape reference, added to `TRADE_PRINT_TIEBREAK_TRIAGE` as
+`N/A` since the module reads only `ticker` for set membership, never `created_time`/`yes_price`/
+`trade_id`; pre-existing non-gating advisories only otherwise). Full-suite `python3 -m pytest -q -p
+xdist -n 4` run after the last code change: cut for wall-clock before completion (a known-slow tail
+among the real-tape-reading files, consistent with prior runs' timing) — stated as an honest FLOOR
+per L162, never on a failure: **3,712 of 3,993 collected executed, 0 failed, 0 errors** observed
+before the cut; full collection count independently reconfirmed at 3,993 = 3,967 prior + exactly
+this diff's 26 new tests, so nothing was dropped.
+
+**Two-agent rule:** does not strictly bind this output class (feasibility/data-quality
+characterization, no CI/P&L/registry flip — same posture as the Q44/Q54 status-update precedent),
+but applied anyway via two independent `verifier` dispatches, both of which changed the deliverable.
+No registry change, no strategy verdict — S78 stays idea-stage `collect-and-revisit`.
+
+**Flagged for Ryan, not acted on (carried from the `research-lead` seat's own report this run):**
+(1) the `Task`/subagent tool was reported DISABLED in the `research-lead` seat this run, blocking
+policy (b)'s correct-priority work (the full Q52/S78 sealed probe) — a regression from the 2026-08-07
+run, which had recorded `Task` restored; (2) the `research-lead` seat also has no `Write`/`Edit` tool,
+so combined with (1) it could plan and measure but land nothing — either restore `Task` or grant
+write access to that seat; (3) 22+ consecutive days of collector cadence starvation (8 alerting
+families, VPS `:2x` cron dead since 07-19 per Q44) is the actual root cause blocking a clean S78
+train/holdout split and is Ryan-lane only (VPS restart) — no cloud run can fix it; (4) the queue's
+status-reading convention is not uniform (Q24/Q53 append newest at the bottom, most items prepend) —
+worth a normalization pass. See `findings/2026-08-13-q52-s78-split-feasibility-audit.md`.
+
+---
+
 ## 2026-08-13 06:3x-07:2x ET — research loop IDLE RUN, policy (c): the tape duplicate-capture surface fully mapped; the third class was never measured, and it is 0 (L344)
 **Steps 0a/0/0b:** history-integrity + claim-check done by the orchestrating session (PASS;
 `origin/main` = `b1f4f08`/PR #362, no rewind, `kb/00-LOG.md` 08-13 vs newest `tape/*/dt=` 08-12).

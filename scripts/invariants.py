@@ -685,6 +685,11 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
     "core/settlement_sources.py":
         "N/A: the trade tape appears in a docstring example of how to harvest a ticker set. "
         "This module resolves SETTLEMENTS and reads no print field.",
+    "scripts/q52_s78_split_feasibility_audit.py":
+        "N/A: `traded_tickers_by_day` reads only the `ticker` field to build a per-day SET "
+        "of distinct traded game tickers (presence, not price) — it never reads "
+        "`created_time`, `yes_price`, `no_price`, or `trade_id`, and no per-print selection "
+        "or ordering happens anywhere in the module.",
 
     # ---- the writer whose append order IS the incidental tie-break ----
     "collection/kalshi_trades.py":
