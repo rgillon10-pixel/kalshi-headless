@@ -672,6 +672,19 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
     "scripts/q51_trade_tape_quality.py":
         "ORDER-INSENSITIVE: sorts on `ts` for reporting; outputs are per-day histograms, "
         "percentiles and enum censuses over whole populations — permutation-invariant.",
+    "scripts/l338_rederive.py":
+        "ORDER-INSENSITIVE: the independent re-derivation of the above (redundancy, not "
+        "verification). Same property and same reason — every reduction is an (agreeing, "
+        "total) count over all admitted prints, never a per-print selection — and it must "
+        "match the audit cell-for-cell, so adopting a DIFFERENT tie-break here would "
+        "manufacture a false mismatch.",
+    "scripts/l338_trend_claim_scope_audit.py":
+        "ORDER-INSENSITIVE: L338's measurement half. Its own loader sorts prints on `ts` "
+        "with no explicit key, but every reduction is an (agreeing, total) COUNT over ALL "
+        "prints admitted by a join rule and a window — no per-print selection happens "
+        "anywhere in the module, so the order of equal-timestamp prints cannot move a "
+        "single number it reports. Stated in `load_prints`'s own docstring, per L323's "
+        "rule that the exposure be said on the record.",
 
     # ---- no print ordering at all (tracked so a future one cannot evade the ratchet) ----
     "scripts/trade_print_tiebreak_audit.py":
