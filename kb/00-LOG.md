@@ -6,6 +6,114 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-13 ~12:0x-13:xx ET — research loop IDLE RUN, policy (b): Q52/S78's binding test is now WRITTEN AND SEALED, and its data gate is OPEN for the first time (no verdict, no CI, nothing flipped)
+**Concurrency note (added during merge by the orchestrating session):** this run and the
+`09:3x-11:xx ET` entry immediately below it are TWO INDEPENDENT research-loop firings that both
+started from the same `main` tip (`f172a9d`) and both landed on Q52/S78 — a genuine claim-check race
+(each firing's PR opened and merged faster than the other could see it as "open"). They are
+COMPLEMENTARY, not contradictory, once the designs are read carefully: the entry below audited
+whether a NAIVE, evenly-weighted 4-cell split clears the L41 floor (it does not — 8.5/7.25 units per
+cell) and correctly says Q52's own `<=4-cell` blocker HOLDS under that framing; this run's probe uses
+mandate (1)'s OTHER permitted design — a pre-declared 4-cell split that COLLAPSES to only the cells
+whose TRAIN markout is positive (2 of 4 ADMITTED, 2 refused) before holdout scoring — so its usable
+population concentrates in the admitted cells' union (34 holdout units) rather than splitting evenly
+across all four. Both readings are correct for the design they measured; neither falsifies the
+other. This run's new lesson was renumbered **L345 -> L347** during the merge because the other
+firing's PR (#364) independently claimed L345/L346 for its own (unrelated) findings — see that
+entry's L345/L346 below, and `kb/lessons/00-lessons.md`'s L347 row for the pointer left in place of
+the collision.
+
+**Steps 0a/0/0b:** history-integrity + claim-check + stranded-tape sweep were completed by the
+orchestrating session and are recorded there (PASS; `origin/main` == local HEAD `f172a9d`, no
+rewind; no open PR claims a queue item; the newest `tape/hourly-*` branch is older than main's
+last tape commit and was already swept — nothing to re-sweep, the ~250-branch historical backlog
+stays Q17/Ryan-lane).
+**Queue:** 11th consecutive idle-adjacent run. Q0–Q56 re-derived at CURRENT status. Two items show
+a topmost `Status: TODO` (Q24 line 1316, Q53 line 2760) and BOTH are the original filing preserved
+ABOVE a later close — Q24 is `DONE (2026-07-13) VERDICT DEAD by data-adequacy, verifier-CONFIRMED`,
+Q53 is `CLOSED — MILESTONE 3 TWO-AGENT CONFIRMED-WITH-CORRECTIONS (2026-08-07)`. Everything else is
+DONE / BLOCKED(Ryan-or-credential) / gated / collect-and-revisit. **Idle-run policy (a) re-derived
+with the ledger's own scanner** (`scripts/invariants.py::_stale_unenforced_scan`: 340 rows / 42
+UNENFORCED / 33 disposed / **9 open** — L213/L221/L222/L282/L319/L320/L321/L323/L338), every one
+Ryan-write-path, workflow-level, or not statically assertable by its own cell — empty, as the prior
+run found. **Policy (b) had a target for the first time in weeks, and it was the biggest one on the
+board.**
+
+**The milestone.** Q52 has been data-gated since 2026-08-05 with **no probe script at all**, and
+its round-#23 verifier mandate (1) — *pre-register a COLLAPSED cell design BEFORE seeing holdout
+markout* — is a claim about WHEN the design is chosen. It can be MET rather than merely asserted
+only by choosing the design while the answer is still unknowable. So it was chosen and sealed.
+
+**Built `scripts/q52_s78_toxicity_filtered_maker_probe.py`** (+36 offline tests), sealed at
+`PREREG_SHA256 1c2e422876ce44f5f8217dc98b4a7d8a43c9fcca04b1d8ddd1e8d3ff5bb218c2` (test-pinned), on
+the Q54-2026-08-08 seal design: `population_report()` is outcome-blind BY CONSTRUCTION (settlement
+enters only through `is_binary_result` — the label CLASS, never the direction); `outcome_map()` and
+`score_rows()` are unreachable from `run()` unless the gate reads admissible;
+`sealed_report_key_violations()` asserts key-by-key that no settlement-derived field reached a
+sealed report (`[]` on the real tree). Fill model, ticker grammar and loaders are **imported** from
+the S80 probe rather than re-declared (L100; `P.print_consumes is S80.print_consumes` is
+test-pinned — a second copy of the orientation predicate is how L279's bug survived its first
+repair). It is the **first probe in this repo built against L321's EXCLUSIVE minority count from
+the start** rather than retrofitted, via `core.bootstrap.sign_variation_admissible`. Registered in
+both gating ratchets (`TRADE_PRINT_TIEBREAK_TRIAGE` DECLARED, `MINORITY_SIDE_GATE_TRIAGE`
+EXCLUSIVE).
+
+**The outcome-blind measurement — Q52's gate is OPEN.** All `broker_truth` / `real_bid`; no result
+VALUE was read. 6 committed trade days split by the declared RULE (not by dates) into TRAIN
+`07-07/07-08/07-10` and HOLDOUT `07-11/07-12/08-03`; 72 games → **21 train / 40 holdout / 11
+straddling games dropped** (mandate (2) is disjointness of POPULATIONS, not of calendars — a 15%
+cost paid deliberately). TRAIN cell table, markout net of the MAKER fee via `core.pricing`:
+`cheap/tight` n=52,738 **+$0.06861** → net **+$0.05861** ADMITTED · `rich/wide` n=2,422
+**+$0.06714** → net **+$0.05714** ADMITTED · `cheap/wide` n=2,717 −$0.04419 refused · `rich/tight`
+n=62,560 −$0.06159 refused. Read the sign carefully (the L279 wall): the admitted pair is the maker
+who **SOLD the favourite**, directionally consistent with S80's own K1 leg (leading side $0.169
+ABOVE settlement-fair) and therefore corroboration, never independent evidence. HOLDOUT: **434
+candidates → 362 scoreable → 21 fills (5.80%) over 34 bootstrap units (games)** vs the L41 floor of
+10; **5 exclusively-minority units** vs the L321 floor of 2; settlement 40 requested → 34 binary
+(`q51_settlement_cache` 32, `settlement_ledger` 2). **`gate_reasons: []`, `admissible: true`.**
+
+**What was deliberately NOT run, and why that is the point.** The scoring half is verdict-class — it
+produces a bootstrapped CI destined for `kb/` — and no `Task`/subagent tool exists in this harness
+(Read/Grep/Glob/Bash only; the L287/L288/L290/L291/L295/L308/L313/L325 chain), so the two-agent rule
+is unsatisfiable this run. Leaving the sealed probe unfired is strictly better than banking an
+unverifiable number; the 2026-08-08 Q54 status did exactly this. The next run with a `verifier`
+available fires it **with no flags and no edit**. Honest expectation recorded in advance so it can
+never be claimed as a prediction afterwards: at 5.80% fill (13x S19's 0.45% dead-thin floor, a tenth
+of S80's 69.4%) the headline `all_candidates` branch is ~94% exact zeros, and every cousin in this
+factor family (S13 / S23 / S79 / S80's mirror leg) is dead or straddling zero — the registered
+presumptive outcome is a **KILL**.
+
+**Redundancy leg, reported as redundancy and never as verification.**
+`scripts/q52_s78_population_rederive.py` (+28 tests) re-derives every number from scratch — own
+JSONL readers, own hand-rolled ISO-8601 parser and Hinnant civil-date arithmetic (no `datetime`
+module at all), own game key, own orientation statement, linear-scan book join instead of a bisect,
+own queue-aware fill loop, own round-up-to-cent fee FORMULA, settlement read straight at the
+committed cache/ledger files instead of through `core.settlement_sources` — and agrees on all of
+them. Its independence stops at one line, and the gate is what stopped it: the first draft restated
+the maker rate as a `0.0175` literal and tripped the GATING `no_handrolled_fee_rate` invariant (L5).
+Obeyed, not relaxed — the rate is imported from `core.pricing`, because a schedule rate is a venue
+FACT with one sanctioned site while the rounding formula is the part an implementation can get wrong. **It disagreed on
+the first attempt, and that was worth more than the agreement:** `0.71 - 0.68` is
+`0.029999999999999916` in binary floating point, so an exact `>= 0.03` calls a genuine three-cent
+spread TIGHT. That mis-binned **163 cheap / 96 rich** TRAIN prints and flipped which side was the
+holdout minority (6 vs 5 exclusive units) — while the totals matched EXACTLY (both 120,437 scored
+prints; both 434/362 candidates, 21 fills, 34 units), because the admitted cells are diagonal and
+the two price buckets inside one snapshot are complementary, so every flipped interval swapped one
+candidate out and its opposite-side twin in. A redundancy check comparing only headline totals would
+have returned a clean agreement over a real classification defect. New lesson **L347** (renumbered
+from L345 at merge time — see the concurrency note above); `--exact-boundary` retained so the
+discovery stays reproducible.
+
+**Nothing flipped.** S78 stays idea-stage `collect-and-revisit` conf `low`; S11 stays
+`data-collecting`; still **0 proven edges**. What changed is Q52's runnability, not S78's standing.
+Files: `scripts/q52_s78_toxicity_filtered_maker_probe.py`,
+`scripts/q52_s78_population_rederive.py`, `tests/test_q52_s78_toxicity_filtered_maker_probe.py`,
+`tests/test_q52_s78_population_rederive.py`, `scripts/invariants.py` (two triage registrations),
+`findings/2026-08-13-q52-s78-sealed-probe-and-open-gate.md`, `kb/lessons/00-lessons.md` (L347),
+`kb/strategies/00-index.md` (S78 prose only — status column untouched), `LOOP-QUEUE.md`.
+
+---
+
 ## 2026-08-13 09:3x-11:xx ET — research loop IDLE RUN, policy (c): Q52/S78 split-feasibility audited — this item's own stated blocker holds, and a two-round verifier catches a real relative-path bug plus two prose-accuracy overclaims along the way
 **Steps 0a/0/0b:** history-integrity + claim-check PASS (`origin/main` HEAD `8a9c459`, "idle-run(c):
 tape duplicate-capture surface fully mapped ... (#363)", no rewind; `kb/00-LOG.md` newest entry and
