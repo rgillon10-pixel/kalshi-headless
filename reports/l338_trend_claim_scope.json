@@ -1,0 +1,260 @@
+{
+  "attribution": {
+    "driver": "join_rule",
+    "join_rule_changes_any_rate": true,
+    "join_rule_changes_trend": true,
+    "population_changes_any_rate": false,
+    "population_changes_trend": false,
+    "side": "bid"
+  },
+  "day": "2026-08-03",
+  "grid": {
+    "full_depth_day": {
+      "bracketed": {
+        "ask": {
+          "agreement_direction": "at_or_below_bid",
+          "cells": [
+            {
+              "agreement_rate": 0.8333333333333334,
+              "n_admitted_prints": 30,
+              "n_agreeing": 25,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.6788990825688074,
+              "n_admitted_prints": 109,
+              "n_agreeing": 74,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.6012526096033403,
+              "n_admitted_prints": 479,
+              "n_agreeing": 288,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "decaying"
+        },
+        "bid": {
+          "agreement_direction": "at_or_above_ask",
+          "cells": [
+            {
+              "agreement_rate": 0.8675496688741722,
+              "n_admitted_prints": 151,
+              "n_agreeing": 131,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.8460291734197731,
+              "n_admitted_prints": 617,
+              "n_agreeing": 522,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.7035673839184597,
+              "n_admitted_prints": 3532,
+              "n_agreeing": 2485,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "decaying"
+        }
+      },
+      "last_preceding": {
+        "ask": {
+          "agreement_direction": "at_or_below_bid",
+          "cells": [
+            {
+              "agreement_rate": 0.9339622641509434,
+              "n_admitted_prints": 106,
+              "n_agreeing": 99,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.7684210526315789,
+              "n_admitted_prints": 380,
+              "n_agreeing": 292,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.4599971977021157,
+              "n_admitted_prints": 7137,
+              "n_agreeing": 3283,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "decaying"
+        },
+        "bid": {
+          "agreement_direction": "at_or_above_ask",
+          "cells": [
+            {
+              "agreement_rate": 0.6298507462686567,
+              "n_admitted_prints": 670,
+              "n_agreeing": 422,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.6694386694386695,
+              "n_admitted_prints": 2886,
+              "n_agreeing": 1932,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.6955012681884929,
+              "n_admitted_prints": 29964,
+              "n_agreeing": 20840,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "rising"
+        }
+      }
+    },
+    "probe_sports_sample": {
+      "bracketed": {
+        "ask": {
+          "agreement_direction": "at_or_below_bid",
+          "cells": [
+            {
+              "agreement_rate": 0.8333333333333334,
+              "n_admitted_prints": 30,
+              "n_agreeing": 25,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.6788990825688074,
+              "n_admitted_prints": 109,
+              "n_agreeing": 74,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.6012526096033403,
+              "n_admitted_prints": 479,
+              "n_agreeing": 288,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "decaying"
+        },
+        "bid": {
+          "agreement_direction": "at_or_above_ask",
+          "cells": [
+            {
+              "agreement_rate": 0.8675496688741722,
+              "n_admitted_prints": 151,
+              "n_agreeing": 131,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.8460291734197731,
+              "n_admitted_prints": 617,
+              "n_agreeing": 522,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.7035673839184597,
+              "n_admitted_prints": 3532,
+              "n_agreeing": 2485,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "decaying"
+        }
+      },
+      "last_preceding": {
+        "ask": {
+          "agreement_direction": "at_or_below_bid",
+          "cells": [
+            {
+              "agreement_rate": 0.9339622641509434,
+              "n_admitted_prints": 106,
+              "n_agreeing": 99,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.7684210526315789,
+              "n_admitted_prints": 380,
+              "n_agreeing": 292,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.4599971977021157,
+              "n_admitted_prints": 7137,
+              "n_agreeing": 3283,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "decaying"
+        },
+        "bid": {
+          "agreement_direction": "at_or_above_ask",
+          "cells": [
+            {
+              "agreement_rate": 0.6298507462686567,
+              "n_admitted_prints": 670,
+              "n_agreeing": 422,
+              "window": "<=15min",
+              "window_s": 900
+            },
+            {
+              "agreement_rate": 0.6694386694386695,
+              "n_admitted_prints": 2886,
+              "n_agreeing": 1932,
+              "window": "<=60min",
+              "window_s": 3600
+            },
+            {
+              "agreement_rate": 0.6955012681884929,
+              "n_admitted_prints": 29964,
+              "n_agreeing": 20840,
+              "window": "any_age",
+              "window_s": 1000000000
+            }
+          ],
+          "trend_direction": "rising"
+        }
+      }
+    }
+  },
+  "lesson": "L338",
+  "n_depth_tickers": 2713,
+  "n_print_tickers": 42,
+  "notes": [
+    "MEASUREMENT ONLY \u2014 no P&L, no bootstrap, no CI, no verdict, no registry flip.",
+    "A `non_monotonic` label is also emitted for any series with an unmeasurable cell, so an absent measurement can never be read as corroboration."
+  ],
+  "price_source_tags": {
+    "prints": "broker_truth",
+    "reference_quotes": {
+      "ask": "real_ask",
+      "bid": "real_bid"
+    }
+  },
+  "schema_version": "l338_trend_claim_scope.v1",
+  "universe_sizes": {
+    "full_depth_day": 2713,
+    "probe_sports_sample": 60
+  }
+}

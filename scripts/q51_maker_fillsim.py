@@ -32,9 +32,27 @@ MECHANISM UNDER TEST (the S13/S23/S29 shape, coarsened to what this tape can car
   minutes of their reference snapshot (so the quote is not up to 3h stale), `"bid"` prints
   execute at or ABOVE the best ask 86.8% of the time (n=151) and `"ask"` prints at or
   BELOW the best bid 83.3% (n=30); the effect decays monotonically as the reference quote
-  goes stale (86.8% -> 84.6% -> 70.4% at <=15min / <=60min / any age), which is exactly the
-  degradation a true relationship shows under a widening join window and an artifact does
-  not. The field therefore names the side of the book the TAKER'S OWN ORDER sat on: a taker
+  goes stale (86.8% -> 84.6% -> 70.4% at <=15min / <=60min / any age).
+
+  *** SCOPE OF THAT DECAY ARGUMENT (L338, corrected by L347 — READ BEFORE CITING IT). ***
+  Those three rates are measured under THIS module's own join rule, in which a print must
+  fall strictly inside a CONSECUTIVE snapshot pair (t_i, t_{i+1}], and on the 60-ticker
+  sports sample described under POPULATION below. L338 first recorded the caveat as a
+  POPULATION scope, because an independent verifier measured 62.99% -> 66.9% -> 69.6%
+  (RISING) on the full 2,713-ticker day tape. `scripts/l338_trend_claim_scope_audit.py`
+  ran the 2x2 factorial and the attribution is NOT the population: switching the 60-ticker
+  sports sample for all 2,713 depth tickers does not move a single admitted-print count or
+  agreement rate, on either side, under either join. The whole flip is the JOIN RULE —
+  attaching each print to the nearest PRECEDING quote instead, with no bracketing
+  requirement, admits 29,964 bid-side prints instead of 3,532 and reverses the direction.
+  So "decays monotonically, which is exactly the degradation a true relationship shows
+  under a widening join window and an artifact does not" is a claim about the BRACKETED
+  join, and must not be quoted without naming that rule. The DIRECTIONAL conclusion below
+  is unaffected: a `bid` taker prints at or above the ask far more often than not (>0.55)
+  in every cell of that grid, under both joins. Pinned by
+  `tests/test_l338_trend_claim_scope_audit.py`.
+
+  The field therefore names the side of the book the TAKER'S OWN ORDER sat on: a taker
   holding a BID lifts the ASK. `taker_book_side`/`taker_side`/`taker_outcome_side` are
   perfectly collinear on this tape (bid/yes/yes 31,831 - ask/no/no 7,867), so the same
   correction is readable off `taker_side` and the redundancy is not extra evidence. Under

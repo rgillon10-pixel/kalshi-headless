@@ -6,6 +6,93 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-13 13:0x-14:xx ET — research loop IDLE RUN, policy (a): L338 converted to a test — and running the factorial showed L338's own stated mechanism was wrong (new L347)
+**Steps 0a/0/0b (done by the orchestrating session):** history-integrity + claim-check PASS
+(`origin/main` HEAD `4003c0a`, "idle-run(c): Q52/S78 split-feasibility audited ... (#364)", no
+rewind; `kb/00-LOG.md` newest entry and newest `tape/*/dt=*` both 2026-08-13). Open PRs: only the
+standing Ryan-review-only set (#125/#165/#166/#191/#208/#271/#330) — none claim eligible queue work.
+Step-0b found one genuinely new stranded branch, `tape/hourly-20260813T1608Z` (`ce7586c`, ~2h14m
+old): 679 lines across 3 families (sports_pairs +656, polymarket_macro_pairs +21, crypto_hourly +2),
+union-appended by the orchestrating session.
+
+**Queue: 0 eligible (12th consecutive idle-adjacent run).** Independent re-derivation of every item
+Q0–Q56 at its CURRENT status — DONE / BLOCKED(Ryan-or-credential) / gated / data-inadequate
+throughout; Q56's two owed sub-items are both closed (S81's backfill fired 08-11 to an admissible
+NULL; S80 flipped `dead ✗` 08-10). Confirms this morning's full rescan and kalshi-edge-hunter round
+#29, both also 0 eligible. Reading-rule caveat re-confirmed: Q24 and Q53 append their newest status
+at the BOTTOM, so a naive topmost-status read mis-reports both as `TODO` when both are closed.
+
+**Policy (a) was NOT empty this time.** The prior two runs recorded the 9 open `UNENFORCED` rows
+(L213/L221/L222/L282/L319/L320/L321/L323/**L338**) as each Ryan/VPS-gated or "not statically
+assertable". That reading is right for the GENERIC half of L338 — "did this writeup scope its trend
+claim?" is a prose judgment — but L338 also contains a specific, measurable, never-run claim about
+committed tape, and it turns out to be **wrong**.
+
+**What L338 said.** Q51 milestone 3's verifier found `scripts/q51_maker_fillsim.py`'s docstring cites
+a monotone decay of the `taker_book_side` orientation-agreement rate across widening join windows
+(86.8% -> 84.6% -> 70.4% at <=15min/<=60min/any-age) as evidence the field relationship is real
+rather than an artifact — while the same measurement on "the FULL day tape (all 2,713 depth tickers)"
+RISES with staleness (62.99% -> 66.9% -> 69.6%). L338 concluded the corroboration argument is
+POPULATION-scoped.
+
+**What the factorial says.** `scripts/l338_trend_claim_scope_audit.py` (+28 offline tests) runs the
+disputed claim as a 2x2 over committed `tape/orderbook_depth/` + `tape/kalshi_trades/`
+(`dt=2026-08-03`): population (the probe's 60-ticker sports sample vs all 2,713 depth tickers) x join
+rule (the probe's bracketed `(t_i, t_{i+1}]` rule vs nearest-preceding-quote) x 3 windows x both
+`taker_book_side` values. Read-only, fully offline, no P&L / CI / bootstrap / verdict key anywhere in
+the output (test-pinned). **Both disputed series reproduce exactly** — bracketed bid-side
+0.86755/0.84603/0.70357 on n=151/617/3,532; nearest-preceding 0.62985/0.66944/0.69550 on
+n=670/2,886/29,964. **But the two readings differed on TWO factors at once and only one binds:**
+switching the 60-ticker sports sample for all 2,713 depth tickers moves **not one admitted-print
+count and not one agreement rate**, on either side, under either join. The 4 print-carrying tickers
+outside the probe universe are crypto markets with ONE depth snapshot each and zero prints after it —
+structurally unmeasurable under either rule. **The entire flip is the JOIN RULE:** the probe requires
+a print to sit strictly inside a CONSECUTIVE snapshot pair, discarding every print after a ticker's
+last snapshot; attaching each print to the nearest PRECEDING quote instead admits 29,964 bid-side
+prints instead of 3,532 (>=4x at every window) and reverses the direction. L338's remedy would have
+sent a future run to scope POPULATIONS while the unstated JOIN RULE kept producing the same
+disagreement.
+
+**What this does NOT change.** The directional conclusion both rows were arguing about is untouched —
+a `bid` taker prints at or above the ask in >55% of every cell of the grid, under both joins — so
+Q51 milestone 3's fills, fill rate, mean and CI are unaffected and its two-agent CONFIRMED-WITH-
+CORRECTIONS verdict stands as an admissible NULL. **No registry flip, no CI, no P&L, no kill.**
+S13/S23/S29 keep `dead ✗`; `kb/strategies/00-index.md` untouched. Still **0 proven edges**.
+
+**Also built/repaired.** The prose defect L338 names is fixed at its site: the probe's docstring now
+scopes the decay argument to the bracketed join AND the 60-ticker sample (docstring only — no logic,
+constant or test expectation changed; that probe carries no pre-registration seal, unlike Q54's).
+L323's GATING `TRADE_PRINT_TIEBREAK_TRIAGE` ratchet fired on both new print-tape consumers exactly as
+designed; each is declared ORDER-INSENSITIVE with its reason (every reduction is a count over all
+admitted prints — no per-print selection exists in either module).
+
+**Two-agent rule: NOT SATISFIABLE.** No `Task`/subagent tool exists in this harness (`No such tool
+available: Task` — the L287/L288/L290/L291/L295/L308/L313/L325 precedent), so the sanctioned
+redundancy fallback ran and is reported as redundancy, never as verification:
+`scripts/l338_rederive.py` (+16 tests) shares no code with the audit and does not import it
+(AST-pinned), with its own JSONL readers, its own string-slicing ISO->epoch parser (pinned equal to
+`core.timeutil.parse_iso_utc` on real timestamps including leap and century days) and a linear merge
+walk instead of a binary search. It reproduces every cell to 1e-12 and reaches both conclusions
+independently. Nothing verdict-class was produced, so nothing was flipped.
+
+New lesson **L347** (supersedes L338's mechanism; L338's row text left intact per the ledger's
+append-only rule, only its enforcement cell moves `UNENFORCED` -> `UNENFORCED (prose-judgment half) +
+test (measurement and attribution halves BUILT)`, per L152). Acceptance tests are growth-safe per
+L320 — floors and directions, never equalities, except the population IDENTITY, which is structural.
+
+Files: `scripts/l338_trend_claim_scope_audit.py`, `scripts/l338_rederive.py`,
+`tests/test_l338_trend_claim_scope_audit.py`, `tests/test_l338_rederive.py`,
+`scripts/q51_maker_fillsim.py` (docstring only), `scripts/invariants.py`,
+`reports/l338_trend_claim_scope.json`, `kb/lessons/00-lessons.md` (L338 cell + L347),
+`LOOP-QUEUE.md` (Q51 status line + Log of runs), `kb/00-LOG.md`.
+
+**Step 9 (paper), run by the orchestrating session after the tape sweep landed:**
+`SHADOW_REGISTRY={s14_ladder_underwriting}`; `scripts/paper_pass.py` re-run over the
+1,671 records now on disk (incl. the freshly swept `dt=2026-08-13` sports_pairs/
+polymarket_macro_pairs/crypto_hourly lines) — 0 newly processed, 276 deferred(coverage),
+300 already-in-ledger, no new ledger lines under `paper/`; realized P&L unchanged
+**+$27.76** (`broker_truth`; S14 stays `dead ✗` at real fills per Q34 — paper-infra
+validation only, NOT edge evidence). Still **0 proven edges**.
 ## 2026-08-13 12:2x-13:0x ET — research loop IDLE RUN, policy (a): L345 enforced — a relative tape root manufactures an empty population, and the lesson's OWN proposed check would have missed 7 of the 10 sites (new L348)
 
 **Concurrency note (added during merge by the orchestrating session):** this run's new lesson was
