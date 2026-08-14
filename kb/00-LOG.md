@@ -6,6 +6,136 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-14 0x:xx ET — IDLE RUN, policy (a): L323's own recorded residual was LIVE — a triage ratchet's allowlist was also its escape hatch (new L351/L352)
+
+**Steps 0a/0/0b (done by the calling session).** History-integrity PASS: `origin/main` HEAD
+`424dcb4` ("observatory: nightly pass through dt=2026-08-13"), one commit past `04adbb3` (PR #368,
+Q52 closed); `kb/00-LOG.md`'s newest entry (2026-08-14) and the newest committed tape date
+(`dt=2026-08-13`) within tolerance — no rewind. Claim-check: only the standing Ryan-review-only
+PRs are open (#125/#165/#166/#191/#208/#271/#330), none claims queue work. Step-0b sweep:
+`scripts/tape_branch_sweep.py --assert-contained` over every `tape/hourly-*`/`tape/burst-*` branch
+pushed in the last ~5 days — **all CONTAINED, nothing stranded**.
+
+**Queue: DRAINED, re-verified independently this run.** Every `### Qn` section Q0–Q56 re-parsed by
+its LATEST DATED `Status:` line (not positionally last — several items carry the original filing
+`Status: TODO` line BELOW a later DONE line, which is exactly how a drained queue can read as
+open): 0 eligible TODO/IN-PROGRESS. Corroborated by Q21's 2026-08-13 ROUND-COMPLETE note and
+Q52's own 2026-08-14 close note. **13th consecutive idle-adjacent run.** Idle-run policy (a).
+
+**Picking (a) honestly.** The ledger's `UNENFORCED` column has 43 marked rows but only **10 are
+genuinely open** (33 formally disposed via `DISPOSES:`), per
+`scripts/invariants.py::_stale_unenforced_scan`: L213, L221, L222, L282, L319, L320, L321, L323,
+L338, L346. Of those, most name a repair that a cloud research run may not build (a live
+collector write path, a Ryan-lane workflow change) or are terminal methodology judgment. Two
+candidates I checked and REJECTED as already-built-but-stale rather than open work: **L45**'s
+"shared ticker-grammar close-time parser" is `core.timeutil.parse_crypto_hour_token_close_utc`
+(built as L49) and **L64**'s `core/`-level close-time helper is
+`is_coarse_close_time`/`is_genuine_post_close` in the same file — both already exist, cells simply
+never flipped. **L210**'s duplicate-`capture_id`-with-differing-`mode` check is likewise already
+live (`tape_gap_monitor::duplicate_capture_id_collisions`, firing today on 19 groups across 4
+families). The one row with a residual that could be tested for reality was **L323**.
+
+**The finding: the residual was not hypothetical.** L323's cell recorded, as an honest terminal
+limit, that its tie-break ratchet triggers only on a `kalshi_trades` reference or an import of the
+shared `q51_maker_fillsim` loader, so "a future module consuming prints only through some OTHER
+triaged helper inherits its disposition without being asked." A real-tree scan found exactly one
+such module — and it was a lesson row's own measurement half:
+**`scripts/q54_minority_exclusivity_audit.py`**, which publishes **L321's** headline
+minority-unit counts, names neither the tape nor the loader, imports the SEALED Q54 probe, and
+reaches prints via `P.load_all_prints` -> `P.entry_candidates` -> `first_agreeing_print`.
+`first_agreeing_print` SELECTS one print per decision instant and the selected print's `yes_price`
+sets `entry_price` and decides price-band admission, so the tie order is load-bearing by
+construction. It was publishing L321's numbers on an undeclared file-order tie-break.
+
+**Built (1): the transitive trigger** — `scripts/invariants.py`,
+`_trade_print_consumer_stems` / `_trade_print_transitive_import_re`, wired into the existing
+GATING `inv_trade_print_tiebreak_triage`. The trigger set is derived **from
+`TRADE_PRINT_TIEBREAK_TRIAGE` itself** (every entry whose disposition is not `N/A`), so triaging a
+consumer ENLARGES the net instead of closing it — the direct-only version made the allowlist an
+escape hatch (new **L351**). Real tree: **1** module was invisible, now triaged; deleting its entry
+puts it straight back in the failure list. Honest limits in the banner and regression-tested as
+deliberate misses: one hop through a CONSUMER only (a chain through a genuine `N/A` module stays
+dark by design), lexical line-scoped import matching (`importlib`/re-export invisible), stem-not-path
+matching.
+
+**Built (2): the exposure MEASURED, not assumed** (new **L352**) —
+`python3 scripts/q54_minority_exclusivity_audit.py --sensitivity` (new `reorder_ties` /
+`perturbation_reach` / `tie_break_sensitivity`; `--tie-break {file,reversed,trade_id}`; default
+behaviour byte-identical so every prior number stands). **The SEALED probe is NOT edited** (L311):
+the reordering happens in-process on the loaded print series inside the audit's existing
+`sealed_outcome_paths` context. Measured over all committed trade days, `price_source_tag:
+broker_truth`, 0 network calls: **48.47%** of the **213,431** eligible sports prints sit in an
+exact-timestamp `(ticker, created_time)` tie (25,777 groups, **7,998** disagreeing on `yes_price`);
+under a REVERSED tie order **61 of the 221 entry rows (27.6%) fill against a different `trade_id`
+and 20 (9.0%) get a different `entry_price`** (identical counts under an explicit `trade_id` key)
+— and **every L321 headline field is byte-identical across all three orderings**: 221/214
+candidates, 45 units, touching `{no:6, yes:45}`, exclusive `{no:0, yes:39}`, gate-touching OPEN /
+gate-exclusive SHUT. So L321's published numbers are order-robust on this population,
+**non-vacuously** (L249/L250 — the perturbation reached 27.6% of the fill identities before the
+headline refused to move). Deliberately NOT asserted as a test: that the headline STAYS invariant
+is a dated fact about an append-only, still-backfilling family (L320), so the CLI re-measures it
+rather than a test memorising it.
+
+**Two-agent rule: N/A** — no verdict-class output (no bootstrap CI, no P&L, no registry status
+flip, no kill). `kb/strategies/00-index.md` untouched; S79 stays `dead ✗`, Q54 stays CLOSED, still
+**0 proven edges**. No `Task`/subagent tool exists in this harness (the L287/L288/L290/L291
+precedent), so the measurement is single-agent and every number is quoted with the command that
+reproduces it.
+
+**Still owed, unchanged.** L323's ORIGINAL repair half stays genuinely `UNENFORCED`: an explicit
+`trade_id` tie-break in `scripts/q51_maker_fillsim.py::load_prints` (the shared loader four modules
+consume) and in the sealed probe. That changes which print a CLOSED verdict filled against, so it
+is verdict-class and owes its own milestone under the two-agent rule. Q54 closing DEAD on
+2026-08-09 removes the seal-TIMING objection L323 recorded, so the milestone is now schedulable —
+it is not done here.
+
+**Gates (fresh, after the last code edit — L162).** `python3 -m pytest -q -n 4` → ran to
+completion, 100% dot progress, **0 F/E markers and 0 `FAILED`/`ERROR` lines** (the trailing
+one-line summary was again lost to the sandbox-reap symptom L162's prior instances describe;
+the progress stream and a `grep` over the full output are the evidence). `python3 -m pytest
+--collect-only -q` freshly reconfirmed **4,137 collected** = the prior run's 4,117 + this run's
+**20 new tests** (10 in `tests/test_invariants.py`, 10 in
+`tests/test_q54_minority_exclusivity_audit.py`), confirming nothing was dropped.
+`python3 scripts/invariants.py --full` → exit 0, **"invariants: all green"**, pre-existing
+non-gating advisories only and unchanged in kind (incl. the L210 duplicate-`capture_id` warning,
+19 groups across 4 families, and the L152 stale-`UNENFORCED` recall report, still **10 open**
+rows — L323 correctly STAYS open because its repair half is unbuilt). **Sandbox note:** this
+container shipped without `numpy`/`openpyxl`/`cffi`/`pytest` visible to the interpreter that has
+`requests`/`pyyaml`, so 6 test modules could not even be COLLECTED at run start; installed the
+`analysis`+`dev` extras from `pyproject.toml` (`pip install --user numpy openpyxl cryptography
+websocket-client cffi pytest pytest-xdist`) to get a real full-suite gate rather than a partial
+one. No repo file changed for this; recorded so the next run recognises the symptom instead of
+reporting a green partial suite.
+
+**Rebase note.** `origin/main` advanced twice while this milestone was in flight (PR #370, the
+edge-hunter nightly; PR #371, a CONCURRENT research-loop idle run that built L164's halves).
+Rebased onto the new tip. Both `kb/00-LOG.md` and `LOOP-QUEUE.md` conflicts were pure appends and
+were resolved by keeping BOTH entries; `kb/lessons/00-lessons.md` collided on the ID itself — PR
+#371 took **L350**, so this run's two rows were renumbered **L350/L351 -> L351/L352** and every
+in-repo reference to them updated (the L323 cell, this entry, the Q54 note, the run-log line and
+the finding). Post-rebase the ledger has 348 rows with no duplicate id. **Gates RE-RUN fresh after
+the rebase (L162):** `python3 -m pytest --collect-only` -> **4,189 collected** (= 4,137 + PR
+#371's 52), `python3 scripts/invariants.py --full` -> exit **0**, "invariants: all green", 19
+non-gating advisories; targeted `pytest -q tests/test_q54_minority_exclusivity_audit.py
+tests/test_burst_chunk_plan.py tests/test_l164_seam_rederive.py
+tests/test_stale_unenforced_advisory.py` -> 100%, 0 F/E (both this run's and PR #371's suites,
+since the two touched adjacent ledger machinery). The full-suite green above was measured
+pre-rebase on this run's own last code edit; no code file was touched by the rebase (the three
+conflicts were all documentation).
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}`; `scripts/paper_pass.py` run over
+committed tape (no tape was appended this run, so no new candidates): 0 processed / 0
+deferred(caps) / 276 deferred(coverage) / 300 already-in-ledger, **no new ledger lines**.
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open
+notional $0.00` (`broker_truth`; S14 remains `dead ✗` at real fills per Q34 — paper-infra
+validation only, never edge evidence).
+
+Files: `scripts/invariants.py`, `scripts/q54_minority_exclusivity_audit.py`,
+`tests/test_invariants.py`, `tests/test_q54_minority_exclusivity_audit.py`,
+`kb/lessons/00-lessons.md` (L323 cell + new L351/L352), `LOOP-QUEUE.md` (Q54 note + run log),
+`findings/2026-08-14-l323-transitive-print-consumers.md`. See
+`findings/2026-08-14-l323-transitive-print-consumers.md`.
+
 ## 2026-08-14 00:0x ET — IDLE RUN policy (a): L164's deferred halves built — multi-instant burst-seam protection + the first mechanical plan CHECK, which exposed a 2.9x loss-inflation defect in the shipped form (new L350)
 
 **Steps 0a/0/0b (done by the calling session, which holds the GitHub tools).** History-integrity
@@ -173,6 +303,7 @@ never edge evidence). Still **0 proven edges.** Files: `findings/2026-08-14-q21-
 `LOOP-QUEUE.md`, `kb/00-LOG.md`. See `findings/2026-08-14-q21-round30-idea-gen.md`.
 
 ---
+
 
 ## 2026-08-13 20:0x ET — Q52/S78 sealed probe scoring fired: verdict DEAD, two-agent CONFIRMED (research loop, protocol v3)
 

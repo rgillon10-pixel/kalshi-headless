@@ -154,3 +154,89 @@ def test_cli_writes_nothing_by_default(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert A.main([]) == 0
     assert list(tmp_path.iterdir()) == []
+
+
+# ─── L323: the tie-break this audit inherited from the sealed probe ──────────
+#
+# The audit reaches prints through `P.load_all_prints` -> `P.entry_candidates` ->
+# `first_agreeing_print`, which SELECTS one print per decision instant. Selection makes the
+# order of exact-timestamp ties load-bearing, and the order was file order — incidental, never
+# declared (L323). These tests pin the explicit orderings and, above all, that the invariance
+# the audit reports is NOT vacuous (L249/L250).
+
+def _p(ts, tid, px=0.5):
+    return {"ts": ts, "trade_id": tid, "yes_price": px}
+
+
+def test_reorder_ties_file_mode_is_identity_but_not_an_alias():
+    src = {"T": [_p(1.0, "a"), _p(1.0, "b"), _p(2.0, "c")]}
+    out = A.reorder_ties(src, "file")
+    assert out == src
+    assert out["T"] is not src["T"]
+
+
+def test_reorder_ties_reversed_flips_only_within_a_tie_group():
+    src = {"T": [_p(1.0, "a"), _p(1.0, "b"), _p(2.0, "c"), _p(3.0, "d"), _p(3.0, "e")]}
+    out = A.reorder_ties(src, "reversed")
+    assert [r["trade_id"] for r in out["T"]] == ["b", "a", "c", "e", "d"]
+    assert [r["ts"] for r in out["T"]] == [1.0, 1.0, 2.0, 3.0, 3.0]
+
+
+def test_reorder_ties_trade_id_sorts_within_the_group_and_puts_missing_ids_last():
+    src = {"T": [_p(1.0, "z"), _p(1.0, "a"), dict(ts=1.0, yes_price=0.5), _p(1.0, "m")]}
+    out = A.reorder_ties(src, "trade_id")
+    assert [r.get("trade_id") for r in out["T"]] == ["a", "m", "z", None]
+
+
+def test_reorder_ties_leaves_an_untied_series_alone_in_every_mode():
+    src = {"T": [_p(1.0, "a"), _p(2.0, "b"), _p(3.0, "c")]}
+    for mode in A.TIE_BREAKS:
+        assert [r["trade_id"] for r in A.reorder_ties(src, mode)["T"]] == ["a", "b", "c"]
+
+
+def test_reorder_ties_rejects_an_unknown_mode_rather_than_falling_back():
+    # A silent fallback to file order would let a typo report "no sensitivity" from a
+    # comparison that never ran.
+    with pytest.raises(ValueError):
+        A.reorder_ties({"T": [_p(1.0, "a")]}, "chronological")
+
+
+def test_build_report_records_which_tie_break_produced_it(report):
+    assert report["tie_break"] == "file"
+
+
+@pytest.fixture(scope="module")
+def sensitivity():
+    return A.tie_break_sensitivity()
+
+
+def test_acceptance_the_tie_perturbation_actually_reaches_this_population(sensitivity):
+    # NON-VACUITY FIRST (L249/L250): "invariant under tie-break" is only informative if the
+    # re-ordering changed something. Floors, not equalities (L320) — the family is append-only.
+    reach = sensitivity["perturbation_reach"]
+    assert reach["n_eligible_prints"] >= 100_000
+    assert reach["frac_prints_in_ties"] > 0.20
+    assert reach["n_tie_groups_disagreeing_on_yes_price"] >= 1_000
+    for mode, d in reach["vs_baseline"].items():
+        assert d["n_changed_entry_trade_id"] >= 1, mode
+        assert d["n_changed_entry_price"] >= 1, mode
+
+
+def test_acceptance_moved_fields_are_reported_against_the_declared_headline(sensitivity):
+    assert set(sensitivity["moved_fields"]) <= set(A.SENSITIVE_FIELDS)
+    assert sensitivity["headline_invariant_under_tie_break"] is (not sensitivity["moved_fields"])
+    assert sensitivity["baseline_mode"] == "file"
+    assert set(sensitivity["headline_by_mode"]) == set(A.TIE_BREAKS)
+
+
+def test_sensitivity_report_carries_no_outcome_or_pnl_field(sensitivity):
+    blob = json.dumps(sensitivity).lower()
+    for banned in ("pnl", "p_and_l", "profit", "outcome_value", "settlement_value"):
+        assert banned not in blob, banned
+
+
+def test_sensitivity_baseline_headline_matches_the_plain_report(sensitivity, report):
+    assert sensitivity["headline_by_mode"]["file"]["n_units"] == report["n_units"]
+    assert (sensitivity["headline_by_mode"]["file"]["n_entry_candidates_all"]
+            == report["n_entry_candidates_all"])
+
