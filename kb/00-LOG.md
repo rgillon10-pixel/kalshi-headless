@@ -6,6 +6,112 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-14 00:0x ET — IDLE RUN policy (a): L164's deferred halves built — multi-instant burst-seam protection + the first mechanical plan CHECK, which exposed a 2.9x loss-inflation defect in the shipped form (new L350)
+
+**Steps 0a/0/0b (done by the calling session, which holds the GitHub tools).** History-integrity
+PASS: `origin/main` HEAD `04adbb3` matches local, no rewind; `kb/00-LOG.md`'s newest entry and the
+newest tape file (`dt=2026-08-13`) are both within 2 days of today. Claim-check: no open PR claims
+an eligible queue item — #330/#271/#208 are weekly-retro proposals explicitly left open for Ryan,
+#191/#166/#165 are stale July review-only worktree proposals, and **#369 is STALE/SUPERSEDED** (the
+two-agent CONFIRMED version of that exact Q52 milestone already merged as #368 = `04adbb3`); #369
+was deliberately left untouched for Ryan/the retro to close. **Step-0b sweep: 0 branches carrying
+union-appendable tape** across all 253 `tape/*` branches — 30 show "missing" lines but every one is
+a non-JSONL/conflict-marker line excluded per L247. Nothing to sweep.
+
+**Queue: 0 eligible → IDLE RUN (13th idle-adjacent run).** Status was re-derived for Q0–Q56 by
+reading each item's **full body**, not its topmost `Status:` line — the trap Q54 documents in its
+own text, where a resolution is appended BELOW an older `TODO`. Q24 and Q53 both read `Status: TODO`
+first and are both CLOSED further down. Q4/Q9/Q11/Q12/Q16/Q23/Q27 append newest ABOVE a stale
+`TODO` and are all DONE. Q52 closed **today** (`04adbb3`, verdict DEAD, two-agent CONFIRMED);
+Q51-m3/Q53/Q54/Q56 closed (Q56's own text: "nothing else from Q56 — both sub-milestones and the
+owed backfill have now run"); Q55 milestones 1–2 DONE; Q14/Q15/Q19/Q32/Q33/Q35-build/Q36/Q42/Q43/
+Q47/Q48 blocked, credential-gated, burst-gated or density-gated at their newest status. So
+idle-run policy (a) — convert an `UNENFORCED` lesson into an invariant/test.
+
+**Why L164 out of the open rows.** Its two unbuilt halves sit directly under **Q19's own blocker**:
+the Q19 verifier's standing condition BLOCKS S17's next burst leg until the capture window is
+contiguous across the release instant (else the honest verdict is `kill-on-untestability`), and the
+2026-07-29 FOMC burst failed exactly that with a 720.000196 s seam on 18:00:00Z. The mitigation
+runbook's own last word was still *"MANUALLY check whether any chunk boundary falls within one
+`--interval` of any of them ... **the tool will not do it for you**."*
+
+**Built (both halves L164 deferred).** In `scripts/burst_chunk_plan.py`, additive — no existing
+function's behavior changed: (1) `--protect` is now **repeatable** and
+`chunk_max_ticks_sequence_protecting_multi()` grows **only** the chunk whose own trailing seam is
+violated; (2) the plan can now be **checked**, not just generated — `seam_offsets_seconds()` reports
+each internal seam as the `(last tick of chunk k, first tick of chunk k+1)` pair, `seam_violations()`
+is L164's rule made mechanical and **two-sided** (an instant just AFTER a seam is caught too), and
+`--verify-sequence` validates an already-written sequence and **exits 2** on a violation so a
+runbook step or CI caller can gate on it. `ops/burst_capture_chunked.md`'s manual-check instruction
+is retired and rewritten.
+
+**Measured — scheduling arithmetic only. This run persists NO price, so no `price_source_tag`
+applies and nothing here is verdict-class.**
+
+1. The committed hand recipe `[16, 14, 14, 14, 14, 12]` is seam-safe for the **18:30:00Z presser**
+   (nearest-seam margin **300 s**, lands inside chunk 3) as well as the **18:00:00Z statement**
+   (**150 s**, chunk 1) — the second decisive instant L164's own text named and that nothing had
+   ever checked. The new multi-instant generator, given both instants, **independently reproduces
+   the same sequence**.
+2. The naive `[14]*6` plan's first seam re-derives to **17:59:30Z–18:01:00Z**, the 2026-07-25
+   verifier's hand observation exactly — and sharper: the statement's `containing_chunk` is
+   **`None`**, i.e. **no chunk captures 18:00:00Z at all**; it falls inside the dead pause.
+3. **A real defect in the already-shipped, verifier-reviewed single-instant `--protect`:** it grows
+   **chunk 1** wherever the instant falls, so an instant in a later chunk inflates the first chunk
+   to reach it — `[43, 15, 15, 15, 12]` where the caller asked for 15-tick chunks, i.e. **2.9× the
+   requested worst-case data loss from the tool whose only purpose is bounding that loss** (also 15
+   vs 10 ticks on the WC-final-shaped case). Both defects survived a verifier round on the original
+   PR because that review checked the FOMC instance, where the instant sits in chunk 1 and the two
+   forms agree exactly. The single-instant function is deliberately **not changed** (the FOMC recipe
+   is regression-pinned to it) and is documented as superseded for general use.
+
+**Still not automated, stated rather than papered over:** deciding **which** instants are decisive
+for a given event is human judgment — the tool protects what it is given and cannot know one was
+forgotten. That half of L164 stays `UNENFORCED`, terminal like L6/L27/L28. The zero-overhead seam
+model is also idealized: a real seam carries the commit+push+verify pause too, which only widens the
+gap, so every margin above is an upper bound on safety.
+
+**Two-agent rule: NOT SATISFIABLE.** No `Task`/subagent tool exists in this harness (the
+L287/L288/L290/L291/L295/L308/L313/L325/L349 precedent), so the sanctioned redundancy fallback ran
+and is reported as **redundancy, never verification**: `scripts/l164_seam_rederive.py` (+21 tests) is
+AST-pinned to import neither `burst_chunk_plan` nor `core.timeutil`, materializes absolute `datetime`
+ticks per chunk invocation instead of elapsed-second indices, reads seams off the materialized tick
+lists rather than a cumulative-index formula, and uses its own string-slicing ISO parser (pinned
+equal to `parse_iso_utc` on real timestamps incl. leap/century days). It agrees on every seam to the
+second and reaches both conclusions independently. **Nothing verdict-class was produced, so nothing
+was flipped — no registry change, still 0 proven edges.**
+
+**New lesson L350:** a tool that can GENERATE a plan satisfying a stated property but cannot CHECK an
+arbitrary one leaves the check in a human's head, and its own generator can be quietly wrong in a
+direction nobody re-measures. Ship the property as a separate checker and run the generator's output
+back through it. **L164's enforcement cell moves** `UNENFORCED` → `UNENFORCED (which-instants-are-
+decisive half) + test (multi-instant planning and mechanical seam check BUILT)`, lesson TEXT
+unchanged per the L152 own-row-update rule.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY` = `['s14_ladder_underwriting']`; `scripts/paper_pass.py`
+over committed tape is idempotent — 1,673 records loaded, 0 processed, 300 already-in-ledger, 276
+deferred(coverage), **0 new ledger lines**, realized P&L **$+27.76 unchanged**, 0 open positions.
+
+**Gates AFTER the last code change (L162 fresh-gate-line rule):** `python3.11 -m pytest -o addopts=''
+-q` → **4,169 passed, 0 failed, 1 warning** in 7649.50s (2:07:29), exit 0; `python3.11 scripts/invariants.py --full` → exit **0**, `invariants: all
+green`, **17** non-gating advisories — byte-identical headline set to the pre-diff run, none naming a file this
+run added.
+
+**Files:** `scripts/burst_chunk_plan.py`, `scripts/l164_seam_rederive.py`,
+`tests/test_burst_chunk_plan.py` (36 → 67), `tests/test_l164_seam_rederive.py` (+21),
+`reports/l164_seam_check.json`, `ops/burst_capture_chunked.md`,
+`findings/2026-08-14-l164-multi-instant-seam-check.md`, `kb/lessons/00-lessons.md` (L164 cell +
+L350), `LOOP-QUEUE.md`, `kb/00-LOG.md`.
+
+**Rebase note:** `origin/main` advanced mid-run (PR #370, kalshi-edge-hunter nightly round #30,
+below) — rebased onto the new tip; this file's and `LOOP-QUEUE.md`'s conflicts (both pure
+appends, no semantic overlap) resolved by keeping BOTH entries in chronological order. Gates
+re-verified fresh post-rebase by the calling session: `python3 scripts/invariants.py --full`
+exit 0 again; targeted `pytest -q tests/test_burst_chunk_plan.py tests/test_l164_seam_rederive.py`
+88 passed.
+
+---
+
 ## 2026-08-14 00:1x ET — kalshi-edge-hunter nightly: S78 DEAD verdict re-checked (survives); Q21 round #30 = 0/3, and universe_sweep has a measured 1-day settleability ceiling
 
 **Run:** kalshi-edge-hunter nightly (04:15Z, Opus). Two real units: adversarial review + Q21
@@ -65,6 +171,8 @@ only); `python3 -m pytest -q` → green (floor ≥4,117 collected / 0 failed). *
 new ledger lines, `paper: 0 open, 1657 settled, realized P&L $+27.76` unchanged (`broker_truth`;
 never edge evidence). Still **0 proven edges.** Files: `findings/2026-08-14-q21-round30-idea-gen.md`,
 `LOOP-QUEUE.md`, `kb/00-LOG.md`. See `findings/2026-08-14-q21-round30-idea-gen.md`.
+
+---
 
 ## 2026-08-13 20:0x ET — Q52/S78 sealed probe scoring fired: verdict DEAD, two-agent CONFIRMED (research loop, protocol v3)
 

@@ -123,10 +123,47 @@ the window with zero overhead.
 ## Applying this pattern to future one-shots
 
 Any new burst trigger (a future FOMC meeting, a new World-Cup-style event) should use this same
-chunked recipe from the start rather than the single-continuous-run template. Compute a starting
-sequence with `scripts/burst_chunk_plan.py`, but if the event has one or more decisive release
-instants (a scheduled statement, a print time, a kickoff), MANUALLY check whether any chunk
-boundary in that sequence falls within one `--interval` of any of them — if so, hand-adjust the
-chunk sizes (as done above for FOMC's 18:00:00Z) so every such instant lands safely inside a
-chunk, never on its seam. Do not skip this check; the tool will not do it for you (see its
-module docstring and lesson L164 in `kb/lessons/00-lessons.md`).
+chunked recipe from the start rather than the single-continuous-run template. Compute the sequence
+with `scripts/burst_chunk_plan.py`, passing `--protect` ONCE PER decisive instant the event has
+(a scheduled statement, a print time, a kickoff, a presser Q&A):
+
+```
+$ python3 scripts/burst_chunk_plan.py --start 2026-07-29T17:40:00Z --until 2026-07-29T19:45:00Z \
+    --interval 90 --chunk-minutes 20 \
+    --protect 2026-07-29T18:00:00Z --protect 2026-07-29T18:30:00Z
+total_ticks=84 interval=90s n_chunks=6 protect_offsets=[20.00min, 50.00min]
+max_ticks_sequence=[16, 14, 14, 14, 14, 12]  (only the chunks whose own seam was violated grew, L164)
+seam_check=PASS (margin=90s, 0 violations)
+```
+
+**Update (2026-08-14 — L164's remaining half is now built; this section previously said "the tool
+will not do it for you").** Three things changed and one did not:
+
+1. `--protect` is REPEATABLE. An event with a statement AND a presser no longer needs a hand check
+   for the second instant.
+2. Only the chunk whose OWN seam is violated grows. The 2026-07-26 single-instant form grew chunk 1
+   regardless of where the instant fell, which inflates the worst-case loss the chunking exists to
+   bound (measured: a 43-tick first chunk where 15 was asked for). The two agree exactly whenever
+   the instant falls inside chunk 1 — the FOMC recipe above is unchanged either way.
+3. An ALREADY-WRITTEN sequence (e.g. one already pasted into a live trigger prompt) can now be
+   CHECKED rather than regenerated, and exits non-zero on a violation, so a runbook step or a CI
+   caller can gate on it:
+
+```
+$ python3 scripts/burst_chunk_plan.py --start 2026-07-29T17:40:00Z --until 2026-07-29T19:45:00Z \
+    --interval 90 --verify-sequence 14,14,14,14,14,14 --protect 2026-07-29T18:00:00Z
+seam_check=FAIL (margin=90s, 1 violations)
+  instant t+1200s vs seam after chunk 1 [1170s, 1260s] -- gap 0s <= margin 90s
+$ echo $?
+2
+```
+
+4. What did NOT change, and cannot be automated: **deciding WHICH instants are decisive for a given
+   event is still human judgment.** The tool protects the instants you give it and has no way to
+   know you forgot one. Naming them remains a pre-flight step for every new one-shot.
+
+Pinned by `tests/test_burst_chunk_plan.py` (`::test_committed_fomc_recipe_is_seam_safe_for_BOTH_statement_and_presser`,
+`::test_cli_verify_sequence_fails_the_naive_uniform_plan_with_exit_2`) and independently
+re-derived on a separate implementation by `scripts/l164_seam_rederive.py`
+(`tests/test_l164_seam_rederive.py`). See `findings/2026-08-14-l164-multi-instant-seam-check.md`
+and lesson L164/L350 in `kb/lessons/00-lessons.md`.
