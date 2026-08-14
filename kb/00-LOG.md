@@ -6,6 +6,114 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-14 00:4x-01:xx ET — Q52/S78's SEALED PROBE WAS FIRED. Verdict DEAD — and it is `PROVISIONAL`, because this harness still has no `verifier` to dispatch (new L350)
+
+**Not an idle run.** For the first time in 13 firings the queue had an eligible item. The
+2026-08-13 policy-(b) run built and sealed `scripts/q52_s78_toxicity_filtered_maker_probe.py`,
+measured that its data gate had opened (`gate_reasons: []`, `admissible: true`), deliberately
+withheld the scoring half as verdict-class, and closed with: *"Next run with a `verifier`
+available fires it with no flags and no edit."* Q0-Q56 were re-derived here at each item's
+CURRENT status (reading each section in full — Q4/Q9/Q11/Q12/Q16/Q23/Q27 keep a stale `TODO`
+BELOW their real DONE verdict, Q24/Q53 keep theirs ABOVE) and everything else is DONE /
+BLOCKED(Ryan-or-credential) / density-gated / data-inadequate. Q52 was topmost eligible.
+
+**Steps 0a/0/0b (done by the orchestrating session):** history-integrity PASS (`origin/main`
+`b80b904`, last 8 commits all ancestors, no rewind; `kb/00-LOG.md` newest entry and newest
+`tape/*/dt=*` both 2026-08-13); claim-check found only the standing Ryan-review-only PRs
+(#125/#165/#166/#191/#208/#271/#330), none claiming queue work; step-0b found nothing new to
+sweep (`tape/hourly-20260813T1608Z` already absorbed; main's own `b80b904` tape commit is newer).
+
+**Fired with no flags and no edit, exactly as specified.** `git diff HEAD` on the probe file is
+empty; `PREREG_SHA256` recomputed at import time is still
+`1c2e422876ce44f5f8217dc98b4a7d8a43c9fcca04b1d8ddd1e8d3ff5bb218c2`, matching what LOOP-QUEUE.md
+recorded on 08-13; the committed `tape/kalshi_trades/` day set is unchanged (6 days). The scored
+population IS the sealed population.
+
+**The verdict: DEAD.** Pre-registered `all_candidates` headline branch (an unfilled candidate
+scores an honest $0.00, never dropped): **mean +$0.0034807/contract, 95% block-bootstrap-BY-GAME
+CI [-$0.0086686, +$0.0145783], n_units=34 games, n_obs=362, n_boot=10000, seed=42.** The CI
+straddles zero, and it fails the L27 tick gate as well (`clears_tick_magnitude: false`).
+Secondary `conditional_on_fill`: mean +$0.060000, CI [-$0.1552941, +$0.2396667], n_units=13,
+n_obs=21 — also straddles zero. Prices: rest `real_bid` (the snapshot's own touch bid read off
+the committed ladder — never a midpoint, never synthetic), fill evidence `broker_truth` (an
+executed print consuming our queue), toxicity signal `broker_truth`, settlement `broker_truth`
+(9 declared `core.settlement_sources` families; 40 requested -> 34 binary via
+`q51_settlement_cache` 32 + `settlement_ledger` 2). Maker fee from `core.pricing` (L5).
+`network_calls: 0`.
+
+**An ADMISSIBLE dead, not a data-adequacy dodge.** Every pre-registered gate passed before
+scoring was reachable: `n_units` 34 vs the L41 floor of 10; `sign_variation_admissible` minority
+side `yes` with **5 EXCLUSIVE** minority units vs the L321 floor of 2 (29 `no` / 28 `yes`
+touching, 23 mixed) — this is the first probe in the repo built against L321's exclusive count
+from the start rather than retrofitted; `bootstrap_verdict_admissible` 7 opposing units; Kish
+effective n 26.57 on 34 units (design effect 1.28); `gate_reasons: []`.
+
+**Where the edge went (new L350): the signal is measured per PRINT, the P&L is earned per
+CANDIDATE.** The TRAIN window admitted 2 of 4 pre-declared cells on markout net of the maker fee
+— `cheap/tight` n=52,738 prints **+$0.058608**, `rich/wide` n=2,422 **+$0.057143** — roughly 5.8c
+of apparent margin over a 1c fee, which reads as overwhelming. But 52,738 TRAIN prints -> 434
+holdout candidates -> 362 scoreable -> **21 fills (5.80%)** under the queue-aware fill model
+imported wholesale from the S80 probe (L100; never `OPTIMISTIC_FILL`, never a queue-departure
+proxy, L39/L48/L250). 94.2% of the headline population is an honest $0.00, so the headline is a
+mean dominated by zeros; conditional on fill the mean is +6.0c, but 21 fills over 13 games gives
+a +/-20c CI, and conditioning on the fill is conditioning on the taker's decision to cross us —
+i.e. on the very adverse selection the filter claims to remove. The failure is not "the toxicity
+signal is noise"; it is that a maker cannot convert a print-population statistic into a
+fill-population return at this book cadence. Same wall as S19 (0.45% fill), S13, S23, S79 and
+the S80 mirror, reached from a genuinely new direction.
+
+**Caveats that bound the kill without rescuing it.** The headline mean is POSITIVE (+0.35c), so
+this is a "not proven" kill, not a "loses money" kill. The five July `tape/kalshi_trades/`
+day-files are a TICKER-SCOPED BACKFILL of one 34-game manifest (L315,
+`reports/q52_q54_trades_backfill_phase1_phase2.json`) while `dt=2026-08-03` is a complete live
+sweep, so the holdout mixes a selected slice with one full day. `orderbook_depth` cadence steps
+25 -> 3 capture instants across 07-22/07-23 (L117/L127/L177/L213/L304), so sub-3h queue position
+stays unmeasurable (L283) and the seal's 240-minute interval/staleness caps are the honest
+accommodation. No sensitivity grid was run, deliberately — the seal forbids one, and a future
+grid must re-pre-register and re-pin `PREREG_SHA256` in the open.
+
+**Two-agent rule: NOT SATISFIABLE — so the result is `PROVISIONAL` and NOTHING WAS FLIPPED.**
+This harness exposes no `Task`/subagent tool (Read/Grep/Glob/Bash + GitHub MCP only) despite the
+`research-lead` charter naming five worker agents — the
+L287/L288/L290/L291/L295/L308/L313/L325 defect, already flagged for Ryan on 2026-08-13 as a
+regression from the 08-07 "Task restored" note. It is now the SOLE thing standing between this
+repo and a closed verdict on its only open candidate, which makes it worth Ryan's attention.
+The sanctioned redundancy fallback ran and is reported as redundancy, never as verification:
+the 08-13 outcome-blind `scripts/q52_s78_population_rederive.py` re-ran unchanged and reproduced
+its half exactly (admitted cells, 21/40/11 games, 362/434 candidates, 21 fills, 34 units, 5
+exclusive-minority units), and a NEW `scripts/q52_s78_scoring_rederive.py` (+44 offline tests)
+re-derives the half the outcome-blind leg refused to touch — settlement DIRECTION, per-candidate
+P&L, and the bootstrap. It does not import the probe (AST-pinned by a test), reads settlement
+straight at the committed cache/ledger files with its own restated first-hit precedence walk,
+restates the payout/fee arithmetic (rate still imported from `core.pricing`, L5), and resamples
+with a **hand-rolled 64-bit LCG** rather than `random.Random` so the CI is an independent
+Monte-Carlo estimate rather than a replay of the same stream. It reproduces both MEANS exactly
+(+0.0034806630 and +0.0600000), both CIs within Monte-Carlo error
+([-0.0084469, +0.0146635] and [-0.1490909, +0.2425806]), the same DEAD verdict, and reports **0
+settlement-direction conflicts** across the declared families — so the first-hit precedence walk
+is not hiding a disagreement that could flip a P&L sign.
+
+**Nothing flipped.** `kb/strategies/00-index.md`'s S78 status cell is UNCHANGED at idea-stage
+`collect-and-revisit`, conf `low`; only an explicit `[PROVISIONAL DEAD CI ON THE TABLE; STATUS
+DELIBERATELY NOT FLIPPED]` note was appended to its row. The owed independent verification is
+filed as **Q57**, in the shape Q50 used for the previous PROVISIONAL-result-on-the-table case,
+with a named attack surface rather than "re-run it". Still **0 proven edges**.
+
+Files: `scripts/q52_s78_scoring_rederive.py`, `tests/test_q52_s78_scoring_rederive.py`,
+`reports/q52_s78_toxicity_filtered_maker.json`, `reports/q52_s78_scoring_rederive.json`,
+`findings/2026-08-14-q52-s78-sealed-probe-fired.md`, `kb/lessons/00-lessons.md` (L350),
+`LOOP-QUEUE.md` (Q52 status + new Q57 + Log of runs), `kb/strategies/00-index.md` (note only),
+`kb/00-LOG.md`. The sealed probe itself was NOT edited — that is the point.
+
+**Step 9 (paper), run by the orchestrating session:** `SHADOW_REGISTRY={s14_ladder_underwriting}`;
+`python -m scripts.paper_pass` — 0 newly processed (276 deferred coverage, 300 already-in-ledger,
+0 deferred caps), no new ledger lines under `paper/`; `paper: 0 open position(s), 1657 settled
+contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00` (`broker_truth`; S14 stays
+`dead x` at real fills per Q34 — paper-infra validation only, NEVER edge evidence). This run
+appended no tape, so no re-run was owed.
+
+---
+
 ## 2026-08-13 13:0x-14:xx ET — research loop IDLE RUN, policy (a): L338 converted to a test — and running the factorial showed L338's own stated mechanism was wrong (new L349)
 
 **Concurrency note (added during merge by the orchestrating session):** this run's new lesson was

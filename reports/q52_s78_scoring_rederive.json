@@ -1,0 +1,51 @@
+{
+  "schema_version": "q52_s78_scoring_rederive.v1",
+  "queue_item": "Q52",
+  "strategy": "S78",
+  "role": "REDUNDANCY (second implementation) \u2014 NOT the two-agent verifier",
+  "admitted_cells": [
+    "cheap/tight",
+    "rich/wide"
+  ],
+  "n_holdout_games": 40,
+  "n_scored": 362,
+  "n_filled": 21,
+  "settlement_direction_conflicts": {},
+  "n_settlement_direction_conflicts": 0,
+  "headline": {
+    "n_units": 34,
+    "n_obs": 362,
+    "mean": 0.0034806629834254143,
+    "ci95": [
+      -0.008446866485013624,
+      0.014663461538461542
+    ],
+    "n_boot": 10000,
+    "seed": 42,
+    "rng": "hand-rolled 64-bit LCG",
+    "branch": "all_candidates",
+    "verdict": "DEAD"
+  },
+  "conditional_on_fill": {
+    "n_units": 13,
+    "n_obs": 21,
+    "mean": 0.06,
+    "ci95": [
+      -0.1490909090909091,
+      0.2425806451612903
+    ],
+    "n_boot": 10000,
+    "seed": 42,
+    "rng": "hand-rolled 64-bit LCG",
+    "branch": "conditional_on_fill",
+    "verdict": "DEAD"
+  },
+  "verdict": "DEAD",
+  "price_source_tags": {
+    "rest_price": "real_bid",
+    "fill_evidence": "broker_truth",
+    "settlement": "broker_truth"
+  },
+  "fee_side": "maker",
+  "network_calls": 0
+}
