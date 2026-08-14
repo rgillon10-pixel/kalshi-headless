@@ -6,6 +6,85 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-13 20:0x ET — Q52/S78 sealed probe scoring fired: verdict DEAD, two-agent CONFIRMED (research loop, protocol v3)
+
+**Steps 0a/0/0b.** History-integrity PASS: `origin/main` HEAD `6cdab47` (PR #366), `kb/00-LOG.md`
+newest entry and newest `tape/*/dt=` both 2026-08-13 (0-day gap), the last 5 merged PRs
+(#362–#366) all reachable in `origin/main`'s own linear history (shallow-clone depth means older
+history isn't locally checkable, but nothing recent is missing) — no rewind. Claim-check: open
+PRs are only the standing Ryan-review-only set (#125/#165/#166/#191/#208/#271/#330), none claims
+eligible queue work. **Step-0b sweep:** one stranded branch, `tape/hourly-20260813T1608Z`
+(committed 16:08Z, >5h old) — union-appended **679 lines** genuinely missing from `main` across 3
+families for `dt=2026-08-13` (crypto_hourly +2, polymarket_macro_pairs +21, sports_pairs +656),
+every line JSON-valid, 0 existing lines touched, re-diff confirms nothing else missing.
+
+**Queue: Q52 was the eligible item.** The prior run (PR #366's predecessor, 2026-08-13
+~12:0x-13:xx ET) had fired the sealed probe's population/adequacy half and left its scoring half
+deliberately unrun, because it is verdict-class and no `Task`/`Agent` tool existed in that
+harness to satisfy the two-agent rule — its own status line said "next run with a `verifier`
+available fires it with no flags and no edit." **This session's harness carries an `Agent` tool
+with a `verifier` subagent type for the first time on this exact next-step.**
+
+**Fired:** `python3 -m scripts.q52_s78_toxicity_filtered_maker_probe --json`, no flags beyond
+`--json`, no edit — `PREREG_SHA256` reconfirmed unmodified
+(`1c2e422876ce44f5f8217dc98b4a7d8a43c9fcca04b1d8ddd1e8d3ff5bb218c2`, matching the test pin).
+**`all_candidates`** branch: n_units=34, n_obs=362, mean **+$0.003481**, 95%
+block-bootstrap-by-game CI **[-$0.008669, +$0.014578]**, `clears_tick_magnitude: false`.
+**`conditional_on_fill`** branch: n_units=13, n_obs=21, mean **+$0.06**, CI
+**[-$0.1553, +$0.2397]** (underpowered — 21 fills — not measured-null). Both admissible (L321
+exclusive-minority units 5, 7 opposing units; Kish n 26.57 / 9.8). **Verdict: DEAD** on both
+branches, net of the maker fee (`MAKER_FEE_RATE` via `core.pricing`, no hand-rolled rate).
+
+**Independent `verifier` dispatched** with the exact claim, script path, and tape. It reproduced
+every number field-for-field from a clean re-run; confirmed the bootstrap genuinely blocks by
+`event_ticker_of` (game) — an independent re-implementation at a different seed (n_boot=20,000)
+landed on materially the same CIs, and a deliberately-wrong by-ROW pseudo-replication contrast
+came out NARROWER than the by-game CI, ruling out a CI-widening artifact manufacturing a false
+DEAD; confirmed L249 sign-boundedness is a real reachable measurement, not a gate artifact (11
+positive / 10 negative raw observations, 6/7 positive/negative unit means); confirmed the fee
+path and the L345/L348 anchored-settlement-root + L321 exclusive-minority gates are correctly
+wired in this probe (not a weaker check); spot-checked one settlement join
+(`KXLEAGUESCUPGAME-26AUG05LAFCCDG-TIE`) directly against a raw print. **Returned CONFIRMED.**
+Two-agent rule satisfied.
+
+**Registry update.** `kb/strategies/00-index.md` S78 row **flipped `collect-and-revisit` →
+`dead ✗`**, conf `low`. This is the fourth candidate in the short-the-toxic-side /
+rest-on-the-cheap-favorite factor family to die (alongside S13/S23/S79/S80) — Hard-Rule-#6's
+regime-conditional ρ cap applies to the family as a whole, not diversification credit. S11 (the
+parent `data-collecting` lane) is unaffected; S78 was one operationalization of it, now closed.
+Still **0 proven edges**. No new lesson candidates — the probe already encodes
+L5/L6/L27/L41/L100/L279/L296/L321/L322/L323/L345.
+
+**Gates after the last code change (none this run — data/report/docs only, no `.py` edited):**
+`python3 scripts/invariants.py --full` → exit 0, "invariants: all green" (pre-existing
+non-gating advisories only, unchanged in kind). `python3 -m pytest -q` → ran to completion, exit
+0, 100% dot progress with 0 F/E markers (trailing one-line summary lost to the same sandbox-reap
+symptom as L162's prior instances); `python3 -m pytest --collect-only -q` freshly reconfirmed
+**4,073 collected** pre-rebase. **Rebase note:** while this milestone was in flight, `origin/main`
+advanced by PR #367 (L338→test conversion, +44 tests) and a fresh hourly tape pass; rebased onto
+the new tip (conflicts in `LOOP-QUEUE.md`/`kb/00-LOG.md` resolved by keeping BOTH entries in
+chronological order, conflicts in the three swept `dt=2026-08-13` tape files resolved by
+line-level union — the same stranded branch had independently been swept by both this run and
+PR #367, so exact-duplicate lines were dropped, not double-appended; verified post-resolution:
+0 invalid JSON, 0 exact-duplicate lines, per-family totals match base+both-additions exactly).
+Both gates RE-RUN fresh after the rebase, per L162: `invariants.py --full` exit 0 again (same
+advisories); `pytest -q` full suite green again, exit 0, 0 F/E; `--collect-only -q` now shows
+**4,117 collected** (= 4,073 + PR #367's 44 new tests, confirming nothing was dropped).
+
+**Step 9 (paper).** `SHADOW_REGISTRY={s14_ladder_underwriting}`; `scripts/paper_pass.py` re-run
+after the tape sweep — 0 processed / 0 deferred(caps) / 276 deferred(coverage) / 300
+already-in-ledger, no new ledger lines (no new crypto_hourly candle coverage from the 2-line
+sweep addition). `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash
+$+27.76, open notional $0.00` (`broker_truth`; S14 stays `dead ✗` at real fills per Q34 —
+paper-infra validation only, never edge evidence).
+
+Files: `scripts/q52_s78_toxicity_filtered_maker_probe.py` (unmodified — read-only fire),
+`reports/q52_s78_toxicity_filtered_maker.json` (new), `kb/strategies/00-index.md`,
+`LOOP-QUEUE.md`, `findings/2026-08-14-q52-s78-scoring-fired-dead.md`,
+`tape/crypto_hourly/dt=2026-08-13.jsonl`, `tape/polymarket_macro_pairs/dt=2026-08-13.jsonl`,
+`tape/sports_pairs/dt=2026-08-13.jsonl` (step-0b sweep only). See
+`findings/2026-08-14-q52-s78-scoring-fired-dead.md`.
+
 ## 2026-08-13 13:0x-14:xx ET — research loop IDLE RUN, policy (a): L338 converted to a test — and running the factorial showed L338's own stated mechanism was wrong (new L349)
 
 **Concurrency note (added during merge by the orchestrating session):** this run's new lesson was
@@ -104,6 +183,7 @@ polymarket_macro_pairs/crypto_hourly lines) — 0 newly processed, 276 deferred(
 300 already-in-ledger, no new ledger lines under `paper/`; realized P&L unchanged
 **+$27.76** (`broker_truth`; S14 stays `dead ✗` at real fills per Q34 — paper-infra
 validation only, NOT edge evidence). Still **0 proven edges**.
+
 ## 2026-08-13 12:2x-13:0x ET — research loop IDLE RUN, policy (a): L345 enforced — a relative tape root manufactures an empty population, and the lesson's OWN proposed check would have missed 7 of the 10 sites (new L348)
 
 **Concurrency note (added during merge by the orchestrating session):** this run's new lesson was
