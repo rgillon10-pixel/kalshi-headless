@@ -3259,11 +3259,115 @@ def test_trade_print_triage_entries_all_point_at_files_that_exist_and_trigger():
         path = ROOT / rel
         assert path.exists(), f"triage entry for missing file: {rel}"
         text = path.read_text(encoding="utf-8")
+        trans = inv._trade_print_transitive_import_re()
         hit = any(
             not ln.lstrip().startswith("#")
-            and (inv._TRADE_PRINT_TAPE_RE.search(ln) or inv._TRADE_PRINT_LOADER_RE.search(ln))
+            and (inv._TRADE_PRINT_TAPE_RE.search(ln) or inv._TRADE_PRINT_LOADER_RE.search(ln)
+                 or (trans is not None
+                     and inv._TRADE_PRINT_IMPORT_LINE_RE.match(ln) and trans.search(ln)))
             for _, ln in inv._scan_lines(text))
         assert hit, f"triage entry no longer matches the trigger: {rel}"
+
+
+# ─── L323's residual: TRANSITIVE print consumers (added 2026-08-14) ──────────
+
+def _mod(rel):
+    return ROOT / rel
+
+
+def test_transitive_stems_are_derived_from_the_registry_and_exclude_na_entries():
+    # The trigger set IS the registry's own print-consuming half. An `N/A` module hands no
+    # print on, so importing it is not an inherited tie-break and must not be flagged.
+    stems = inv._trade_print_consumer_stems()
+    assert "q54_s79_flow_continuation_probe" in stems      # INCIDENTAL (a real consumer)
+    assert "kalshi_trades" in stems                        # WRITER
+    assert "q51_m3_preflight" not in stems                 # N/A: imports the loader, no print
+    assert "q52_s78_split_feasibility_audit" not in stems  # N/A: reads only the ticker field
+    for rel, disposition in inv.TRADE_PRINT_TIEBREAK_TRIAGE.items():
+        if str(disposition).lstrip().upper().startswith("N/A"):
+            assert pathlib.Path(rel).stem not in stems, rel
+
+
+def test_transitive_trigger_fires_on_a_new_module_that_only_imports_a_consumer():
+    # The exact shape L323's cell recorded as its residual: no tape reference, no Q51 loader
+    # import, prints reached through an already-triaged helper.
+    src = ("from scripts import q54_s79_flow_continuation_probe as P\n"
+           "rows = P.entry_candidates(P.load_all_prints(P.TRADES_TAPE), [])\n")
+    msg = inv.inv_trade_print_tiebreak_triage(_mod("scripts/zz_transitive_probe.py"), src)
+    assert msg is not None
+    assert "TRANSITIVE" in msg
+    assert "TRADE_PRINT_TIEBREAK_TRIAGE" in msg
+
+
+def test_transitive_trigger_is_silent_once_the_module_is_triaged(monkeypatch):
+    src = "from scripts import q54_s79_flow_continuation_probe as P\n"
+    reg = dict(inv.TRADE_PRINT_TIEBREAK_TRIAGE)
+    reg["scripts/zz_transitive_probe.py"] = "N/A: declared in this test."
+    monkeypatch.setattr(inv, "TRADE_PRINT_TIEBREAK_TRIAGE", reg)
+    assert inv.inv_trade_print_tiebreak_triage(
+        _mod("scripts/zz_transitive_probe.py"), src) is None
+
+
+def test_transitive_trigger_does_not_fire_on_an_import_of_an_na_module():
+    # A regression-tested MISS, deliberate and documented in the rule's honest limits: the
+    # one-hop-through-a-non-consumer chain stays dark by design.
+    src = "from scripts import q51_m3_preflight as Q\n"
+    assert inv.inv_trade_print_tiebreak_triage(
+        _mod("scripts/zz_transitive_probe.py"), src) is None
+
+
+def test_transitive_trigger_needs_an_import_line_not_a_mere_mention():
+    for src in ("MSG = 'see scripts/q54_s79_flow_continuation_probe for the sealed path'\n",
+                "# import q54_s79_flow_continuation_probe would be flagged\n",
+                "def q54_s79_flow_continuation_probe_helper():\n    return 1\n"):
+        assert inv.inv_trade_print_tiebreak_triage(
+            _mod("scripts/zz_transitive_probe.py"), src) is None, src
+
+
+def test_transitive_trigger_matches_the_import_spellings_actually_used_in_the_tree():
+    for src in ("from scripts import q54_s79_flow_continuation_probe as P\n",
+                "import scripts.q51_maker_fillsim as M\n",
+                "from scripts.q51_maker_fillsim import load_prints\n",
+                "    from scripts import q56_s80_rederive  # lazy import\n"):
+        assert inv.inv_trade_print_tiebreak_triage(
+            _mod("scripts/zz_transitive_probe.py"), src) is not None, src
+
+
+def test_transitive_trigger_is_inert_when_the_registry_names_no_consumer(monkeypatch):
+    # Fails OPEN only in the degenerate case where there is nothing to inherit from.
+    monkeypatch.setattr(inv, "TRADE_PRINT_TIEBREAK_TRIAGE", {"scripts/x.py": "N/A: nothing."})
+    assert inv._trade_print_transitive_import_re() is None
+    assert inv.inv_trade_print_tiebreak_triage(
+        _mod("scripts/zz_transitive_probe.py"),
+        "from scripts import q54_s79_flow_continuation_probe\n") is None
+
+
+def test_transitive_trigger_respects_dir_scoping_and_file_exclusions():
+    src = "from scripts import q54_s79_flow_continuation_probe as P\n"
+    assert inv.inv_trade_print_tiebreak_triage(ROOT / "tests" / "test_zz.py", src) is None
+    assert inv.inv_trade_print_tiebreak_triage(ROOT / "zz_top_level.py", src) is None
+
+
+def test_the_live_transitive_instance_is_registered_and_would_fire_without_its_entry(monkeypatch):
+    # NON-VACUITY (L249/L250): the rule found one real module, and removing its sentence puts
+    # it straight back in the failure list. A ratchet that fires on nothing proves nothing.
+    rel = "scripts/q54_minority_exclusivity_audit.py"
+    entry = inv.TRADE_PRINT_TIEBREAK_TRIAGE[rel]
+    assert "TRANSITIVE" in entry and "INCIDENTAL" in entry
+    text = (ROOT / rel).read_text(encoding="utf-8")
+    assert inv.inv_trade_print_tiebreak_triage(ROOT / rel, text) is None
+    reg = {k: v for k, v in inv.TRADE_PRINT_TIEBREAK_TRIAGE.items() if k != rel}
+    monkeypatch.setattr(inv, "TRADE_PRINT_TIEBREAK_TRIAGE", reg)
+    msg = inv.inv_trade_print_tiebreak_triage(ROOT / rel, text)
+    assert msg is not None and "TRANSITIVE" in msg
+
+
+def test_the_live_transitive_instance_reaches_prints_only_through_the_sealed_probe():
+    # Pins WHY it was invisible: neither direct trigger matches it. If a future edit gives it
+    # a direct tape reference this test goes red and the registry sentence must be re-read.
+    text = (ROOT / "scripts/q54_minority_exclusivity_audit.py").read_text(encoding="utf-8")
+    body = [ln for _, ln in inv._scan_lines(text) if not ln.lstrip().startswith("#")]
+    assert not any(inv._TRADE_PRINT_LOADER_RE.search(ln) for ln in body)
 
 
 def test_trade_print_triage_covers_the_known_sealed_and_declared_sites():

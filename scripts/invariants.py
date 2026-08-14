@@ -686,6 +686,26 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
         "single number it reports. Stated in `load_prints`'s own docstring, per L323's "
         "rule that the exposure be said on the record.",
 
+    "scripts/q54_minority_exclusivity_audit.py":
+        "INCIDENTAL (inherited, TRANSITIVELY) — MEASURED ORDER-INVARIANT ON TODAY'S TAPE, "
+        "2026-08-14. Found by this rule's own transitive trigger (added 2026-08-14): it "
+        "names neither the tape nor the Q51 loader, it imports the SEALED Q54 probe and "
+        "reaches prints through `P.load_all_prints` -> `P.entry_candidates` -> "
+        "`first_agreeing_print`, so it inherited an undeclared file-order tie-break while "
+        "publishing L321's headline. `first_agreeing_print` selects ONE print per decision "
+        "instant and the selected print's `yes_price` sets `entry_price` AND decides the "
+        "probe's price-band admission, so the exposure is real, not formal. MEASURED with "
+        "`python3 scripts/q54_minority_exclusivity_audit.py --sensitivity`: 48.47% of the "
+        "213,431 eligible sports prints sit in a tie (25,777 groups, 7,998 disagreeing on "
+        "`yes_price`); under a REVERSED tie-break 61 of the 221 entry rows fill against a "
+        "different `trade_id` and 20 get a different `entry_price` (identical counts under "
+        "an explicit `trade_id` key) — yet every L321 headline field is byte-identical "
+        "across all three orderings (221/214 candidates, 45 units, touching {no:6,yes:45}, "
+        "exclusive {no:0,yes:39}, both gate readings). So the number is order-robust on "
+        "THIS population, non-vacuously (L249/L250); that is a dated measurement over an "
+        "append-only, still-backfilling family, never a proof, and `--sensitivity` re-runs "
+        "it rather than trusting this sentence.",
+
     # ---- no print ordering at all (tracked so a future one cannot evade the ratchet) ----
     "scripts/trade_print_tiebreak_audit.py":
         "N/A BY CONSTRUCTION — this ratchet's own measurement half: it iterates prints in "
@@ -735,6 +755,54 @@ _TRADE_PRINT_LOADER_RE = re.compile(
     r'|\bfrom\s+scripts\.q51_maker_fillsim\b')
 _TRADE_PRINT_TRIAGE_DIRS = ("scripts/", "execution/", "core/", "collection/")
 
+# ─── L323's own named residual, closed 2026-08-14 (TRANSITIVE print consumers) ──────────
+#
+# The two triggers above are DIRECT: a reference to the `kalshi_trades` family, or an import
+# of the ONE shared loader (`q51_maker_fillsim`). L323's enforcement cell recorded exactly
+# what they miss, as an honest limit: "a future module consuming prints only through some
+# OTHER triaged helper inherits its disposition without being asked." That blind spot was not
+# hypothetical — it was LIVE in the tree when this was written:
+# `scripts/q54_minority_exclusivity_audit.py` names neither the tape nor the Q51 loader; it
+# imports the SEALED Q54 probe and reaches prints through it, and it was publishing L321's
+# headline counts on an undeclared tie-break. One hit, and it was the measurement half of a
+# lesson row — the exact "inherits a disposition without being asked" shape.
+#
+# The trigger is derived FROM THE REGISTRY ITSELF, so it ratchets: every module triaged as an
+# actual print consumer (any disposition that is not `N/A`) becomes an import whose consumers
+# must in turn declare themselves. Adding a triage entry therefore widens the net instead of
+# closing it, which is the property the direct-only version lacked.
+#
+# HONEST LIMITS (they travel with the rule):
+#   * ONE HOP THROUGH A CONSUMER ONLY. A module that reaches prints through an intermediate
+#     triaged `N/A` (a module that genuinely touches no print) is invisible — correctly so
+#     today, since an `N/A` module hands nothing on; but if such a module later grows a print
+#     path, its disposition must change or the chain stays dark. The registry entry is the
+#     thing under review, not the import graph.
+#   * LEXICAL, LINE-SCOPED IMPORTS. `importlib`, a runtime `__import__`, or a module reached
+#     through a package `__init__` re-export is not matched. Same residual class as L319/L321.
+#   * A STEM, NOT A PATH. Matching is on the module basename, so a same-named module in
+#     another package would match. Deliberate: fails toward asking for a sentence.
+_TRADE_PRINT_IMPORT_LINE_RE = re.compile(r"^\s*(?:from|import)\s")
+
+
+def _trade_print_consumer_stems(
+        registry: Optional[Dict[str, str]] = None) -> Tuple[str, ...]:
+    """Module stems of every TRIAGED module that actually touches prints (disposition not
+    `N/A`). Pure; derived from the registry so the two stay in sync by construction."""
+    reg = TRADE_PRINT_TIEBREAK_TRIAGE if registry is None else registry
+    return tuple(sorted({
+        Path(rel).stem for rel, disposition in reg.items()
+        if not str(disposition).lstrip().upper().startswith("N/A")}))
+
+
+def _trade_print_transitive_import_re(registry: Optional[Dict[str, str]] = None):
+    """Regex matching an import line that names a triaged print-consuming module, or None if
+    the registry names none. Rebuilt per call so a registry edit is picked up immediately."""
+    stems = _trade_print_consumer_stems(registry)
+    if not stems:
+        return None
+    return re.compile(r"\b(?:%s)\b" % "|".join(re.escape(x) for x in stems))
+
 
 def inv_trade_print_tiebreak_triage(path: Path, text: str) -> Optional[str]:
     """L323 GATING ratchet: any module under scripts/|execution/|core/|collection/ that
@@ -751,11 +819,30 @@ def inv_trade_print_tiebreak_triage(path: Path, text: str) -> Optional[str]:
         return None
     if rel in TRADE_PRINT_TIEBREAK_TRIAGE:
         return None
-    hits = [(i, ln) for i, ln in _scan_lines(text)
-            if not ln.lstrip().startswith("#")
-            and (_TRADE_PRINT_TAPE_RE.search(ln) or _TRADE_PRINT_LOADER_RE.search(ln))]
-    if not hits:
+    lines = [(i, ln) for i, ln in _scan_lines(text) if not ln.lstrip().startswith("#")]
+    hits = [(i, ln) for i, ln in lines
+            if _TRADE_PRINT_TAPE_RE.search(ln) or _TRADE_PRINT_LOADER_RE.search(ln)]
+    transitive_re = _trade_print_transitive_import_re()
+    transitive = [] if transitive_re is None else [
+        (i, ln) for i, ln in lines
+        if _TRADE_PRINT_IMPORT_LINE_RE.match(ln) and transitive_re.search(ln)]
+    if not hits and not transitive:
         return None
+    if not hits:
+        return _fmt(path, transitive,
+                    "UNTRIAGED trade-print consumer (TRANSITIVE) — lesson L323: this module "
+                    "names neither the `kalshi_trades` tape nor the shared Q51 loader, but it "
+                    "imports a module already triaged as a print consumer, so it INHERITS "
+                    "that module's tie-break without having been asked for one (L323's own "
+                    "recorded residual; the live instance was "
+                    "scripts/q54_minority_exclusivity_audit.py, which reached prints through "
+                    "the sealed Q54 probe). 48.5% of committed prints sit in an "
+                    "exact-timestamp `(ticker, created_time)` tie and 7,999 tie groups "
+                    "disagree on price. Add this file to TRADE_PRINT_TIEBREAK_TRIAGE in "
+                    "scripts/invariants.py stating which tie-break it relies on (DECLARED / "
+                    "INCIDENTAL / ORDER-INSENSITIVE / N/A / WRITER); measure with "
+                    "scripts/trade_print_tiebreak_audit.py or, for an inherited population, "
+                    "the importing probe's own sensitivity pass.")
     return _fmt(path, hits,
                 "UNTRIAGED trade-print consumer — lesson L323: 48.5% of committed "
                 "`kalshi_trades` prints sit in an exact-timestamp `(ticker, created_time)` "
