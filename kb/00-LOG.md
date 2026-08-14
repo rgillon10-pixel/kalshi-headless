@@ -6,6 +6,66 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-14 00:1x ET — kalshi-edge-hunter nightly: S78 DEAD verdict re-checked (survives); Q21 round #30 = 0/3, and universe_sweep has a measured 1-day settleability ceiling
+
+**Run:** kalshi-edge-hunter nightly (04:15Z, Opus). Two real units: adversarial review + Q21
+replenishment. Unit 3 (probe-prep) had no target. **Steps 0a/0/0b:** history-integrity PASS
+(`origin/main` HEAD `424dcb4` observatory 2026-08-14; `kb/00-LOG.md` newest entry and newest
+`tape/*/dt=` both 2026-08-13, 0-day gap; no rewind). Claim-check: only the standing
+Ryan-review-only PRs (#125/#165/#166/#191/#208/#271/#330), none claiming eligible queue work.
+Step-0b: newest stranded branch `tape/hourly-20260813T1608Z` already swept into `main` by PR #366
+— nothing new. 234 `tape/hourly-*` + 10 `tape/burst-*` remote branches (Q17/Ryan lane).
+
+**Unit 1 — adversarial review of the last-24h verdict (S78 DEAD).** The only verdict-class
+finding in the window is `findings/2026-08-14-q52-s78-scoring-fired-dead.md` (S78 flipped
+`dead ✗`). An independent `verifier` re-derived its three load-bearing facts: (1) fee sourced
+from `core.pricing` (`MAKER_FEE_RATE=0.0175`, `fee_per_contract`, no hand-rolled literal —
+applied `scripts/q52_s78_toxicity_filtered_maker_probe.py:448`); (2) bootstrap unit = GAME via
+`event_ticker_of`, resampling at the unit level (`core/bootstrap.py`); (3) headline reproduces
+field-for-field from a clean re-run (`all_candidates` mean +$0.003481, 95% CI
+[-$0.008669,+$0.014578], `clears_tick_magnitude:false`), no `synthetic` price in the P&L chain,
+`PREREG_SHA256` unmodified. **Verdict SURVIVES — no GitHub issue opened.** (The other last-24h
+findings — q42 HL-funding orphaned-tape, tape-duplicate census, the S78 sealed-probe /
+split-feasibility precursors — are data-quality/infra, not verdicts; their consumed numbers are
+the same population the S78 re-check reproduced.)
+
+**Unit 2 — Q21 replenishment round #30 (0 eligible → round required).** Full Q0–Q56 file-shape
+rescan = **0 eligible** (8th consecutive idle-adjacent run; Q52/S78 + Q54/S79 both `dead ✗` and
+closed). **A FOURTH, mechanical saturation check now agrees with rounds #27–#29:** the
+`kalshi-observatory` leg's `findings/observatory/patterns.jsonl` over `dt=2026-08-13` (73
+patterns) finds **0 patterns that clear the fee floor and are not graveyard-blocked** — all 10
+fee-clearers are `naive-maker-spread` blocked by S6/S13 (the z≈+31 >30¢ wing-spread artifact).
+Producer proposed **S82/S83/S84** on the ONE un-mined fresh surface, `tape/universe_sweep/`
+(full-universe BBO, `real_ask`, never used for a directional-settlement backtest); independent
+`verifier` attacked all three on committed tape → **KILL / KILL / KILL**, all on adequacy before
+fees or CI. **Durable measurement:** of **1,003,235** unique universe_sweep tickers, only **373
+resolve to `broker_truth` settlement (all via `settlement_ledger`) = 209 events / 3 combinatorial
+series, with EVERY joinable row captured on the single day `dt=2026-07-22`** (the
+`settlement_ledger` freeze date) — 23/24 sweep-days unsettleable, and 623/667 joinable rows quote
+`no_ask=$1` (hollow book, S10). S82 additionally gated on a `no_ask_size` field absent from
+`universe_sweep.v1` (verifier-caught spec error). No registration, no S-numbers burned (next free
+stays **S82**). Two deferred lesson candidates flagged for kb-distiller (schema-field-absence =
+auto idea-stage KILL; full-universe-BBO settleability is bounded by the settlement-family freeze).
+**Actionable data-gap, distinct from the standing kalshi_trades key ask:** the broad
+`settlement_ledger` (Q45) is frozen at 07-22, and that alone caps the whole universe_sweep surface
+at one settleable day.
+
+**Unit 3 — probe-prep: no target.** No day-count gate unblocks within ~72h (Q43 is calendar-open
+but density-gated on the dead VPS collector, not a day-count; no burst leg has an event in window).
+
+**Housekeeping.** 5 stale `kalshi-burst-*` triggers (cpi-0714 / wcsemi1-0714 / wcsemi2-0715 /
+wcfinal-0719 / fomc-0729, all July event dates passed) named for deletion. The 7 open PRs are all
+standing Ryan-review-only and were NOT re-flagged (the weekly retro owns that escalation; re-flagging
+with no new info is the tune-out failure).
+
+**Gates after the last change (L162 — docs/findings-only, no code/test edited):**
+`python3 scripts/invariants.py --full` → exit 0, all green (pre-existing non-gating advisories
+only); `python3 -m pytest -q` → green (floor ≥4,117 collected / 0 failed). **Step 9 (paper):**
+`SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra only) — no new tape/candles, no
+new ledger lines, `paper: 0 open, 1657 settled, realized P&L $+27.76` unchanged (`broker_truth`;
+never edge evidence). Still **0 proven edges.** Files: `findings/2026-08-14-q21-round30-idea-gen.md`,
+`LOOP-QUEUE.md`, `kb/00-LOG.md`. See `findings/2026-08-14-q21-round30-idea-gen.md`.
+
 ## 2026-08-13 20:0x ET — Q52/S78 sealed probe scoring fired: verdict DEAD, two-agent CONFIRMED (research loop, protocol v3)
 
 **Steps 0a/0/0b.** History-integrity PASS: `origin/main` HEAD `6cdab47` (PR #366), `kb/00-LOG.md`
