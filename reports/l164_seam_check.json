@@ -1,0 +1,301 @@
+{
+  "class": "scheduling arithmetic only -- no price, no P&L, no CI, no registry flip. price_source_tag: N/A (this artifact persists no price).",
+  "committed_fomc_recipe_check": {
+    "independent_rederivation": {
+      "all_safe": true,
+      "instants": [
+        {
+          "containing_chunk": 1,
+          "instant": "2026-07-29T18:00:00Z",
+          "nearest_seam_after_chunk": 1,
+          "nearest_seam_margin_seconds": 150.0,
+          "offset_seconds": 1200.0,
+          "safe": true
+        },
+        {
+          "containing_chunk": 3,
+          "instant": "2026-07-29T18:30:00Z",
+          "nearest_seam_after_chunk": 2,
+          "nearest_seam_margin_seconds": 300.0,
+          "offset_seconds": 3000.0,
+          "safe": true
+        }
+      ],
+      "interval_seconds": 90,
+      "margin_seconds": 90.0,
+      "n_seams": 5,
+      "n_ticks": 84,
+      "note": "redundancy re-derivation, not verification; zero-overhead seam idealization",
+      "seams_utc": [
+        [
+          "2026-07-29T18:02:30Z",
+          "2026-07-29T18:04:00Z"
+        ],
+        [
+          "2026-07-29T18:23:30Z",
+          "2026-07-29T18:25:00Z"
+        ],
+        [
+          "2026-07-29T18:44:30Z",
+          "2026-07-29T18:46:00Z"
+        ],
+        [
+          "2026-07-29T19:05:30Z",
+          "2026-07-29T19:07:00Z"
+        ],
+        [
+          "2026-07-29T19:26:30Z",
+          "2026-07-29T19:28:00Z"
+        ]
+      ],
+      "sequence": [
+        16,
+        14,
+        14,
+        14,
+        14,
+        12
+      ],
+      "start": "2026-07-29T17:40:00Z"
+    },
+    "seam_offsets_seconds": [
+      [
+        1350.0,
+        1440.0
+      ],
+      [
+        2610.0,
+        2700.0
+      ],
+      [
+        3870.0,
+        3960.0
+      ],
+      [
+        5130.0,
+        5220.0
+      ],
+      [
+        6390.0,
+        6480.0
+      ]
+    ],
+    "sequence": [
+      16,
+      14,
+      14,
+      14,
+      14,
+      12
+    ],
+    "violations_at_margin_90s": [],
+    "window": {
+      "chunk_minutes": 20,
+      "interval": 90,
+      "start": "2026-07-29T17:40:00Z",
+      "total_minutes": 125.0,
+      "until": "2026-07-29T19:45:00Z"
+    }
+  },
+  "generated_by": "scripts/burst_chunk_plan.py + scripts/l164_seam_rederive.py (2026-08-14, L164 remaining half)",
+  "naive_uniform_plan_check": {
+    "independent_rederivation": {
+      "all_safe": false,
+      "instants": [
+        {
+          "containing_chunk": null,
+          "instant": "2026-07-29T18:00:00Z",
+          "nearest_seam_after_chunk": 1,
+          "nearest_seam_margin_seconds": 0.0,
+          "offset_seconds": 1200.0,
+          "safe": false
+        },
+        {
+          "containing_chunk": 3,
+          "instant": "2026-07-29T18:30:00Z",
+          "nearest_seam_after_chunk": 2,
+          "nearest_seam_margin_seconds": 480.0,
+          "offset_seconds": 3000.0,
+          "safe": true
+        }
+      ],
+      "interval_seconds": 90,
+      "margin_seconds": 90.0,
+      "n_seams": 5,
+      "n_ticks": 84,
+      "note": "redundancy re-derivation, not verification; zero-overhead seam idealization",
+      "seams_utc": [
+        [
+          "2026-07-29T17:59:30Z",
+          "2026-07-29T18:01:00Z"
+        ],
+        [
+          "2026-07-29T18:20:30Z",
+          "2026-07-29T18:22:00Z"
+        ],
+        [
+          "2026-07-29T18:41:30Z",
+          "2026-07-29T18:43:00Z"
+        ],
+        [
+          "2026-07-29T19:02:30Z",
+          "2026-07-29T19:04:00Z"
+        ],
+        [
+          "2026-07-29T19:23:30Z",
+          "2026-07-29T19:25:00Z"
+        ]
+      ],
+      "sequence": [
+        14,
+        14,
+        14,
+        14,
+        14,
+        14
+      ],
+      "start": "2026-07-29T17:40:00Z"
+    },
+    "sequence": [
+      14,
+      14,
+      14,
+      14,
+      14,
+      14
+    ],
+    "violations_at_margin_90s": [
+      {
+        "chunk_index": 1,
+        "gap_seconds": 0.0,
+        "margin_seconds": 90.0,
+        "protect_offset_seconds": 1200.0,
+        "seam_end_seconds": 1260.0,
+        "seam_start_seconds": 1170.0
+      }
+    ]
+  },
+  "single_vs_multi_first_chunk_inflation": [
+    {
+      "both_seam_safe": true,
+      "case": "FOMC (committed recipe)",
+      "chunk_minutes": 20,
+      "cover_same_window": true,
+      "interval_seconds": 90,
+      "multi_instant_sequence": [
+        16,
+        14,
+        14,
+        14,
+        14,
+        12
+      ],
+      "multi_max_chunk_ticks": 16,
+      "multi_worst_case_loss_minutes": 24.0,
+      "protect_offset_minutes": 20.0,
+      "single_instant_sequence": [
+        16,
+        14,
+        14,
+        14,
+        14,
+        12
+      ],
+      "single_max_chunk_ticks": 16,
+      "single_worst_case_loss_minutes": 24.0,
+      "ticks_per_chunk": 14,
+      "total_minutes": 125
+    },
+    {
+      "both_seam_safe": true,
+      "case": "WC-final-shaped, instant near start",
+      "chunk_minutes": 20,
+      "cover_same_window": true,
+      "interval_seconds": 120,
+      "multi_instant_sequence": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        8
+      ],
+      "multi_max_chunk_ticks": 10,
+      "multi_worst_case_loss_minutes": 20.0,
+      "protect_offset_minutes": 25.0,
+      "single_instant_sequence": [
+        15,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        3
+      ],
+      "single_max_chunk_ticks": 15,
+      "single_worst_case_loss_minutes": 30.0,
+      "ticks_per_chunk": 10,
+      "total_minutes": 155
+    },
+    {
+      "both_seam_safe": true,
+      "case": "instant inside a LATER naive chunk",
+      "chunk_minutes": 15,
+      "cover_same_window": true,
+      "interval_seconds": 60,
+      "multi_instant_sequence": [
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        10
+      ],
+      "multi_max_chunk_ticks": 15,
+      "multi_worst_case_loss_minutes": 15.0,
+      "protect_offset_minutes": 40.0,
+      "single_instant_sequence": [
+        43,
+        15,
+        15,
+        15,
+        12
+      ],
+      "single_max_chunk_ticks": 43,
+      "single_worst_case_loss_minutes": 43.0,
+      "ticks_per_chunk": 15,
+      "total_minutes": 100
+    },
+    {
+      "both_seam_safe": true,
+      "case": "short window",
+      "chunk_minutes": 10,
+      "cover_same_window": true,
+      "interval_seconds": 45,
+      "multi_instant_sequence": [
+        14,
+        14,
+        14,
+        8
+      ],
+      "multi_max_chunk_ticks": 14,
+      "multi_worst_case_loss_minutes": 10.5,
+      "protect_offset_minutes": 5.0,
+      "single_instant_sequence": [
+        14,
+        14,
+        14,
+        8
+      ],
+      "single_max_chunk_ticks": 14,
+      "single_worst_case_loss_minutes": 10.5,
+      "ticks_per_chunk": 14,
+      "total_minutes": 37
+    }
+  ],
+  "two_agent_status": "REDUNDANCY ONLY (no Task/subagent tool in this harness) -- not verifier-confirmed; nothing verdict-class produced."
+}

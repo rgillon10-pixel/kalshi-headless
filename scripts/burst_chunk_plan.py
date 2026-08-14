@@ -44,13 +44,41 @@ boundary before t=0 to move) — an event with more than one decisive moment (e.
 statement AND a later presser Q&A) needs a hand check for the second moment same as before, and an
 instant very late in the window will simply pull most/all chunks into "chunk 1", which is correct
 but not necessarily what a `--chunk-minutes`-sized cadence was chosen for.
+
+MULTI-INSTANT SEAM PROTECTION + MECHANICAL CHECK (L164's remaining half, added 2026-08-14).
+L164's own text named two things the 2026-07-26 build deliberately left out: (1) events with MORE
+than one decisive instant (an FOMC statement AND its ~30-minutes-later presser Q&A), and (2) the
+fact that a plan can only be GENERATED here, never CHECKED — `ops/burst_capture_chunked.md` still
+instructed every future one-shot to "MANUALLY check whether any chunk boundary falls within one
+`--interval` of any of them ... the tool will not do it for you". Both are now built:
+
+  * `seam_offsets_seconds()` reports each INTERNAL seam as the `(last tick of chunk k, first tick
+    of chunk k+1)` elapsed-second pair — the actual at-risk gap, not a nominal boundary.
+  * `seam_violations()` is the mechanical form of L164's rule: an instant is safe iff its distance
+    to EVERY seam interval exceeds the margin (default one `--interval`), checked on BOTH sides, so
+    an instant sitting just after a seam is caught as well as one sitting just before it. This
+    turns an arbitrary already-written sequence (e.g. the one pasted into a live trigger prompt)
+    into something verifiable — `--verify-sequence` exits non-zero on any violation.
+  * `chunk_max_ticks_sequence_protecting_multi()` accepts N protected instants and grows ONLY the
+    chunk whose own trailing seam is violated, leaving every other chunk at the requested
+    `--chunk-minutes` size.
+
+Measured consequence, honestly stated: the single-instant
+`chunk_max_ticks_sequence_protecting()` above grows CHUNK 1 no matter where the instant falls, so
+whenever the instant lives in a LATER chunk it inflates chunk 1 to reach it and thereby inflates
+the worst-case data loss the chunking exists to bound. On this module's own committed test cases
+that is 43 ticks vs 15 (`100min/15min/60s`, protect at 40min) and 15 vs 10
+(`155min/20min/120s`, protect at 25min). The single-instant function is NOT changed (the
+FOMC `[16, 14, 14, 14, 14, 12]` recipe is regression-pinned to it and the two agree whenever the
+instant falls inside chunk 1); new callers should prefer the multi form. See
+`findings/2026-08-14-l164-multi-instant-seam-check.md`.
 """
 from __future__ import annotations
 
 import argparse
 import math
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 from core.timeutil import parse_iso_utc
 
@@ -178,6 +206,156 @@ def chunk_max_ticks_sequence_protecting(
     return seq
 
 
+@dataclass(frozen=True)
+class SeamViolation:
+    """One protected instant that lands too close to one chunk seam.
+
+    `chunk_index` is 1-based and names the chunk the seam FOLLOWS (seam k sits between chunk k
+    and chunk k+1). `gap_seconds` is the distance from the instant to the nearer edge of the seam
+    interval, and is 0.0 when the instant falls INSIDE the seam itself (the worst case: no capture
+    covers it at all)."""
+    chunk_index: int
+    seam_start_seconds: float
+    seam_end_seconds: float
+    protect_offset_seconds: float
+    gap_seconds: float
+    margin_seconds: float
+
+
+def seam_offsets_seconds(seq: Sequence[int], interval_seconds: int) -> List[Tuple[float, float]]:
+    """Each INTERNAL seam of a `--max-ticks` sequence, as `(last-tick-of-chunk-k elapsed seconds,
+    first-tick-of-chunk-(k+1) elapsed seconds)` from window start.
+
+    The pair — not a single instant — is the honest object: the seam is the commit+push+verify
+    PAUSE, so the whole span between the two adjacent ticks is at risk, and it is at least one
+    `interval_seconds` wide even in the idealized zero-overhead model used here (real overhead only
+    widens it, never narrows it, so every check below is a lower bound on the true risk window).
+    A sequence of one chunk has no internal seam and yields `[]`; the window's own end is not a
+    seam (nothing follows it)."""
+    if interval_seconds <= 0:
+        raise ValueError(f"interval_seconds must be > 0, got {interval_seconds}")
+    if any(t <= 0 for t in seq):
+        raise ValueError(f"every chunk must carry >= 1 tick, got {list(seq)}")
+    seams: List[Tuple[float, float]] = []
+    cumulative = 0
+    for ticks in list(seq)[:-1]:
+        cumulative += ticks
+        seams.append((float((cumulative - 1) * interval_seconds), float(cumulative * interval_seconds)))
+    return seams
+
+
+def _seam_is_safe(
+    protect_offset_seconds: float,
+    seam_start_seconds: float,
+    seam_end_seconds: float,
+    margin_seconds: float,
+) -> bool:
+    """L164's rule, two-sided: the instant must clear the seam interval by more than `margin`
+    on whichever side it falls. Checking only the "instant before the seam" side (the single-
+    instant grower's implicit assumption, which is sound only because it always moves the seam
+    LATER) would silently pass an instant sitting just AFTER a seam."""
+    return (
+        protect_offset_seconds < seam_start_seconds - margin_seconds
+        or protect_offset_seconds > seam_end_seconds + margin_seconds
+    )
+
+
+def seam_violations(
+    seq: Sequence[int],
+    interval_seconds: int,
+    protect_offsets_seconds: Iterable[float],
+    margin_seconds: Optional[float] = None,
+) -> List[SeamViolation]:
+    """Every (instant, seam) pair violating L164 in an ALREADY-WRITTEN `--max-ticks` sequence.
+
+    This is the check `ops/burst_capture_chunked.md` previously mandated be done by hand for every
+    future one-shot. Empty list == the sequence is seam-safe for all the given instants at this
+    margin. Pure arithmetic: no clock, no network, no tape."""
+    if margin_seconds is None:
+        margin_seconds = float(interval_seconds)
+    if margin_seconds < 0:
+        raise ValueError(f"margin_seconds must be >= 0, got {margin_seconds}")
+    seams = seam_offsets_seconds(seq, interval_seconds)
+    out: List[SeamViolation] = []
+    for offset in protect_offsets_seconds:
+        for k, (start, end) in enumerate(seams, start=1):
+            if _seam_is_safe(offset, start, end, margin_seconds):
+                continue
+            if start <= offset <= end:
+                gap = 0.0
+            else:
+                gap = min(abs(offset - start), abs(offset - end))
+            out.append(SeamViolation(
+                chunk_index=k,
+                seam_start_seconds=start,
+                seam_end_seconds=end,
+                protect_offset_seconds=float(offset),
+                gap_seconds=float(gap),
+                margin_seconds=float(margin_seconds),
+            ))
+    return out
+
+
+def chunk_max_ticks_sequence_protecting_multi(
+    total_minutes: float,
+    chunk_minutes: float,
+    interval_seconds: int,
+    protect_offsets_minutes: Sequence[float],
+    margin_seconds: Optional[float] = None,
+) -> List[int]:
+    """A `--max-ticks` sequence covering the window in which NO internal seam falls within
+    `margin_seconds` (default one `interval_seconds`) of ANY of `protect_offsets_minutes`.
+
+    Unlike `chunk_max_ticks_sequence_protecting()`, which grows chunk 1 regardless of where the
+    instant sits, this grows ONLY the chunk whose own trailing seam is violated — so an instant
+    late in the window no longer inflates the first chunk (and with it the worst-case loss the
+    whole chunking recipe exists to bound). With a single instant that falls inside chunk 1 the two
+    functions agree exactly (regression-pinned on the FOMC recipe).
+
+    Degenerate-but-correct case, stated rather than hidden: instants packed so densely that every
+    candidate seam is blocked collapse the plan toward ONE chunk covering the window — which IS the
+    only seam-safe plan then, and is exactly the loss exposure the caller should see and react to
+    (e.g. by widening the window or accepting a hand-chosen seam), not something to silently
+    approximate away."""
+    if total_minutes <= 0:
+        raise ValueError(f"total_minutes must be > 0, got {total_minutes}")
+    if interval_seconds <= 0:
+        raise ValueError(f"interval_seconds must be > 0, got {interval_seconds}")
+    if margin_seconds is None:
+        margin_seconds = float(interval_seconds)
+    if margin_seconds < 0:
+        raise ValueError(f"margin_seconds must be >= 0, got {margin_seconds}")
+    total_seconds = total_minutes * 60.0
+    offsets = sorted({float(p) * 60.0 for p in protect_offsets_minutes})
+    for offset in offsets:
+        if offset >= total_seconds:
+            raise ValueError(
+                f"protect instant at {offset / 60.0}min is at or past the window end "
+                f"({total_minutes}min) -- nothing inside the window to protect"
+            )
+        if offset <= margin_seconds:
+            raise ValueError(
+                f"protect instant at {offset}s is within {margin_seconds}s of the window start "
+                "(t=0) -- no chunk boundary sits before it to move; protect it by hand (e.g. "
+                "start the burst window earlier) rather than via --protect"
+            )
+    total_ticks = max(1, math.ceil(total_seconds / interval_seconds))
+    tpc = ticks_per_chunk(chunk_minutes, interval_seconds)
+    seq: List[int] = []
+    placed = 0
+    while placed < total_ticks:
+        take = min(tpc, total_ticks - placed)
+        while placed + take < total_ticks:
+            start = float((placed + take - 1) * interval_seconds)
+            end = float((placed + take) * interval_seconds)
+            if all(_seam_is_safe(o, start, end, margin_seconds) for o in offsets):
+                break
+            take += 1
+        seq.append(take)
+        placed += take
+    return seq
+
+
 def window_minutes(start_iso: str, until_iso: str) -> float:
     """Minutes between two ISO8601 UTC timestamps (accepts a trailing 'Z')."""
     start, until = parse_iso_utc(start_iso), parse_iso_utc(until_iso)
@@ -205,6 +383,40 @@ def _format_protected(seq: List[int], interval_seconds: int, protect_offset_minu
     ])
 
 
+def _format_protected_multi(
+    seq: List[int], interval_seconds: int, protect_offsets_minutes: List[float]
+) -> str:
+    offsets = ", ".join(f"{m:.2f}min" for m in protect_offsets_minutes)
+    return "\n".join([
+        f"total_ticks={sum(seq)} interval={interval_seconds}s "
+        f"n_chunks={len(seq)} protect_offsets=[{offsets}]",
+        f"max_ticks_sequence={seq}  (only the chunks whose own seam was violated grew, L164)",
+    ])
+
+
+def _format_seam_check(violations: List[SeamViolation], margin_seconds: float) -> str:
+    if not violations:
+        return f"seam_check=PASS (margin={margin_seconds:.0f}s, 0 violations)"
+    lines = [f"seam_check=FAIL (margin={margin_seconds:.0f}s, {len(violations)} violations)"]
+    for v in violations:
+        lines.append(
+            f"  instant t+{v.protect_offset_seconds:.0f}s vs seam after chunk {v.chunk_index} "
+            f"[{v.seam_start_seconds:.0f}s, {v.seam_end_seconds:.0f}s] -- gap {v.gap_seconds:.0f}s "
+            f"<= margin {v.margin_seconds:.0f}s"
+        )
+    return "\n".join(lines)
+
+
+def _parse_sequence(raw: str) -> List[int]:
+    try:
+        seq = [int(tok) for tok in raw.replace("[", "").replace("]", "").split(",") if tok.strip()]
+    except ValueError as exc:
+        raise ValueError(f"--verify-sequence must be comma-separated integers, got {raw!r}") from exc
+    if not seq:
+        raise ValueError("--verify-sequence must name at least one chunk")
+    return seq
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(
         description="Compute a chunked --max-ticks invocation plan for collection.burst_capture")
@@ -213,27 +425,61 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--interval", type=int, required=True, help="seconds between ticks (matches burst_capture --interval)")
     ap.add_argument("--chunk-minutes", type=float, default=20.0, help="approx minutes per chunk (default 20)")
     ap.add_argument(
-        "--protect", default=None,
+        "--protect", default=None, action="append",
         help="ISO8601 UTC instant to protect from a chunk seam (L164), e.g. the FOMC statement "
-             "release. Single instant, must fall after --start by more than --margin-seconds. "
-             "Grows chunk 1 only -- see the module docstring's SEAM PROTECTION section.")
+             "release. REPEATABLE (added 2026-08-14): pass it once per decisive instant, e.g. the "
+             "statement AND its presser. Each must fall after --start by more than "
+             "--margin-seconds. One instant keeps the original grow-chunk-1 behavior; two or more "
+             "grow only the chunks whose own seam is violated -- see the module docstring.")
     ap.add_argument(
         "--margin-seconds", type=float, default=None,
         help="minimum buffer between the protected instant and its chunk's trailing boundary "
              "(default: one --interval, the L164 rule)")
+    ap.add_argument(
+        "--verify-sequence", default=None,
+        help="check an ALREADY-WRITTEN --max-ticks sequence (comma-separated, e.g. "
+             "'16,14,14,14,14,12') against every --protect instant instead of computing a new "
+             "one; exits 2 if any seam violates L164. This is the check "
+             "ops/burst_capture_chunked.md used to mandate be done by hand.")
     args = ap.parse_args(argv)
 
     minutes = window_minutes(args.start, args.until)
-    if args.protect:
-        protect_offset_minutes = window_minutes(args.start, args.protect)
-        seq = chunk_max_ticks_sequence_protecting(
-            minutes, args.chunk_minutes, args.interval, protect_offset_minutes, args.margin_seconds
+    protect_offsets = [window_minutes(args.start, p) for p in (args.protect or [])]
+    margin = float(args.interval) if args.margin_seconds is None else float(args.margin_seconds)
+
+    if args.verify_sequence:
+        if not protect_offsets:
+            ap.error("--verify-sequence requires at least one --protect instant to check against")
+        seq = _parse_sequence(args.verify_sequence)
+        violations = seam_violations(
+            seq, args.interval, [m * 60.0 for m in protect_offsets], args.margin_seconds
         )
-        print(_format_protected(seq, args.interval, protect_offset_minutes))
+        print(_format_protected_multi(seq, args.interval, protect_offsets))
+        print(_format_seam_check(violations, margin))
+        return 2 if violations else 0
+
+    if len(protect_offsets) == 1:
+        seq = chunk_max_ticks_sequence_protecting(
+            minutes, args.chunk_minutes, args.interval, protect_offsets[0], args.margin_seconds
+        )
+        print(_format_protected(seq, args.interval, protect_offsets[0]))
+    elif protect_offsets:
+        seq = chunk_max_ticks_sequence_protecting_multi(
+            minutes, args.chunk_minutes, args.interval, protect_offsets, args.margin_seconds
+        )
+        print(_format_protected_multi(seq, args.interval, protect_offsets))
     else:
         plan = chunk_plan(minutes, args.chunk_minutes, args.interval)
         print(_format_plan(plan, args.interval))
-    return 0
+        return 0
+
+    # self-check: never emit a plan this module's own rule would reject (defence in depth --
+    # the generator and the checker are separate code paths, so agreement is information).
+    violations = seam_violations(
+        seq, args.interval, [m * 60.0 for m in protect_offsets], args.margin_seconds
+    )
+    print(_format_seam_check(violations, margin))
+    return 2 if violations else 0
 
 
 if __name__ == "__main__":
