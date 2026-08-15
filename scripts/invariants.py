@@ -1631,6 +1631,125 @@ def single_hour_leg_idempotence_warning(issues: List[str]) -> Optional[str]:
     )
 
 
+# ─── Gate-hour REACHABILITY advisory (L123's third half; non-gating, offline-safe) ──
+#
+# L74/L75 answer "did this family miss calendar days?"; L144 answers "is this leg registered
+# for monitoring at all?"; L221 (above) answers "did the gate admit too many passes INSIDE its
+# hour?". None of them answers the question L123 actually asked on 2026-07-21: **is the gate
+# hour one the scheduler ever STARTS a pass in?**
+#
+# That distinction is the whole point. `weather_actuals` (gate 12Z) and `settlement_ledger`
+# (gate 10Z) look identical to a missing-day check — both have holes — but 12Z is on the
+# realized 3-hourly grid and recovers by itself, while 10Z is not on it at all, so
+# `tape/settlement_ledger/` cannot grow again until a human changes something. Measured
+# 2026-08-15: 0 of 105 observed pass-STARTS over the trailing 21 committed days landed on 10Z,
+# while the family sat frozen at `dt=2026-07-22` for 24 days and its 9Z/12Z siblings kept
+# producing. The realized schedule is not readable from this repo (the cron lives in Ryan's
+# cloud account / the VPS crontab), so it is measured from committed tape — see
+# `scripts/tape_gap_monitor.py::gate_hour_reachability` and its `coverage_note` for why the
+# witness leg must be an UNGATED leg that runs FIRST (a late leg inverts the verdict).
+#
+# NON-GATING, deliberately: the repair is L123's candidate (b) — widening a live collector gate
+# — which is explicitly Ryan/VPS-side, and the `daily_leg_due()` implementation already exists
+# in open PR #165 (L221/L246: a second implementation was written and reverted; do not write a
+# third). This PRINTS; it never flips the exit code.
+
+
+def _gate_hour_unreachable_issues(
+        tape_root: Path = ROOT / "tape",
+        gate_hours: Optional[Dict[str, int]] = None,
+) -> List[str]:
+    """One issue label per single-hour-gated family whose gate hour is UNREACHABLE by the
+    observed scheduler (L123). Best-effort/offline: any failure returns [] and can never
+    poison the gate."""
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None:
+            return []
+        hours = _single_hour_leg_gate_hours() if gate_hours is None else gate_hours
+        issues: List[str] = []
+        for fam in sorted(hours):
+            rep = tgm.gate_hour_reachability(tape_root, hours[fam], family=fam)
+            if not rep or rep.get("verdict") != "UNREACHABLE":
+                continue
+            win = rep.get("window_days") or []
+            span = f"{win[0]}..{win[-1]}" if win else "no committed days"
+            issues.append(
+                f"{fam} (gate hour {hours[fam]:02d}Z): 0 of {rep['n_pass_instants']} observed "
+                f"pass-STARTS over {rep['n_window_days']} committed day(s) ({span}) landed on "
+                f"{hours[fam]:02d}Z — witness `{rep['primary_witness']}`, corroborator "
+                f"`{rep['corroborating_witness']}` agrees; rule-of-three upper bound "
+                f"{rep['rule_of_three_upper_bound_per_pass']:.3f}/pass. The leg's "
+                f"`if ts.hour == N` gate cannot fire, so the family cannot grow")
+        return issues
+    except Exception:
+        return []
+
+
+def _exempt_gate_hour_unreachable_notes(
+        hourly_pass_path: Path = ROOT / "collection" / "hourly_pass.py",
+        source: Optional[str] = None,
+        tape_root: Path = ROOT / "tape",
+        exempt: Optional[Dict[str, str]] = None,
+) -> List[str]:
+    """Same measurement for the single-hour legs that write NO committed tape family
+    (`SINGLE_HOUR_LEG_EXEMPT`). Reported separately and explicitly as NOT defects of the
+    tape tree — an exempt leg is still a leg, and silently dropping it is how L123's
+    `forecast_collector` half stayed invisible for a month. Best-effort: failure -> []."""
+    try:
+        tgm = _load_tape_gap_monitor()
+        if tgm is None:
+            return []
+        exempt = SINGLE_HOUR_LEG_EXEMPT if exempt is None else exempt
+        if source is None:
+            source = hourly_pass_path.read_text(encoding="utf-8")
+        hours = {m.group(1): int(m.group(2)) for m in _UTC_HOUR_CONST_RE.finditer(source)}
+        notes: List[str] = []
+        for const in sorted(exempt):
+            h = hours.get(const)
+            if h is None or not (0 <= h <= 23):
+                continue
+            rep = tgm.gate_hour_reachability(tape_root, h, family=const)
+            if not rep or rep.get("verdict") != "UNREACHABLE":
+                continue
+            notes.append(f"{const} = {h:02d}Z is also unreachable ({exempt[const]})")
+        return notes
+    except Exception:
+        return []
+
+
+def gate_hour_unreachable_warning(issues: List[str],
+                                  exempt_notes: Optional[List[str]] = None) -> Optional[str]:
+    """A non-gating advisory when a once-per-UTC-day collector leg is gated on a UTC hour the
+    observed scheduler never starts a pass in (L123), else None. Pure."""
+    if not issues:
+        return None
+    n = len(issues)
+    body = "".join(f"\n  - {i}" for i in issues[:6])
+    more = f"\n  - ... and {n - 6} more" if n > 6 else ""
+    exempt_body = "".join(f"\n  - (exempt, no committed tape family) {e}"
+                          for e in (exempt_notes or [])[:4])
+    return (
+        f"warning (non-gating): {n} single-hour collector leg(s) are gated on a UTC hour the "
+        f"OBSERVED scheduler never starts a pass in — a structurally frozen family, not a run "
+        f"of unlucky days:{body}{more}{exempt_body}\n"
+        f"  The realized schedule is NOT in this repo (cron lives in Ryan's cloud account and "
+        f"the VPS crontab), so it is measured from committed tape: pass-START hours of an "
+        f"UNGATED leg that runs FIRST in hourly_pass.run(). Using a LATE leg inverts the "
+        f"answer — tape/perp_tape/ (leg #7) stamps ~:04 past the NEXT hour, so the same passes "
+        f"look like they start on {{1,4,7,10,13,16,19,22}}. An observed zero is a rule-of-three "
+        f"BOUND, never proof of impossibility, and a witness written by a non-hourly_pass "
+        f"caller can only ADD hours, so this check under-reports rather than crying wolf. The "
+        f"window is TRAILING on purpose (the schedule has eras — ~20 pass-hours/day through "
+        f"2026-07-22, ~4/day after); window_sensitivity + full_history_observed_hours travel "
+        f"with every verdict. Computed only from committed tape via "
+        f"scripts/tape_gap_monitor.py::gate_hour_reachability. Fix = widening the live gate to "
+        f"a once-per-day dedup KEY, which is Ryan/VPS-side and already written in open PR #165 "
+        f"— do NOT implement a third copy. Advisory only — does NOT affect the exit code. "
+        f"See kb/lessons/00-lessons.md L123/L221/L246."
+    )
+
+
 # ─── Dead collector-leg advisory (L117/L129 recurrence: non-gating, offline-safe) ──
 #
 # The live data pipe runs TWO staggered collectors (VPS cron :23 UTC, cloud `kalshi-collector`
@@ -6075,6 +6194,17 @@ def main() -> int:
                 sys.stderr.write(idem_warning + "\n")
         except BaseException:
             sys.stderr.write("note: single-hour-gate idempotence advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L123 advisory: a single-hour leg gated on a UTC hour the OBSERVED scheduler never
+        # starts a pass in — structurally frozen, not unlucky. Same BaseException posture as
+        # the idempotence stanza above (it dynamically exec's tape_gap_monitor.py).
+        try:
+            unreach_warning = gate_hour_unreachable_warning(
+                _gate_hour_unreachable_issues(), _exempt_gate_hour_unreachable_notes())
+            if unreach_warning:
+                sys.stderr.write(unreach_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: gate-hour reachability advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # L117/L129 advisory: one of the two staggered collector legs (VPS :23 / cloud :53)
         # apparently dead — computed from committed tape's captured_at minute buckets. Loud but
