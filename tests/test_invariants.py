@@ -4239,3 +4239,107 @@ def test_l345_exempt_registry_entries_carry_a_written_reason():
     for mod, reason in inv.SETTLEMENT_ROOT_ANCHORING_EXEMPT.items():
         assert (ROOT / mod).is_file(), mod
         assert isinstance(reason, str) and len(reason) > 20, mod
+
+
+# ─── L123: gate-hour REACHABILITY advisory (the third half of `if ts.hour == N`) ─────────
+
+
+def _grid_tape(tape_root, family, days, hours, minute=54):
+    """Fixture tape: one pass per listed hour, per listed day, stamped at `minute`."""
+    fam = tape_root / family
+    fam.mkdir(parents=True, exist_ok=True)
+    for day in days:
+        with open(fam / f"dt={day}.jsonl", "a", encoding="utf-8") as f:
+            for h in hours:
+                f.write(json.dumps({"capture_id": f"{day}T{h:02d}{minute:02d}",
+                                    "captured_at": f"{day}T{h:02d}:{minute:02d}:00+00:00"}) + "\n")
+
+
+def test_l123_gate_hour_issues_fire_on_an_off_grid_leg(tmp_path):
+    days = [f"2026-08-{d:02d}" for d in range(1, 11)]
+    _grid_tape(tmp_path, "sports_pairs", days, (0, 3, 6, 9, 12, 15, 18, 21))
+    issues = inv._gate_hour_unreachable_issues(tape_root=tmp_path,
+                                               gate_hours={"settlement_ledger": 10})
+    assert len(issues) == 1
+    assert "settlement_ledger (gate hour 10Z)" in issues[0]
+    assert "cannot fire" in issues[0]
+
+
+def test_l123_gate_hour_issues_stay_clean_on_an_on_grid_leg(tmp_path):
+    days = [f"2026-08-{d:02d}" for d in range(1, 11)]
+    _grid_tape(tmp_path, "sports_pairs", days, (0, 3, 6, 9, 12, 15, 18, 21))
+    assert inv._gate_hour_unreachable_issues(tape_root=tmp_path,
+                                             gate_hours={"anomalies": 9}) == []
+
+
+def test_l123_gate_hour_issues_abstain_rather_than_guess_on_thin_evidence(tmp_path):
+    """Three passes that all miss the hour are not evidence of a frozen leg."""
+    _grid_tape(tmp_path, "sports_pairs", ["2026-08-01"], (0, 6, 12))
+    assert inv._gate_hour_unreachable_issues(tape_root=tmp_path,
+                                             gate_hours={"settlement_ledger": 10}) == []
+
+
+def test_l123_gate_hour_issues_degrade_to_empty_on_a_missing_tape_root(tmp_path):
+    """Best-effort/offline: an unreadable tape root can never poison the gate."""
+    assert inv._gate_hour_unreachable_issues(tape_root=tmp_path / "nope") == []
+    assert inv._exempt_gate_hour_unreachable_notes(tape_root=tmp_path / "nope") == []
+
+
+def test_l123_warning_is_none_when_there_are_no_issues():
+    assert inv.gate_hour_unreachable_warning([]) is None
+    assert inv.gate_hour_unreachable_warning([], ["an exempt note"]) is None
+
+
+def test_l123_warning_names_its_limits_and_stays_non_gating_in_wording():
+    msg = inv.gate_hour_unreachable_warning(["settlement_ledger (gate hour 10Z): 0 of 105"],
+                                            ["FORECAST_COLLECTOR_UTC_HOUR = 11Z is also unreachable"])
+    assert msg is not None
+    for token in ("does NOT affect the exit code", "L123", "perp_tape", "rule-of-three",
+                  "PR #165", "TRAILING", "exempt"):
+        assert token in msg, token
+
+
+def test_l123_exempt_notes_report_the_forecast_leg_rather_than_dropping_it(tmp_path):
+    """An exempt leg is still a leg — silently dropping it is how L123's forecast_collector
+    half stayed invisible for a month. It is reported, and labelled exempt."""
+    days = [f"2026-08-{d:02d}" for d in range(1, 11)]
+    _grid_tape(tmp_path, "sports_pairs", days, (0, 3, 6, 9, 12, 15, 18, 21))
+    notes = inv._exempt_gate_hour_unreachable_notes(
+        source="FORECAST_COLLECTOR_UTC_HOUR = 11\n", tape_root=tmp_path,
+        exempt={"FORECAST_COLLECTOR_UTC_HOUR": "writes gitignored data/forecast_tape/"})
+    assert len(notes) == 1 and "11Z" in notes[0] and "gitignored" in notes[0]
+
+
+def test_acceptance_l123_real_tree_flags_settlement_ledger_and_nothing_else():
+    """HARD acceptance against real committed tape. The control is the point: three legs
+    gated on 09Z and one on 12Z sit on the realized 3-hourly grid and keep producing, so a
+    verdict that flagged them all would be measuring a dead collector, not a dead gate.
+
+    Red here means the world changed (the collector started firing at 10Z, or stopped firing
+    at 09Z/12Z) and the finding this pins is genuinely superseded — the intended loud signal,
+    not a flake (L341). Frozen-slice counts live in tests/test_tape_gap_monitor.py."""
+    if not (ROOT / "tape" / "sports_pairs").is_dir():
+        pytest.skip("committed tape/sports_pairs/ not present")
+    issues = inv._gate_hour_unreachable_issues()
+    joined = "\n".join(issues)
+    assert "settlement_ledger (gate hour 10Z)" in joined
+    for clean in ("anomalies", "econ_prints", "polymarket_cpi_pairs", "weather_actuals"):
+        assert clean not in joined, clean
+    msg = inv.gate_hour_unreachable_warning(issues, inv._exempt_gate_hour_unreachable_notes())
+    assert "L123" in msg and "does NOT affect the exit code" in msg
+
+
+def test_acceptance_l123_advisory_never_flips_the_exit_code(monkeypatch, capsys):
+    """The advisory FIRES on the real tree today and `--full` must still exit 0 — a
+    structurally frozen collector gate is un-repairable from a cloud run, so gating on it
+    would halt the research loop for a condition only Ryan can clear (same posture as
+    L74/L117/L144/L221)."""
+    if not (ROOT / "tape" / "sports_pairs").is_dir():
+        pytest.skip("committed tape/sports_pairs/ not present")
+    monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+    rc = inv.main()
+    captured = capsys.readouterr()
+    assert rc == 0, captured.err
+    assert "never starts a pass in" in captured.err
+    assert "settlement_ledger (gate hour 10Z)" in captured.err
+    assert "invariants: all green" in captured.out

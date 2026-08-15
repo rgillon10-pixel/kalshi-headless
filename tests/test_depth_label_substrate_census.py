@@ -141,7 +141,7 @@ def test_verdict_adequate_requires_both_floors():
     assert v["verdict"] == "SUBSTRATE-ADEQUATE" and v["binding_shortfall"] == []
 
 
-def test_the_preregistered_unit_floor_is_vacuous_on_a_multileg_ladder_L353():
+def test_the_preregistered_unit_floor_is_vacuous_on_a_multileg_ladder_L355():
     """The defect this census found in its OWN pre-registered floor: a 188-leg ladder clears
     `n_snapshots >= 2` at the unit level while EVERY leg carries exactly one snapshot, so the
     unit reads ready and no resting order on it is observable.
@@ -218,7 +218,7 @@ def test_report_carries_the_verdict_caveat_so_it_travels_with_the_number(tmp_pat
            [{"ticker": "KXBTC-26AUG0101-B1", "captured_at": "2026-08-01T01:00:00Z"}])
     rep = cen.census(str(tmp_path))
     assert "fill_observability" in rep["verdict_caveat"]
-    assert "L353" in rep["verdict_caveat"]
+    assert "L355" in rep["verdict_caveat"]
 
 
 def test_main_writes_the_json_and_exits_zero(tmp_path):

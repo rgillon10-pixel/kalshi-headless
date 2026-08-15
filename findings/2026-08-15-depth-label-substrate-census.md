@@ -29,8 +29,15 @@ shape and duplicates, never label joinability.
 
 ## 2. What was measured
 
-Whole committed family, no sampling: **110,613 distinct tickers · 463,776 snapshots · 39
-day-files · 0 malformed lines**. Outcomes resolved through
+Whole committed family, no sampling: **110,632 distinct tickers · 465,776 snapshots · 39
+day-files · 0 malformed lines** — **as of this branch's merge with `origin/main` at `e897c61`**.
+The tape is append-only, so the DESCRIPTIVE counts here drift with every collector pass (the two
+hourly passes merged from `main` while this file was being written moved the population from
+110,613/463,776 and the sports class from 9,553 to 9,572 legs). Every VERIFIER-CONFIRMED
+headline figure was re-derived after that merge and is UNCHANGED: 418 probe-ready crypto units,
+258 every-leg-observable across 12 days, 160 all-single, ready-only median 2.0 / 57.58%, median
+forward gap 31.5 min, the 73.73x naive-census undercount, 488 duplicate rows / 0.48pp, and
+418/418 depth-scoped ladder coherence. Outcomes resolved through
 `core.settlement_sources.resolve_market_results` (the single sanctioned resolver, all 10
 declared sources, none absent on disk). Bootstrap unit = the EVENT (L6), i.e. the crypto
 hour-ladder or the sports game, never the individual bracket.
@@ -54,7 +61,7 @@ to a directory listing, and the recent Q21 rounds did route through the sanction
 What is new is the MAGNITUDE on the family that hosts the fill question.
 
 **F2 (verifier-CONFIRMED as a mechanism; its first-cut magnitude was NOT — see §6) — the
-pre-registered unit-level floor is VACUOUS on a multi-leg ladder** (recorded as **L353**). A
+pre-registered unit-level floor is VACUOUS on a multi-leg ladder** (recorded as **L355**). A
 188-bracket crypto hour trivially clears "the unit has ≥2 snapshots" while an individual
 bracket can carry exactly one. A resting order lives on ONE leg, so a leg seen once has **no
 forward interval**. On real tape this bites **160 of the 418** probe-ready crypto units (every
@@ -81,16 +88,16 @@ collector's ~31-minute cadence, not a missing population, is what limits a queue
 fill-sim on crypto: **at most ~2 forward intervals per ready leg, spaced ~31 minutes** — a
 resolution problem for a queue model whose events are second-scale.
 
-The sports lane is limited by something else entirely: only **224 of 3,542** sports units carry
+The sports lane is limited by something else entirely: only **224 of 3,551** sports units carry
 outcomes and **every labeled sports unit predates 2026-07-16** (the `settlement_ledger` freeze;
 that family holds only `dt=2026-07-17` and `dt=2026-07-22`). Since the freeze the sports depth
-tape has added **196,086 snapshots across 3,143 units** that nothing can score.
+tape has added **198,086 snapshots across 3,152 units** that nothing can score.
 
 **F4 (verifier-CONFIRMED, scope corrected) — no cross-source agreement rate is computable.**
 The embedded crypto labels (60,874 tickers) and the naive-union labels (10,941) overlap in
 **0** tickers on this population — the L9 non-overlap shape again, at the source level. The one
 validation that IS available is reported instead: over **the whole `crypto_hourly` corpus**,
-**872/872** settled bracket ladders settle exactly one `B` bracket `yes`, 0 violations;
+**874/874** settled bracket ladders settle exactly one `B` bracket `yes`, 0 violations;
 restricted to **the depth-covered crypto units only**, **418/418**, 0 violations. (Both are now
 emitted separately — `ladder_coherence` and `ladder_coherence_depth_scoped` — because the two
 scopes are different claims.)
@@ -108,7 +115,7 @@ Two independent lanes, two different blockers:
 1. **Sports — blocked on LABELS, and the unblock is the same one Q21 round #30 surfaced for
    `universe_sweep`, worth more than that round could show.** A forward-running settlement
    collector (Q45 / `settlement_ledger`, dead since 07-22 per Q36's VPS diagnosis) would
-   convert **3,143 already-captured, snapshot-rich sports units (196,086 snapshots)** into
+   convert **3,152 already-captured, snapshot-rich sports units (198,086 snapshots)** into
    scoreable ones — the largest single substrate unlock available, and Ryan-side (VPS restart).
 2. **Crypto — runnable NOW, at coarse resolution.** 258 ready units across 12 days already
    clear the pre-registered floors with every leg observed ≥2 times. Any probe built on them
@@ -148,8 +155,8 @@ floors with every leg observable**. The claim that 418 crypto event-hours were i
 unobservable was therefore wrong (the correct count is **160**), and "never overlap" was the
 wrong frame: the overlap exists, it is **coarse (~31.5-min cadence)**.
 
-Three narrower corrections landed with it: the "321,992 snapshots into a labeling void" figure
-was an all-days class total (post-freeze: **196,086 on 3,143 units**); "872/872 ladders" is the
+Three narrower corrections landed with it: the "323,992 snapshots into a labeling void" figure
+was an all-days class total (post-freeze: **198,086 on 3,152 units**); "874/874 ladders" is the
 whole `crypto_hourly` corpus, not the depth-covered units (**418/418** there); and 488 exact
 duplicate rows inflate the crypto class-wide ≥2 fraction by 0.48pp.
 
@@ -157,4 +164,4 @@ The census now emits `fill_observability_ready_only` (conditioned), `duplicate_r
 and `ladder_coherence_depth_scoped`, its `verdict_caveat` states in the artifact itself that the
 class-wide block **must never be quoted beside a probe-ready count**, and both the conflation
 and the scoping are pinned by tests — so this specific error cannot recur silently. The lesson
-rows were reframed to the verifier-confirmed claim before publication (see L353/L354).
+rows were reframed to the verifier-confirmed claim before publication (see L355/L356).

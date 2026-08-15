@@ -14,37 +14,40 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 **What was refuted — and it was the headline.** The first cut printed a **class-wide** observability cell (median **1.0** snapshots/leg, **38.25%** of legs with a forward interval) directly beside the **418 probe-ready** crypto units. Those are different populations: the class-wide figure spans 101,060 legs, **40,186** of which sit outside the ready set (40,008 unresolved + 178 in partially-labeled units). **Conditioned on the units it was printed next to, the same measurement reads median **2.0** snapshots/leg and **57.58%*** — the opposite direction. Worse for the old framing: **258 of the 418 ready units have EVERY leg observed >=2 times, across 12 distinct days**, which clears this census's own pre-registered `MIN_READY_UNITS=30` / `MIN_DISTINCT_DAYS=5`. The count of ready units that are genuinely single-snapshot throughout is **160**, not 418, and "the two halves never overlap" was simply the wrong frame.
 
-**The corrected, verifier-confirmed claim: RESOLUTION, not absence.** Those 258 units carry ~2 forward intervals per leg at a **median 31.5-min gap** (p25 31.3 / p75 31.9); sports ready units run at essentially the same cadence (median 31.1 min). So a queue-aware crypto maker fill-sim **is runnable on committed tape today**, provided it states ~31-minute quote resolution as a modelling assumption rather than assuming continuous observation — coarse for a queue model whose events are second-scale. The **sports** lane is the blocked one, and on LABELS, not books: only 224 of 3,542 units are labeled, every one of them pre-2026-07-16, and **196,086 snapshots across 3,143 units** have been captured since the `settlement_ledger` freeze that nothing can score. That sharpens rather than weakens the actionable read: restarting the settlement collector (Q45, dead since 07-22) is still the largest single substrate unlock available, and it is Ryan-side.
+**The corrected, verifier-confirmed claim: RESOLUTION, not absence.** Those 258 units carry ~2 forward intervals per leg at a **median 31.5-min gap** (p25 31.3 / p75 31.9); sports ready units run at essentially the same cadence (median 31.1 min). So a queue-aware crypto maker fill-sim **is runnable on committed tape today**, provided it states ~31-minute quote resolution as a modelling assumption rather than assuming continuous observation — coarse for a queue model whose events are second-scale. The **sports** lane is the blocked one, and on LABELS, not books: only 224 of 3,551 units are labeled, every one of them pre-2026-07-16, and **198,086 snapshots across 3,152 units** have been captured since the `settlement_ledger` freeze that nothing can score. That sharpens rather than weakens the actionable read: restarting the settlement collector (Q45, dead since 07-22) is still the largest single substrate unlock available, and it is Ryan-side.
 
-**Three narrower corrections.** (a) The "321,992 snapshots into a labeling void" figure was an all-days class total; the post-freeze figure is **196,086 on 3,143 units**. (b) "872/872 ladders settle exactly one bracket yes" is the **whole `crypto_hourly` corpus**; restricted to the depth-covered crypto units it is **418/418** — both scopes are now emitted separately (`ladder_coherence`, `ladder_coherence_depth_scoped`). (c) **488 exact `(ticker, captured_at)` duplicate rows** inflate the crypto class-wide >=2 fraction by **0.48pp** (0.3825 raw -> 0.3777 deduped; sports 605 duplicates, **0.00pp**) — L282's class; the forward-gap profile collapses exact-timestamp repeats before measuring.
+**Three narrower corrections.** (a) The "323,992 snapshots into a labeling void" figure was an all-days class total; the post-freeze figure is **198,086 on 3,152 units**. (b) "874/874 ladders settle exactly one bracket yes" is the **whole `crypto_hourly` corpus**; restricted to the depth-covered crypto units it is **418/418** — both scopes are now emitted separately (`ladder_coherence`, `ladder_coherence_depth_scoped`). (c) **488 exact `(ticker, captured_at)` duplicate rows** inflate the crypto class-wide >=2 fraction by **0.48pp** (0.3825 raw -> 0.3777 deduped; sports 605 duplicates, **0.00pp**) — L282's class; the forward-gap profile collapses exact-timestamp repeats before measuring.
 
 **So the error cannot recur silently.** The census now emits `fill_observability_ready_only` (conditioned on the probe-ready units), `forward_gap_profile`, `duplicate_row_accounting` and `ladder_coherence_depth_scoped`; its `verdict_caveat` states **in the artifact itself** that the class-wide block must never be quoted beside a probe-ready count; and both the conflation and the scoping are test-pinned (+9 new tests, **39** across the two scripts). The redundancy re-derivation was extended to recompute every corrected field independently — it reproduces all of them.
 
-**Lesson rows.** **L353** and **L354** were **reframed before publication** rather than shipped and superseded: the refuted drafts never reached `main`, and their exact text is preserved in the finding's **§6 correction history**, so nothing is hidden. L353 now carries the sharper half the verifier taught — *a class-wide statistic quoted beside a conditioned count is itself the error* — and L354 is now the resolution-not-absence claim.
+**Lesson rows.** **L355** and **L356** were **reframed before publication** rather than shipped and superseded: the refuted drafts never reached `main`, and their exact text is preserved in the finding's **§6 correction history**, so nothing is hidden. L355 now carries the sharper half the verifier taught — *a class-wide statistic quoted beside a conditioned count is itself the error* — and L356 is now the resolution-not-absence claim.
 
 **Discipline unchanged.** No CI, no P&L, no kill, no registry flip; `kb/strategies/00-index.md` untouched; still **0 proven edges**. No price persisted, so no `price_source_tag` applies to the census's outputs.
 
 **Gates AFTER the last code change (L162):** `python3 scripts/invariants.py --full` exit **0**, `invariants: all green` (19 non-gating advisories, none naming a file this run added); `python3 -m pytest -q -o addopts='' -n 4` ****4,228 passed / 0 failed** in 5141.19s (1:25:41), exit 0 (`-n 2`; 4,228 = the prior commit's 4,219 + exactly this correction's 9 new tests). An earlier `-n 4` attempt of the SAME tree reported `4,227 passed, 1 failed` where the single failure was **`worker 'gw1' crashed`** on `tests/test_fee_subtraction_advisory.py::test_real_firing_advisory_still_exits_zero` — a resource-exhaustion worker crash under 4-way parallelism, not an assertion failure: that test passes standalone (`1 passed in 160.51s`, it scans the whole real tree) and passes in the clean `-n 2` run. Reported rather than hidden, per L162**.
 
-**Files:** `scripts/depth_label_substrate_census.py`, `scripts/depth_label_substrate_rederive.py`, `tests/test_depth_label_substrate_census.py`, `tests/test_depth_label_substrate_rederive.py`, `reports/depth_label_substrate_census.json`, `findings/2026-08-15-depth-label-substrate-census.md`, `kb/lessons/00-lessons.md` (L353/L354 reframed), `LOOP-QUEUE.md` (Q25 status + Log of runs), `kb/00-LOG.md`.
 
-## 2026-08-15 06:xx ET — research loop IDLE RUN, policy (c): the depth tape's two halves never overlap — labels live on crypto, book evolution lives on sports (L353/L354)
+**Post-merge re-gate (2026-08-15, after merging `origin/main` `e897c61` = PR #376 + 2 hourly passes; L162 fresh-gate-line rule).** A concurrent run took lesson ids **L353/L354** for an unrelated gate-hour reachability finding, so **this run's rows were renumbered L353/L354 -> L355/L356** on the merge and every reference updated across the finding, both scripts, both test files (including the test NAME `...ladder_L355`), the queue status line and these log entries; the other run's rows were left byte-identical to `main` (verified by diff). Both append-only files kept BOTH sides: `kb/00-LOG.md` newest-at-top (my 08:xx and 06:xx entries above their 0x:xx entry), `LOOP-QUEUE.md` "Log of runs" chronological (their 03:0x line, then my 06:0x and 08:xx lines). The merged hourly passes moved DESCRIPTIVE counts only (population 110,613->110,632 tickers / 463,776->465,776 snapshots; sports 9,553->9,572 legs, 96.22%->98.41%; ladders 872->874; post-freeze sports 196,086->198,086 snapshots on 3,152 units) — every quoted figure was updated to the merged tape and an explicit as-of is now stated in the finding. **Every verifier-confirmed headline figure was re-derived post-merge and is UNCHANGED** (418 ready units / 258 every-leg-observable / 12 days / 160 all-single, ready-only median 2.0 and 57.58%, 31.5-min median forward gap, 73.73x undercount, 488 duplicate rows / 0.48pp, 418/418 depth-scoped coherence). **Gates AFTER the merge and renumber:** `python3 scripts/invariants.py --full` exit **0**, `invariants: all green` (20 non-gating advisories — 19 as before plus the OTHER run's new gate-hour advisory; none names a file this run added); `python3 -m pytest -q -o addopts='' -n 2` **4,276 passed / 0 failed** in 5566.80s (1:32:46).
+
+**Files:** `scripts/depth_label_substrate_census.py`, `scripts/depth_label_substrate_rederive.py`, `tests/test_depth_label_substrate_census.py`, `tests/test_depth_label_substrate_rederive.py`, `reports/depth_label_substrate_census.json`, `findings/2026-08-15-depth-label-substrate-census.md`, `kb/lessons/00-lessons.md` (L355/L356 reframed), `LOOP-QUEUE.md` (Q25 status + Log of runs), `kb/00-LOG.md`.
+
+## 2026-08-15 06:xx ET — research loop IDLE RUN, policy (c): the depth tape's two halves never overlap — labels live on crypto, book evolution lives on sports (L355/L356)
 
 **Run:** research loop (Opus 5, fires every 3h). Queue independently re-derived Q0–Q56 by each item's LATEST DATED `Status:` line (not its topmost — Q24/Q53 append the original filing `TODO` positionally below a later DONE): **0 eligible TODO/IN-PROGRESS**, the 14th consecutive idle-adjacent run. Steps 0a/0/0b were done by the calling session (history-integrity PASS at `c5f159c`, claim-check found only the standing Ryan-review-only PRs #125/#165/#166/#191/#208/#271/#330, nothing new to sweep).
 
 **Why policy (c) and not (a).** Policy (a) was checked first and is genuinely exhausted for now: of 43 `UNENFORCED`-marked ledger rows only **10** are open (`L213/L221/L222/L282/L319/L320/L321/L323/L338/L346`, per `scripts/invariants.py::_stale_unenforced_scan`), and every one of them is either Ryan-lane (L213 trigger prompt, L282 merge workflow), collector-write-path (L221 explicitly DO-NOT-BUILD, L222 `capture_source`), or a prose/semantic judgment whose buildable half is already built (L319/L320/L321/L323/L338). **L346 was piloted and rejected on evidence, not assumption:** its candidate — a lint matching a docstring's "see `X` in the output" citation against the emitted keys — finds only **10 such citations across 95 `scripts/*.py`**, of which **3 "hits" are all false positives** (module constants, not output keys), and it would NOT have caught L346's own incident (the cited field existed; what failed was what it could SHOW). Building it would have been enforcement theatre.
 
-**The milestone.** `tape/orderbook_depth/` is the only family carrying both sides of a real resting book, so every maker candidate (S6/S13/S19/S21/S23/S29/S68/S78/S80) had to score its fills there — yet Q25's 2026-07-13 anatomy mapped that tape's book SHAPE and nobody ever asked whether it can be **SCORED offline**. Built `scripts/depth_label_substrate_census.py` (+22 offline tests) over the whole committed family — **110,613 tickers / 463,776 snapshots / 39 day-files / 0 malformed lines** — resolving outcomes through the sanctioned `core.settlement_sources.resolve_market_results` and **pre-registering** its floors (`MIN_SNAPSHOTS_PER_UNIT=2`, `MIN_READY_UNITS=30`, `MIN_DISTINCT_DAYS=5`) before the first run.
+**The milestone.** `tape/orderbook_depth/` is the only family carrying both sides of a real resting book, so every maker candidate (S6/S13/S19/S21/S23/S29/S68/S78/S80) had to score its fills there — yet Q25's 2026-07-13 anatomy mapped that tape's book SHAPE and nobody ever asked whether it can be **SCORED offline**. Built `scripts/depth_label_substrate_census.py` (+22 offline tests) over the whole committed family — **110,632 tickers / 465,776 snapshots / 39 day-files / 0 malformed lines** — resolving outcomes through the sanctioned `core.settlement_sources.resolve_market_results` and **pre-registering** its floors (`MIN_SNAPSHOTS_PER_UNIT=2`, `MIN_READY_UNITS=30`, `MIN_DISTINCT_DAYS=5`) before the first run.
 
 **F1 — the settlement-directory-only census under-counts the outcome corpus 73.73×.** Scanning `tape/settlement_ledger/` + the six `tape/qNN_settlement_cache/` dirs reaches **837** labeled depth tickers (0.76%); the resolver reaches **61,711 (55.79%)**, the entire gap being `crypto_hourly.previous_settlement.results` (**60,874** hits, `broker_truth` by its own record tag). Not a new hazard — **L300** already named the three embedded sources — but the magnitude, on the family that hosts the fill question, is the number to quote next time.
 
-**F2 (new → L353) — this census's OWN pre-registered floor is vacuous.** A 188-bracket crypto hour clears "the unit has ≥2 snapshots" while **every individual bracket carries exactly one**. A resting maker order lives on ONE leg, so the unit-level floor passed 418 event-hours whose fills are individually unobservable. The sealed floor was **left untouched** and a separately-labelled POST-HOC `fill_observability` block added, so the pre-registered number and the corrected one are both visible and neither launders the other.
+**F2 (new → L355) — this census's OWN pre-registered floor is vacuous.** A 188-bracket crypto hour clears "the unit has ≥2 snapshots" while **every individual bracket carries exactly one**. A resting maker order lives on ONE leg, so the unit-level floor passed 418 event-hours whose fills are individually unobservable. The sealed floor was **left untouched** and a separately-labelled POST-HOC `fill_observability` block added, so the pre-registered number and the corrected one are both visible and neither launders the other.
 
-**F3 (→ L354) — the two halves of a fill-sim substrate are both present and never in the same class.** Crypto: **418 probe-ready event-hours across 17 days** (2.9× the n=146 event-hours Q34's S14 queue fill-sim ran on) but **median 1.0 snapshots/leg, max 3, only 38.25% of 101,060 legs with any forward interval** — label-rich, observation-poor. Sports: **median 20.0 snapshots/leg, max 375, 96.22% of 9,553 legs with an interval** but only **224 of 3,542 units labeled, and every labeled unit predates 2026-07-16** (the `settlement_ledger` freeze) — observation-rich, label-poor. Neither class can host a queue-aware maker fill-sim today, **for opposite reasons**, which no single "is there enough data" number could have shown.
+**F3 (→ L356) — the two halves of a fill-sim substrate are both present and never in the same class.** Crypto: **418 probe-ready event-hours across 17 days** (2.9× the n=146 event-hours Q34's S14 queue fill-sim ran on) but **median 1.0 snapshots/leg, max 3, only 38.25% of 101,060 legs with any forward interval** — label-rich, observation-poor. Sports: **median 20.0 snapshots/leg, max 375, 98.41% of 9,572 legs with an interval** but only **224 of 3,551 units labeled, and every labeled unit predates 2026-07-16** (the `settlement_ledger` freeze) — observation-rich, label-poor. Neither class can host a queue-aware maker fill-sim today, **for opposite reasons**, which no single "is there enough data" number could have shown.
 
-**F4 — no cross-source agreement rate is computable:** the embedded crypto labels (60,874) and the naive-union labels (10,941) overlap in **0** tickers on this population (the L9 non-overlap shape, at the source level). The validation that IS available is reported instead: **872/872** settled bracket ladders settle exactly one `B` bracket `yes`, **0 violations**.
+**F4 — no cross-source agreement rate is computable:** the embedded crypto labels (60,874) and the naive-union labels (10,941) overlap in **0** tickers on this population (the L9 non-overlap shape, at the source level). The validation that IS available is reported instead: **874/874** settled bracket ladders settle exactly one `B` bracket `yes`, **0 violations**.
 
-**What it's worth.** The binding constraint on offline maker research is neither idea capacity nor the absence of outcomes: it is that the family with two-sided book evolution stopped being labeled on 07-15 while the family still being labeled is captured about once per bracket. The named unblock is the same one Q21 round #30 surfaced for `universe_sweep` and it is worth more than that round could show — a forward-running settlement collector (Q45, dead since 07-22 per Q36's VPS diagnosis) converts **~3,158 already-captured, snapshot-rich sports units** into scoreable ones. Ryan-side. A cheaper cloud-side alternative (raise the depth collector's per-leg cadence on crypto ladders) is recorded, not built — both are collection changes, out of an idle run's lane.
+**What it's worth.** The binding constraint on offline maker research is neither idea capacity nor the absence of outcomes: it is that the family with two-sided book evolution stopped being labeled on 07-15 while the family still being labeled is captured about once per bracket. The named unblock is the same one Q21 round #30 surfaced for `universe_sweep` and it is worth more than that round could show — a forward-running settlement collector (Q45, dead since 07-22 per Q36's VPS diagnosis) converts **~3,167 already-captured, snapshot-rich sports units** into scoreable ones. Ryan-side. A cheaper cloud-side alternative (raise the depth collector's per-leg cadence on crypto ladders) is recorded, not built — both are collection changes, out of an idle run's lane.
 
 **Discipline.** No P&L, no CI, no bootstrap, no registry flip (test-pinned: the report may not contain a `pnl`/`ci95`/`bootstrap`/`kelly` key). No price is persisted, so **no `price_source_tag` applies to this census's outputs**; the labels it counts are `broker_truth` by their sources' own tags. `kb/strategies/00-index.md` untouched — still **0 proven edges**. **Two-agent rule NOT SATISFIABLE**: this harness carries no `Task`/`verifier` subagent (the L287/L288/L290/L291/L295/L308/L313/L325/L338 precedent), so the sanctioned redundancy fallback ran and is reported as redundancy, never as verification — `scripts/depth_label_substrate_rederive.py` (+8 tests) imports neither the census nor `core.settlement_sources` (AST-pinned), reads each source's own record grammar directly, extracts tickers by string slicing instead of `json.loads`, splits units with `rsplit`, medians by index — and **reproduces every compared field exactly**. Both verdicts are therefore committed **PROVISIONAL**.
 
@@ -52,8 +55,106 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 **Step 9 (paper):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra only) — `scripts/paper_pass.py` idempotent over the current tape: 1,689 records loaded, **0 processed / 0 deferred(caps) / 278 deferred(coverage) / 300 already-in-ledger, 0 new ledger lines**; `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00` (`broker_truth`; NOT edge evidence).
 
-**Files:** `scripts/depth_label_substrate_census.py`, `scripts/depth_label_substrate_rederive.py`, `tests/test_depth_label_substrate_census.py`, `tests/test_depth_label_substrate_rederive.py`, `reports/depth_label_substrate_census.json`, `findings/2026-08-15-depth-label-substrate-census.md`, `kb/lessons/00-lessons.md` (L353 + L354), `LOOP-QUEUE.md` (Q25 status + Log of runs), `kb/00-LOG.md`.
+**Files:** `scripts/depth_label_substrate_census.py`, `scripts/depth_label_substrate_rederive.py`, `tests/test_depth_label_substrate_census.py`, `tests/test_depth_label_substrate_rederive.py`, `reports/depth_label_substrate_census.json`, `findings/2026-08-15-depth-label-substrate-census.md`, `kb/lessons/00-lessons.md` (L355 + L356), `LOOP-QUEUE.md` (Q25 status + Log of runs), `kb/00-LOG.md`.
 
+## 2026-08-15 0x:xx ET — IDLE RUN, policy (c): the settlement tape is not slow, it is UNREACHABLE — one integer in one gate has cost 24 days (new L353/L354)
+
+**Steps 0a/0/0b (done by the calling session).** History-integrity PASS: `origin/main` HEAD
+`dd41143` (PR #374, the stranded 20260814T1622Z recovery), and `kb/00-LOG.md`'s newest entry
+(2026-08-14) is within tolerance of the newest committed tape day (`dt=2026-08-15`) — no rewind.
+Claim-check: only the standing Ryan-review-only PRs are open (#165/#166/#191/#208/#271/#330),
+none claims queue work. Step-0b: the three newest `tape/hourly-*` branches were already swept by
+PRs #373/#374; nothing newer exists.
+
+**Queue: DRAINED, re-verified this run.** Every `### Qn` section Q0–Q56 re-parsed by its
+NEWEST-DATED `Status:` line: 0 eligible. (The reading rule is still not uniform — Q24 and Q53
+carry their original `TODO` filing line ABOVE a later close, and Q54 says so in its own status.
+Q21 is the edge-hunter's standing item, round #30 complete 2026-08-14.) **14th consecutive
+idle-adjacent run.**
+
+**Policy (a) was checked first, and honestly.** `stale_unenforced_recall_report()`: 350 rows, 43
+marked `UNENFORCED`, 33 formally `DISPOSES:`-d, **10 genuinely open** (L213/L221/L222/L282/L319/
+L320/L321/L323/L338/L346) plus 4 mixed-tier (L168/L270/L286/L288). Per-row triage puts every one
+of them in one of three terminal-for-a-cloud-run buckets: collector WRITE-PATH / Ryan-lane
+(L168, L213, L221, L222, L270, L282, L286), self-declared unmechanizable (L27, L28, L32, L318,
+L338, L346), or already-half-built (L288, L319, L320, L321, L323). Two rows I checked and found
+STALE rather than open, worth recording so the next run doesn't re-check them: **L209**'s
+sentinel guard is built and formally disposed by L211 (`NO_QUOTE_SENTINEL_FLOOR` in
+`scripts/q43_perp_binary_consistency_probe.py`), and **L309**'s "probe-side repair deliberately
+NOT built" is now built — `scripts/q51_maker_fillsim.py::build_rows` separates `drops` (intervals)
+from `dropped_tickers` (tickers) with an L309 citation in its own docstring. So policy (c).
+
+**The finding.** `findings/2026-08-14-q21-round30-idea-gen.md` had just measured the project's
+binding constraint from the downstream end: `tape/universe_sweep/` — the largest, freshest,
+most-diversified tape we hold — has a broker-truth-settleable footprint of **one snapshot-day /
+209 events / 3 series**, because the broad settlement family stopped producing after 07-22. It
+named the symptom. This run found the cause, and the cause is one integer.
+`collection/hourly_pass.py` gates the Q45 harvester on `ts.hour == SETTLEMENT_LEDGER_UTC_HOUR = 10`
+where `ts` is the pass START instant — but the live collector starts passes at **~:54 past the
+hour on a 3-hourly grid**, so hour 10 is never a pass-start hour and the leg has not executed
+once since the cadence changed. Measured on a FROZEN 20-day slice (`dt=2026-07-26..dt=2026-08-14`,
+L191) off the FIRST ungated leg of `hourly_pass.run()`: **0 of 103** `sports_pairs` pass-STARTS at
+10Z; second witness `crypto_hourly` agrees, **0 of 127**; rule-of-three bound **<= 0.029/pass**.
+The control is what makes it a diagnosis rather than a complaint: the 09Z siblings
+(`anomalies`/`econ_prints`/`polymarket_cpi_pairs`) fired **13x** and 12Z (`weather_actuals`)
+**12x** on that same slice and kept producing into August. The collector is alive; it is simply
+never in hour 10. `tape/settlement_ledger/` sits at **2 day-files / 10,605 lines (5,605 + 5,000),
+last `dt=2026-07-22`, 24 days frozen**.
+
+**The trap that would have inverted the answer (new L354).** `tape/perp_tape/` — leg #7 of the
+same pass — shows **11 of 74** instants at 10Z on the IDENTICAL slice, because a pass starting
+09:54Z reaches leg #7 at ~10:04Z. Read reachability off a late leg and you conclude "10Z fires 11
+times, the gate is fine" and the frozen family stays invisible. The fixed rule (first ungated leg)
+has a one-directional residual bias worth naming: a witness written by some caller OTHER than
+`hourly_pass` can only ADD hours, so the check under-reports and can never manufacture an alarm.
+
+**Built (detection only).** `scripts/tape_gap_monitor.py::gate_hour_reachability` — five distinct
+verdicts, never a boolean (`REACHABLE` / `UNREACHABLE` / `INSUFFICIENT_EVIDENCE` below a 20-pass
+floor / `WITNESS_DISAGREEMENT`, reported rather than resolved by picking a favourite /
+`NO_WITNESS_TAPE`), with `window_sensitivity` and `full_history_observed_hours` travelling with
+every verdict because the schedule has ERAS: whole-history reads REACHABLE (25/716) since the
+collector ran ~20 pass-hours/day through 07-22, and the 21d/28d flip IS that boundary, reported
+rather than smoothed. Plus `scripts/invariants.py::gate_hour_unreachable_warning` wired into
+`--full` as a NON-GATING stderr advisory (the L74/L117/L144/L221 posture — a condition only Ryan
+can clear must not halt the loop), reading gate hours through the existing
+`_single_hour_leg_gate_hours()` so the number is never re-declared;
+`scripts/collector_gate_reachability_audit.py` -> `reports/collector_gate_reachability.json`.
+It fires on exactly one family today and reports the exempt `FORECAST_COLLECTOR_UTC_HOUR = 11Z`
+leg beside it rather than dropping it — dropping it is how L123's forecast half stayed invisible.
+
+**Deliberately NOT built.** `collection/hourly_pass.py` was not touched. Widening the gate is
+L123's candidate (b), explicitly Ryan/VPS-side, and the once-per-day `daily_leg_due()` key already
+exists in open **PR #165** with 71 tests awaiting Ryan; L221/L246 record that a second
+implementation was written and REVERTED rather than duplicated, so a third was not written here.
+
+**Two-agent rule: NOT SATISFIABLE, so PROVISIONAL.** No `Task`/subagent tool exists in this
+harness (`No such tool available: Task` — the L287/L288/L290/L291/L295/L308/L313/L325 precedent),
+so no independent `verifier` was dispatchable and NOTHING was flipped: `kb/strategies/00-index.md`
+untouched, Q45's own verdict unchanged, no CI, no P&L, no kill, still **0 proven edges**. The
+sanctioned redundancy fallback ran and is reported as redundancy, never verification:
+`scripts/collector_gate_reachability_rederive.py` shares no code with the primary (own
+`json.loads` line reader vs the primary's streaming regex, own ISO-8601 parser by string slicing —
+separately pinned against `core.timeutil.parse_iso_utc` on 500 real committed timestamps so the
+agreement is not two implementations sharing one parser — own earliest-per-`capture_id` fold, own
+window selection, own gate-constant regex) and reproduces every load-bearing number exactly.
+
+**What this changes for Ryan.** The ask is no longer "someone should fix a settlement collector".
+It is **"merge or reject PR #165"** — or run one `python -m collection.settlement_ledger` pass
+from the VPS, which unfreezes the tape immediately and independently of the PR. The measurable
+consequence of leaving it as-is: the project's largest tape family stays un-backtestable for any
+settlement-direction edge, which is precisely what killed Q21 round #30's three candidates.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY = {s14_ladder_underwriting}` (non-empty):
+`scripts/paper_pass.py` processed 0 events / 0 deferred(caps) / 278 deferred(coverage) / 300
+already-in-ledger, appending **no new ledger lines** —
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open
+notional $0.00`.
+
+New lessons **L353** (the third failure mode of `if ts.hour == N`) and **L354** (the wrong-leg
+inversion); **L123's enforcement cell updated** per L152's own-row-update rule. See
+`findings/2026-08-15-settlement-ledger-gate-unreachability.md`.
+
+---
 ## 2026-08-15 04:1x ET — kalshi-edge-hunter nightly: Unit-1 review CLEAN (3/3 findings survive re-check), Q21 round #31 = 0/3, the "print-only escape" from the settlement wall hits the fill-model wall
 
 **Run:** kalshi-edge-hunter nightly (Opus 4.8, fires 04:15 UTC). Units done: **adversarial review (Unit 1) + Q21 replenishment round #31 (Unit 2)**; Unit 3 no target. Docs/findings-only diff — no code, no `execution/`, no credentials, no verdict-class output.

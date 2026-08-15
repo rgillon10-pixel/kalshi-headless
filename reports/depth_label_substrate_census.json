@@ -21,11 +21,11 @@
    "n_legs": 0
   },
   "sports": {
-   "frac_ge_2_deduped": 0.9622,
-   "frac_ge_2_raw": 0.9622,
+   "frac_ge_2_deduped": 0.9841,
+   "frac_ge_2_raw": 0.9841,
    "inflation_pp": 0.0,
    "n_duplicate_rows": 605,
-   "n_legs": 9553
+   "n_legs": 9572
   }
  },
  "fill_observability": {
@@ -46,12 +46,12 @@
    "n_legs_with_ge_2_snapshots": 0
   },
   "sports": {
-   "frac_legs_with_ge_2_snapshots": 0.9622,
+   "frac_legs_with_ge_2_snapshots": 0.9841,
    "max_snapshots_per_leg": 375,
-   "mean_snapshots_per_leg": 33.7059,
+   "mean_snapshots_per_leg": 33.8479,
    "median_snapshots_per_leg": 20.0,
-   "n_legs": 9553,
-   "n_legs_with_ge_2_snapshots": 9192
+   "n_legs": 9572,
+   "n_legs_with_ge_2_snapshots": 9420
   }
  },
  "fill_observability_ready_only": {
@@ -133,9 +133,9 @@
     "n_non_binary": 14,
     "n_resolved": 659,
     "n_resolved_by_naive_union": 659,
-    "n_snapshots": 321992,
-    "n_tickers": 9553,
-    "n_unresolved": 8879,
+    "n_snapshots": 323992,
+    "n_tickers": 9572,
+    "n_unresolved": 8898,
     "resolved_by_source": {
      "q51_settlement_cache": 54,
      "settlement_ledger": 605
@@ -172,8 +172,8 @@
   ]
  },
  "ladder_coherence": {
-  "n_exactly_one_yes": 872,
-  "n_ladders_checked": 872,
+  "n_exactly_one_yes": 874,
+  "n_ladders_checked": 874,
   "n_violations": 0,
   "scope": "the whole crypto_hourly corpus, NOT only its depth-covered units",
   "violation_examples": []
@@ -188,8 +188,8 @@
  "population": {
   "n_day_files": 39,
   "n_malformed_lines": 0,
-  "n_snapshots": 463776,
-  "n_tickers": 110613
+  "n_snapshots": 465776,
+  "n_tickers": 110632
  },
  "schema_version": "depth_label_substrate_census.v1",
  "tape_root": "/home/user/kalshi-headless/tape",
@@ -223,8 +223,8 @@
    "n_fully_labeled": 224,
    "n_partially_labeled": 160,
    "n_probe_ready": 224,
-   "n_units": 3542,
-   "n_unlabeled": 3158,
+   "n_units": 3551,
+   "n_unlabeled": 3167,
    "ready_day_span": [
     "2026-07-07",
     "2026-07-15"
@@ -254,5 +254,5 @@
    "verdict": "SUBSTRATE-ADEQUATE"
   }
  },
- "verdict_caveat": "LABEL adequacy only, at the pre-registered floors. Observability is a SEPARATE, POST-HOC measurement and must be read from `fill_observability_ready_only`, which is conditioned on the same probe-ready units this verdict counts. The class-wide `fill_observability` block describes a DIFFERENT population (it includes legs no probe would score) and must never be quoted beside a probe-ready count \u2014 doing so is the conflation an independent verifier caught on 2026-08-15 (L353)."
+ "verdict_caveat": "LABEL adequacy only, at the pre-registered floors. Observability is a SEPARATE, POST-HOC measurement and must be read from `fill_observability_ready_only`, which is conditioned on the same probe-ready units this verdict counts. The class-wide `fill_observability` block describes a DIFFERENT population (it includes legs no probe would score) and must never be quoted beside a probe-ready count \u2014 doing so is the conflation an independent verifier caught on 2026-08-15 (L355)."
 }

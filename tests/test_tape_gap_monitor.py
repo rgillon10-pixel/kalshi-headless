@@ -3026,3 +3026,157 @@ def test_acceptance_25_l307_sports_pairs_alerts_via_evaluate_family_on_real_tape
     assert rec["field_health"]["current_bad_day_run"] >= 7
     assert rec["alert"] is True
     assert "field_degraded" in rec["alert_reason"]
+
+
+# --------------------------------------------------------------------------- #
+# Gate-hour REACHABILITY (L123's third half) — `gate_hour_reachability`
+#
+# The question none of L74/L124/L144/L221 asks: is the UTC hour a once-per-day
+# `if ts.hour == N` leg is gated on an hour the OBSERVED scheduler ever STARTS a
+# pass in? A missing-day check cannot tell `weather_actuals` (on-grid, recovers by
+# itself) from `settlement_ledger` (off-grid, cannot fire again until a human acts).
+# --------------------------------------------------------------------------- #
+_GRID_3H = (0, 3, 6, 9, 12, 15, 18, 21)
+
+
+def _grid_days(tape_root, family, days, hours, minute=54):
+    for day in days:
+        _hourly_day(tape_root, family, day, hours, minute=minute)
+
+
+def _days_range(first_dom, n, month=8, year=2026):
+    return [f"{year:04d}-{month:02d}-{first_dom + i:02d}" for i in range(n)]
+
+
+def test_gate_reachability_fires_on_an_off_grid_gate_hour(tmp_path):
+    # A 3-hourly collector at :54 never starts a pass in hour 10 -> the leg is frozen.
+    _grid_days(tmp_path, "sports_pairs", _days_range(1, 10), _GRID_3H)
+    rep = tgm.gate_hour_reachability(tmp_path, 10, witness_families=("sports_pairs",))
+    assert rep["verdict"] == "UNREACHABLE"
+    assert rep["n_at_gate_hour"] == 0
+    assert rep["n_pass_instants"] == 80
+    # An observed zero is a BOUND, never a proof of impossibility.
+    assert rep["rule_of_three_upper_bound_per_pass"] == pytest.approx(3.0 / 80)
+    assert rep["primary_witness"] == "sports_pairs"
+    assert sorted(int(h) for h in rep["observed_hours"]) == list(_GRID_3H)
+
+
+def test_gate_reachability_clean_on_an_on_grid_gate_hour(tmp_path):
+    _grid_days(tmp_path, "sports_pairs", _days_range(1, 10), _GRID_3H)
+    rep = tgm.gate_hour_reachability(tmp_path, 9, witness_families=("sports_pairs",))
+    assert rep["verdict"] == "REACHABLE"
+    assert rep["n_at_gate_hour"] == 10
+    # No bound is quoted for a REACHABLE verdict — there is nothing to bound.
+    assert rep["rule_of_three_upper_bound_per_pass"] is None
+
+
+def test_gate_reachability_abstains_below_the_evidence_floor(tmp_path):
+    # Three passes that all miss hour 10 are not evidence that hour 10 is unreachable.
+    _grid_days(tmp_path, "sports_pairs", ["2026-08-01"], (0, 6, 12))
+    rep = tgm.gate_hour_reachability(tmp_path, 10, witness_families=("sports_pairs",))
+    assert rep["verdict"] == "INSUFFICIENT_EVIDENCE"
+    assert rep["n_pass_instants"] == 3
+    assert rep["rule_of_three_upper_bound_per_pass"] is None
+
+
+def test_gate_reachability_reports_witness_disagreement_instead_of_picking_one(tmp_path):
+    # Primary witness never sees hour 10; the second one does. Two independent readings
+    # that disagree are REPORTED, never silently resolved in favour of the first.
+    _grid_days(tmp_path, "sports_pairs", _days_range(1, 10), _GRID_3H)
+    _grid_days(tmp_path, "crypto_hourly", _days_range(1, 10), (0, 3, 6, 9, 10, 12, 15, 18, 21))
+    rep = tgm.gate_hour_reachability(tmp_path, 10)
+    assert rep["verdict"] == "WITNESS_DISAGREEMENT"
+    assert rep["primary_witness"] == "sports_pairs"
+    assert rep["corroborating_witness"] == "crypto_hourly"
+    assert rep["n_at_gate_hour"] == 0 and rep["corroborator_n_at_gate_hour"] == 10
+
+
+def test_gate_reachability_no_witness_tape_is_its_own_verdict(tmp_path):
+    rep = tgm.gate_hour_reachability(tmp_path, 10)
+    assert rep["verdict"] == "NO_WITNESS_TAPE"
+    assert rep["n_pass_instants"] == 0 and rep["primary_witness"] is None
+
+
+@pytest.mark.parametrize("bad", [-1, 24, 99, True, 10.0, "10", None])
+def test_gate_reachability_rejects_an_out_of_range_hour(tmp_path, bad):
+    # Guessing (or silently auditing nothing) would be worse than raising.
+    with pytest.raises(ValueError):
+        tgm.gate_hour_reachability(tmp_path, bad)
+
+
+def test_gate_reachability_frozen_days_slice_overrides_the_trailing_window(tmp_path):
+    # L191: an explicit slice pins the population so a later collector pass cannot move it.
+    _grid_days(tmp_path, "sports_pairs", _days_range(1, 10), _GRID_3H)
+    _grid_days(tmp_path, "sports_pairs", ["2026-08-20"], (10,))
+    frozen = [f"dt={d}" for d in _days_range(1, 10)]
+    rep = tgm.gate_hour_reachability(tmp_path, 10, witness_families=("sports_pairs",),
+                                     days=frozen)
+    assert rep["verdict"] == "UNREACHABLE"
+    assert rep["window_days"] == frozen and rep["trailing_days"] is None
+    # ... and without the pin, the newer day makes the same hour reachable.
+    assert tgm.gate_hour_reachability(
+        tmp_path, 10, witness_families=("sports_pairs",))["verdict"] == "REACHABLE"
+
+
+def test_gate_reachability_window_sensitivity_exposes_the_era_shift(tmp_path):
+    # The real failure this guards: a DENSE early era makes a whole-history reading say
+    # REACHABLE about a schedule that no longer runs. Both readings are reported.
+    _grid_days(tmp_path, "sports_pairs", _days_range(1, 5, month=7), range(24))     # dense era
+    _grid_days(tmp_path, "sports_pairs", _days_range(1, 25, month=8), _GRID_3H)     # sparse era
+    rep = tgm.gate_hour_reachability(tmp_path, 10, witness_families=("sports_pairs",))
+    assert rep["verdict"] == "UNREACHABLE"
+    assert rep["full_history_n_at_gate_hour"] == 5          # the dead era still shows
+    assert rep["window_sensitivity"]["21"]["verdict"] == "UNREACHABLE"
+    assert rep["window_sensitivity"]["all"]["verdict"] == "REACHABLE"
+
+
+def test_gate_reachability_coverage_note_states_the_witness_ordering_trap(tmp_path):
+    _grid_days(tmp_path, "sports_pairs", _days_range(1, 10), _GRID_3H)
+    note = tgm.gate_hour_reachability(tmp_path, 10)["coverage_note"]
+    assert "perp_tape" in note and "FIRST" in note and "REACHABLE" in note
+
+
+# ── HARD real-tree acceptance (read-only over committed tape) ─────────────────
+# These run on a FROZEN slice of PAST day-files (L191) so ordinary tape growth cannot
+# move them. If one ever goes red, the world changed and the finding it pins is
+# genuinely superseded — that is the intended loud signal, not a flake (L341).
+_FROZEN_FIRST, _FROZEN_LAST = "dt=2026-07-26", "dt=2026-08-14"
+
+
+def _frozen_slice():
+    root = Path(__file__).resolve().parent.parent / "tape"
+    stems = [p.stem for _d, p in tgm._family_files(root, "sports_pairs")]
+    return root, [s for s in stems if _FROZEN_FIRST <= s <= _FROZEN_LAST]
+
+
+def test_acceptance_settlement_ledger_gate_hour_is_unreachable_on_the_real_tree():
+    root, frozen = _frozen_slice()
+    rep = tgm.gate_hour_reachability(root, 10, days=frozen, family="settlement_ledger")
+    assert rep["verdict"] == "UNREACHABLE"
+    assert rep["n_at_gate_hour"] == 0
+    assert rep["n_pass_instants"] >= tgm.GATE_REACHABILITY_MIN_PASS_INSTANTS
+    # the second, independent witness agrees — this is not one family's quirk
+    assert rep["corroborating_witness"] == "crypto_hourly"
+    assert rep["corroborator_n_at_gate_hour"] == 0
+
+
+def test_acceptance_the_on_grid_sibling_legs_are_reachable_on_the_real_tree():
+    # The control that proves it is the HOUR and not a dead collector: legs gated on
+    # 09Z (anomalies/econ_prints/polymarket_cpi_pairs) and 12Z (weather_actuals) fire.
+    root, frozen = _frozen_slice()
+    for hour in (9, 12):
+        rep = tgm.gate_hour_reachability(root, hour, days=frozen)
+        assert rep["verdict"] == "REACHABLE", hour
+        assert rep["n_at_gate_hour"] > 0
+
+
+def test_acceptance_a_late_leg_witness_would_invert_the_verdict_on_the_real_tree():
+    # The witness-ordering choice is load-bearing, not cosmetic: `perp_tape` is leg #7 and
+    # stamps ~:04 past the NEXT hour, so the SAME passes look like they start on 10Z.
+    root, frozen = _frozen_slice()
+    first_leg = tgm.gate_hour_reachability(root, 10, days=frozen)
+    late_leg = tgm.gate_hour_reachability(root, 10, days=frozen,
+                                          witness_families=("perp_tape",))
+    assert first_leg["verdict"] == "UNREACHABLE"
+    assert late_leg["verdict"] == "REACHABLE"
+    assert late_leg["n_at_gate_hour"] > 0
