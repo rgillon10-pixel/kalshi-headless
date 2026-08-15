@@ -45,7 +45,7 @@ THREE MEASUREMENTS, each falsifiable from committed bytes:
 
 4. `fill_observability` — added POST-HOC, AFTER the first run of measurement 3, and kept
    strictly separate from the pre-registered verdict for that reason (the floor below was NOT
-   re-tuned to this result — see L353). Measurement 3's unit-level snapshot floor turned out
+   re-tuned to this result — see L355). Measurement 3's unit-level snapshot floor turned out
    to be VACUOUS for a multi-leg ladder: a 188-bracket crypto hour trivially carries >= 2
    snapshots across the unit while every individual bracket carries exactly one. A fill-sim
    observes a RESTING ORDER on ONE leg, so the observability question is per-LEG:
@@ -482,7 +482,7 @@ def census(tape_root: str = DEFAULT_TAPE_ROOT) -> Dict[str, Any]:
             "is conditioned on the same probe-ready units this verdict counts. The class-wide "
             "`fill_observability` block describes a DIFFERENT population (it includes legs no "
             "probe would score) and must never be quoted beside a probe-ready count — doing so "
-            "is the conflation an independent verifier caught on 2026-08-15 (L353)."),
+            "is the conflation an independent verifier caught on 2026-08-15 (L355)."),
     }
 
 

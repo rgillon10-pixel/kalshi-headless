@@ -2186,6 +2186,187 @@ BURST_TRIGGER_WINDOWS: Dict[str, Dict[str, Any]] = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# Gate-hour REACHABILITY — L123's third half (2026-08-15)
+# --------------------------------------------------------------------------- #
+# `if ts.hour == N:` in `collection/hourly_pass.py` has three distinct failure modes and
+# this repo had checks for only two of them:
+#
+#   (1) the family stops growing         -> L74/L75  `_daily_family_gap_issues` (missing days)
+#       and L124's `FAMILY_CONFIG` STALE alert;
+#   (2) nobody registered the leg at all -> L144's `_unregistered_single_hour_leg_issues`;
+#   (3) the gate hour is one the scheduler NEVER STARTS A PASS IN.
+#
+# (3) is the one L123 named on 2026-07-21 and nothing has ever measured: it is not a run of
+# unlucky days, it is a permanent, structural property of the pair (gate constant, realized
+# schedule). `weather_actuals` (gate 12Z) and `settlement_ledger` (gate 10Z) look identical to
+# a missing-day check — both have holes — but one is on the realized grid and recovers on its
+# own, and the other cannot fire again until a human changes something.
+#
+# The realized schedule is NOT readable from this repo (the cron lives in Ryan's cloud account
+# and the VPS crontab), so it is MEASURED from committed tape: the pass-START hours of an
+# UNGATED leg. Which leg is load-bearing, not cosmetic — see `_GATE_REACHABILITY_COVERAGE_NOTE`.
+#
+# This function DETECTS; it never repairs. Widening a live gate is L123's candidate (b),
+# explicitly Ryan/VPS-side, and the `daily_leg_due()` fix already exists in open PR #165
+# (L221/L246 — a second implementation was written and reverted; do not write a third).
+
+PASS_START_WITNESS_FAMILIES: Tuple[str, ...] = ("sports_pairs", "crypto_hourly")
+GATE_REACHABILITY_TRAILING_DAYS = 21
+GATE_REACHABILITY_MIN_PASS_INSTANTS = 20
+GATE_REACHABILITY_SENSITIVITY_WINDOWS: Tuple[Optional[int], ...] = (14, 21, 28, None)
+
+_GATE_REACHABILITY_COVERAGE_NOTE = (
+    "Pass-START hours are read from an UNGATED leg that runs FIRST inside `hourly_pass.run()` "
+    "(`sports_pairs`, leg #1), never from a late leg. The live collector starts a pass at ~:54 "
+    "past the hour, so a leg running a few minutes in stamps its capture in the NEXT clock "
+    "hour: `tape/perp_tape/` (leg #7) is the worked counter-example -- its instants cluster on "
+    "{1,4,7,10,13,16,19,22} while the very same passes START on {0,3,6,9,12,15,18,21}, which "
+    "would INVERT this verdict. The window is TRAILING because the realized schedule has eras "
+    "(~20 pass-hours/day through 2026-07-22, ~4/day after), so a whole-history reading answers "
+    "a question about a schedule that no longer runs; `full_history_observed_hours` and "
+    "`window_sensitivity` travel with the verdict so the era shift is visible, not hidden. "
+    "Direction of the residual bias: a witness family written by some caller OTHER than "
+    "`hourly_pass` (a burst leg, a manual run) can only ADD hours, so this check errs toward "
+    "REACHABLE -- it under-reports, it does not manufacture alarms."
+)
+
+
+def _observed_pass_hours(instants: Sequence[datetime]) -> Dict[int, int]:
+    """Histogram of UTC hour -> count over pass-start instants. Pure."""
+    out: Dict[int, int] = {}
+    for i in instants:
+        out[i.hour] = out.get(i.hour, 0) + 1
+    return out
+
+
+def _trailing_day_stems(tape_root: Path, family: str,
+                        trailing_days: Optional[int]) -> List[str]:
+    """The family's committed `dt=` stems, ascending, restricted to the last
+    `trailing_days` of them (`None`/<=0 = every committed day). Pure given the tree."""
+    stems = [p.stem for _d, p in _family_files(tape_root, family)]
+    if trailing_days is None or trailing_days <= 0:
+        return stems
+    return stems[-trailing_days:]
+
+
+def gate_hour_reachability(tape_root: Path,
+                           gate_hour_utc: int,
+                           witness_families: Sequence[str] = PASS_START_WITNESS_FAMILIES,
+                           days: Optional[Sequence[str]] = None,
+                           trailing_days: Optional[int] = GATE_REACHABILITY_TRAILING_DAYS,
+                           min_pass_instants: int = GATE_REACHABILITY_MIN_PASS_INSTANTS,
+                           family: Optional[str] = None,
+                           ) -> Dict[str, Any]:
+    """Can the scheduler we can OBSERVE ever start a pass in `gate_hour_utc`? (L123)
+
+    Verdicts (each a distinct claim, never collapsed into a boolean):
+
+      * ``NO_WITNESS_TAPE``       -- not one witness family has a committed pass in scope.
+      * ``INSUFFICIENT_EVIDENCE`` -- fewer than ``min_pass_instants`` observed pass-starts in
+        the window; an absence over 3 passes is not evidence of unreachability.
+      * ``WITNESS_DISAGREEMENT``  -- two independent witnesses disagree on whether the gate
+        hour is ever a pass-start hour. Reported, never resolved by picking a favourite.
+      * ``REACHABLE``             -- at least one observed pass STARTED in that hour.
+      * ``UNREACHABLE``           -- zero did, on adequate evidence. A rule-of-three upper
+        bound on the per-pass probability travels with it (an observed zero is a bound, not
+        a proof of impossibility).
+
+    ``days`` pins an explicit frozen slice of ``dt=`` stems (L191) and overrides
+    ``trailing_days``. Raises ``ValueError`` on an out-of-range hour rather than silently
+    auditing nothing.
+    """
+    if isinstance(gate_hour_utc, bool) or not isinstance(gate_hour_utc, int) \
+            or not (0 <= gate_hour_utc <= 23):
+        raise ValueError(f"gate_hour_utc must be an int in 0..23, got {gate_hour_utc!r}")
+    witnesses = tuple(witness_families or ())
+    rep: Dict[str, Any] = {
+        "family": family,
+        "gate_hour_utc": gate_hour_utc,
+        "witness_families": list(witnesses),
+        "trailing_days": None if days is not None else trailing_days,
+        "min_pass_instants": min_pass_instants,
+        "coverage_note": _GATE_REACHABILITY_COVERAGE_NOTE,
+    }
+
+    by_witness: Dict[str, Dict[str, Any]] = {}
+    primary: Optional[str] = None
+    for fam in witnesses:
+        stems = list(days) if days is not None else _trailing_day_stems(
+            tape_root, fam, trailing_days)
+        inst = pass_instants(tape_root, fam, stems) if stems else []
+        hours = _observed_pass_hours(inst)
+        by_witness[fam] = {
+            "window_days": stems,
+            "n_window_days": len(stems),
+            "n_pass_instants": len(inst),
+            "n_at_gate_hour": hours.get(gate_hour_utc, 0),
+            "observed_hours": {str(k): v for k, v in sorted(hours.items())},
+        }
+        if primary is None and inst:
+            primary = fam
+    rep["by_witness"] = by_witness
+
+    if primary is None:
+        rep.update({"verdict": "NO_WITNESS_TAPE", "primary_witness": None,
+                    "window_days": [], "n_window_days": 0, "n_pass_instants": 0,
+                    "n_at_gate_hour": 0, "observed_hours": {},
+                    "full_history_n_pass_instants": 0, "full_history_n_at_gate_hour": 0,
+                    "full_history_observed_hours": {}, "window_sensitivity": {},
+                    "corroborating_witness": None, "corroborator_n_at_gate_hour": None,
+                    "rule_of_three_upper_bound_per_pass": None})
+        return rep
+
+    prim = by_witness[primary]
+    rep["primary_witness"] = primary
+    for k in ("window_days", "n_window_days", "n_pass_instants", "n_at_gate_hour",
+              "observed_hours"):
+        rep[k] = prim[k]
+
+    full = pass_instants(tape_root, primary, None)
+    full_hours = _observed_pass_hours(full)
+    rep["full_history_n_pass_instants"] = len(full)
+    rep["full_history_n_at_gate_hour"] = full_hours.get(gate_hour_utc, 0)
+    rep["full_history_observed_hours"] = {str(k): v for k, v in sorted(full_hours.items())}
+
+    sens: Dict[str, Dict[str, Any]] = {}
+    for w in GATE_REACHABILITY_SENSITIVITY_WINDOWS:
+        stems = _trailing_day_stems(tape_root, primary, w)
+        inst = pass_instants(tape_root, primary, stems) if stems else []
+        h = _observed_pass_hours(inst)
+        n, n_at = len(inst), h.get(gate_hour_utc, 0)
+        sens["all" if w is None else str(w)] = {
+            "n_window_days": len(stems), "n_pass_instants": n, "n_at_gate_hour": n_at,
+            "verdict": ("INSUFFICIENT_EVIDENCE" if n < min_pass_instants
+                        else "REACHABLE" if n_at > 0 else "UNREACHABLE"),
+        }
+    rep["window_sensitivity"] = sens
+
+    corroborator = None
+    for fam in witnesses:
+        if fam != primary and by_witness[fam]["n_pass_instants"] >= min_pass_instants:
+            corroborator = fam
+            break
+    rep["corroborating_witness"] = corroborator
+    rep["corroborator_n_at_gate_hour"] = (
+        by_witness[corroborator]["n_at_gate_hour"] if corroborator else None)
+
+    rep["rule_of_three_upper_bound_per_pass"] = None
+    if prim["n_pass_instants"] < min_pass_instants:
+        rep["verdict"] = "INSUFFICIENT_EVIDENCE"
+        return rep
+    if corroborator is not None and \
+            (by_witness[corroborator]["n_at_gate_hour"] > 0) != (prim["n_at_gate_hour"] > 0):
+        rep["verdict"] = "WITNESS_DISAGREEMENT"
+        return rep
+    if prim["n_at_gate_hour"] > 0:
+        rep["verdict"] = "REACHABLE"
+        return rep
+    rep["verdict"] = "UNREACHABLE"
+    rep["rule_of_three_upper_bound_per_pass"] = 3.0 / prim["n_pass_instants"]
+    return rep
+
+
 def burst_window_liveness(tape_root: Path,
                           family: str,
                           window_start: datetime,
@@ -3313,6 +3494,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--burst-gap-multiplier", type=float, default=3.0,
                     help="a gap > this many x the trigger's expected interval is flagged as "
                          "an outage episode (default 3.0).")
+    ap.add_argument("--gate-reachability", type=int, default=None, metavar="HOUR",
+                    help="L123: can the OBSERVED scheduler ever START a pass in this UTC hour? "
+                         "Reads pass-start hours off an ungated FIRST leg (see the function's "
+                         "coverage_note -- a late leg inverts the answer). Detection only; "
+                         "widening a live gate is Ryan-side.")
+    ap.add_argument("--gate-reachability-family", default=None, metavar="FAMILY",
+                    help="optional label for the leg whose gate hour is being checked "
+                         "(recorded in the report; does not change the measurement).")
+    ap.add_argument("--gate-reachability-days", default=None,
+                    metavar="dt=YYYY-MM-DD,...",
+                    help="comma-separated frozen dt= slice for --gate-reachability "
+                         "(default: the trailing window).")
+    ap.add_argument("--gate-reachability-trailing-days", type=int,
+                    default=GATE_REACHABILITY_TRAILING_DAYS, metavar="N",
+                    help=f"trailing committed-day window for --gate-reachability "
+                         f"(default {GATE_REACHABILITY_TRAILING_DAYS}).")
     args = ap.parse_args(argv)
 
     if args.window_grid:
@@ -3339,6 +3536,20 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if args.explicability_days else None)
         out = caller_explicability(Path(args.tape_root), args.caller_explicability,
                                    days=days, tolerance_s=args.explicability_tolerance_s)
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+
+    if args.gate_reachability is not None:
+        days = ([d.strip() for d in args.gate_reachability_days.split(",") if d.strip()]
+                if args.gate_reachability_days else None)
+        try:
+            out = gate_hour_reachability(
+                Path(args.tape_root), args.gate_reachability, days=days,
+                trailing_days=args.gate_reachability_trailing_days,
+                family=args.gate_reachability_family)
+        except ValueError as exc:
+            print(f"[tape_gap_monitor] {exc}", file=sys.stderr)
+            return 2
         print(json.dumps(out, indent=2, sort_keys=True))
         return 0
 

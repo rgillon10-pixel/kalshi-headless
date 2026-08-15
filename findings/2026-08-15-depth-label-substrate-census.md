@@ -54,7 +54,7 @@ to a directory listing, and the recent Q21 rounds did route through the sanction
 What is new is the MAGNITUDE on the family that hosts the fill question.
 
 **F2 (verifier-CONFIRMED as a mechanism; its first-cut magnitude was NOT — see §6) — the
-pre-registered unit-level floor is VACUOUS on a multi-leg ladder** (recorded as **L353**). A
+pre-registered unit-level floor is VACUOUS on a multi-leg ladder** (recorded as **L355**). A
 188-bracket crypto hour trivially clears "the unit has ≥2 snapshots" while an individual
 bracket can carry exactly one. A resting order lives on ONE leg, so a leg seen once has **no
 forward interval**. On real tape this bites **160 of the 418** probe-ready crypto units (every
@@ -157,4 +157,4 @@ The census now emits `fill_observability_ready_only` (conditioned), `duplicate_r
 and `ladder_coherence_depth_scoped`, its `verdict_caveat` states in the artifact itself that the
 class-wide block **must never be quoted beside a probe-ready count**, and both the conflation
 and the scoping are pinned by tests — so this specific error cannot recur silently. The lesson
-rows were reframed to the verifier-confirmed claim before publication (see L353/L354).
+rows were reframed to the verifier-confirmed claim before publication (see L355/L356).
