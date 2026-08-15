@@ -52,6 +52,22 @@ THREE MEASUREMENTS, each falsifiable from committed bytes:
    `median_snapshots_per_leg` and `frac_legs_with_ge_2_snapshots` (the fraction of legs that
    have any forward interval at all). Reported per class, never merged into the verdict above.
 
+5. `fill_observability_ready_only` — added 2026-08-15 AFTER an independent `verifier` refuted
+   the first cut's headline. Measurement 4 is a CLASS-WIDE statistic: on crypto it is computed
+   over all 101,060 legs, 40,186 of which sit outside the probe-ready set entirely (unlabeled,
+   or in a partially-labeled unit), and those dilute it. Quoting a class-wide observability
+   number NEXT TO a probe-ready unit count is a conflation — the two describe different
+   populations and here they point in OPPOSITE directions (class-wide crypto median 1.0
+   snapshots/leg and 38.25% with a forward interval; conditioned on the 418 probe-ready units,
+   median 2.0 and 57.58%). This block therefore recomputes observability CONDITIONED ON the
+   probe-ready units, and adds the two counts that actually decide runnability:
+   `n_units_every_leg_ge_2` (units where EVERY leg has a forward interval) and
+   `n_units_all_legs_single` (units where no leg does), plus the forward-gap CADENCE for the
+   former — because "how often is a resting order re-observed" is the real fill-sim constraint.
+   `duplicate_row_accounting` reports how much of `frac_legs_with_ge_2_snapshots` rests on
+   exact `(ticker, captured_at)` duplicate rows (L282), since a duplicated row is not a second
+   observation.
+
 PRE-REGISTERED FLOORS (fixed BEFORE the first run of this module, never tuned to the
 result — the L311/L321 pre-registration discipline applied to an adequacy verdict):
 
@@ -81,8 +97,9 @@ HONEST LIMITS, stated here so they travel with any quoted number:
     computed. The internal consistency check that IS available — exactly one `yes` per MECE
     bracket ladder — is reported as `ladder_coherence`.
   * The pre-registered verdict answers LABEL adequacy at the bootstrap-unit level. It does
-    NOT answer whether a resting order's fate is observable; `fill_observability` does, and
-    the two can disagree — on this tape they do, in opposite directions per class.
+    NOT answer whether a resting order's fate is observable; `fill_observability_ready_only`
+    does, and it is the ONLY observability block that may be quoted beside a probe-ready unit
+    count (see measurement 5 — the class-wide block is a different population).
   * Depth records carry no `close_time`, so "snapshots before close" is NOT computed here;
     `MIN_SNAPSHOTS_PER_UNIT` is a raw snapshot count. A probe still owes its own
     entry-before-close discipline (L69).
@@ -100,6 +117,7 @@ from collections import defaultdict
 from glob import glob
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
+from core.timeutil import parse_iso_utc
 from core.settlement_sources import (
     DEFAULT_TAPE_ROOT,
     SETTLEMENT_SOURCES,
@@ -226,7 +244,8 @@ def naive_union_labels(tape_root: str = DEFAULT_TAPE_ROOT) -> Dict[str, str]:
     return labels
 
 
-def ladder_coherence(tape_root: str = DEFAULT_TAPE_ROOT) -> Dict[str, Any]:
+def ladder_coherence(tape_root: str = DEFAULT_TAPE_ROOT,
+                     restrict_to: Optional[Iterable[str]] = None) -> Dict[str, Any]:
     """Internal consistency of the embedded crypto label source: a MECE bracket ladder must
     settle EXACTLY ONE `B`-bracket `yes`.
 
@@ -251,7 +270,7 @@ def ladder_coherence(tape_root: str = DEFAULT_TAPE_ROOT) -> Dict[str, Any]:
                 for t, res in (ps.get("results") or {}).items():
                     if res in ("yes", "no"):
                         e = event_of(t)
-                        if e:
+                        if e and (restrict_to is None or e in restrict_to):
                             per_event[e][t] = res
     n_ok = n_bad = 0
     violations: List[str] = []
@@ -267,7 +286,9 @@ def ladder_coherence(tape_root: str = DEFAULT_TAPE_ROOT) -> Dict[str, Any]:
             if len(violations) < 20:
                 violations.append(f"{e}:{n_yes}")
     return {"n_ladders_checked": n_ok + n_bad, "n_exactly_one_yes": n_ok,
-            "n_violations": n_bad, "violation_examples": violations}
+            "n_violations": n_bad, "violation_examples": violations,
+            "scope": ("the depth-covered crypto units only" if restrict_to is not None
+                      else "the whole crypto_hourly corpus, NOT only its depth-covered units")}
 
 
 def fill_observability(pop: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
@@ -293,6 +314,108 @@ def fill_observability(pop: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
             "n_legs_with_ge_2_snapshots": ge2,
             "frac_legs_with_ge_2_snapshots": round(ge2 / len(xs), 4),
         }
+    return out
+
+
+def ready_unit_observability(pop: Mapping[str, Any],
+                             units: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
+    """Observability CONDITIONED ON the probe-ready units of one class (measurement 5).
+
+    This is the block that may be quoted beside a probe-ready unit count; the class-wide
+    `fill_observability` may not, because it is computed over a population that includes legs
+    no probe would ever score."""
+    ready = [e for e, u in units.items() if u["probe_ready"]]
+    legs = sorted(n for e in ready for n in _leg_counts(pop, e, units))
+    every2, single, days2 = [], [], set()
+    for e in ready:
+        counts = _leg_counts(pop, e, units)
+        if counts and all(c >= MIN_SNAPSHOTS_PER_UNIT for c in counts):
+            every2.append(e)
+            days2 |= set(units[e]["days"])
+        elif counts and all(c < MIN_SNAPSHOTS_PER_UNIT for c in counts):
+            single.append(e)
+    ge2 = sum(1 for x in legs if x >= MIN_SNAPSHOTS_PER_UNIT)
+    return {
+        "n_ready_units": len(ready),
+        "n_ready_legs": len(legs),
+        "median_snapshots_per_leg": _median(legs),
+        "frac_legs_with_ge_2_snapshots": round(ge2 / len(legs), 4) if legs else None,
+        "n_units_every_leg_ge_2": len(every2),
+        "n_distinct_days_every_leg_ge_2": len(days2),
+        "n_units_all_legs_single": len(single),
+        "units_every_leg_ge_2": sorted(every2),
+    }
+
+
+def _leg_counts(pop: Mapping[str, Any], event: str,
+                units: Mapping[str, Mapping[str, Any]]) -> List[int]:
+    return [v["n_snapshots"] for t, v in pop.items() if event_of(t) == event]
+
+
+def forward_gap_profile(tape_root: str, events: Iterable[str]) -> Dict[str, Any]:
+    """Minutes between CONSECUTIVE DISTINCT observations of the same leg, over `events`.
+
+    Exact `(ticker, captured_at)` repeats are collapsed first — a duplicated row is not a
+    second observation (L282). Answers the question the snapshot COUNT cannot: at what cadence
+    would a resting order be re-observed?"""
+    want = set(events)
+    seen: Dict[str, set] = defaultdict(set)
+    for path in sorted(glob(os.path.join(tape_root, "orderbook_depth", "dt=*.jsonl"))):
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                t, ts = rec.get("ticker"), rec.get("captured_at")
+                if isinstance(t, str) and isinstance(ts, str) and event_of(t) in want:
+                    seen[t].add(ts)
+    gaps: List[float] = []
+    for t, stamps in seen.items():
+        eps = sorted(parse_iso_utc(x).timestamp() for x in stamps)
+        gaps.extend((b - a) / 60.0 for a, b in zip(eps, eps[1:]))
+    gaps.sort()
+    return {"n_legs": len(seen), "n_gaps": len(gaps),
+            "median_forward_gap_minutes": round(_median(gaps), 2) if gaps else None,
+            "p25_forward_gap_minutes": round(gaps[len(gaps) // 4], 2) if gaps else None,
+            "p75_forward_gap_minutes": round(gaps[(3 * len(gaps)) // 4], 2) if gaps else None}
+
+
+def duplicate_row_accounting(tape_root: str) -> Dict[str, Any]:
+    """How much of `frac_legs_with_ge_2_snapshots` rests on exact `(ticker, captured_at)`
+    repeats (L282's duplicate class). A duplicated row is not a second observation, so the
+    dedup-adjusted fraction is the honest one."""
+    rows: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for path in sorted(glob(os.path.join(tape_root, "orderbook_depth", "dt=*.jsonl"))):
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                t = rec.get("ticker")
+                if isinstance(t, str):
+                    rows[t][rec.get("captured_at")] += 1
+    out: Dict[str, Any] = {}
+    for cls in ("crypto", "sports", "other"):
+        ts = [t for t in rows if class_of(t) == cls]
+        if not ts:
+            out[cls] = {"n_legs": 0, "n_duplicate_rows": 0, "frac_ge_2_raw": None,
+                        "frac_ge_2_deduped": None, "inflation_pp": None}
+            continue
+        dup = sum(sum(n - 1 for n in rows[t].values() if n > 1) for t in ts)
+        raw = sum(1 for t in ts if sum(rows[t].values()) >= MIN_SNAPSHOTS_PER_UNIT)
+        ded = sum(1 for t in ts if len(rows[t]) >= MIN_SNAPSHOTS_PER_UNIT)
+        out[cls] = {"n_legs": len(ts), "n_duplicate_rows": dup,
+                    "frac_ge_2_raw": round(raw / len(ts), 4),
+                    "frac_ge_2_deduped": round(ded / len(ts), 4),
+                    "inflation_pp": round(100.0 * (raw - ded) / len(ts), 2)}
     return out
 
 
@@ -347,14 +470,33 @@ def census(tape_root: str = DEFAULT_TAPE_ROOT) -> Dict[str, Any]:
         },
         "cross_source_overlap": _cross_source_overlap(report, naive),
         "ladder_coherence": ladder_coherence(tape_root),
+        "ladder_coherence_depth_scoped": ladder_coherence(tape_root, restrict_to=set(units["crypto"])),
         "unit_readiness": {c: _summarize_units(u) for c, u in units.items()},
         "fill_observability": fill_observability(pop),
+        "fill_observability_ready_only": _ready_only_block(pop, units, tape_root),
+        "duplicate_row_accounting": duplicate_row_accounting(tape_root),
         "verdict": verdicts,
         "verdict_caveat": (
-            "LABEL adequacy only, at the pre-registered floors. `fill_observability` reports "
-            "the per-leg observability half separately and was measured POST-HOC; a class can "
-            "be SUBSTRATE-ADEQUATE here and still be unable to host a fill-sim (L353)."),
+            "LABEL adequacy only, at the pre-registered floors. Observability is a SEPARATE, "
+            "POST-HOC measurement and must be read from `fill_observability_ready_only`, which "
+            "is conditioned on the same probe-ready units this verdict counts. The class-wide "
+            "`fill_observability` block describes a DIFFERENT population (it includes legs no "
+            "probe would score) and must never be quoted beside a probe-ready count — doing so "
+            "is the conflation an independent verifier caught on 2026-08-15 (L353)."),
     }
+
+
+def _ready_only_block(pop, units, tape_root: str) -> Dict[str, Any]:
+    """Per-class measurement 5, plus the forward-gap cadence for the every-leg-observable
+    subset (the population a fill-sim could actually run on)."""
+    out: Dict[str, Any] = {}
+    for cls, u in units.items():
+        block = ready_unit_observability(pop, u)
+        events = block.pop("units_every_leg_ge_2")
+        block["forward_gap_profile"] = (forward_gap_profile(tape_root, events)
+                                        if events else None)
+        out[cls] = block
+    return out
 
 
 def _count_by(report, tickers: Iterable[str]) -> Dict[str, int]:

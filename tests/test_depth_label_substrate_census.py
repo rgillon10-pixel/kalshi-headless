@@ -144,8 +144,12 @@ def test_verdict_adequate_requires_both_floors():
 def test_the_preregistered_unit_floor_is_vacuous_on_a_multileg_ladder_L353():
     """The defect this census found in its OWN pre-registered floor: a 188-leg ladder clears
     `n_snapshots >= 2` at the unit level while EVERY leg carries exactly one snapshot, so the
-    unit reads ready and no resting order on it is observable. `fill_observability` is the
-    separate measurement that exposes it — this test pins the disagreement itself."""
+    unit reads ready and no resting order on it is observable.
+
+    The MECHANISM is verifier-confirmed (2026-08-15); the first cut's MAGNITUDE was not — on
+    real tape 160 of the 418 ready crypto units are all-single, not all 418. That is why the
+    real-tape counts live in `fill_observability_ready_only` and only the mechanism is pinned
+    on a synthetic ladder here."""
     legs = {f"KXBTC-26AUG0101-B{i}": (1, ["2026-08-01"]) for i in range(188)}
     units = cen._unit_readiness(_pop(legs), _Rep(set(legs)), "tape")
     assert units["crypto"]["KXBTC-26AUG0101"]["probe_ready"] is True      # vacuously
@@ -274,3 +278,97 @@ def test_acceptance_real_ladder_coherence_holds_on_the_whole_crypto_family(froze
         pytest.skip("crypto_hourly not present in this checkout")
     assert c["n_ladders_checked"] >= 800
     assert c["n_violations"] == 0
+
+
+# ─── measurement 5: observability CONDITIONED on the probe-ready units (verifier round 3) ──
+def test_ready_only_observability_ignores_units_no_probe_would_score():
+    """The exact conflation an independent `verifier` caught on 2026-08-15: the class-wide
+    block is diluted by legs outside the probe-ready set, and on real tape the two point in
+    OPPOSITE directions. Synthetic reproduction — class-wide median 1.0, ready-only 2.0."""
+    pop = _pop({"KXBTC-26AUG0101-B1": (2, ["2026-08-01"]),
+                "KXBTC-26AUG0101-B2": (2, ["2026-08-01"]),
+                "KXBTC-26AUG0201-B1": (1, ["2026-08-02"]),
+                "KXBTC-26AUG0201-B2": (1, ["2026-08-02"])})
+    units = cen._unit_readiness(pop, _Rep({"KXBTC-26AUG0101-B1", "KXBTC-26AUG0101-B2"}), "tape")
+    assert cen.fill_observability(pop)["crypto"]["median_snapshots_per_leg"] == 1.5
+    block = cen.ready_unit_observability(pop, units["crypto"])
+    assert block["n_ready_units"] == 1
+    assert block["median_snapshots_per_leg"] == 2.0
+    assert block["frac_legs_with_ge_2_snapshots"] == 1.0
+
+
+def test_ready_only_splits_every_leg_observable_from_all_single():
+    pop = _pop({"KXBTC-1-B1": (3, ["d1"]), "KXBTC-1-B2": (2, ["d1"]),
+                "KXBTC-2-B1": (1, ["d2"]), "KXBTC-2-B2": (1, ["d2"]),
+                "KXBTC-3-B1": (4, ["d3"]), "KXBTC-3-B2": (1, ["d3"])})
+    units = cen._unit_readiness(pop, _Rep(set(pop)), "tape")
+    b = cen.ready_unit_observability(pop, units["crypto"])
+    assert b["n_ready_units"] == 3
+    assert b["n_units_every_leg_ge_2"] == 1        # unit 1
+    assert b["n_units_all_legs_single"] == 1       # unit 2
+    assert b["n_distinct_days_every_leg_ge_2"] == 1
+    assert b["units_every_leg_ge_2"] == ["KXBTC-1"]   # unit 3 is MIXED — counted in neither
+
+
+def test_verdict_caveat_forbids_quoting_the_classwide_block_beside_a_ready_count(tmp_path):
+    _write(tmp_path, "orderbook_depth", "2026-08-01",
+           [{"ticker": "KXBTC-26AUG0101-B1", "captured_at": "2026-08-01T01:00:00Z"}])
+    rep = cen.census(str(tmp_path))
+    assert "fill_observability_ready_only" in rep["verdict_caveat"]
+    assert "never be quoted beside a probe-ready count" in rep["verdict_caveat"]
+
+
+# ─── forward-gap cadence + duplicate accounting (L282 tie-in) ─────────────────────────
+def test_forward_gap_profile_collapses_exact_duplicate_rows(tmp_path):
+    """A duplicated `(ticker, captured_at)` row is not a second observation."""
+    _write(tmp_path, "orderbook_depth", "2026-08-01", [
+        {"ticker": "KXBTC-1-B1", "captured_at": "2026-08-01T00:00:00Z"},
+        {"ticker": "KXBTC-1-B1", "captured_at": "2026-08-01T00:00:00Z"},   # exact duplicate
+        {"ticker": "KXBTC-1-B1", "captured_at": "2026-08-01T00:30:00Z"},
+    ])
+    g = cen.forward_gap_profile(str(tmp_path), ["KXBTC-1"])
+    assert g["n_legs"] == 1 and g["n_gaps"] == 1
+    assert g["median_forward_gap_minutes"] == 30.0
+
+
+def test_forward_gap_profile_is_empty_for_an_unrequested_event(tmp_path):
+    _write(tmp_path, "orderbook_depth", "2026-08-01",
+           [{"ticker": "KXBTC-1-B1", "captured_at": "2026-08-01T00:00:00Z"}])
+    assert cen.forward_gap_profile(str(tmp_path), ["KXETH-9"])["n_gaps"] == 0
+
+
+def test_duplicate_row_accounting_separates_raw_from_deduped(tmp_path):
+    _write(tmp_path, "orderbook_depth", "2026-08-01", [
+        {"ticker": "KXBTC-1-B1", "captured_at": "t0"},
+        {"ticker": "KXBTC-1-B1", "captured_at": "t0"},   # only >=2 because of a duplicate
+        {"ticker": "KXBTC-1-B2", "captured_at": "t0"},
+        {"ticker": "KXBTC-1-B2", "captured_at": "t1"},   # genuinely >=2
+    ])
+    d = cen.duplicate_row_accounting(str(tmp_path))["crypto"]
+    assert d["n_legs"] == 2 and d["n_duplicate_rows"] == 1
+    assert d["frac_ge_2_raw"] == 1.0 and d["frac_ge_2_deduped"] == 0.5
+    assert d["inflation_pp"] == 50.0
+
+
+def test_ladder_coherence_scope_is_stated_and_restrictable(tmp_path):
+    _write(tmp_path, "crypto_hourly", "2026-08-01", [
+        {"previous_settlement": {"status": "settled",
+                                 "results": {"KXBTC-1-B1": "yes", "KXBTC-1-B2": "no"}}},
+        {"previous_settlement": {"status": "settled",
+                                 "results": {"KXBTC-2-B1": "yes", "KXBTC-2-B2": "no"}}},
+    ])
+    whole = cen.ladder_coherence(str(tmp_path))
+    scoped = cen.ladder_coherence(str(tmp_path), restrict_to={"KXBTC-1"})
+    assert whole["n_ladders_checked"] == 2 and "whole crypto_hourly corpus" in whole["scope"]
+    assert scoped["n_ladders_checked"] == 1 and "depth-covered" in scoped["scope"]
+
+
+def test_acceptance_real_slice_ready_only_is_a_different_population(frozen_slice):
+    """On real tape the conditioned block must be computed over strictly fewer legs than the
+    class-wide one whenever any leg is unlabeled — the structural reason the two disagree."""
+    pop = {k: v for k, v in cen.scan_depth_population(frozen_slice).items()
+           if k != "_n_bad_lines"}
+    rep = cen.census(frozen_slice)
+    ready_legs = rep["fill_observability_ready_only"]["crypto"]["n_ready_legs"]
+    assert ready_legs <= rep["fill_observability"]["crypto"]["n_legs"]
+    assert rep["ladder_coherence_depth_scoped"]["n_violations"] == 0

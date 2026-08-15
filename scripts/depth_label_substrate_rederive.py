@@ -138,6 +138,13 @@ def rederive(tape: str) -> Dict[str, object]:
                 units.setdefault(head[0], []).append(t)
         ready = [e for e, ls in units.items()
                  if all(x in allv for x in ls) and sum(snaps[x] for x in ls) >= 2]
+        ready_legs = [snaps[x] for e in ready for x in units[e]]
+        every2 = [e for e in ready if units[e] and all(snaps[x] >= 2 for x in units[e])]
+        single = [e for e in ready if units[e] and all(snaps[x] < 2 for x in units[e])]
+        days2 = set()
+        for e in every2:
+            for x in units[e]:
+                days2 |= days.get(x, set())
         rdays = set()
         for e in ready:
             for x in units[e]:
@@ -151,6 +158,15 @@ def rederive(tape: str) -> Dict[str, object]:
             "median_snapshots_per_leg": median(legs),
             "frac_legs_with_ge_2_snapshots": (
                 round(sum(1 for x in legs if x >= 2) / len(legs), 4) if legs else None),
+            # the CONDITIONED block — the one the 2026-08-15 verifier round required
+            "ready_median_snapshots_per_leg": median(ready_legs),
+            "ready_frac_legs_with_ge_2_snapshots": (
+                round(sum(1 for x in ready_legs if x >= 2) / len(ready_legs), 4)
+                if ready_legs else None),
+            "n_ready_legs": len(ready_legs),
+            "n_units_every_leg_ge_2": len(every2),
+            "n_distinct_days_every_leg_ge_2": len(days2),
+            "n_units_all_legs_single": len(single),
         }
     out["by_class"] = per_class
     return out
@@ -177,6 +193,18 @@ def compare(mine: Dict[str, object], census_report: Dict[str, object]) -> List[s
         chk(f"{cls}.n_probe_ready", m["n_probe_ready"], ur["n_probe_ready"])
         chk(f"{cls}.n_distinct_ready_days", m["n_distinct_ready_days"],
             ur["n_distinct_ready_days"])
+        ro = census_report["fill_observability_ready_only"][cls]
+        chk(f"{cls}.ready_median_snapshots_per_leg", m["ready_median_snapshots_per_leg"],
+            ro["median_snapshots_per_leg"])
+        chk(f"{cls}.ready_frac_legs_with_ge_2", m["ready_frac_legs_with_ge_2_snapshots"],
+            ro["frac_legs_with_ge_2_snapshots"])
+        chk(f"{cls}.n_ready_legs", m["n_ready_legs"], ro["n_ready_legs"])
+        chk(f"{cls}.n_units_every_leg_ge_2", m["n_units_every_leg_ge_2"],
+            ro["n_units_every_leg_ge_2"])
+        chk(f"{cls}.n_distinct_days_every_leg_ge_2", m["n_distinct_days_every_leg_ge_2"],
+            ro["n_distinct_days_every_leg_ge_2"])
+        chk(f"{cls}.n_units_all_legs_single", m["n_units_all_legs_single"],
+            ro["n_units_all_legs_single"])
         fo = census_report["fill_observability"][cls]
         chk(f"{cls}.median_snapshots_per_leg", m["median_snapshots_per_leg"],
             fo["median_snapshots_per_leg"])

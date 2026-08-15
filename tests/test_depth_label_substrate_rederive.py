@@ -73,6 +73,16 @@ def _tape(tmp_path):
     return str(tmp_path)
 
 
+def test_rederive_recomputes_the_conditioned_ready_only_block(tmp_path):
+    """The corrected headline (verifier round 3, 2026-08-15) must be reproduced by the
+    redundancy implementation too, or the correction has only one witness."""
+    c = red.rederive(_tape(tmp_path))["by_class"]["crypto"]
+    assert c["n_ready_legs"] == 2
+    assert c["ready_median_snapshots_per_leg"] == 1.5
+    assert c["n_units_every_leg_ge_2"] == 0      # leg B2 has a single snapshot
+    assert c["n_units_all_legs_single"] == 0     # ... and B1 has two, so the unit is MIXED
+
+
 def test_rederive_reads_the_embedded_source_the_naive_union_misses(tmp_path):
     out = red.rederive(_tape(tmp_path))
     assert out["n_tickers"] == 2 and out["n_snapshots"] == 3
@@ -97,7 +107,15 @@ def test_compare_reports_a_disagreement_field_by_field(tmp_path):
             "fill_observability": {c: {"median_snapshots_per_leg": v["median_snapshots_per_leg"],
                                        "frac_legs_with_ge_2_snapshots":
                                            v["frac_legs_with_ge_2_snapshots"]}
-                                   for c, v in mine["by_class"].items()}}
+                                   for c, v in mine["by_class"].items()},
+            "fill_observability_ready_only": {
+                c: {"median_snapshots_per_leg": v["ready_median_snapshots_per_leg"],
+                    "frac_legs_with_ge_2_snapshots": v["ready_frac_legs_with_ge_2_snapshots"],
+                    "n_ready_legs": v["n_ready_legs"],
+                    "n_units_every_leg_ge_2": v["n_units_every_leg_ge_2"],
+                    "n_distinct_days_every_leg_ge_2": v["n_distinct_days_every_leg_ge_2"],
+                    "n_units_all_legs_single": v["n_units_all_legs_single"]}
+                for c, v in mine["by_class"].items()}}
     diffs = red.compare(mine, fake)
     assert len(diffs) == 1 and diffs[0].startswith("n_tickers:")
 
@@ -116,5 +134,13 @@ def test_compare_is_silent_when_everything_agrees(tmp_path):
             "fill_observability": {c: {"median_snapshots_per_leg": v["median_snapshots_per_leg"],
                                        "frac_legs_with_ge_2_snapshots":
                                            v["frac_legs_with_ge_2_snapshots"]}
-                                   for c, v in mine["by_class"].items()}}
+                                   for c, v in mine["by_class"].items()},
+            "fill_observability_ready_only": {
+                c: {"median_snapshots_per_leg": v["ready_median_snapshots_per_leg"],
+                    "frac_legs_with_ge_2_snapshots": v["ready_frac_legs_with_ge_2_snapshots"],
+                    "n_ready_legs": v["n_ready_legs"],
+                    "n_units_every_leg_ge_2": v["n_units_every_leg_ge_2"],
+                    "n_distinct_days_every_leg_ge_2": v["n_distinct_days_every_leg_ge_2"],
+                    "n_units_all_legs_single": v["n_units_all_legs_single"]}
+                for c, v in mine["by_class"].items()}}
     assert red.compare(mine, good) == []

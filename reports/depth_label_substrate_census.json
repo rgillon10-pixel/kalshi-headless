@@ -5,6 +5,29 @@
   "n_naive_union": 10941,
   "n_overlap": 0
  },
+ "duplicate_row_accounting": {
+  "crypto": {
+   "frac_ge_2_deduped": 0.3777,
+   "frac_ge_2_raw": 0.3825,
+   "inflation_pp": 0.48,
+   "n_duplicate_rows": 488,
+   "n_legs": 101060
+  },
+  "other": {
+   "frac_ge_2_deduped": null,
+   "frac_ge_2_raw": null,
+   "inflation_pp": null,
+   "n_duplicate_rows": 0,
+   "n_legs": 0
+  },
+  "sports": {
+   "frac_ge_2_deduped": 0.9622,
+   "frac_ge_2_raw": 0.9622,
+   "inflation_pp": 0.0,
+   "n_duplicate_rows": 605,
+   "n_legs": 9553
+  }
+ },
  "fill_observability": {
   "crypto": {
    "frac_legs_with_ge_2_snapshots": 0.3825,
@@ -29,6 +52,50 @@
    "median_snapshots_per_leg": 20.0,
    "n_legs": 9553,
    "n_legs_with_ge_2_snapshots": 9192
+  }
+ },
+ "fill_observability_ready_only": {
+  "crypto": {
+   "forward_gap_profile": {
+    "median_forward_gap_minutes": 31.49,
+    "n_gaps": 36855,
+    "n_legs": 35052,
+    "p25_forward_gap_minutes": 31.31,
+    "p75_forward_gap_minutes": 31.85
+   },
+   "frac_legs_with_ge_2_snapshots": 0.5758,
+   "median_snapshots_per_leg": 2.0,
+   "n_distinct_days_every_leg_ge_2": 12,
+   "n_ready_legs": 60874,
+   "n_ready_units": 418,
+   "n_units_all_legs_single": 160,
+   "n_units_every_leg_ge_2": 258
+  },
+  "other": {
+   "forward_gap_profile": null,
+   "frac_legs_with_ge_2_snapshots": null,
+   "median_snapshots_per_leg": null,
+   "n_distinct_days_every_leg_ge_2": 0,
+   "n_ready_legs": 0,
+   "n_ready_units": 0,
+   "n_units_all_legs_single": 0,
+   "n_units_every_leg_ge_2": 0
+  },
+  "sports": {
+   "forward_gap_profile": {
+    "median_forward_gap_minutes": 31.09,
+    "n_gaps": 29929,
+    "n_legs": 495,
+    "p25_forward_gap_minutes": 28.57,
+    "p75_forward_gap_minutes": 31.48
+   },
+   "frac_legs_with_ge_2_snapshots": 0.992,
+   "median_snapshots_per_leg": 66.0,
+   "n_distinct_days_every_leg_ge_2": 8,
+   "n_ready_legs": 499,
+   "n_ready_units": 224,
+   "n_units_all_legs_single": 2,
+   "n_units_every_leg_ge_2": 222
   }
  },
  "floors": {
@@ -108,6 +175,14 @@
   "n_exactly_one_yes": 872,
   "n_ladders_checked": 872,
   "n_violations": 0,
+  "scope": "the whole crypto_hourly corpus, NOT only its depth-covered units",
+  "violation_examples": []
+ },
+ "ladder_coherence_depth_scoped": {
+  "n_exactly_one_yes": 418,
+  "n_ladders_checked": 418,
+  "n_violations": 0,
+  "scope": "the depth-covered crypto units only",
   "violation_examples": []
  },
  "population": {
@@ -179,5 +254,5 @@
    "verdict": "SUBSTRATE-ADEQUATE"
   }
  },
- "verdict_caveat": "LABEL adequacy only, at the pre-registered floors. `fill_observability` reports the per-leg observability half separately and was measured POST-HOC; a class can be SUBSTRATE-ADEQUATE here and still be unable to host a fill-sim (L353)."
+ "verdict_caveat": "LABEL adequacy only, at the pre-registered floors. Observability is a SEPARATE, POST-HOC measurement and must be read from `fill_observability_ready_only`, which is conditioned on the same probe-ready units this verdict counts. The class-wide `fill_observability` block describes a DIFFERENT population (it includes legs no probe would score) and must never be quoted beside a probe-ready count \u2014 doing so is the conflation an independent verifier caught on 2026-08-15 (L353)."
 }
