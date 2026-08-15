@@ -6,6 +6,124 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-15 17:xx-23:xx ET — IDLE RUN, policy (c): the settlement-source registry's published blind spot was hiding two real sources — worth 4 depth units (new L358/L359)
+
+**Steps 0a/0/0b (done by the calling session).** History-integrity **PASS**: `origin/main` HEAD
+`65d41bf`, `kb/00-LOG.md`'s newest entry dated today and the newest committed tape day also
+`dt=2026-08-15` — no rewind. Claim-check: exactly 7 open PRs (#125/#165/#166/#191/#208/#271/#330),
+all standing "LEAVE OPEN for Ryan" items, none claiming queue work. Step-0b: the newest
+`tape/hourly-*` branch is `20260815T0656Z`, already swept and merged this morning as PR #377 —
+nothing new stranded.
+
+**Queue: DRAINED, re-verified.** Every `### Qn` section Q0-Q56 re-parsed by its NEWEST-DATED
+`Status:` line: **0 eligible**, the 15th consecutive idle-adjacent run. (The reading rule is still
+not uniform — Q24/Q53 carry their original filing `TODO` positionally BELOW a later close; Q21 is
+the edge-hunter's standing item, round #31 complete this morning.)
+
+**Policy (a) and (b) were both checked before (c), and both are closed.** (a):
+`stale_unenforced_recall_report()` = 354 rows, 43 `UNENFORCED`, 33 formally disposed, **10 genuinely
+open** — the identical set today's two earlier runs triaged into Ryan-lane / collector-write-path /
+already-half-built / piloted-and-rejected (L346). The two rows minted TODAY (L355/L356) are both
+already `test`-enforced, with only per-design-judgment halves left — the L6/L27/L28 terminal
+posture. (b): every time- or data-gated item already carries its offline-tested probe in
+`scripts/` (Q32 `q32_sharp_devig_polymarket_probe.py`, Q36, Q37, Q43, Q48, Q51, Q54, Q56) — there
+is no next gate without a script. So (c), deliberately on a DIFFERENT family and a DIFFERENT
+question from this morning's depth-substrate census.
+
+**The question.** The 06:xx census ended by routing the sports label famine to a Ryan-side
+settlement collector. Before accepting a Ryan-side blocker, falsify the cheap hypothesis: **do we
+already hold the labels and simply not read them?** It is not an idle hypothesis —
+`core/settlement_sources.py` publishes its own blind spot in its docstring (its
+`undeclared_settlement_dirs()` guard matches DIRECTORY NAMES and "structurally CANNOT detect a
+family that hides settlement inside another family's record schema"), and 3 of its 10 declared
+sources are exactly that shape. In 8 days nobody had looked at the FIELDS.
+
+**Built.** `core/result_evidence.py` — a deliberately dumb field-level detector: a `result` key
+with a NON-EMPTY string is evidence (Kalshi writes `""` on an unsettled market — the exchange's own
+"not yet"), a `status` in `{settled,finalized,determined}` is evidence, **`closed` is not** (trading
+stopped is not an outcome known, counted separately), and a label is attributed ONLY when the record
+supplies a ticker — evidence with no ticker in reach is counted `unattributed`, never guessed,
+because a label you cannot join to a book is not coverage. Binary classification delegated to
+`core.settlement.is_binary_result` (L52). Then
+`scripts/settlement_source_recall_audit.py` over **31 families / 2,135,008 lines / 0 malformed** —
+every committed `.json`/`.jsonl` in every family — which asks not "how many labels" but "how many
+labels land on a population a probe could SCORE".
+
+**F1 — the gap is real.** Two UNDECLARED **capture** families carry binary outcomes the sanctioned
+resolver cannot see: `tape/sports_history/` (**341** labeled tickers, resolver overlap **0**) and
+`tape/sports_history_s7/` (**291**, overlap 4, agreement **4/4**). A third, `tape/sports_clv_s7/`
+(167, agreement 3/3), is correctly EXCLUDED as a **derived artefact** this repo computed itself —
+declaring a derived family launders our own number back in as broker truth. Union **net-new: 367**.
+Where a cross-check exists the undeclared sources agree with broker truth on **7/7** tickers, so
+this is a recall gap, not a conflict.
+
+**F2 — and it is worth almost nothing, which is the finding.** Those 367 labels land on **8 of
+110,632 depth legs**, making **4 of 4,171** depth event units newly fully labeled (0.10%), and on
+**38 of 11,663 sports price legs**, moving `tape/sports_pairs/` from **659 to 697** resolvable legs
+(**5.6% -> 6.0%**). This morning's routing decision survives intact: the sports label famine is
+**real absence**, not a bookkeeping artefact, and cannot be repaired from tape already held.
+
+**F3 (-> L359) — the new mechanism: the famine is a CADENCE property, not a coverage property.**
+The negatives are sharper than the positives. `tape/sports_pairs/` holds **31,016 captured market
+objects across 13,404 files with `result` populated on ZERO of them and `status == "active"` on all
+31,016**. `tape/universe_sweep/` holds **1,100,000 records, 1,807 with `status == "closed"`, and
+`settled`/`finalized`/`determined` on ZERO** — the full-universe sweep has watched markets stop
+trading 1,807 times and has never once seen one resolve. Every sports family we already collect
+WOULD carry the outcome; the exchange puts it in the same object we already save. We never look
+again after expiry. The cheapest repair is therefore a **post-expiry re-poll of tickers we already
+know**, not a new settlement family — collector-write-path, Ryan-side, recorded and NOT built.
+
+**Enforcement (-> L358).** `scripts/invariants.py::_undeclared_result_family_issues` /
+`undeclared_result_family_warning` — the FIELD-level complement to `undeclared_settlement_dirs()`'s
+directory-name matcher, wired into `--full` as a **non-gating stderr advisory** on L353's stated
+posture (the trigger is a DATA condition a collector can create at any hour; the repair is a
+considered change to a resolver every past verdict leaned on). It fires non-vacuously today on both
+families, with a test that tells a future reader why it went quiet if they are ever declared, and a
+cross-module test that the derived-artefact exemption table cannot drift between the advisory and
+the audit. **Deliberately NOT done: declaring the two families.** That changes the output of the one
+resolver Q24's 0/81 join, Q54's data gate and Q21 rounds #30/#31 all leaned on — a two-agent change
+worth four depth units. Recorded as a candidate, not executed.
+
+**Incidental, and worth its own note: an existing ratchet fired on brand-new code inside the same
+run.** The audit's first draft called `resolve_market_results(...)` without `root=`, so an audit
+pointed at any other tree would have scored its labels against the repo's committed tape and
+reported a fabricated 100% overlap. `scripts/invariants.py::_settlement_root_anchoring_issues` (the
+L345/L348 gate) caught it as a GATING failure before commit. Repaired by re-exporting the anchored
+`core.settlement_sources.DEFAULT_TAPE_ROOT` instead of re-declaring the relative string `"tape"`.
+
+**Discipline.** No P&L, no CI, no bootstrap, no registry flip (test-pinned: the report may not
+contain a `pnl`/`ci95`/`bootstrap`/`kelly` key). No price is persisted, so **no `price_source_tag`
+applies to this audit's outputs**; the labels it counts carry their sources' own tags
+(`broker_truth` where the source is a read-back exchange result). `kb/strategies/00-index.md`
+untouched — still **0 proven edges**. **Two-agent rule NOT SATISFIABLE**: no `Task`/`verifier`
+subagent exists in this harness (the L287/L288/L290/L291/L295/L308/L313/L325/L338 precedent), so
+the sanctioned redundancy fallback ran and is reported AS redundancy, never as verification —
+`scripts/settlement_source_recall_rederive.py` imports neither the audit nor
+`core.result_evidence` nor `core.settlement_sources` (AST-pinned), finds results by regex over raw
+bytes, attributes by position rather than structure, and answers the overlap question backwards.
+**It disagreed twice and both times the RE-DERIVATION was wrong** (a nearest-preceding attribution
+rule under `sort_keys=True`, which under-counted `sports_history` 341 -> 214; and a reader that knew
+only `"ticker"` and not `"market_ticker"`, which scored `sports_history_s7` at 0). After both
+repairs every line count, every labeled-ticker count outside one published and measured limit
+(ticker-keyed cache maps, <=0.4%, all DECLARED sources), both leg populations (110,632 / 11,663) and
+both substrate intersections reconcile EXACTLY — 371-367 = 12-8 = 42-38 = **the same 4 World-Cup
+`-TIE` legs**, checked by set identity, not arithmetic coincidence. Verdict committed
+**PROVISIONAL**.
+
+**Gates AFTER the last code change (L162):** `python3 scripts/invariants.py --full` exit **0**, ``invariants: all green`` (18 non-gating stderr advisories, 17 pre-existing + this run's new undeclared-result-family one); `python3 -m pytest -q -o addopts='' -p no:randomly -n 4 --dist loadfile` **4,359 passed / 0 failed / 0 errors in 5,279.84s (1:27:59)**, exit 0 — 4,359 = the prior run's 4,276 + exactly this diff's 83 new tests (29 `test_result_evidence.py` + 22 `test_settlement_source_recall_audit.py` + 15 `test_settlement_source_recall_rederive.py` + 13 `test_invariants.py` + 4 from parametrisation), so nothing was dropped. **Re-run on the REBASED tree** (after `main` advanced mid-run, below): `invariants --full` exit **0**, ``invariants: all green`` (18 advisories); `pytest -q -n 4 --dist loadfile` **4,369 passed / 0 failed / 0 errors in 5,331.61s (1:28:51)**, exit 0 — 4,369 = this run's 4,359 + the 10 tests PR #381 added to `main`. **Two operational notes worth carrying:** (1) `pytest-xdist` is NOT in this sandbox's dependency set — the suite runs ~3.5x slower serially and gets reaped by the harness before it finishes, so it was installed ad hoc and the run detached with `setsid nohup`; (2) a FIRST xdist run with the default `--dist load` reported **4 failed / 4,355 passed**, of which exactly ONE was real (`test_gen_problems_dashboard.py::test_dashboard_and_invariants_agree_on_every_live_lesson_row` — this run's two new lesson rows were written with FOUR cells against a FIVE-column table, which `invariants._parse_lesson_rows` tolerates and the dashboard's stricter parser does not; repaired by adding the missing SOURCE cell, not by loosening either parser) and the other three passed on serial re-run and again under `--dist loadfile`. A same-file distribution is the setting that makes this suite's real-tape acceptance tests deterministic.
+
+**Step 9 (paper):** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra only) — `scripts/paper_pass.py` idempotent over the current tape: 1,693 records loaded, **0 processed / 0 deferred(caps) / 278 deferred(coverage) / 300 already-in-ledger, 0 new ledger lines**; `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00` (`broker_truth`; NOT edge evidence).
+
+**Mid-run: `main` moved and a lesson-id COLLIDED — again.** At run start `origin/main` was `65d41bf` with 7 open Ryan-only PRs. By the time this run's 88-minute gate cycle finished, a concurrent session had merged PRs #381/#382 (Q43's calendar-gate re-measurement), which minted **L357** for an unrelated finding — the identical collision class that hit L353/L354 this morning. This run's two rows were renumbered **L357/L358 -> L358/L359** across every citing file (ledger rows, `scripts/invariants.py`'s advisory text, `tests/test_invariants.py`'s section banner, `LOOP-QUEUE.md`, this entry) and the branch rebased onto the new `main` with all three append-only conflicts resolved by UNION (lessons in ID order, Log-of-runs chronologically, `kb/00-LOG.md` newest-at-top). Nothing was rewritten or reordered. The structural fix — minting a lesson id only at the moment of commit, or reserving a per-run block — is still not built; this is now the second same-day occurrence and the third overall.
+
+**Files:** `core/result_evidence.py`, `scripts/settlement_source_recall_audit.py`,
+`scripts/settlement_source_recall_rederive.py`, `scripts/invariants.py` (new non-gating advisory),
+`tests/test_result_evidence.py`, `tests/test_settlement_source_recall_audit.py`,
+`tests/test_settlement_source_recall_rederive.py`, `tests/test_invariants.py`,
+`reports/settlement_source_recall_audit.json`, `reports/settlement_source_recall_rederive.json`,
+`findings/2026-08-15-settlement-source-recall-audit.md`, `kb/lessons/00-lessons.md` (L358+L359),
+`reports/problems-dashboard.html` (regenerated: 354 lessons),
+`LOOP-QUEUE.md` (Q45 status + Log of runs), `kb/00-LOG.md`.
 ## 2026-08-15 21:xx ET — research loop: step 0's claim check found PR #381 gone stale mid-flight, resolved by rebase with double gate re-verification
 
 **Run:** research loop (fires every 3h), protocol v3. Steps 0a: history-integrity PASS (`origin/main` at session start = `65d41bfa`, the previous run's own step-0 bookkeeping commit; newest `kb/00-LOG.md` entry and newest `tape/*/dt=2026-08-15` both same-day, no rewind). Step 0b: the newest `tape/hourly-*`/`tape/burst-*` branch (`tape/hourly-20260815T0656Z`) was already swept by the previous run (#377); nothing newer to recover — the pre-2026-08 backlog stays Q17/PR #46 (Ryan-review-only, deliberately untouched).

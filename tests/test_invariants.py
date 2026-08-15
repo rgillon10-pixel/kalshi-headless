@@ -4343,3 +4343,99 @@ def test_acceptance_l123_advisory_never_flips_the_exit_code(monkeypatch, capsys)
     assert "never starts a pass in" in captured.err
     assert "settlement_ledger (gate hour 10Z)" in captured.err
     assert "invariants: all green" in captured.out
+
+
+# ─── L300/L358: undeclared outcome-bearing tape family advisory ────────────────────────────
+
+
+class TestUndeclaredResultFamilyAdvisory:
+    """The field-level complement to `undeclared_settlement_dirs()`'s directory-name matcher."""
+
+    def _fam(self, root, fam, records):
+        d = root / fam
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "dt=2026-01-01.jsonl", "w") as fh:
+            for r in records:
+                fh.write(json.dumps(r) + "\n")
+
+    def test_an_undeclared_family_with_a_binary_result_is_flagged(self, tmp_path):
+        self._fam(tmp_path, "mystery_family", [{"ticker": "KXGAME-D1-AAA", "result": "yes"}])
+        issues = inv._undeclared_result_family_issues(tape_root=tmp_path)
+        assert len(issues) == 1 and "mystery_family" in issues[0]
+
+    def test_a_declared_source_is_never_flagged(self, tmp_path):
+        self._fam(tmp_path, "settlement_ledger", [{"ticker": "KXGAME-D1-AAA", "result": "yes"}])
+        assert inv._undeclared_result_family_issues(tape_root=tmp_path) == []
+
+    def test_a_derived_artefact_family_is_never_flagged(self, tmp_path):
+        self._fam(tmp_path, "sports_clv_s7", [{"ticker": "KXGAME-D1-AAA", "result": "yes"}])
+        assert inv._undeclared_result_family_issues(tape_root=tmp_path) == []
+
+    def test_a_family_whose_result_field_is_always_EMPTY_is_not_flagged(self, tmp_path):
+        """`tape/sports_pairs/` shape: the exchange's schema is there, the outcome is not."""
+        self._fam(tmp_path, "sports_pairs",
+                  [{"ticker": "KXGAME-D1-AAA", "result": "", "status": "active"}] * 5)
+        assert inv._undeclared_result_family_issues(tape_root=tmp_path) == []
+
+    def test_a_scalar_result_is_not_a_binary_label_L52(self, tmp_path):
+        self._fam(tmp_path, "mystery_family", [{"ticker": "KXTEMP-D1-AAA", "result": "scalar"}])
+        assert inv._undeclared_result_family_issues(tape_root=tmp_path) == []
+
+    def test_an_unattributable_result_is_not_flagged_a_label_you_cannot_join_is_not_coverage(
+            self, tmp_path):
+        self._fam(tmp_path, "mystery_family", [{"wrapper": {"result": "yes"}}])
+        assert inv._undeclared_result_family_issues(tape_root=tmp_path) == []
+
+    def test_missing_tape_root_is_inert(self, tmp_path):
+        assert inv._undeclared_result_family_issues(tape_root=tmp_path / "nope") == []
+
+    def test_warning_is_none_when_there_is_nothing_to_say(self):
+        assert inv.undeclared_result_family_warning([]) is None
+
+    def test_warning_states_that_it_is_sampled_and_non_gating(self):
+        msg = inv.undeclared_result_family_warning(["tape/x/ carries ..."])
+        assert "Sampled, not exhaustive" in msg
+        assert "does NOT affect the exit code" in msg
+        assert "settlement_source_recall_audit.py" in msg
+
+    def test_warning_refuses_to_equate_a_label_count_with_edge(self):
+        msg = inv.undeclared_result_family_warning(["tape/x/ carries ..."])
+        assert "label counts are not edge" in msg.lower()
+
+    def test_the_live_tree_fires_this_advisory_non_vacuity(self):
+        """Measured 2026-08-15: `sports_history` + `sports_history_s7` are both invisible to
+        the resolver. If a later run DECLARES them, this assertion tells the next reader why
+        the advisory went quiet rather than letting a silent check rot (L131)."""
+        from core.settlement_sources import declared_source_names
+        issues = inv._undeclared_result_family_issues()
+        declared = set(declared_source_names())
+        assert issues or {"sports_history", "sports_history_s7"} <= declared
+
+    def test_derived_artefact_exemptions_match_the_audit_script(self):
+        """One table, two readers — drift here would make the advisory and the exhaustive
+        audit disagree about the same family (L36/L102: one shared site)."""
+        import sys as _sys
+        _sys.path.insert(0, str(pathlib.Path(inv.__file__).parent))
+        import settlement_source_recall_audit as audit
+        assert set(inv.DERIVED_RESULT_ARTEFACT_FAMILIES) == set(audit.DERIVED_ARTEFACT_FAMILIES)
+
+    def test_full_run_prints_the_advisory_and_stays_green(self, capsys, monkeypatch):
+        monkeypatch.setattr(inv, "_undeclared_result_family_issues",
+                            lambda *a, **k: ["tape/mystery/ carries >= 3 attributed binary "
+                                             "result(s) ... but is not in declared_source_names()"])
+        monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+        rc = inv.main()
+        captured = capsys.readouterr()
+        assert rc == 0, captured.err
+        assert "cannot see" in captured.err
+        assert "invariants: all green" in captured.out
+
+    def test_a_raising_advisory_can_never_gate_the_run(self, capsys, monkeypatch):
+        def boom(*a, **k):
+            raise RuntimeError("advisory exploded")
+        monkeypatch.setattr(inv, "undeclared_result_family_warning", boom)
+        monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+        rc = inv.main()
+        captured = capsys.readouterr()
+        assert rc == 0, captured.err
+        assert "undeclared-result-family advisory could not be computed" in captured.err

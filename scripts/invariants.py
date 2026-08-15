@@ -1750,6 +1750,131 @@ def gate_hour_unreachable_warning(issues: List[str],
     )
 
 
+# ─── Undeclared outcome-bearing tape family advisory (L300's published recall hole) ──
+#
+# `core/settlement_sources.py` is the ONE sanctioned answer to "is this market's outcome
+# known?", and it publishes its own blind spot in its docstring: `undeclared_settlement_dirs()`
+# matches DIRECTORY NAMES, so it structurally cannot see a family that hides settled state
+# inside another family's record schema — which is how 3 of its 10 declared sources arrived
+# (`crypto_hourly`, `weather_actuals`, `econ_prints`). A zero from it is PRECISION evidence,
+# never RECALL.
+#
+# This advisory is the field-level complement: it samples each committed family's NEWEST file
+# and flags any family that carries an ATTRIBUTED, BINARY `result` while being neither declared
+# nor a known derived artefact. Measured 2026-08-15 on the committed tree: `tape/sports_history/`
+# (341 binary-labeled tickers) and `tape/sports_history_s7/` (291) were both invisible to the
+# resolver — a real gap, worth 8 depth legs and 38 sports-price legs, i.e. almost nothing to the
+# fill question (findings/2026-08-15-settlement-source-recall-audit.md).
+#
+# NON-GATING, deliberately and for the same reason as the L123 stanza above: the trigger is a
+# DATA condition (a collector writes a new family at any hour), the repair is a considered change
+# to a shared sanctioned resolver that every past verdict leaned on, and gating would halt the
+# research loop the moment a new tape family landed. It PRINTS; it never flips the exit code.
+#
+# SAMPLED, not exhaustive: newest file per family, capped decode budget. That makes it fast
+# enough for every --full run and means a MISS is expected (an old file carrying the only
+# labels). The exhaustive answer is `scripts/settlement_source_recall_audit.py`; this stanza
+# exists so a NEW family cannot arrive unnoticed, not so the audit never has to run again.
+
+#: Families that are analysis artefacts this repo wrote itself. They may legitimately echo a
+#: result read from a declared source; declaring them would launder a derived number back in as
+#: broker truth. Kept in sync with `scripts/settlement_source_recall_audit.py`'s own table by
+#: `tests/test_invariants.py::test_derived_artefact_exemptions_match_the_audit_script`.
+DERIVED_RESULT_ARTEFACT_FAMILIES: Tuple[str, ...] = (
+    "anomalies", "s14_ladder_fillsim", "sports_clv", "sports_clv_s7", "sports_maker_fillsim",
+)
+
+_UNDECLARED_RESULT_SAMPLE_RECORDS = 400
+
+
+def _undeclared_result_family_issues(
+        tape_root: Path = ROOT / "tape",
+        sample_records: int = _UNDECLARED_RESULT_SAMPLE_RECORDS,
+) -> List[str]:
+    """One issue label per committed tape family that carries an attributed BINARY `result`
+    while being neither a declared settlement source nor a known derived artefact.
+
+    Sampled (newest file per family, capped decode budget) and best-effort/offline: any failure
+    returns [] and can never poison the gate."""
+    try:
+        from core.result_evidence import line_may_carry_evidence, scan_record
+        from core.settlement_sources import declared_source_names
+    except Exception:
+        return []
+    try:
+        if not tape_root.is_dir():
+            return []
+        skip = set(declared_source_names()) | set(DERIVED_RESULT_ARTEFACT_FAMILIES)
+        issues: List[str] = []
+        for fam_dir in sorted(p for p in tape_root.iterdir() if p.is_dir()):
+            fam = fam_dir.name
+            if fam in skip:
+                continue
+            files = sorted(
+                (p for p in fam_dir.rglob("*") if p.suffix in (".json", ".jsonl")),
+                key=lambda p: p.name)
+            if not files:
+                continue
+            tickers: Set[str] = set()
+            budget = sample_records
+            for path in reversed(files[-2:]):
+                try:
+                    if path.suffix == ".json":
+                        recs = [json.loads(path.read_text(errors="replace"))]
+                    else:
+                        recs = []
+                        with path.open("rb") as fh:
+                            for raw in fh:
+                                if budget <= 0:
+                                    break
+                                if not line_may_carry_evidence(raw):
+                                    continue
+                                budget -= 1
+                                try:
+                                    recs.append(json.loads(raw.decode("utf-8", "replace")))
+                                except Exception:
+                                    continue
+                except Exception:
+                    continue
+                for rec in recs:
+                    for lab in scan_record(rec)["labels"]:
+                        if lab["binary"]:
+                            tickers.add(lab["ticker"])
+                if tickers:
+                    break
+            if tickers:
+                issues.append(
+                    f"tape/{fam}/ carries >= {len(tickers)} attributed binary result(s) in a "
+                    f"NEWEST-FILE sample (e.g. {sorted(tickers)[0]}) but is not in "
+                    f"declared_source_names()")
+        return issues
+    except Exception:
+        return []
+
+
+def undeclared_result_family_warning(issues: List[str]) -> Optional[str]:
+    """A non-gating advisory when a committed tape family carries market outcomes the sanctioned
+    resolver cannot see (L300's published recall hole), else None. Pure."""
+    if not issues:
+        return None
+    body = "".join(f"\n  - {i}" for i in issues[:6])
+    more = f"\n  - ... and {len(issues) - 6} more" if len(issues) > 6 else ""
+    return (
+        f"warning (non-gating): {len(issues)} committed tape family/families carry market "
+        f"outcomes that core/settlement_sources.py cannot see:{body}{more}\n"
+        f"  `undeclared_settlement_dirs()` matches DIRECTORY NAMES and structurally cannot "
+        f"detect this shape (its own docstring says so); 3 of the 10 declared sources are "
+        f"exactly this shape. Sampled, not exhaustive — newest file per family, capped decode "
+        f"budget — so a MISS is expected and a zero here is never proof the registry is "
+        f"complete. Run scripts/settlement_source_recall_audit.py for the exhaustive answer, "
+        f"which also reports what declaring the family would be WORTH (label counts are not "
+        f"edge: the 2026-08-15 audit found 367 net-new labels worth 8 depth legs). Declaring a "
+        f"source changes a resolver every past verdict leaned on, so it is a considered change "
+        f"with the two-agent rule, never an automatic one. Advisory only — does NOT affect the "
+        f"exit code. See kb/lessons/00-lessons.md L300/L358."
+    )
+
+
 # ─── Dead collector-leg advisory (L117/L129 recurrence: non-gating, offline-safe) ──
 #
 # The live data pipe runs TWO staggered collectors (VPS cron :23 UTC, cloud `kalshi-collector`
@@ -6205,6 +6330,17 @@ def main() -> int:
                 sys.stderr.write(unreach_warning + "\n")
         except BaseException:
             sys.stderr.write("note: gate-hour reachability advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
+        # L300/L358 advisory: a committed tape family carrying market outcomes the sanctioned
+        # resolver cannot see. Same non-gating, exception-swallowing posture as the stanzas
+        # above — the trigger is a data condition and the repair is a considered registry change.
+        try:
+            undeclared_warning = undeclared_result_family_warning(
+                _undeclared_result_family_issues())
+            if undeclared_warning:
+                sys.stderr.write(undeclared_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: undeclared-result-family advisory could not be computed "
                              "(non-gating; exit code unaffected)\n")
         # L117/L129 advisory: one of the two staggered collector legs (VPS :23 / cloud :53)
         # apparently dead — computed from committed tape's captured_at minute buckets. Loud but

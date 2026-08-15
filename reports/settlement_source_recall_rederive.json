@@ -1,0 +1,235 @@
+{
+ "candidate_labels": 371,
+ "candidate_series": [
+  "KXNBAGAME",
+  "KXWCGAME"
+ ],
+ "candidates_landing_on_depth_legs": 12,
+ "candidates_landing_on_price_legs": 42,
+ "declared_source_files_mentioning_candidate_series": {
+  "KXNBAGAME": 0,
+  "KXWCGAME": 2
+ },
+ "n_depth_legs": 110632,
+ "n_price_legs": 11663,
+ "per_family": {
+  "anomalies": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 254,
+   "n_terminal_status_nodes": 0
+  },
+  "crypto_hourly": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 7890,
+   "n_lines": 1813,
+   "n_terminal_status_nodes": 1569
+  },
+  "crypto_hourly_historical_spot": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 36,
+   "n_terminal_status_nodes": 0
+  },
+  "econ_prints": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 2310,
+   "n_terminal_status_nodes": 1936
+  },
+  "hf_burst": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 10,
+   "n_terminal_status_nodes": 0
+  },
+  "hyperliquid_funding": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 204,
+   "n_terminal_status_nodes": 0
+  },
+  "kalshi_trades": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 213488,
+   "n_terminal_status_nodes": 0
+  },
+  "orderbook_depth": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 467776,
+   "n_terminal_status_nodes": 0
+  },
+  "perp_tape": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 3027,
+   "n_terminal_status_nodes": 0
+  },
+  "polymarket_cpi_pairs": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 1868,
+   "n_terminal_status_nodes": 0
+  },
+  "polymarket_macro_pairs": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 11314,
+   "n_terminal_status_nodes": 0
+  },
+  "polymarket_pairs": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 6369,
+   "n_terminal_status_nodes": 0
+  },
+  "q26_settlement_cache": {
+   "n_binary_labeled_tickers": 448,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 1,
+   "n_terminal_status_nodes": 0
+  },
+  "q27_settlement_cache": {
+   "n_binary_labeled_tickers": 452,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 1,
+   "n_terminal_status_nodes": 0
+  },
+  "q29_settlement_cache": {
+   "n_binary_labeled_tickers": 497,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 1,
+   "n_terminal_status_nodes": 0
+  },
+  "q30_settlement_cache": {
+   "n_binary_labeled_tickers": 155,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 1,
+   "n_terminal_status_nodes": 0
+  },
+  "q42_hl_funding_cache": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 13546,
+   "n_terminal_status_nodes": 0
+  },
+  "q51_settlement_cache": {
+   "n_binary_labeled_tickers": 52,
+   "n_closed_status_nodes": 1,
+   "n_empty_result_nodes": 52,
+   "n_lines": 3,
+   "n_terminal_status_nodes": 128
+  },
+  "q56_settlement_cache": {
+   "n_binary_labeled_tickers": 281,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 1,
+   "n_terminal_status_nodes": 282
+  },
+  "s14_ladder_fillsim": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 6524,
+   "n_terminal_status_nodes": 0
+  },
+  "seed5_funding_cache": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 201,
+   "n_terminal_status_nodes": 0
+  },
+  "settlement_ledger": {
+   "n_binary_labeled_tickers": 10605,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 10605,
+   "n_terminal_status_nodes": 0
+  },
+  "sports_clv": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 104,
+   "n_terminal_status_nodes": 0
+  },
+  "sports_clv_s7": {
+   "n_binary_labeled_tickers": 167,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 168,
+   "n_terminal_status_nodes": 0
+  },
+  "sports_history": {
+   "n_binary_labeled_tickers": 341,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 308,
+   "n_terminal_status_nodes": 0
+  },
+  "sports_history_s7": {
+   "n_binary_labeled_tickers": 291,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 97,
+   "n_terminal_status_nodes": 0
+  },
+  "sports_maker_fillsim": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 237,
+   "n_terminal_status_nodes": 0
+  },
+  "sports_pairs": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 31016,
+   "n_lines": 202985,
+   "n_terminal_status_nodes": 0
+  },
+  "universe_sweep": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 1807,
+   "n_empty_result_nodes": 0,
+   "n_lines": 1100000,
+   "n_terminal_status_nodes": 0
+  },
+  "weather_actuals": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 500,
+   "n_terminal_status_nodes": 0
+  },
+  "weather_books": {
+   "n_binary_labeled_tickers": 0,
+   "n_closed_status_nodes": 0,
+   "n_empty_result_nodes": 0,
+   "n_lines": 91256,
+   "n_terminal_status_nodes": 0
+  }
+ },
+ "schema_version": "settlement_source_recall_rederive.v1"
+}
