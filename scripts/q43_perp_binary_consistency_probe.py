@@ -89,6 +89,17 @@ PERP_DAYS_REQUIRED = 7
 # thin window doesn't get silently mistaken for a healthy one the day PERP_DAYS_REQUIRED flips.
 MIN_CAPTURES_PER_DAY_ADVISORY = 10
 
+# The block-bootstrap unit for Q43's FUTURE CI is the market-hour (`event_ticker`) — L6. A
+# calendar gate counts DAYS; a density advisory counts CAPTURES/day; neither counts the unit a
+# bootstrap would actually resample, which is why three consecutive runs could read
+# "CALENDAR GATE OPEN" off a joined population that supports no CI at all (Q37's 2026-08-03
+# "the gate counts the wrong UNIT" defect, one item over). `MIN_BOOTSTRAP_UNITS` is NOT invented
+# here: it is the same >=10-unit `MIN_CI_UNITS` floor (L41's `bootstrap_verdict_admissible`
+# min_units) that q24, q27, q30 and q37 all already carry — verified by grep, not asserted.
+MIN_BOOTSTRAP_UNITS = 10
+# `pearson()`'s own floor, named so the adequacy block can cite it instead of re-declaring it.
+PEARSON_MIN_POINTS = 3
+
 # ── binaries settle on BTC/ETH; the perp covers 13 symbols. Joinable set = the intersection. ──
 BINARY_SYMBOLS = ("BTC", "ETH")
 
@@ -473,6 +484,54 @@ def _change_pairs(joined_by_event: Dict[str, List[Dict[str, Any]]]
     return pairs_by_event
 
 
+def dominant_lead_direction(perp_leads: Dict[str, Any], binary_leads: Dict[str, Any]
+                            ) -> Tuple[Optional[str], str]:
+    """Name a lead direction ONLY when the |rho| comparison is actually decidable.
+
+    `pearson()` returns None for an undefined correlation precisely so a fabricated 0.0 can
+    never be reported — but the first draft of this headline threw that away one function up:
+    it mapped a None rho to the sentinel -1.0 and then compared `>=`, so TWO undefined legs
+    compared equal and the left operand (`perp_leads`) won by argument order. On the real
+    committed tape of 2026-08-15 that is exactly what happened (perp_leads n=2 rho=None,
+    binary_leads n=2 rho=None) and the report printed
+    `dominant lead direction (by |rho|): perp_leads` — a directional claim, the whole premise
+    of the L-speed thesis, decided by nothing. Returns `(direction | None, reason)`; the reason
+    always travels with the value so an UNDETERMINED headline states WHY.
+
+    Four undecidable shapes all return None: both rho undefined, only one defined (there is no
+    two-sided comparison to make), and an exact |rho| tie (whose winner would again be argument
+    order). Pure.
+    """
+    rp, rb = perp_leads.get("rho"), binary_leads.get("rho")
+    np_, nb = perp_leads.get("n"), binary_leads.get("n")
+    if rp is None and rb is None:
+        return None, (
+            f"UNDETERMINED — both lag legs' rho is undefined (perp_leads n={np_}, "
+            f"binary_leads n={nb}; pearson needs >= {PEARSON_MIN_POINTS} points and non-zero "
+            "variance in both series). A None rho is not a 0.0, so naming a direction here "
+            "would fabricate one.")
+    if rp is None or rb is None:
+        defined = "binary_leads" if rp is None else "perp_leads"
+        undef = "perp_leads" if rp is None else "binary_leads"
+        undef_n = np_ if rp is None else nb
+        val = rb if rp is None else rp
+        return None, (
+            f"UNDETERMINED — only {defined} has a defined rho ({val:+.4f}); {undef} is "
+            f"undefined (n={undef_n}). A one-sided comparison cannot name a DOMINANT "
+            "direction; read the defined leg's rho on its own terms instead.")
+    if abs(rp) == abs(rb):
+        return None, (
+            f"UNDETERMINED — exact |rho| tie ({abs(rp):.4f}); any winner would be argument "
+            "order, not evidence.")
+    if abs(rp) > abs(rb):
+        return "perp_leads", (
+            f"perp_leads |rho|={abs(rp):.4f} > binary_leads |rho|={abs(rb):.4f} "
+            f"(n={np_} vs {nb}) — headline only; both legs' LOO recomputes are reported.")
+    return "binary_leads", (
+        f"binary_leads |rho|={abs(rb):.4f} > perp_leads |rho|={abs(rp):.4f} "
+        f"(n={nb} vs {np_}) — headline only; both legs' LOO recomputes are reported.")
+
+
 def lead_lag(joined_by_event: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
     """Contemporaneous + lag±1 cross-correlation of perp vs binary level changes, each reported
     WITH its L57 leave-one-out recompute. `perp_leads` correlates perp change[t-1] with binary
@@ -506,10 +565,7 @@ def lead_lag(joined_by_event: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]
     perp_leads = _dir(perp_lead_x, perp_lead_y)
     binary_leads = _dir(bin_lead_x, bin_lead_y)
 
-    # Which lead direction dominates on |rho| (headline only — both recomputes are always shown).
-    def _abs(d: Dict[str, Any]) -> float:
-        return abs(d["rho"]) if d["rho"] is not None else -1.0
-    dominant = "perp_leads" if _abs(perp_leads) >= _abs(binary_leads) else "binary_leads"
+    dominant, dominant_reason = dominant_lead_direction(perp_leads, binary_leads)
 
     return {
         "n_events": len(pairs_by_event),
@@ -517,6 +573,7 @@ def lead_lag(joined_by_event: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]
         "perp_leads": perp_leads,
         "binary_leads": binary_leads,
         "dominant_lead_direction": dominant,
+        "dominant_lead_direction_reason": dominant_reason,
     }
 
 
@@ -653,6 +710,80 @@ def build_coherence_runs(joined_by_event: Dict[str, List[Dict[str, Any]]], *,
 
 
 # --------------------------------------------------------------------------- #
+# analysis-population adequacy (the unit the FUTURE bootstrap would resample)
+# --------------------------------------------------------------------------- #
+def population_adequacy(join_meta: Dict[str, Any], lead_lag_rep: Dict[str, Any],
+                        coherence_rep: Dict[str, Any], *,
+                        min_bootstrap_units: int = MIN_BOOTSTRAP_UNITS) -> Dict[str, Any]:
+    """Measure the population Q43's two legs would actually bootstrap, and say plainly whether
+    it clears the floors — separately per leg, never as one blended verdict.
+
+    This exists because "the calendar gate is open" and "the analysis is powered" are different
+    claims, and this probe reported only the first. Its gate counts perp_tape DAY-FILES; its
+    advisory counts CAPTURES/day; the block-bootstrap unit is the MARKET-HOUR (`event_ticker`,
+    L6), and nothing counted that. Descriptive only — this returns counts and booleans, never a
+    CI, a P&L or a verdict. Pure (no I/O)."""
+    n_joined = join_meta.get("n_joined") or 0
+    n_joined_units = join_meta.get("n_events") or 0
+    n_ll_units = lead_lag_rep.get("n_events") or 0
+    legs: Dict[str, Any] = {}
+    for key in ("contemporaneous", "perp_leads", "binary_leads"):
+        leg = lead_lag_rep.get(key) or {}
+        n = leg.get("n") or 0
+        legs[key] = {
+            "n_pairs": n,
+            "rho_defined": leg.get("rho") is not None,
+            "meets_pearson_floor": n >= PEARSON_MIN_POINTS,
+        }
+    reasons: List[str] = []
+    if n_ll_units < min_bootstrap_units:
+        reasons.append(
+            f"lead-lag: {n_ll_units} market-hour(s) contribute a change-pair, below the "
+            f"{min_bootstrap_units}-unit block-bootstrap floor "
+            f"(joined population is {n_joined} snapshot(s) over {n_joined_units} market-hour(s), "
+            f"{_per_unit(n_joined, n_joined_units)} per unit — a unit with one snapshot yields "
+            "no consecutive-change pair at all)")
+    undefined = [k for k, v in legs.items() if not v["rho_defined"]]
+    if undefined:
+        reasons.append(
+            f"lead-lag: {len(undefined)} of 3 leg(s) have an UNDEFINED rho ({', '.join(undefined)}) "
+            f"— below pearson's {PEARSON_MIN_POINTS}-point floor or zero-variance")
+    n_exec = coherence_rep.get("n_executable_runs") or 0
+    n_fee = coherence_rep.get("n_fee_clearing_dislocations") or 0
+    n_unmeasurable = coherence_rep.get("n_depth_unmeasurable") or 0
+    if n_exec < min_bootstrap_units:
+        reasons.append(
+            f"coherence: {n_exec} executable dislocation run(s), below the "
+            f"{min_bootstrap_units}-unit floor ({n_fee} fee-clearing dislocation(s), of which "
+            f"{n_unmeasurable} are depth-UNMEASURABLE — no at-touch size in this tape, so they "
+            "are 'not checkable', never 'checked and fillable')")
+    lead_lag_adequate = n_ll_units >= min_bootstrap_units and not undefined
+    coherence_adequate = n_exec >= min_bootstrap_units
+    return {
+        "bootstrap_unit": "market-hour (event_ticker) — L6",
+        "min_bootstrap_units": min_bootstrap_units,
+        "pearson_min_points": PEARSON_MIN_POINTS,
+        "n_joined_snapshots": n_joined,
+        "n_joined_market_hours": n_joined_units,
+        "joined_snapshots_per_market_hour": _per_unit(n_joined, n_joined_units),
+        "n_lead_lag_market_hours": n_ll_units,
+        "legs": legs,
+        "n_executable_runs": n_exec,
+        "lead_lag_adequate": lead_lag_adequate,
+        "coherence_adequate": coherence_adequate,
+        "adequate": lead_lag_adequate and coherence_adequate,
+        "reasons": reasons,
+    }
+
+
+def _per_unit(n: int, units: int) -> Optional[float]:
+    """n/units rounded to 2dp, or None when there are no units (never a fabricated 0.0)."""
+    if not units:
+        return None
+    return round(n / units, 2)
+
+
+# --------------------------------------------------------------------------- #
 # orchestration (gated)
 # --------------------------------------------------------------------------- #
 def run_probe(perp_glob: str = PERP_GLOB, crypto_glob: str = CRYPTO_GLOB) -> Dict[str, Any]:
@@ -695,6 +826,13 @@ def run_probe(perp_glob: str = PERP_GLOB, crypto_glob: str = CRYPTO_GLOB) -> Dic
     report["join_meta"] = join_meta
     report["lead_lag"] = lead_lag(joined_by_event)
     report["coherence"] = build_coherence_runs(joined_by_event)
+    report["population_adequacy"] = population_adequacy(
+        join_meta, report["lead_lag"], report["coherence"])
+    if not report["population_adequacy"]["adequate"]:
+        report["note"] += (
+            " POPULATION-INADEQUATE: the calendar gate is open but the joined population does "
+            "not clear the floors the future CI needs — see `population_adequacy.reasons`. The "
+            "numbers below are descriptive counts, not a powered result.")
     return report
 
 
@@ -740,7 +878,10 @@ def print_report(rep: Dict[str, Any]) -> None:
     print(f"  contemporaneous : {_fmt_rho(ll['contemporaneous'])}")
     print(f"  perp_leads      : {_fmt_rho(ll['perp_leads'])}")
     print(f"  binary_leads    : {_fmt_rho(ll['binary_leads'])}")
-    print(f"  dominant lead direction (by |rho|): {ll['dominant_lead_direction']}")
+    dom = ll.get("dominant_lead_direction")
+    print(f"  dominant lead direction (by |rho|): {dom if dom is not None else 'UNDETERMINED'}")
+    if ll.get("dominant_lead_direction_reason"):
+        print(f"    {ll['dominant_lead_direction_reason']}")
 
     co = rep["coherence"]
     print(f"\nCOHERENCE (near-expiry <= {co['near_expiry_seconds']:.0f}s; depth floor "
@@ -751,6 +892,21 @@ def print_report(rep: Dict[str, Any]) -> None:
     print(f"  depth>=floor              : {co['n_depth_ok']}")
     print(f"  runs collapsed            : {co['n_runs_total']}")
     print(f"  EXECUTABLE (depth x duration cleared): {co['n_executable_runs']}")
+    pa = rep.get("population_adequacy")
+    if pa:
+        print(f"\nPOPULATION ADEQUACY (unit: {pa['bootstrap_unit']}; floor "
+              f"{pa['min_bootstrap_units']} units)")
+        print(f"  joined: {pa['n_joined_snapshots']} snapshot(s) over "
+              f"{pa['n_joined_market_hours']} market-hour(s) "
+              f"({pa['joined_snapshots_per_market_hour']} per unit)")
+        print(f"  lead-lag units (>=1 change pair): {pa['n_lead_lag_market_hours']}   "
+              f"executable coherence runs: {pa['n_executable_runs']}")
+        for leg, d in pa["legs"].items():
+            print(f"    {leg:<16} n_pairs={d['n_pairs']:<5} rho_defined={d['rho_defined']}")
+        print(f"  lead_lag_adequate={pa['lead_lag_adequate']}  "
+              f"coherence_adequate={pa['coherence_adequate']}  ADEQUATE={pa['adequate']}")
+        for r in pa["reasons"]:
+            print(f"    - {r}")
     print("\n(prep only — no bootstrap CI, no tick/admissibility gate, no verdict here)")
 
 
