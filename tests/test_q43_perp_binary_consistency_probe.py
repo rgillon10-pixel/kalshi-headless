@@ -16,7 +16,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.q43_perp_binary_consistency_probe import (
+    MIN_BOOTSTRAP_UNITS,
     MIN_CAPTURES_PER_DAY_ADVISORY,
+    PEARSON_MIN_POINTS,
     NO_QUOTE_SENTINEL_FLOOR,
     PERP_DAYS_REQUIRED,
     _perp_capture_density,
@@ -31,7 +33,10 @@ from scripts.q43_perp_binary_consistency_probe import (
     load_perp_bbo,
     loo_min_abs_rho,
     pearson,
+    _per_unit,
+    dominant_lead_direction,
     perp_symbol_from_ticker,
+    population_adequacy,
     run_probe,
 )
 
@@ -452,3 +457,146 @@ def test_no_quote_sentinel_floor_below_the_real_venue_sentinel():
     real_venue_sentinel = 9223372036854775807 / 1e4
     assert NO_QUOTE_SENTINEL_FLOOR < real_venue_sentinel
     assert NO_QUOTE_SENTINEL_FLOOR > 1e5   # far above any plausible BTC/ETH perp bid/ask
+
+
+# --------------------------------------------------------------------------- #
+# (G) the dominant-lead-direction honesty contract + analysis-population adequacy
+#     (2026-08-15 research loop, idle-run policy (b)/(a) — see kb/lessons L357)
+#
+# Hard assertions live over FIXTURES (the L201/L207 move); the single real-tree test at the
+# end is STRUCTURAL/conditional by design so a growing tape can never make it brittle.
+# --------------------------------------------------------------------------- #
+def _leg(n, rho):
+    return {"n": n, "rho": rho, "loo_dropped_index": None, "loo_rho": None}
+
+
+def test_dominant_direction_is_undetermined_when_both_rho_are_undefined():
+    """THE REGRESSION PIN. The first draft mapped a None rho to the sentinel -1.0 and compared
+    `>=`, so two UNDEFINED legs compared equal and `perp_leads` won by argument order alone.
+    Observed live on real committed tape 2026-08-15 (perp_leads n=2 rho=None, binary_leads n=2
+    rho=None) printing `dominant lead direction (by |rho|): perp_leads`."""
+    direction, reason = dominant_lead_direction(_leg(2, None), _leg(2, None))
+    assert direction is None
+    assert "UNDETERMINED" in reason
+    assert "n=2" in reason and str(PEARSON_MIN_POINTS) in reason
+    # and the argument order must not decide it either way
+    assert dominant_lead_direction(_leg(2, None), _leg(0, None))[0] is None
+
+
+def test_dominant_direction_is_undetermined_when_only_one_rho_is_defined():
+    """A one-sided comparison cannot name a DOMINANT direction — in either argument slot."""
+    d1, r1 = dominant_lead_direction(_leg(14, 0.62), _leg(2, None))
+    d2, r2 = dominant_lead_direction(_leg(2, None), _leg(14, -0.62))
+    assert d1 is None and d2 is None
+    assert "only perp_leads has a defined rho" in r1 and "+0.6200" in r1
+    assert "only binary_leads has a defined rho" in r2 and "-0.6200" in r2
+
+
+def test_dominant_direction_is_undetermined_on_an_exact_abs_rho_tie():
+    """A tie's winner would be argument order, not evidence — including a sign-flipped tie."""
+    direction, reason = dominant_lead_direction(_leg(9, 0.4), _leg(9, -0.4))
+    assert direction is None
+    assert "tie" in reason and "0.4000" in reason
+
+
+def test_dominant_direction_names_the_larger_abs_rho_in_both_directions():
+    d1, r1 = dominant_lead_direction(_leg(9, -0.71), _leg(9, 0.30))
+    d2, r2 = dominant_lead_direction(_leg(9, 0.10), _leg(9, 0.30))
+    assert d1 == "perp_leads" and "0.7100" in r1 and "headline only" in r1
+    assert d2 == "binary_leads" and "0.3000" in r2
+
+
+def test_lead_lag_carries_the_reason_beside_every_dominant_value():
+    """The reason must travel with the value on the lead_lag report itself — an UNDETERMINED
+    headline with no stated cause is the same unfalsifiable claim in a different shape."""
+    base = datetime(2026, 7, 20, 0, 0, tzinfo=UTC)
+    snaps = [{"symbol": "BTC", "event_ticker": "KXBTC-26JUL1921",
+              "captured_at": base + timedelta(minutes=i), "close_utc": None,
+              "ttc_seconds": None, "perp_implied": p, "binary_level": b,
+              "spacing": 100.0, "members": []}
+             for i, (p, b) in enumerate(zip([100.0, 101.0, 102.0], [100.0, 101.5, 102.5]))]
+    ll = lead_lag({"KXBTC-26JUL1921": snaps})
+    assert ll["perp_leads"]["n"] == 1 and ll["perp_leads"]["rho"] is None
+    assert ll["dominant_lead_direction"] is None
+    assert "UNDETERMINED" in ll["dominant_lead_direction_reason"]
+
+
+def test_per_unit_is_none_with_no_units_never_a_fabricated_zero():
+    assert _per_unit(0, 0) is None
+    assert _per_unit(100, 83) == 1.2
+
+
+def test_population_adequacy_flags_a_thin_join_and_undefined_legs():
+    """The calendar gate counts DAY-FILES and the density advisory counts CAPTURES/day; neither
+    counts the market-hour the future block-bootstrap would resample (L6)."""
+    jm = {"n_joined": 100, "n_events": 83}
+    ll = {"n_events": 4, "contemporaneous": _leg(14, 0.35),
+          "perp_leads": _leg(2, None), "binary_leads": _leg(2, None)}
+    co = {"n_executable_runs": 0, "n_fee_clearing_dislocations": 12, "n_depth_unmeasurable": 12}
+    pa = population_adequacy(jm, ll, co)
+    assert pa["adequate"] is False
+    assert pa["lead_lag_adequate"] is False and pa["coherence_adequate"] is False
+    assert pa["n_joined_market_hours"] == 83 and pa["joined_snapshots_per_market_hour"] == 1.2
+    assert pa["min_bootstrap_units"] == MIN_BOOTSTRAP_UNITS
+    assert pa["legs"]["contemporaneous"]["rho_defined"] is True
+    assert pa["legs"]["perp_leads"]["rho_defined"] is False
+    joined_reasons = " | ".join(pa["reasons"])
+    assert "block-bootstrap floor" in joined_reasons        # unit floor, not day floor
+    assert "UNDEFINED rho" in joined_reasons
+    # a depth-unmeasurable dislocation is "not checkable", never "checked and fillable" (L216)
+    assert "depth-UNMEASURABLE" in joined_reasons
+
+
+def test_population_adequacy_is_true_only_when_both_legs_clear_their_floors():
+    jm = {"n_joined": 900, "n_events": 40}
+    ll = {"n_events": 30, "contemporaneous": _leg(120, 0.4),
+          "perp_leads": _leg(90, 0.2), "binary_leads": _leg(90, 0.1)}
+    co = {"n_executable_runs": 11, "n_fee_clearing_dislocations": 40, "n_depth_unmeasurable": 0}
+    pa = population_adequacy(jm, ll, co)
+    assert pa["adequate"] is True and pa["reasons"] == []
+    # one leg short of the floor is enough to fail the whole population
+    co_thin = dict(co, n_executable_runs=MIN_BOOTSTRAP_UNITS - 1)
+    assert population_adequacy(jm, ll, co_thin)["adequate"] is False
+    ll_thin = dict(ll, n_events=MIN_BOOTSTRAP_UNITS - 1)
+    assert population_adequacy(jm, ll_thin, co)["adequate"] is False
+
+
+def test_run_probe_states_population_inadequate_in_its_own_note(tmp_path):
+    """End-to-end over the same tmp fixture shape as the gate-open test: an open calendar gate
+    must NOT read as a powered analysis."""
+    perp_dir = tmp_path / "perp"
+    crypto_dir = tmp_path / "crypto"
+    perp_dir.mkdir()
+    crypto_dir.mkdir()
+    for i in range(PERP_DAYS_REQUIRED):
+        day = datetime(2026, 7, 17, tzinfo=UTC) + timedelta(days=i)
+        rec = {"record_type": "markets", "capture_id": f"2026071{i}T000000Z",
+               "captured_at": day.isoformat(),
+               "markets": [{"ticker": "KXBTCPERP", "yes_bid_dollars": 100.0,
+                            "yes_ask_dollars": 100.5}]}
+        (perp_dir / f"dt={day.date()}.jsonl").write_text(json.dumps(rec) + "\n")
+    rep = run_probe(str(perp_dir / "dt=*.jsonl"), str(crypto_dir / "dt=*.jsonl"))
+    assert rep["status"] == "ANALYSIS"
+    assert rep["population_adequacy"]["adequate"] is False
+    assert "POPULATION-INADEQUATE" in rep["note"]
+    assert "not a powered result" in rep["note"]
+
+
+def test_real_tree_never_names_a_lead_direction_whose_rho_is_undefined():
+    """STRUCTURAL/conditional over the REAL committed tape (L192/L207): the tape grows daily, so
+    this pins the CONTRACT, not a count. Whatever today's numbers are, a direction may be named
+    only when BOTH lag legs have a defined rho and they do not tie."""
+    rep = run_probe()
+    if rep.get("status") != "ANALYSIS":
+        return  # gate closed on this checkout — nothing to assert, honestly reported
+    ll = rep["lead_lag"]
+    rp, rb = ll["perp_leads"]["rho"], ll["binary_leads"]["rho"]
+    dom = ll["dominant_lead_direction"]
+    if rp is None or rb is None or abs(rp) == abs(rb):
+        assert dom is None
+    else:
+        assert dom in ("perp_leads", "binary_leads")
+    assert ll["dominant_lead_direction_reason"]
+    pa = rep["population_adequacy"]
+    assert set(pa["legs"]) == {"contemporaneous", "perp_leads", "binary_leads"}
+    assert (pa["adequate"] is True) == (not pa["reasons"])
