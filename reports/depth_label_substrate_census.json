@@ -1,0 +1,183 @@
+{
+ "cross_source_overlap": {
+  "agreement_rate_computable": false,
+  "n_embedded_crypto": 60874,
+  "n_naive_union": 10941,
+  "n_overlap": 0
+ },
+ "fill_observability": {
+  "crypto": {
+   "frac_legs_with_ge_2_snapshots": 0.3825,
+   "max_snapshots_per_leg": 3,
+   "mean_snapshots_per_leg": 1.403,
+   "median_snapshots_per_leg": 1.0,
+   "n_legs": 101060,
+   "n_legs_with_ge_2_snapshots": 38658
+  },
+  "other": {
+   "frac_legs_with_ge_2_snapshots": null,
+   "max_snapshots_per_leg": null,
+   "mean_snapshots_per_leg": null,
+   "median_snapshots_per_leg": null,
+   "n_legs": 0,
+   "n_legs_with_ge_2_snapshots": 0
+  },
+  "sports": {
+   "frac_legs_with_ge_2_snapshots": 0.9622,
+   "max_snapshots_per_leg": 375,
+   "mean_snapshots_per_leg": 33.7059,
+   "median_snapshots_per_leg": 20.0,
+   "n_legs": 9553,
+   "n_legs_with_ge_2_snapshots": 9192
+  }
+ },
+ "floors": {
+  "MIN_DISTINCT_DAYS": 5,
+  "MIN_READY_UNITS": 30,
+  "MIN_SNAPSHOTS_PER_UNIT": 2
+ },
+ "label_coverage": {
+  "by_class": {
+   "crypto": {
+    "n_listed_unsettled": 0,
+    "n_non_binary": 0,
+    "n_resolved": 61052,
+    "n_resolved_by_naive_union": 178,
+    "n_snapshots": 141784,
+    "n_tickers": 101060,
+    "n_unresolved": 40008,
+    "resolved_by_source": {
+     "crypto_hourly": 60874,
+     "q56_settlement_cache": 178
+    }
+   },
+   "other": {
+    "n_listed_unsettled": 0,
+    "n_non_binary": 0,
+    "n_resolved": 0,
+    "n_resolved_by_naive_union": 0,
+    "n_snapshots": 0,
+    "n_tickers": 0,
+    "n_unresolved": 0,
+    "resolved_by_source": {}
+   },
+   "sports": {
+    "n_listed_unsettled": 1,
+    "n_non_binary": 14,
+    "n_resolved": 659,
+    "n_resolved_by_naive_union": 659,
+    "n_snapshots": 321992,
+    "n_tickers": 9553,
+    "n_unresolved": 8879,
+    "resolved_by_source": {
+     "q51_settlement_cache": 54,
+     "settlement_ledger": 605
+    }
+   }
+  },
+  "n_resolved_naive_union_only": 837,
+  "n_resolved_total": 61711,
+  "naive_union_undercount_factor": 73.73,
+  "per_source_hits": {
+   "crypto_hourly": 60874,
+   "econ_prints": 0,
+   "q26_settlement_cache": 0,
+   "q27_settlement_cache": 0,
+   "q29_settlement_cache": 0,
+   "q30_settlement_cache": 0,
+   "q51_settlement_cache": 54,
+   "q56_settlement_cache": 178,
+   "settlement_ledger": 605,
+   "weather_actuals": 0
+  },
+  "sources_absent_on_disk": [],
+  "sources_declared": [
+   "settlement_ledger",
+   "q26_settlement_cache",
+   "q27_settlement_cache",
+   "q29_settlement_cache",
+   "q30_settlement_cache",
+   "q51_settlement_cache",
+   "q56_settlement_cache",
+   "crypto_hourly",
+   "weather_actuals",
+   "econ_prints"
+  ]
+ },
+ "ladder_coherence": {
+  "n_exactly_one_yes": 872,
+  "n_ladders_checked": 872,
+  "n_violations": 0,
+  "violation_examples": []
+ },
+ "population": {
+  "n_day_files": 39,
+  "n_malformed_lines": 0,
+  "n_snapshots": 463776,
+  "n_tickers": 110613
+ },
+ "schema_version": "depth_label_substrate_census.v1",
+ "tape_root": "/home/user/kalshi-headless/tape",
+ "unit_readiness": {
+  "crypto": {
+   "median_snapshots_per_ready_unit": 188.0,
+   "n_distinct_ready_days": 17,
+   "n_fully_labeled": 418,
+   "n_partially_labeled": 178,
+   "n_probe_ready": 418,
+   "n_units": 620,
+   "n_unlabeled": 24,
+   "ready_day_span": [
+    "2026-07-07",
+    "2026-08-12"
+   ]
+  },
+  "other": {
+   "median_snapshots_per_ready_unit": null,
+   "n_distinct_ready_days": 0,
+   "n_fully_labeled": 0,
+   "n_partially_labeled": 0,
+   "n_probe_ready": 0,
+   "n_units": 0,
+   "n_unlabeled": 0,
+   "ready_day_span": []
+  },
+  "sports": {
+   "median_snapshots_per_ready_unit": 132.0,
+   "n_distinct_ready_days": 8,
+   "n_fully_labeled": 224,
+   "n_partially_labeled": 160,
+   "n_probe_ready": 224,
+   "n_units": 3542,
+   "n_unlabeled": 3158,
+   "ready_day_span": [
+    "2026-07-07",
+    "2026-07-15"
+   ]
+  }
+ },
+ "verdict": {
+  "crypto": {
+   "binding_shortfall": [],
+   "n_distinct_ready_days": 17,
+   "n_probe_ready": 418,
+   "verdict": "SUBSTRATE-ADEQUATE"
+  },
+  "other": {
+   "binding_shortfall": [
+    "n_probe_ready=0 < MIN_READY_UNITS=30",
+    "n_distinct_ready_days=0 < MIN_DISTINCT_DAYS=5"
+   ],
+   "n_distinct_ready_days": 0,
+   "n_probe_ready": 0,
+   "verdict": "SUBSTRATE-INADEQUATE"
+  },
+  "sports": {
+   "binding_shortfall": [],
+   "n_distinct_ready_days": 8,
+   "n_probe_ready": 224,
+   "verdict": "SUBSTRATE-ADEQUATE"
+  }
+ },
+ "verdict_caveat": "LABEL adequacy only, at the pre-registered floors. `fill_observability` reports the per-leg observability half separately and was measured POST-HOC; a class can be SUBSTRATE-ADEQUATE here and still be unable to host a fill-sim (L353)."
+}
