@@ -748,6 +748,16 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
     "scripts/q57_s82_rederive.py":
         "ORDER-INSENSITIVE: same reason as the probe it re-derives — its own flow loop sums "
         "signed `count` over a window and selects no individual print.",
+    "scripts/q57b_s82_cache_anchored_probe.py":
+        "ORDER-INSENSITIVE (INHERITED, and independently true): this module reaches prints "
+        "only through `q57_s82_flow_fade_probe`'s `load_prints`/`window_flow`, which SUM "
+        "signed `count` over a time window — a sum is invariant to the ordering of "
+        "exact-timestamp ties. The inheritance is not relied on alone: nothing this module "
+        "adds selects an individual print either. The union close-time anchor reads "
+        "`settlement_ledger`/`q51_settlement_cache` (not the print tape); the entry price "
+        "comes from `orderbook_depth` `best_*_ask`; and the concentration/calibration checks "
+        "operate on already-aggregated PER-UNIT values, never on prints. `yes_price`/"
+        "`no_price`/`trade_id` are never read anywhere in the module.",
 
     # ---- the writer whose append order IS the incidental tie-break ----
     "collection/kalshi_trades.py":
@@ -911,6 +921,19 @@ MINORITY_SIDE_GATE_TRIAGE: Dict[str, str] = {
         "`sign_variation_admissible` floors on the EXCLUSIVE count. Sibling to "
         "`bootstrap_verdict_admissible` (L41) and `clears_tick_magnitude` (L27).",
 
+    "scripts/q57b_s82_cache_anchored_probe.py":
+        "EXCLUSIVE — `population_report` delegates to `core.bootstrap.sign_variation_"
+        "admissible` at `min_exclusive_minority_units=2`, the library's REAL default, so the "
+        "floor is on the EXCLUSIVE count. Raising it from the sibling probe's 1 is the "
+        "specific correction this Q57 reopen path (b) exists to make: 1 was an undisclosed "
+        "relaxation of the default. The floors are EXPLICIT KEYWORD ARGUMENTS rather than "
+        "module globals precisely so that no caller can move the gate by rebinding another "
+        "module's global, and `test_population_report_floors_are_explicit_kwargs_not_module_"
+        "globals` pins both branches. Every GAME unit in this population carries exactly one "
+        "entry, so touching and exclusive coincide here; the exclusive helper is used anyway "
+        "so a future multi-entry unit cannot silently reintroduce L321's gap. The gate is "
+        "load-bearing: it is what made a CI reachable at all (12 game units, {no:10, yes:2}, "
+        "2 exclusive minority units — the first admissible S82 population).",
     "scripts/q57_s82_flow_fade_probe.py":
         "EXCLUSIVE — `population_report` and `sign_variation_sensitivity` both delegate to "
         "`core.bootstrap.sign_variation_admissible` (min_exclusive_minority_units=1, Q57's "

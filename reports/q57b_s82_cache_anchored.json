@@ -1,0 +1,661 @@
+{
+  "admissibility": {
+    "admissible": true,
+    "n_opposing_units": 5,
+    "n_units": 12,
+    "reasons": []
+  },
+  "anchor_provenance": {
+    "cache_mutation_census": {
+      "max_distinct_close_times": 2,
+      "n_tickers_in_cache_and_traded": 38,
+      "n_with_multiple_close_times": 27
+    },
+    "ledger_close_time_distinct_values_max": 1,
+    "multivalue_pick": "earliest",
+    "n_added_by_cache": 38,
+    "n_from_q51_settlement_cache": 38,
+    "n_from_settlement_ledger": 49,
+    "n_in_both": 0,
+    "n_union": 87,
+    "precedence": "settlement_ledger"
+  },
+  "bootstrap": {
+    "ci95": [
+      -0.010833333333333334,
+      0.2783333333333334
+    ],
+    "mean": 0.12083333333333333,
+    "n_boot": 10000,
+    "n_obs": 12,
+    "n_units": 12,
+    "seed": 42
+  },
+  "clears_tick_magnitude": false,
+  "close_time_cross_family_audit": {
+    "example": [
+      "KXAFLGAME-26AUG060530NMKBUL-BUL",
+      [
+        "2026-08-06T12:09:30Z",
+        "2026-08-20T09:30:00Z"
+      ]
+    ],
+    "family": "q51_settlement_cache",
+    "n_tickers_seen": 60,
+    "n_with_multiple_close_times": 48,
+    "note": "close_time IS rewritten across captures (L360/L361, always EARLIER). The settlement_ledger-only check in `substrate` cannot see this and must not be read as evidence that the entry anchor was knowable ex ante."
+  },
+  "concentration_and_calibration": {
+    "calibration_null": {
+      "calibrated_null_mean_pnl": -0.014167,
+      "excess_wins": 1.62,
+      "expected_fade_wins_if_asks_calibrated": 5.38,
+      "n_obs": 12,
+      "note": "The dollar mean is this excess-win count divided by n. Quoting it as a per-contract dollar figure hides that it rests on a small integer number of binary events.",
+      "observed_fade_wins": 7,
+      "price_source_tag": "real_ask"
+    },
+    "jackknife": {
+      "fits": [
+        {
+          "ci95": [
+            -0.005454545454545454,
+            0.30090909090909085
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXBRASILEIROCGAME-26JUL11CAXFLO",
+          "mean": 0.13727272727272727
+        },
+        {
+          "ci95": [
+            -0.031818181818181815,
+            0.27636363636363637
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXDIMAYORGAME-26AUG02SFEOC",
+          "mean": 0.11000000000000001
+        },
+        {
+          "ci95": [
+            -0.03636363636363636,
+            0.25818181818181823
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXEKSTRAKLASAGAME-26AUG03CRAPSZ",
+          "mean": 0.09545454545454546
+        },
+        {
+          "ci95": [
+            -0.0027272727272727284,
+            0.30090909090909085
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXKBOGAME-26JUL070530KIWKTW",
+          "mean": 0.1381818181818182
+        },
+        {
+          "ci95": [
+            0.0027272727272727297,
+            0.3027272727272727
+          ],
+          "ci_lower_gt_zero": true,
+          "dropped_unit": "KXKLEAGUEGAME-26JUL11GISBUC",
+          "mean": 0.14181818181818184
+        },
+        {
+          "ci95": [
+            0.023636363636363636,
+            0.30636363636363634
+          ],
+          "ci_lower_gt_zero": true,
+          "dropped_unit": "KXMLBGAME-26JUL061915NYMATL",
+          "mean": 0.15181818181818182
+        },
+        {
+          "ci95": [
+            -0.030000000000000002,
+            0.27999999999999997
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXMLBGAME-26JUL061945MILSTL",
+          "mean": 0.10909090909090909
+        },
+        {
+          "ci95": [
+            -0.0063636363636363664,
+            0.3009090909090909
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXNPBGAME-26JUL070500FUKORI",
+          "mean": 0.13454545454545455
+        },
+        {
+          "ci95": [
+            -0.017272727272727273,
+            0.2945454545454546
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXNPBGAME-26JUL070500HANYOM",
+          "mean": 0.1263636363636364
+        },
+        {
+          "ci95": [
+            -0.03727272727272728,
+            0.16818181818181818
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXNWSLGAME-26AUG02DENBOS",
+          "mean": 0.06272727272727273
+        },
+        {
+          "ci95": [
+            -0.023636363636363636,
+            0.29
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXNWSLGAME-26JUL10BOSCHI",
+          "mean": 0.1190909090909091
+        },
+        {
+          "ci95": [
+            -0.019999999999999997,
+            0.2945454545454545
+          ],
+          "ci_lower_gt_zero": false,
+          "dropped_unit": "KXUSLCUPGAME-26JUL11ALTPHO",
+          "mean": 0.12363636363636363
+        }
+      ],
+      "full_mean": 0.120833,
+      "max_single_unit_mean_contribution": 0.058106,
+      "n_leave_one_out_fits": 12,
+      "n_loo_ci_lower_gt_zero": 2,
+      "worst_leave_one_out": {
+        "ci95": [
+          -0.03727272727272728,
+          0.16818181818181818
+        ],
+        "ci_lower_gt_zero": false,
+        "dropped_unit": "KXNWSLGAME-26AUG02DENBOS",
+        "mean": 0.06272727272727273
+      }
+    },
+    "n_units": 12,
+    "price_ordering": {
+      "lose_ask_max": 0.2,
+      "note": "`perfectly_price_ordered` True means every winning unit was entered at a STRICTLY higher real_ask than every losing unit: the outcome split is a restatement of the entry price level and carries no information about the flow signal. Compare the two rank correlations \u2014 if |rho| (the strategy's own statistic) ranks P&L no better than the entry ask does, the signal is inert on this population.",
+      "perfectly_price_ordered": true,
+      "price_source_tag": "real_ask",
+      "spearman_abs_rho_vs_pnl": 0.4196,
+      "spearman_entry_ask_vs_pnl": 0.4685,
+      "win_ask_min": 0.22
+    }
+  },
+  "entry_drops": {
+    "entry_ask_outside_price_band": 11,
+    "entry_snapshot_too_stale": 17,
+    "fade_side_ask_absent": 8,
+    "flow_not_extreme": 9,
+    "no_prints_in_flow_window": 24,
+    "window_count_below_floor": 5
+  },
+  "fee_rate": 0.07,
+  "flow_orientation_audit": {
+    "collinear": true,
+    "combos": {
+      "ask|no": 61494,
+      "bid|yes": 151937
+    },
+    "n_orientation_agreeing": 213431,
+    "n_prints": 213431
+  },
+  "kish_effective_n": {
+    "design_effect": 1.0,
+    "kish_n": 12.0,
+    "n_obs": 12,
+    "n_units": 12
+  },
+  "l51_differentiation": {
+    "entry_price_surfaces_disjoint": true,
+    "n_s82b_distinct_entry_instants": 10,
+    "n_s82b_entries": 12,
+    "s79_decision_rule": "every_60min_utc_grid_instant",
+    "s79_direction": "FOLLOW",
+    "s79_entry_price_family": "kalshi_trades",
+    "s79_entry_price_tag": "broker_truth",
+    "s79_signal_statistic": "absolute_contract_threshold",
+    "s79_window_minutes": 30,
+    "s82b_decision_rule": "last_orderbook_depth_snapshot_at_or_before_close",
+    "s82b_direction": "FADE",
+    "s82b_entry_price_family": "orderbook_depth",
+    "s82b_entry_price_tag": "real_ask",
+    "s82b_signal_statistic": "scale_free_ratio",
+    "s82b_window_minutes": 15.0,
+    "surviving_differentiation_axes": [
+      "disjoint_entry_price_family",
+      "close_anchored_instant_vs_hourly_grid",
+      "scale_free_rho_vs_absolute_threshold"
+    ],
+    "voided": false,
+    "window_axis_note": "At 15 min the window is HALF S79's 30-min lookback, so the first probe's '4x wider window' differentiation argument does NOT carry over and is not relied on here.",
+    "window_ratio": 0.5
+  },
+  "n_fade_wins": 7,
+  "n_game_entries": 12,
+  "n_ticker_candidates": 13,
+  "note": "CI does not clear the real-ask bar (>0 net of fee AND >= 1 tick, L27/L41).",
+  "population": {
+    "admissible": true,
+    "entry_instant_concentration": {
+      "concentrated": false,
+      "entries_per_distinct_instant": 1.2,
+      "flag_share": 0.5,
+      "max_instant_share": 0.16666666666666666,
+      "n_distinct_instants": 10,
+      "n_entries": 12,
+      "n_unit_instant_pairs": 12,
+      "n_units": 12,
+      "n_units_on_top_instant": 2,
+      "no_signal": false,
+      "single_instant": false,
+      "top_instant": "2026-07-07T11:55:53.296454+00:00",
+      "top_instant_count": 2,
+      "unit_share_on_top_instant": 0.16666666666666666
+    },
+    "mean_overround": 0.023636,
+    "meets_unit_floor": true,
+    "min_exclusive_minority_units": 2,
+    "min_units": 10,
+    "n_entries_all": 12,
+    "n_entries_scoreable": 12,
+    "n_game_units": 12,
+    "n_overround_measurable": 11,
+    "price_source_tag": "real_ask",
+    "sign_variation": {
+      "admissible": true,
+      "census": {
+        "exclusive_units_per_side": {
+          "no": 10,
+          "yes": 2
+        },
+        "minority_side": "yes",
+        "minority_side_units_exclusive": 2,
+        "minority_side_units_touching": 2,
+        "n_mixed_units": 0,
+        "n_units": 12,
+        "n_units_unlabelled": 0,
+        "sides": [
+          "no",
+          "yes"
+        ],
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      "min_exclusive_minority_units": 2,
+      "minority_side": "yes",
+      "minority_side_units_exclusive": 2,
+      "minority_side_units_touching": 2,
+      "reasons": []
+    }
+  },
+  "precommitted_claim_check": {
+    "expected": {
+      "minority_exclusive": 2,
+      "n_game_units": 12,
+      "units_per_side": {
+        "no": 10,
+        "yes": 2
+      }
+    },
+    "observed": {
+      "minority_exclusive": 2,
+      "n_game_units": 12,
+      "units_per_side": {
+        "no": 10,
+        "yes": 2
+      }
+    },
+    "reproduced": true,
+    "source": "LOOP-QUEUE.md Q57, newest-dated Status line (independent verifier correction round, 2026-08-16), committed to main at d78c528 before this probe existed"
+  },
+  "preregistration": {
+    "close_anchor": "union(settlement_ledger.close_time, q51_settlement_cache.close_time); settlement_ledger wins where a ticker appears in both",
+    "close_anchor_multivalue_rule": "earliest distinct close_time within the winning source",
+    "direction": "FADE",
+    "entry_instant_rule": "last_orderbook_depth_snapshot_at_or_before_close",
+    "entry_price_band": [
+      0.02,
+      0.98
+    ],
+    "entry_price_field": "best_no_ask if rho>0 else best_yes_ask",
+    "entry_price_source_tag": "real_ask",
+    "exit": "hold_to_settlement",
+    "fee_legs": 1,
+    "fee_side": "taker",
+    "flow_sign_convention": "+count when the taker BUYS yes, -count when the taker buys no",
+    "flow_weight": "count",
+    "flow_window_minutes": 15,
+    "game_ticker_rule": "argmax |rho| over the game's traded tickers; ties -> min(ticker)",
+    "max_entry_lag_minutes": 240,
+    "min_abs_rho": 0.2,
+    "min_exclusive_minority_units": 2,
+    "min_ticks": 1.0,
+    "min_units": 10,
+    "min_window_count": 100.0,
+    "n_boot": 10000,
+    "prereg_source": "LOOP-QUEUE.md Q57, newest-dated Status line (independent verifier correction round, 2026-08-16), committed to main at d78c528 before this probe existed",
+    "prereg_source_commit": "d78c528",
+    "queue_item": "Q57",
+    "reopen_path": "b",
+    "sealed_on": "2026-08-16",
+    "seed": 42,
+    "signal": "rho = net_signed_count / total_count over the window, on one ticker",
+    "strategy": "S82",
+    "tick": 0.01,
+    "unit": "game"
+  },
+  "preregistration_sha256": "eaab11238127ebedb5df61b41427d9ac7881272a7bd7a3a18cb3cc76e63ac595",
+  "price_provenance": {
+    "entry_price_family": "orderbook_depth",
+    "price_source_tag": "real_ask",
+    "prices_quoted": true,
+    "synthetic_prices_used": false
+  },
+  "probe": "q57b_s82_cache_anchored",
+  "queue_item": "Q57",
+  "reopen_path": "b",
+  "robustness_anchors": [
+    {
+      "anchor": "prereg_union_earliest",
+      "ci95": [
+        -0.010833333333333334,
+        0.2783333333333334
+      ],
+      "mean": 0.12083333333333333,
+      "minority_exclusive": 2,
+      "n_added_by_cache": 38,
+      "n_game_units": 12,
+      "price_source_tag": "real_ask",
+      "units_per_side": {
+        "no": 10,
+        "yes": 2
+      }
+    },
+    {
+      "anchor": "union_latest_close_time",
+      "ci95": [
+        -0.010833333333333334,
+        0.2783333333333334
+      ],
+      "mean": 0.12083333333333333,
+      "minority_exclusive": 2,
+      "n_added_by_cache": 38,
+      "n_game_units": 12,
+      "price_source_tag": "real_ask",
+      "units_per_side": {
+        "no": 10,
+        "yes": 2
+      }
+    },
+    {
+      "anchor": "cache_only",
+      "ci95": null,
+      "mean": null,
+      "minority_exclusive": 1,
+      "n_game_units": 3,
+      "note": "population shape only, outcome-blind",
+      "units_per_side": {
+        "no": 2,
+        "yes": 1
+      }
+    },
+    {
+      "anchor": "ledger_only",
+      "ci95": null,
+      "mean": null,
+      "minority_exclusive": 1,
+      "n_game_units": 9,
+      "note": "population shape only, outcome-blind",
+      "units_per_side": {
+        "no": 8,
+        "yes": 1
+      }
+    }
+  ],
+  "scored": [
+    {
+      "entry_ask": 0.05,
+      "entry_captured_at": "2026-07-11T15:55:10.058238+00:00",
+      "entry_lag_minutes": 5.67,
+      "fade_side": "no",
+      "fade_won": false,
+      "fee": 0.01,
+      "game": "KXBRASILEIROCGAME-26JUL11CAXFLO",
+      "overround": 0.03,
+      "pnl": -0.06,
+      "price_source_tag": "real_ask",
+      "rho": 0.642689937572632,
+      "settled_yes": 1,
+      "ticker": "KXBRASILEIROCGAME-26JUL11CAXFLO-TIE",
+      "total_count": 24619.010000000006
+    },
+    {
+      "entry_ask": 0.74,
+      "entry_captured_at": "2026-08-03T00:55:57.567380+00:00",
+      "entry_lag_minutes": 125.51,
+      "fade_side": "no",
+      "fade_won": true,
+      "fee": 0.02,
+      "game": "KXDIMAYORGAME-26AUG02SFEOC",
+      "overround": 0.02,
+      "pnl": 0.24,
+      "price_source_tag": "real_ask",
+      "rho": 0.31923845456914857,
+      "settled_yes": 0,
+      "ticker": "KXDIMAYORGAME-26AUG02SFEOC-OC",
+      "total_count": 3222.9199999999996
+    },
+    {
+      "entry_ask": 0.58,
+      "entry_captured_at": "2026-08-03T15:55:54.106507+00:00",
+      "entry_lag_minutes": 186.7,
+      "fade_side": "no",
+      "fade_won": true,
+      "fee": 0.02,
+      "game": "KXEKSTRAKLASAGAME-26AUG03CRAPSZ",
+      "overround": 0.01,
+      "pnl": 0.4,
+      "price_source_tag": "real_ask",
+      "rho": 1.0,
+      "settled_yes": 0,
+      "ticker": "KXEKSTRAKLASAGAME-26AUG03CRAPSZ-CRA",
+      "total_count": 339.88
+    },
+    {
+      "entry_ask": 0.06,
+      "entry_captured_at": "2026-07-07T11:55:53.296454+00:00",
+      "entry_lag_minutes": 4.08,
+      "fade_side": "yes",
+      "fade_won": false,
+      "fee": 0.01,
+      "game": "KXKBOGAME-26JUL070530KIWKTW",
+      "overround": 0.05,
+      "pnl": -0.07,
+      "price_source_tag": "real_ask",
+      "rho": -0.23132490559842392,
+      "settled_yes": 0,
+      "ticker": "KXKBOGAME-26JUL070530KIWKTW-KIW",
+      "total_count": 243.64
+    },
+    {
+      "entry_ask": 0.1,
+      "entry_captured_at": "2026-07-11T12:23:52.332243+00:00",
+      "entry_lag_minutes": 7.33,
+      "fade_side": "no",
+      "fade_won": false,
+      "fee": 0.01,
+      "game": "KXKLEAGUEGAME-26JUL11GISBUC",
+      "overround": 0.01,
+      "pnl": -0.11,
+      "price_source_tag": "real_ask",
+      "rho": 0.6917296500842725,
+      "settled_yes": 1,
+      "ticker": "KXKLEAGUEGAME-26JUL11GISBUC-TIE",
+      "total_count": 18867.400000000005
+    },
+    {
+      "entry_ask": 0.2,
+      "entry_captured_at": "2026-07-07T02:55:10.810038+00:00",
+      "entry_lag_minutes": 9.19,
+      "fade_side": "no",
+      "fade_won": false,
+      "fee": 0.02,
+      "game": "KXMLBGAME-26JUL061915NYMATL",
+      "overround": 0.01,
+      "pnl": -0.22,
+      "price_source_tag": "real_ask",
+      "rho": 0.27792909879730726,
+      "settled_yes": 1,
+      "ticker": "KXMLBGAME-26JUL061915NYMATL-NYM",
+      "total_count": 958470.0600000006
+    },
+    {
+      "entry_ask": 0.73,
+      "entry_captured_at": "2026-07-07T02:23:56.656982+00:00",
+      "entry_lag_minutes": 10.44,
+      "fade_side": "no",
+      "fade_won": true,
+      "fee": 0.02,
+      "game": "KXMLBGAME-26JUL061945MILSTL",
+      "overround": 0.01,
+      "pnl": 0.25,
+      "price_source_tag": "real_ask",
+      "rho": 0.5715154403348741,
+      "settled_yes": 0,
+      "ticker": "KXMLBGAME-26JUL061945MILSTL-STL",
+      "total_count": 370410.3600000007
+    },
+    {
+      "entry_ask": 0.02,
+      "entry_captured_at": "2026-07-07T12:23:59.815379+00:00",
+      "entry_lag_minutes": 5.95,
+      "fade_side": "no",
+      "fade_won": false,
+      "fee": 0.01,
+      "game": "KXNPBGAME-26JUL070500FUKORI",
+      "overround": null,
+      "pnl": -0.03,
+      "price_source_tag": "real_ask",
+      "rho": 0.9735774984155113,
+      "settled_yes": 1,
+      "ticker": "KXNPBGAME-26JUL070500FUKORI-FUK",
+      "total_count": 3250.2600000000007
+    },
+    {
+      "entry_ask": 0.93,
+      "entry_captured_at": "2026-07-07T11:55:53.296454+00:00",
+      "entry_lag_minutes": 18.78,
+      "fade_side": "no",
+      "fade_won": true,
+      "fee": 0.01,
+      "game": "KXNPBGAME-26JUL070500HANYOM",
+      "overround": 0.05,
+      "pnl": 0.06,
+      "price_source_tag": "real_ask",
+      "rho": 0.5823691444616003,
+      "settled_yes": 0,
+      "ticker": "KXNPBGAME-26JUL070500HANYOM-HAN",
+      "total_count": 7137.259999999998
+    },
+    {
+      "entry_ask": 0.22,
+      "entry_captured_at": "2026-08-03T00:55:57.567380+00:00",
+      "entry_lag_minutes": 125.52,
+      "fade_side": "yes",
+      "fade_won": true,
+      "fee": 0.02,
+      "game": "KXNWSLGAME-26AUG02DENBOS",
+      "overround": 0.01,
+      "pnl": 0.76,
+      "price_source_tag": "real_ask",
+      "rho": -0.8504814496347415,
+      "settled_yes": 1,
+      "ticker": "KXNWSLGAME-26AUG02DENBOS-TIE",
+      "total_count": 4105.3099999999995
+    },
+    {
+      "entry_ask": 0.85,
+      "entry_captured_at": "2026-07-11T01:23:52.129374+00:00",
+      "entry_lag_minutes": 46.7,
+      "fade_side": "no",
+      "fade_won": true,
+      "fee": 0.01,
+      "game": "KXNWSLGAME-26JUL10BOSCHI",
+      "overround": 0.02,
+      "pnl": 0.14,
+      "price_source_tag": "real_ask",
+      "rho": 0.9112859606522773,
+      "settled_yes": 0,
+      "ticker": "KXNWSLGAME-26JUL10BOSCHI-TIE",
+      "total_count": 6082.689999999996
+    },
+    {
+      "entry_ask": 0.9,
+      "entry_captured_at": "2026-07-12T04:55:12.014434+00:00",
+      "entry_lag_minutes": 15.28,
+      "fade_side": "no",
+      "fade_won": true,
+      "fee": 0.01,
+      "game": "KXUSLCUPGAME-26JUL11ALTPHO",
+      "overround": 0.04,
+      "pnl": 0.09,
+      "price_source_tag": "real_ask",
+      "rho": 0.31229878937757183,
+      "settled_yes": 0,
+      "ticker": "KXUSLCUPGAME-26JUL11ALTPHO-TIE",
+      "total_count": 2009.7099999999998
+    }
+  ],
+  "settlement_coverage": {
+    "n_listed_unsettled": 1,
+    "n_non_binary": 5,
+    "n_requested": 87,
+    "n_settled_binary": 81,
+    "n_unresolved": 6,
+    "per_source_hits": {
+      "crypto_hourly": 0,
+      "econ_prints": 0,
+      "q26_settlement_cache": 0,
+      "q27_settlement_cache": 0,
+      "q29_settlement_cache": 0,
+      "q30_settlement_cache": 0,
+      "q51_settlement_cache": 32,
+      "q56_settlement_cache": 0,
+      "settlement_ledger": 49,
+      "weather_actuals": 0
+    },
+    "sources_absent_on_disk": [],
+    "sources_scanned": [
+      "settlement_ledger",
+      "q26_settlement_cache",
+      "q27_settlement_cache",
+      "q29_settlement_cache",
+      "q30_settlement_cache",
+      "q51_settlement_cache",
+      "q56_settlement_cache",
+      "crypto_hourly",
+      "weather_actuals",
+      "econ_prints"
+    ]
+  },
+  "strategy": "S82",
+  "substrate": {
+    "n_tickers_with_close_time": 87,
+    "n_tickers_with_depth": 87,
+    "n_trade_games": 72,
+    "n_trade_tickers": 87
+  },
+  "verdict": "DEAD"
+}

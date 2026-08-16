@@ -3909,6 +3909,63 @@ before any registry flip. Honest priors are weak (both likely CI-straddle-zero) 
 adequate committed tape is exactly what registration buys. See `findings/2026-08-10-q21-round26-idea-gen.md`.
 
 ### Q57 — S82 game-level signed-taker-flow FADE taker binding probe (Q21 round #32 survivor, kalshi-edge-hunter 2026-08-16)
+Status: **REOPEN PATH (b) EXECUTED — THE FIRST CI EVER SCORED ON S82, AND IT STRADDLES ZERO. VERDICT
+DEAD-by-CI under the pre-registered kill clause, recorded PROVISIONAL; NO REGISTRY FLIP** (2026-08-16,
+research loop via the `research-lead` orchestrator). This run executed reopen path (b) below verbatim —
+widening the entry anchor to `tape/q51_settlement_cache/` as its OWN pre-registered choice at
+`sign_variation_admissible`'s real `min_exclusive_minority_units=2` floor. **The seal is genuine, not
+same-session:** every constant that differs from the first probe (union anchor, `flow_window_minutes=15`,
+`max_entry_lag_minutes=240`, minority floor 2) is quoted verbatim out of the verifier Status line below,
+which was committed to `main` at **`d78c528` BEFORE this probe existed** (`PREREG_SOURCE_COMMIT` pins it;
+`PREREG_SHA256=eaab11238127ebed…` seals the spec dict, with a test as the tamper alarm).
+**The pre-committed population claim REPRODUCED EXACTLY: 12 GAME units, `{no:10, yes:2}`, 2
+EXCLUSIVE-minority units** (`precommitted_claim_check.reproduced=true`) — clearing L41's 10-unit floor and
+the real minority floor of 2, so for the first time in S82's history the population is ADMISSIBLE and a CI
+is reachable. Anchor provenance: 49 ledger tickers + **38 added by the cache** = 87 anchored; ledger takes
+precedence, so the widening is strictly ADDITIVE (pinned by a test). **Result at `real_ask` net ONE taker
+fee (0.07, `core.pricing`), block-bootstrapped by GAME (L6), seed 42, 10,000 resamples: mean
+`+0.1208`, 95% CI `[-0.0108, +0.2783]`, `n_units=12`, `n_obs=12`, Kish effective n `12.0`,
+`clears_tick_magnitude=False`, fade wins 7/12.** The CI straddles zero — Q57's own kill clause
+("real-ask CI ≤ 0 / straddles zero → joins S79/S22") fires. Mean overround absorbed `+0.023636` (`real_ask`).
+**The positive point estimate is explicitly NOT an edge, and three checks say so rather than one:**
+(i) JACKKNIFE — dropping the single best GAME unit (`KXNWSLGAME-26AUG02DENBOS`, entered at `real_ask` 0.22)
+takes the mean from `+0.1208` to `+0.0627`, and only **2 of 12** leave-one-out refits would have produced a
+lower bound above zero; (ii) CALIBRATION NULL — the entry asks are the venue's own probabilities, so
+expected fade wins under calibration is their SUM = **5.38** vs **7** observed: the entire result is
+**+1.62 excess wins on n=12**, a small integer of coin flips dressed as a per-contract rate;
+(iii) PRICE ORDERING — `perfectly_price_ordered=True`, i.e. EVERY winning unit was entered at a `real_ask`
+≥ 0.22 and EVERY losing unit at ≤ 0.20, with no interleaving at all, and the rank correlation of the
+strategy's own statistic |rho| with per-unit P&L (**+0.4196**) is NO BETTER than the entry ask's
+(**+0.4685**) — on this population S82's signal is inert and what is measured is "the expensive side won".
+**Anchor sensitivity is nil:** the one choice the queue text did not determine (which `close_time` when a
+cache ticker carries several — 27/38 do, L360/L361) moves nothing, `earliest` and `latest` give an
+IDENTICAL CI; and both single-source anchors fail the floors (cache-only 3 units, ledger-only 9 units
+`{no:8, yes:1}`), so the union is the only anchor that reaches an admissible population at all.
+**What is genuinely new beyond the kill:** the first probe's "structurally unfillable fade-to-YES arm"
+escalation is now falsified under a PRE-REGISTERED spec rather than a post-hoc one — two independent
+settled games supply in-band `real_ask`-fillable fade-to-YES entries. S82 dies of MEASURED
+indistinguishability from price level on 12 units, a far better-supported death than "unmeasurable".
+**L51 gate (3) re-run outcome-blind before scoring: `voided=False`, with one axis honestly inverted** —
+at 15 min the window is HALF S79's 30-min lookback, so the first probe's "4x wider window" argument does
+NOT carry over and is not relied on; differentiation rests on the three surviving axes (disjoint
+entry-price families `orderbook_depth`/`real_ask` vs `kalshi_trades`/`broker_truth`, close-anchored instant
+vs hourly grid, scale-free `rho` vs absolute threshold). **Two-agent rule: NOT SATISFIABLE** — no
+`Task`/subagent tool in this harness (L287/L288/L290/L291/L295/L308/L313/L325 precedent; this item's own
+text sanctions a PROVISIONAL run in exactly that case), so the CI is recorded PROVISIONAL and
+`kb/strategies/00-index.md` S82 **stays `idea`** with a dated note. Recommended disposition on independent
+confirmation: `idea` -> `dead ✗`, closing the signed-flow-taker family beside S79/S22. **Reuse declared:**
+loaders / window arithmetic / entry rule / game collapse / scoring are IMPORTED from the already
+twice-re-derived `q57_s82_flow_fade_probe.py` (a third fresh implementation would trade audited code for
+unaudited code); the union anchor, the minority floor of 2, the L51 restatement and the three checks above
+are NEW code with one implementation and one author — the redundancy argument does NOT extend to them.
+Look-ahead unchanged and UNVERIFIED (post-settlement `close_time` anchor); it can only flatter, so it does
+not soften a negative. **Reopen condition (tightened, so this is not re-run by accident):** >= 20
+independent GAME units with >= 5 exclusive-minority fade-to-YES units in which |rho| ranks per-unit P&L
+materially better than the entry ask does. More days of the current cadence grow the unit count but do not
+break the price-ordering degeneracy. Gates AFTER the last code change: see the Log-of-runs line below.
+Files: `scripts/q57b_s82_cache_anchored_probe.py`, `tests/test_q57b_s82_cache_anchored_probe.py`
+(31 tests), `reports/q57b_s82_cache_anchored.json`,
+`findings/2026-08-16-q57b-s82-cache-anchored-first-ci.md`, `kb/strategies/00-index.md`, `kb/00-LOG.md`.
 Status: **VERIFIER ROUND — REFUTED the escalation, CONFIRMED the narrow claim; STILL PROVISIONAL, Q57 STAYS OPEN**
 (2026-08-16, research loop — an independent `verifier` subagent dispatched by the calling session after the
 `research-lead` run below, closing the two-agent gap that run's own harness lacked no `Task` tool for). The
@@ -4067,6 +4124,7 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
+- 2026-08-16T~18:1x-19:0xZ (research loop, protocol v3) · **Q57 reopen path (b) — S82 cache-anchored re-test: the FIRST CI ever scored on S82. Pre-committed population reproduced EXACTLY (12 GAME units, {no:10, yes:2}, 2 exclusive-minority; prereg constants quoted from LOOP-QUEUE.md as committed at `d78c528` BEFORE the probe existed, `PREREG_SHA256=eaab11238127ebed…`). Block-bootstrap by GAME at `real_ask` net one taker fee: mean +0.1208, 95% CI [-0.0108, +0.2783], Kish n=12.0, clears_tick=False → **DEAD-by-CI under the pre-registered kill clause**. Point estimate explicitly disowned by three checks: jackknife (best unit halves the mean; only 2/12 LOO CIs > 0), calibration null (+1.62 excess wins on n=12 vs 5.38 expected from the asks themselves), and PERFECT price ordering (every winner entered >= 0.22, every loser <= 0.20; |rho| ranks P&L no better than the ask does). Anchor choice immaterial (earliest == latest CI). PROVISIONAL — no `Task` tool, so no independent `verifier` was dispatchable; S82 stays `idea`, NO registry flip. Paper sub-pass: deterministic no-op, 0 new fills, realized P&L $+27.76 unchanged. Step 0b sweep: 0 actionable stranded branches (all recent `tape/hourly-*` carry 0 tape lines missing from main). Gates AFTER last code change: `python scripts/invariants.py --full` -> exit 0, **"invariants: all green"** (re-run AFTER the last code change, which was the two triage declarations added to `scripts/invariants.py` — L321 minority-side gate = EXCLUSIVE at the floor of 2, L323 trade-print tie-break = ORDER-INSENSITIVE inherited; neither relaxes a check, both SUPPLY the declaration the check demands). `pytest -q -n4 --dist loadfile` -> **>=4,515 collected, 4,514 passed / 1 xdist worker-crash FLAKE** (`[gw1] node down: Not properly terminated`) on `tests/test_q56_s80_print_vwap_overshoot_maker_fade.py::test_acceptance_headline_verdict_is_dead_and_is_not_a_data_adequacy_death`, which **PASSES deterministically on isolated serial re-run** — the SAME test and the SAME documented cross-worker `reports/` write-collision precedent as the 2026-08-15 / 2026-08-16 runs, and the S80 lane is untouched by this diff. New file `tests/test_q57b_s82_cache_anchored_probe.py`: 31/31 green. Diff is research/data-only.**
 - 2026-08-16T~04:15Z (kalshi-edge-hunter nightly, Opus) · **Unit-1: all four last-24h census/count numbers reproduced (no `review:` issue); the PROVISIONAL settlement-ledger-gate finding graduated to two-agent CONFIRMED (independent `verifier` re-derived 103/127/74 pass-starts, 0/0/11@10Z, 10,605-line 24-day freeze — all exact). Unit-2: Q21 round #32 = 1/3 REGISTERED (S82 `idea` + Q57), the first survivor since S78 — producer trust=FALSE re-derivation caught the `event_ticker: None` join key and reconciled the verifier's 72→34→34 exactly. Unit-3: all gated probes already built, no gate <72h. Gates AFTER last edit: `invariants --full` exit 0 "all green" on the post-edit tree; `pytest -n4 --dist loadfile` **4,369 passed / 1 xdist real-tape-acceptance FLAKE** (`test_q56_s80_…::test_acceptance_headline_verdict_is_dead…`) that PASSES deterministically on isolated serial re-run (53s) — a cross-worker `reports/` write collision, the 2026-08-15 xdist-flake precedent; diff is docs-only and touches nothing in the S80 lane. Self-merged (squash), docs/research-only.**
 - 2026-08-13T~04:15Z (kalshi-edge-hunter nightly, Opus) · **Unit-1 adversarial review CLEAN (no `review:` issue); Q21 round #29 = 0/3 registered (verifier-refuted); Unit-3 N/A; still 0 proven edges.** Steps 0a/0/0b: history-integrity PASS (kb/00-LOG.md newest 08-12 vs newest `tape/*/dt=` 08-12, 0-day gap; merged PRs #357–#361 all in `origin/main` linear history, no rewind); claim-check found only the standing Ryan-review-only PRs (#125/#165/#166/#191/#208/#271/#330), none claiming eligible work; step-0b no NEW stranded branches (233 `hourly-*` + 10 `burst-*` = 243 remote; newest fallbacks already recovered by #358/#359). **Unit 1:** re-checked one load-bearing number per last-24h verdict — fee constants for the Q51 queue-aware fill-sim and the S79 re-derivation are IMPORTED from `core.pricing` (`MAKER_FEE_RATE=0.0175` / `TAKER_FEE_RATE=0.07`, not hand-rolled), prices `broker_truth`, S79 bootstrap block-by-game (45 units) — all reproduce → no issue. **Unit 2:** 0 eligible (< 2) → Q21 round #29; producer proposed S82/S83/S84 (fresh mechanisms), independent `verifier` attacked each pre-registration → **KILL/KILL/KILL** (S82 funding-dispersion ~46× under bracket + sums two overrounds; S83 near-money overpays 0.547 + no size field + non-independent perp anchor; S84 n=1 settled FOMC + Kalshi delists-at-decision + international-CLOB-not-US). No S-numbers burned → next free stays S82. **Unit 3:** no gate within ~72h (next Q51 m4 after 08-24, probe unchanged) → nothing to pre-build. Housekeeping: all 5 `kalshi-burst-*` triggers name-for-deletion (July events passed; `fomc-0729` still enabled). Step 9 paper sub-pass: S14 shadow (dead, paper-infra only), no new tape → ledger unchanged $+27.76. Gates: `scripts/invariants.py --full` exit 0 all green; `pytest` green by construction (docs/findings-only diff, no code touched, L162). Branch `docs/edge-hunter-20260813-round29`. See `kb/00-LOG.md` 2026-08-13, `findings/2026-08-13-q21-round29-idea-gen.md`.
 - 2026-08-12T~12:4x-14:3xZ (research loop, protocol v3) · **IDLE RUN, policy (a): L321 enforced — a sign-variation floor that counts TOUCHING units opens with zero resamplable minority blocks, and the gap widens as tape grows.** Steps 0a/0/0b done by the calling session (0b swept `tape/hourly-20260812T0707Z`: crypto_hourly +2, polymarket_macro_pairs +21, sports_pairs +678). Open UNENFORCED set re-derived (9 rows); L321 the only in-lane buildable. Built `core/bootstrap.py::minority_side_unit_census`/`::sign_variation_admissible` (floors on EXCLUSIVE units, reports both counts), GATING ratchet `scripts/invariants.py::inv_minority_side_gate_triage` + `MINORITY_SIDE_GATE_TRIAGE` (fail-closed, L319/L323 style), and `scripts/q54_minority_exclusivity_audit.py` (outcome-blind by construction; sealed probe untouched, L311). Measured over 6 trade days / 45 game units: touching `{no:6, yes:45}` (gate OPEN, floor 2) vs exclusive `{no:0, yes:39}` (L321's gate SHUT), all 6 minority units mixed; new lesson L342 (24→45 units and 2→6 touching since 08-09, exclusive still 0). No verdict-class output; no `Task` tool so the two-agent rule was unsatisfiable and not required. Step-9 paper sub-pass ran (S14, no new ledger lines). Gates after last edit: `scripts/invariants.py --full` exit 0 all green; `pytest` 3,928 collected, 162 + 30 fresh-green on touched/sensitive files, full suite stated as a floor per L162 (≥3,730 executed, 0 failed). 37 new tests. See `kb/00-LOG.md` 2026-08-12.

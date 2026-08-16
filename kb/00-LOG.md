@@ -6,6 +6,79 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-16 ~14:1x ET — Q57 reopen path (b): S82 finally reaches a scoreable population, and the first CI ever run on it straddles zero
+
+**Run:** research loop (protocol v3), `research-lead` orchestrator. Queue frontier: Q0-Q56 were re-derived
+drained by this morning's run; **Q57 was the sole eligible item**, left explicitly OPEN by the verifier
+correction round with two named reopen paths. This run executed **path (b)** — widen the entry anchor to
+`tape/q51_settlement_cache/` as its own pre-registered choice at the real minority floor of 2.
+
+**Why the pre-registration is real and not a same-session rationalisation.** The three constants that
+differ from the first probe (union anchor, 15-minute flow window, 240-minute max entry lag) plus the
+minority floor of 2 are quoted verbatim out of Q57's Status text, which was committed to `main` at
+`d78c528` *before this probe existed*. The script pins that commit as `PREREG_SOURCE_COMMIT` and SHA-seals
+the spec dict (`eaab11238127ebed…`) with a test as the tamper alarm. The prior round that fixed those
+constants read POPULATION COMPOSITION only — no settlement result value, no CI — so the choice is
+outcome-blind. That is stated in the finding as a weakness, not a defence: outcome-blind is not
+information-free, and picking the cell with the most usable minority arm also picks a variance structure.
+
+**The population claim reproduced to the digit: 12 GAME units, `{no:10, yes:2}`, 2 exclusive-minority
+units.** For the first time in S82's history the L41 floor (10) and `sign_variation_admissible`'s real
+default floor (2) are both cleared, so a CI is reachable at all. The widening is additive by construction
+(49 ledger-anchored tickers + 38 added by the cache, ledger taking precedence).
+
+**The result, at `real_ask` net one taker fee, block-bootstrapped by GAME:** mean **+0.1208**, 95% CI
+**[−0.0108, +0.2783]**, `n_units=12`, Kish effective n 12.0, `clears_tick_magnitude=False`, 7/12 fade wins.
+The lower bound sits 1.1 cents below zero. A near-miss is a kill: the bar is a bootstrapped CI *strictly*
+above zero at real asks net of fees, and Q57's own clause ("straddles zero → joins S79/S22") fires.
+
+**The part worth remembering is why the +12¢ point estimate is not an edge.** Three independent checks,
+because one would have been arguable: (i) *jackknife* — dropping the single best GAME unit halves the mean
+(+0.1208 → +0.0627), and only 2 of 12 leave-one-out refits would have cleared zero; (ii) *calibration null*
+— the entry asks ARE the venue's probabilities, so calibration predicts 5.38 wins against 7 observed: the
+whole result is **+1.62 excess wins on n=12**, a small integer of binary events restyled as a per-contract
+rate; (iii) *price ordering* — every winning unit was entered at a `real_ask` ≥ 0.22 and every losing unit
+at ≤ 0.20, with zero interleaving, and |rho| (the strategy's own statistic) ranks per-unit P&L no better
+(+0.4196) than the entry ask does (+0.4685). The signal is inert; "the expensive side won" is what got
+measured. This is the generalisable lesson: on a small population a positive mean should be decomposed
+into excess EVENTS against the price-implied null before it is ever quoted in dollars.
+
+**Anchor sensitivity is nil**, which matters because the queue text left one thing undetermined: which
+`close_time` to take when a cache ticker carries several (27/38 in this population do — a live L360/L361
+exhibit). `earliest` and `latest` give an identical CI. Both single-source anchors fail the floors
+(cache-only 3 units; ledger-only 9 units `{no:8, yes:1}`), so the union is not a convenience — it is the
+only anchor that reaches an admissible population.
+
+**What this also settles.** The first probe's escalation — that the fade-to-YES arm is *structurally
+unfillable* — is now falsified under a pre-registered spec rather than a post-hoc one. S82 dies of
+measured indistinguishability from price level on 12 units, which is a far better-supported death than
+"not measurable".
+
+**Disposition: PROVISIONAL, no registry flip.** No `Task`/subagent tool exists in this harness, so no
+independent `verifier` was dispatchable (L287/L288/L290/L291/L295/L308/L313/L325 precedent; Q57's own text
+sanctions exactly this). Under the two-agent verdict rule a CI may be recorded PROVISIONAL but must not
+flip the registry — **S82 stays `idea`** with a dated note. Recommended disposition on confirmation:
+`idea` → `dead ✗`, closing the signed-flow-taker family beside S79/S22. Owed: one independent
+re-derivation.
+
+**Reuse declared honestly.** The loaders, window arithmetic, entry rule, game collapse and scoring are
+imported from `scripts/q57_s82_flow_fade_probe.py`, which has already been re-derived to the digit twice;
+a third fresh implementation would have swapped audited code for unaudited code. But the union anchor, the
+minority floor of 2, the L51 restatement and the three checks above are new code with one implementation
+and one author — the redundancy argument does not extend to them.
+
+**Also this run:** step-0b stranded sweep found **0 actionable** branches (every recent `tape/hourly-*`
+carries zero tape lines missing from `main`). Paper sub-pass (step 9) ran and was a deterministic no-op —
+`s14_ladder_underwriting` processed 0 new records (278 deferred on coverage, 300 already in ledger),
+realized P&L **$+27.76** unchanged, no new ledger lines.
+
+Files: `scripts/q57b_s82_cache_anchored_probe.py`, `tests/test_q57b_s82_cache_anchored_probe.py`
+(31 tests), `reports/q57b_s82_cache_anchored.json`,
+`findings/2026-08-16-q57b-s82-cache-anchored-first-ci.md`, `LOOP-QUEUE.md`, `kb/strategies/00-index.md`.
+Gates after the last code change: see the LOOP-QUEUE.md Log-of-runs line for this run.
+
+---
+
 ## 2026-08-16 ~1x:xxZ — Q57/S82 verifier round: an independent adversarial pass REFUTED the "structurally unfillable" escalation and CONFIRMED the narrow single-sided-population claim
 
 **Run:** research loop (protocol v3), calling session dispatched an independent `verifier` subagent after
