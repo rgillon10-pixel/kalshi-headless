@@ -6,6 +6,148 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-16 ~1x:xxZ — Q57/S82 verifier round: an independent adversarial pass REFUTED the "structurally unfillable" escalation and CONFIRMED the narrow single-sided-population claim
+
+**Run:** research loop (protocol v3), calling session dispatched an independent `verifier` subagent after
+the `research-lead` orchestrator's Q57/S82 probe run (logged directly above) landed PROVISIONAL — that run's
+own harness had no nested-agent (`Task`) tool, so it could not obtain the two-agent confirmation itself and
+correctly stopped short of it, exactly as Q57's own text sanctions.
+
+**The verifier's job was to try to REFUTE, not to re-run and rubber-stamp.** It reproduced every headline
+number in the original PROVISIONAL finding EXACTLY from a from-scratch reader sharing no code with either
+probe script (213,488 rows / 87 GAME tickers / 72 games / 49 ledger-anchored / 81/87 binary-settled / the
+same 11 pre-registered units, all fading to NO / 39/39 new tests pass / invariants green) — so the NARROW
+claim ("the pre-registered spec's 11-unit cell has 0 exclusive-minority units, hence single-sided") is
+**CONFIRMED to the digit**.
+
+**But it then broke the finding's central escalation.** §3b of the original finding said the fade-to-YES
+arm is "structurally unfillable... no quantity of additional tape opens it." The verifier found this false
+on the ALREADY-COMMITTED tape: changing exactly ONE pre-registered constant (flow window 120 -> 15 minutes,
+everything else — ledger anchor, entry rule, rho gate, count floor, max lag, price band — held fixed at its
+sealed value) produces a fully mechanism-faithful, in-band, `real_ask`-fillable fade-to-YES entry on TWO
+independent settled games (`KXKBOGAME-26JUL070530KIWKTW-KIW` best_yes_ask 0.06; `KXNPBGAME-26JUL070500HANYOM-YOM`
+best_yes_ask 0.92) — precisely what the finding's own reopen condition asked for, and it was already true
+the day the finding was filed. Widening the anchor to also read `tape/q51_settlement_cache/` (a road the
+original finding explicitly declined to take, predicting it "very unlikely to matter") gives a fully
+two-sided population — 12 units, {no: 10, yes: 2}, 2 EXCLUSIVE-minority units on 2 distinct games — clearing
+not only the probe's own gate-2 floor of 1 but `core.bootstrap.sign_variation_admissible`'s real default
+floor of 2. The prediction in §4c was measured, not merely assumed, and it was wrong.
+
+**Corrected disposition:** the honest data-adequacy class under the sealed pre-registered spec is
+`below_min_units` — a ledger-anchored 15-minute-window population is two-sided but ONE settled game short of
+the L41 floor of 10 — not a definitional/structural impossibility. **Q57 stays PROVISIONAL and OPEN.
+`kb/strategies/00-index.md` S82 stays `idea`, unchanged in either direction** (the correction neither kills
+it nor promotes it — it withdraws the presumptive-KILL recommendation and reopens the item for a freshly
+pre-registered retest). Two smaller citation/arithmetic corrections were also filed (L312 vs L321
+misattribution; a whole-tape-vs-GAME-subset row-count conflation) plus an unremarked population-shape note
+(8 of 11 pre-registered units are 3-way-soccer `-TIE` legs). **This is exactly what the two-agent rule
+exists to catch** — not a bug in the code, but an unwarranted generalization from a correct narrow result to
+a false general claim, and independence (not redundant re-execution) is what surfaced it.
+
+New lesson candidates L362-L364 (all UNENFORCED, filed for the kb-distiller queue): a sensitivity grid must
+be probed past its own declared range before a "structural" claim is licensed; a written reopen condition
+must be checked against the current tape before it is filed; an outcome-blind, cheap-to-measure alternative
+should be measured, not predicted away.
+
+No CI computed in either round, no P&L number quoted, still **0 proven edges**. Gates unaffected by this
+docs-only correction (re-verified — see LOOP-QUEUE.md's Log of runs). See
+`findings/2026-08-16-q57-s82-flow-fade-verdict.md` §8 for the full verifier report.
+
+---
+
+## 2026-08-16 ~1x:xxZ — Q57/S82 binding probe: the FADE side inherits S79's sign-variation hole, and the minority arm turns out to be structurally UNFILLABLE (PROVISIONAL, no registry flip)
+
+**Run:** research loop (protocol v3), dispatched through the `research-lead` orchestrator. Steps 0a/0/0b
+were done by the calling session (history-integrity PASS — newest `kb/00-LOG.md` entry and newest committed
+tape day both 2026-08-16, no rewind; all 8 open PRs are standing "LEAVE OPEN for Ryan" retro/decision PRs
+claiming no queue work; the one in-window stranded tape branch swept into PR #387). Queue re-derived:
+**Q0–Q56 are all DONE / BLOCKED / RESERVED / gated** (independently reconfirmed against Q43's own
+2026-08-15 re-derivation), so the topmost eligible item is **Q57**, added earlier today by the nightly
+edge-hunter — the first Q21 survivor since S78.
+
+**Milestone: the S82 binding probe. Verdict class is DATA-ADEQUACY, not CI — and the probe refused
+structurally rather than producing a number it had no right to.** No CI was computed. No settlement result
+VALUE was read anywhere in the run.
+
+**What S82 asked.** Over each settled sports GAME, aggregate net `count`-weighted taker-signed volume from
+`tape/kalshi_trades/` over a pre-close window; when net flow is extreme toward one side, TAKE THE OPPOSITE
+side at `real_ask` from `tape/orderbook_depth/` and hold to `broker_truth` settlement. Fade the late crowd.
+
+**Gate (3) passed, outcome-blind, before scoring.** L51 says a fade and a follow are mechanically
+complementary on a two-way market, so Q57 required proving S82's window differs from the dead S79's before
+any scoring. `l51_differentiation()` returns `voided=False` on four measured differences, the decisive one
+being that **the entry price surfaces are disjoint families**: S82 fills at `orderbook_depth`/`real_ask`,
+S79 at `kalshi_trades`/`broker_truth` print prices. No entry price is shared, so the two populations cannot
+be sign-negations of each other. (Window 120 vs 30 min; one close-anchored instant per game vs an hourly
+UTC grid; scale-free `rho` vs an absolute contract threshold.)
+
+**Gate (2) failed, and that is the finding.** The pre-registered cell yields **11 settled GAME units —
+which CLEARS the L41 floor of 10 — but all 11 fade to NO** (`units_per_side {no: 11, yes: 0}`, exclusive
+minority units **0** against a floor of 1, L312/L321). A CI on that population would be a measurement of
+"buy NO on late sports moneylines", not a test of signed flow: a directional bet wearing a conditioning
+variable as a disguise. This is precisely the hole S79's own docstring documented on the FOLLOW side, now
+confirmed to survive the flip to FADE.
+
+**It is not an artifact of the pre-registered constants.** A 240-cell OUTCOME-BLIND sensitivity grid
+(window × |rho| × count-floor × staleness — population SHAPE only, never a return, so no multiplicity cost
+and no way to tune toward a result) finds **178** cells meeting the unit floor, **4** also clearing
+sign-variation, and a **maximum of 1** exclusive-minority unit anywhere in the grid. All 4 passing cells
+require BOTH a 3-day-stale entry book AND a zero volume floor — i.e. they abandon both the "pre-close" and
+the "extreme flow" halves of the mechanism — and each yields a single minority unit, which is L321's own
+exhibit of a block that can never appear alone in any resample.
+
+**Root cause: two stacked structural walls, and the second is the one that binds.** (i) FREQUENCY — only
+**3 of 45 (6.67%)** observations carry negative net flow at all, matching L279's venue-wide retail-buy
+asymmetry re-measured here (**151,937 yes-buy vs 61,494 no-buy prints, 71.2%**; 68.3% count-weighted).
+(ii) FILLABILITY — of those 3, **zero** have a fillable in-band YES ask: **1 has no `best_yes_ask` at all**
+(one-sided book, L23) and **2 are pinned at the 1¢ tick floor** (L26/L249, outside the pre-registered
+[0.02, 0.98] band). These are the same event: by the time the crowd is net-SELLING yes into the close, the
+yes ask has already collapsed to the floor or vanished. **The fade-to-YES arm is not merely rare — it is
+structurally unfillable, so no quantity of additional tape of this shape opens it.**
+
+**The redundancy earned its keep, and it caught the author.** No `verifier` subagent is dispatchable in this
+harness (no `Task` tool), so the sanctioned fallback ran: `scripts/q57_s82_rederive.py`, a second
+implementation sharing nothing with the probe — its own JSONL/JSON readers, its own ISO→epoch parser written
+by string slicing and integer day arithmetic (no `datetime`, no `core.timeutil`), its own settled-set reader
+straight off tape rather than `core.settlement_sources`, its own sports filter, game-key split, window/flow/
+collapse loop and per-side census; independence pinned by an AST check. It agrees on **16 of 16** headlines
+EXACTLY — after first **disagreeing on three**, which exposed a real defect: the probe's sensitivity sweep
+rebound module globals, but `window_flow`'s window was ALSO spelled as a **default argument**, which Python
+binds at `def`-time, so the flow-window axis never varied. The sweep reported 0 sign-variation-passing cells
+where the truth is 4, and max-minority 0 where the truth is 1. Fixed by threading all four constants
+explicitly; pinned by a regression test. *A second implementation is not a second agent* — so the verdict is
+**PROVISIONAL** and `kb/strategies/00-index.md` S82 **stays `idea`** with a dated note. Recommended
+disposition on confirmation: `idea` → `dead ✗` (not-measurable / degenerate conditioning variable), closing
+the signed-flow-taker family beside S79 and S22.
+
+**A blind spot in this run's own instrument, disclosed rather than buried.** S82's entry anchor is
+`settlement_ledger.close_time`, and the probe's `close_time_mutation_observed` reads `false` — but only for a
+structural reason: both committed ledger day-files are POST-settlement, so that family can never disagree
+with itself. A cross-family audit against `tape/q51_settlement_cache/` finds **48 of 60 tickers carrying more
+than one distinct `close_time`**, one moving `2026-08-20T09:30:00Z` → `2026-08-06T12:09:30Z`, **14 days
+earlier** — a live exhibit of today's own L360/L361. The anchor's ex-ante knowability is therefore
+UNVERIFIED. It can only FLATTER the strategy, so it does not soften a negative result, but a positive one
+would have owed that check before graduation.
+
+**Declared and deliberately not taken:** `tape/q51_settlement_cache/` also carries `close_time` and would
+widen the anchored population past the 49 `settlement_ledger` tickers. Adding a settlement source after
+seeing the population is tuning, so the sealed spec was left alone; the expectation that it would not change
+the verdict is stated as a prediction, not a measurement.
+
+**Reopen condition (precise, so a future run does not re-run this by accident):** a tape in which
+net-NEGATIVE game-level taker flow coexists with a live in-band (0.02 ≤ ask ≤ 0.98) YES ask on ≥ 2
+independent games. Neither more days of the current hourly `orderbook_depth` cadence nor more
+`kalshi_trades` days of the current shape produce that.
+
+Prices: entry `real_ask` (read only from snapshots whose own `price_source_tags.asks == "real_ask"`), prints
+and settlements `broker_truth`. **No `midpoint` or `synthetic` value is read anywhere in the probe, and no
+P&L number is quoted.** Fees via `core.pricing` only. Still **0 proven edges**.
+
+Gates AFTER the last code change (L162): see the "Log of runs" line in `LOOP-QUEUE.md`.
+
+See `findings/2026-08-16-q57-s82-flow-fade-verdict.md`, `reports/q57_s82_flow_fade.json`,
+`scripts/q57_s82_flow_fade_probe.py`, `scripts/q57_s82_rederive.py`.
+
 ## 2026-08-16 ~04:15Z — kalshi-edge-hunter nightly: adversarial review CONFIRMED a PROVISIONAL finding, and Q21 round #32 produced the first survivor since S78 (S82 registered `idea`)
 
 **Run:** kalshi-edge-hunter (nightly ~04:15 UTC, Opus), the thinking seat. Setup: `git pull --rebase`

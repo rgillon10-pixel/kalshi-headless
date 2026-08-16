@@ -737,6 +737,18 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
         "`created_time`, `yes_price`, `no_price`, or `trade_id`, and no per-print selection "
         "or ordering happens anywhere in the module.",
 
+    "scripts/q57_s82_flow_fade_probe.py":
+        "ORDER-INSENSITIVE: every print field this probe reads (`created_time`, "
+        "`taker_outcome_side`, `count`) is consumed by `window_flow`, which SUMS signed "
+        "`count` over a time window. A sum is invariant to the ordering of tied prints, and "
+        "no per-print selection happens anywhere in the module — S82 never picks 'the' print "
+        "at an instant the way S79's `first_agreeing_print` does. Prices come from a "
+        "different family entirely (`orderbook_depth` `best_*_ask`), so `yes_price`/"
+        "`no_price` are never read at all.",
+    "scripts/q57_s82_rederive.py":
+        "ORDER-INSENSITIVE: same reason as the probe it re-derives — its own flow loop sums "
+        "signed `count` over a window and selects no individual print.",
+
     # ---- the writer whose append order IS the incidental tie-break ----
     "collection/kalshi_trades.py":
         "WRITER — the source of the artifact, and deliberately unchanged: its append order "
@@ -898,6 +910,21 @@ MINORITY_SIDE_GATE_TRIAGE: Dict[str, str] = {
         "semantics, kept visible on purpose) BESIDE `exclusive_units_per_side`, and "
         "`sign_variation_admissible` floors on the EXCLUSIVE count. Sibling to "
         "`bootstrap_verdict_admissible` (L41) and `clears_tick_magnitude` (L27).",
+
+    "scripts/q57_s82_flow_fade_probe.py":
+        "EXCLUSIVE — `population_report` and `sign_variation_sensitivity` both delegate to "
+        "`core.bootstrap.sign_variation_admissible` (min_exclusive_minority_units=1, Q57's "
+        "own gate-2 wording), so the floor is on the EXCLUSIVE count. In this probe's "
+        "population every GAME unit carries exactly one entry, so touching and exclusive "
+        "coincide; the exclusive helper is used anyway so that a future multi-entry unit "
+        "cannot silently reintroduce L321's gap. The gate is what produced the verdict: "
+        "11 game units, ALL fade-to-NO, 0 exclusive minority units.",
+    "scripts/q57_s82_rederive.py":
+        "N/A BY CONSTRUCTION — the independent re-derivation. It recomputes the per-side "
+        "unit counts from its own loops and COMPARES them to the probe's report; it applies "
+        "no floor of its own and computes no return, so it has no gate to misapply. Its "
+        "per-game populations are single-entry, so its `min(per.values())` minority count is "
+        "the exclusive count by construction (pinned by the exact-agreement check it runs).",
 
     # ---- floors on the TOUCHING count: known exposure, frozen, not repaired here ----
     "scripts/q54_s79_flow_continuation_probe.py":
