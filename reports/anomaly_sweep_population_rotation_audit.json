@@ -1,0 +1,813 @@
+{
+ "composition": {
+  "distinct_junk_tickers": 1057105,
+  "distinct_non_junk_tickers": 6130,
+  "junk_prefixes": [
+   "KXMVE"
+  ],
+  "junk_share_of_distinct_tickers": 0.9942345765517501,
+  "junk_share_per_capture": {
+   "max": 1.0,
+   "median": 0.99765,
+   "min": 0.9576,
+   "n": 55
+  },
+  "n_distinct_series_ever_seen": 212,
+  "population_distinct_tickers": 1063235,
+  "population_observations": 1100000,
+  "top_series_by_distinct_ticker_share": [
+   {
+    "n": 774911,
+    "series": "KXMVESPORTSMULTIGAMEEXTENDED",
+    "share": 0.7288238254007816
+   },
+   {
+    "n": 282194,
+    "series": "KXMVECROSSCATEGORY",
+    "share": 0.2654107511509685
+   },
+   {
+    "n": 920,
+    "series": "KXWTIH",
+    "share": 0.0008652837801614883
+   },
+   {
+    "n": 762,
+    "series": "KXGOLDH",
+    "share": 0.0007166806961772326
+   },
+   {
+    "n": 760,
+    "series": "KXSILVERH",
+    "share": 0.0007147996444812295
+   },
+   {
+    "n": 240,
+    "series": "KXPLATINUMH",
+    "share": 0.00022572620352038825
+   },
+   {
+    "n": 240,
+    "series": "KXPALLADIUMH",
+    "share": 0.00022572620352038825
+   },
+   {
+    "n": 144,
+    "series": "KXPGA3BALL",
+    "share": 0.00013543572211223296
+   },
+   {
+    "n": 120,
+    "series": "KXNKY",
+    "share": 0.00011286310176019412
+   },
+   {
+    "n": 115,
+    "series": "KXCLUBFTOTAL",
+    "share": 0.00010816047252018603
+   },
+   {
+    "n": 79,
+    "series": "KXARGNACBTOTAL",
+    "share": 7.430154199212779e-05
+   },
+   {
+    "n": 78,
+    "series": "KXMLBHRR",
+    "share": 7.336101614412617e-05
+   }
+  ],
+  "top_series_by_observation_share": [
+   {
+    "n": 805373,
+    "series": "KXMVESPORTSMULTIGAMEEXTENDED",
+    "share": 0.7321572727272727
+   },
+   {
+    "n": 288376,
+    "series": "KXMVECROSSCATEGORY",
+    "share": 0.26216
+   },
+   {
+    "n": 960,
+    "series": "KXWTIH",
+    "share": 0.0008727272727272727
+   },
+   {
+    "n": 802,
+    "series": "KXGOLDH",
+    "share": 0.000729090909090909
+   },
+   {
+    "n": 800,
+    "series": "KXSILVERH",
+    "share": 0.0007272727272727272
+   },
+   {
+    "n": 240,
+    "series": "KXPLATINUMH",
+    "share": 0.00021818181818181818
+   },
+   {
+    "n": 240,
+    "series": "KXPALLADIUMH",
+    "share": 0.00021818181818181818
+   },
+   {
+    "n": 144,
+    "series": "KXPGA3BALL",
+    "share": 0.0001309090909090909
+   },
+   {
+    "n": 120,
+    "series": "KXNKY",
+    "share": 0.00010909090909090909
+   },
+   {
+    "n": 115,
+    "series": "KXCLUBFTOTAL",
+    "share": 0.00010454545454545455
+   },
+   {
+    "n": 79,
+    "series": "KXARGNACBTOTAL",
+    "share": 7.181818181818182e-05
+   },
+   {
+    "n": 78,
+    "series": "KXMLBHRR",
+    "share": 7.09090909090909e-05
+   }
+  ]
+ },
+ "denominator": {
+  "candidates": [
+   {
+    "comment": "the most optimistic denominator; treats each re-listing of an ephemeral auto-generated market as an independent trial",
+    "n": 1100000,
+    "rule_of_three_95_upper_per_unit": 2.7272727272727272e-06,
+    "unit": "market-observation (proxy tape rows)"
+   },
+   {
+    "comment": "non-junk only; the population a real crossing could ever have been found on",
+    "n": 6130,
+    "rule_of_three_95_upper_per_unit": 0.0004893964110929853,
+    "unit": "distinct ticker ever scanned (proxy)"
+   },
+   {
+    "comment": "non-junk event groups carrying >= 2 markets \u2014 the only groups a cross-strike monotonicity check can evaluate at all",
+    "n": 737,
+    "rule_of_three_95_upper_per_unit": 0.004070556309362279,
+    "unit": "distinct ladder-capable event group ever scanned (proxy)"
+   },
+   {
+    "comment": "measured directly on tape/anomalies/, no proxy involved",
+    "n": 2247,
+    "rule_of_three_95_upper_per_unit": 0.0013351134846461949,
+    "unit": "monotonicity group-check (anomaly tape's own counter)"
+   },
+   {
+    "comment": "the unit S3's registry row currently quotes (per L221)",
+    "n": 26,
+    "rule_of_three_95_upper_per_unit": 0.11538461538461539,
+    "unit": "capture-day"
+   }
+  ],
+  "distinct_ladder_capable_groups_ever": 737,
+  "distinct_non_junk_event_groups_ever": 988,
+  "per_capture_ladder_capable_groups": {
+   "max": 147,
+   "median": 5,
+   "min": 0,
+   "n": 55
+  },
+  "per_capture_non_junk_tickers": {
+   "max": 848,
+   "median": 47,
+   "min": 0,
+   "n": 55
+  },
+  "reading": "0 verified fillable arbs bounds a DIFFERENT rate under each unit above, spanning several orders of magnitude. None of them is 'the platform': every one is scoped to whatever fell inside the 20,000-row cursor prefix, which block 4 shows is overwhelmingly auto-generated multi-leg artifacts. The tape cannot identify which unit is correct \u2014 a market observed once and never again is not a repeated trial, and the repeat structure needed to decide that was never captured."
+ },
+ "digest_answerability": {
+  "all_digests_distinct": true,
+  "digests": [
+   {
+    "captured_at": "2026-08-06T15:43:13.376464+00:00",
+    "digest": "8ad6345b0e20829e"
+   },
+   {
+    "captured_at": "2026-08-10T10:06:45.310141+00:00",
+    "digest": "a07611d3915cde53"
+   },
+   {
+    "captured_at": "2026-08-11T10:08:50.651217+00:00",
+    "digest": "65f3408ad9bc72d4"
+   },
+   {
+    "captured_at": "2026-08-13T10:12:57.548644+00:00",
+    "digest": "d810bf837e4d9cd8"
+   },
+   {
+    "captured_at": "2026-08-15T10:07:13.445070+00:00",
+    "digest": "351c625e6e62b7c0"
+   }
+  ],
+  "n_distinct_digests": 5,
+  "n_passes_carrying_a_digest": 5,
+  "n_passes_total": 254,
+  "one_ticker_flip_demo": {
+   "available": true,
+   "capture_id": "20260717T153311Z",
+   "digest_full": "3c2f39e8be6b1c8377b72c621621aa84f05da8935a422bd23fb68e13488a74d5",
+   "digest_minus_one_ticker": "1e95088dedce71d9419f0c9d1214795d94807498782bffc26df1bceef9263202",
+   "jaccard_of_the_two_sets": 0.99995,
+   "n_tickers": 20000,
+   "one_ticker_flips_digest": true
+  },
+  "verdict": "DIGEST-CANNOT-DECIDE: a sha256 over the sorted ticker set is a one-bit identity test. Distinct digests are compatible with total rotation AND with a single ticker's birth in an otherwise identical slice, so 'digests differ' cannot support the stronger coverage reading Q55's status line assigned to it. The honest-denominator question needs a set-SIMILARITY measure (block 3), which the committed record cannot reconstruct because the ticker list itself was not kept."
+ },
+ "inputs": {
+  "n_anomaly_days": 31,
+  "n_anomaly_passes": 254,
+  "n_universe_sweep_captures": 55,
+  "n_universe_sweep_days": 26
+ },
+ "price_provenance": {
+  "note": "this audit quotes no price, no P&L and no CI \u2014 it measures population identity only, so there is no fill to tag (CLAUDE.md trust defaults)",
+  "price_source_tag": null,
+  "prices_quoted": false
+ },
+ "proxy_validation": {
+  "anomaly_n_event_groups_per_at_cap_pass": {
+   "max": 18069,
+   "median": 16341,
+   "min": 15067,
+   "n": 251
+  },
+  "anomaly_n_monotonicity_groups_checked": {
+   "max": 19,
+   "median": 9,
+   "min": 0,
+   "n": 251,
+   "sum": 2247
+  },
+  "known_differences": [
+   "different processes, different wall-clock hours (universe_sweep gate hours {0,6,12,18} UTC vs anomaly_sweep ~09-10Z)",
+   "anomaly_sweep truncates with markets[:limit] after a page overshoot; universe_sweep stops on a call cap \u2014 same 20,000 target, different stop rule",
+   "no committed record joins a specific anomaly pass to a specific universe_sweep capture, so this is a POPULATION-SHAPE proxy, never a per-pass identity claim"
+  ],
+  "note": "the two group-density series are produced by DIFFERENT collectors and are compared as an order-of-magnitude corroboration, never as an equality claim; the ladder-capable series is additionally non-junk-filtered while the anomaly counter is not, so the proxy is expected to read at or below it.",
+  "premise": "anomaly_sweep._fetch_all_open_markets_raw and universe_sweep.fetch_open_markets call the same endpoint /markets with the same params (status=open, limit=1000 pages, cursor order) and stop at the same 20,000 rows; only universe_sweep persists the scanned tickers.",
+  "proxy_ladder_capable_non_junk_groups_per_capture": {
+   "max": 147,
+   "median": 5,
+   "min": 0,
+   "n": 55
+  },
+  "proxy_n_event_groups_per_at_cap_capture": {
+   "max": 17836,
+   "median": 16397,
+   "min": 13329,
+   "n": 55
+  },
+  "relative_gap_of_medians": 0.0034269628541704913
+ },
+ "rotation": {
+  "consecutive_jaccard": {
+   "max": 0.8934014957871816,
+   "median": 0.0,
+   "min": 0.0,
+   "n": 54,
+   "n_exactly_zero": 52
+  },
+  "first_vs_last_capture_jaccard": 0.0,
+  "max_captures_any_ticker_appears_in": 2,
+  "n_captures": 55,
+  "n_days": 26,
+  "steps": [
+   {
+    "capture_id": "20260717T153311Z",
+    "captured_at": "2026-07-17T15:33:11.496715+00:00",
+    "containment_in_prev": null,
+    "cumulative_union": 20000,
+    "jaccard_vs_prev": null,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260717T183023Z",
+    "captured_at": "2026-07-17T18:30:23.965569+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 40000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260717T190554Z",
+    "captured_at": "2026-07-17T19:05:54.845586+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 60000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260718T003036Z",
+    "captured_at": "2026-07-18T00:30:36.521152+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 80000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260718T010611Z",
+    "captured_at": "2026-07-18T01:06:11.886348+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 100000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260718T063046Z",
+    "captured_at": "2026-07-18T06:30:46.309120+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 120000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260718T130255Z",
+    "captured_at": "2026-07-18T13:02:55.739422+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 140000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260718T190632Z",
+    "captured_at": "2026-07-18T19:06:32.372843+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 160000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260719T010354Z",
+    "captured_at": "2026-07-19T01:03:54.395145+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 180000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260719T190329Z",
+    "captured_at": "2026-07-19T19:03:29.818874+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 200000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260720T010320Z",
+    "captured_at": "2026-07-20T01:03:20.844623+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 220000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260720T070315Z",
+    "captured_at": "2026-07-20T07:03:15.735553+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 240000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260720T190412Z",
+    "captured_at": "2026-07-20T19:04:12.528295+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 260000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260721T010428Z",
+    "captured_at": "2026-07-21T01:04:28.559755+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 280000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260721T070433Z",
+    "captured_at": "2026-07-21T07:04:33.633289+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 300000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260721T130700Z",
+    "captured_at": "2026-07-21T13:07:00.012553+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 320000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260721T190423Z",
+    "captured_at": "2026-07-21T19:04:23.256143+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 340000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260722T003127Z",
+    "captured_at": "2026-07-22T00:31:27.033082+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 360000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260722T063214Z",
+    "captured_at": "2026-07-22T06:32:14.048815+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 380000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260722T070755Z",
+    "captured_at": "2026-07-22T07:07:55.346165+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 400000,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260722T071109Z",
+    "captured_at": "2026-07-22T07:11:09.631696+00:00",
+    "containment_in_prev": 0.89455,
+    "cumulative_union": 402109,
+    "jaccard_vs_prev": 0.8092179655343977,
+    "marginal_new": 2109,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260722T123313Z",
+    "captured_at": "2026-07-22T12:33:13.324821+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 422109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260723T010657Z",
+    "captured_at": "2026-07-23T01:06:57.211270+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 442109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260724T070600Z",
+    "captured_at": "2026-07-24T07:06:00.332332+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 462109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260726T070415Z",
+    "captured_at": "2026-07-26T07:04:15.251948+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 482109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260727T070357Z",
+    "captured_at": "2026-07-27T07:03:57.748766+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 502109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260727T130302Z",
+    "captured_at": "2026-07-27T13:03:02.720419+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 522109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260728T070630Z",
+    "captured_at": "2026-07-28T07:06:30.339067+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 542109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260730T070301Z",
+    "captured_at": "2026-07-30T07:03:01.182670+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 562109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260730T130949Z",
+    "captured_at": "2026-07-30T13:09:49.023473+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 582109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260801T130729Z",
+    "captured_at": "2026-08-01T13:07:29.047615+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 602109,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260801T130845Z",
+    "captured_at": "2026-08-01T13:08:45.428858+00:00",
+    "containment_in_prev": 0.9437,
+    "cumulative_union": 603235,
+    "jaccard_vs_prev": 0.8934014957871816,
+    "marginal_new": 1126,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260802T070440Z",
+    "captured_at": "2026-08-02T07:04:40.294860+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 623235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260802T190453Z",
+    "captured_at": "2026-08-02T19:04:53.431453+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 643235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260803T010639Z",
+    "captured_at": "2026-08-03T01:06:39.469439+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 663235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260803T070419Z",
+    "captured_at": "2026-08-03T07:04:19.322413+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 683235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260804T190907Z",
+    "captured_at": "2026-08-04T19:09:07.912043+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 703235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260805T010820Z",
+    "captured_at": "2026-08-05T01:08:20.466564+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 723235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260805T191117Z",
+    "captured_at": "2026-08-05T19:11:17.736832+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 743235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260806T010940Z",
+    "captured_at": "2026-08-06T01:09:40.569691+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 763235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260806T072541Z",
+    "captured_at": "2026-08-06T07:25:41.840166+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 783235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260807T011009Z",
+    "captured_at": "2026-08-07T01:10:09.484535+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 803235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260807T070848Z",
+    "captured_at": "2026-08-07T07:08:48.596364+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 823235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260807T130907Z",
+    "captured_at": "2026-08-07T13:09:07.413351+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 843235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260809T070712Z",
+    "captured_at": "2026-08-09T07:07:12.519434+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 863235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260809T130759Z",
+    "captured_at": "2026-08-09T13:07:59.872563+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 883235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260810T010727Z",
+    "captured_at": "2026-08-10T01:07:27.591543+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 903235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260811T011031Z",
+    "captured_at": "2026-08-11T01:10:31.991506+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 923235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260811T131322Z",
+    "captured_at": "2026-08-11T13:13:22.633476+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 943235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260812T011118Z",
+    "captured_at": "2026-08-12T01:11:18.989645+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 963235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260812T131705Z",
+    "captured_at": "2026-08-12T13:17:05.684803+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 983235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260813T011024Z",
+    "captured_at": "2026-08-13T01:10:24.817232+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 1003235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260814T191511Z",
+    "captured_at": "2026-08-14T19:15:11.663272+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 1023235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260815T010927Z",
+    "captured_at": "2026-08-15T01:09:27.240520+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 1043235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   },
+   {
+    "capture_id": "20260815T070834Z",
+    "captured_at": "2026-08-15T07:08:34.291666+00:00",
+    "containment_in_prev": 0.0,
+    "cumulative_union": 1063235,
+    "jaccard_vs_prev": 0.0,
+    "marginal_new": 20000,
+    "n_distinct": 20000
+   }
+  ],
+  "sum_of_per_capture_distinct": 1100000,
+  "ticker_recurrence_histogram": {
+   "1": 1026470,
+   "2": 36765
+  },
+  "union_distinct_tickers": 1063235
+ },
+ "schema_version": "anomaly_sweep_population_rotation_audit.v1",
+ "series_reachability": {
+  "KXMARMADROUND": {
+   "n_captures_containing_it": 0,
+   "n_captures_scanned": 55,
+   "n_distinct_tickers_ever_seen": 0,
+   "reachable_under_cap": false
+  }
+ },
+ "tape_root": "/home/user/kalshi-headless/tape",
+ "verdict": {
+  "ci_or_pnl": false,
+  "class": "DATA-ADEQUACY",
+  "findings": [
+   "PREFIX-NOT-FROZEN: consecutive captures share essentially nothing (median Jaccard 0.0), so the 'one frozen slice re-scanned' worry is falsified \u2014 but rotation is not coverage, see below",
+   "ROTATION-IS-CHURN: 0.9942 of every distinct ticker ever scanned belongs to the auto-generated ['KXMVE'] families; the non-junk population ever reached is 6130 tickers / 737 ladder-capable event groups",
+   "SERIES-UNREACHABLE-UNDER-CAP: ['KXMARMADROUND'] never appear in any committed capture, so a check scoped to them can only ever report an empty denominator"
+  ],
+  "registry_flip": false,
+  "summary": "The capped cursor prefix rotates completely and is ~99% auto-generated multi-leg artifacts, so 26 days of passes buy a small, one-shot, non-junk population rather than platform coverage. S3/S15 remain unkillable, for a sharper reason than 'the denominator is unknown': the denominator is now measurable and it is small."
+ }
+}

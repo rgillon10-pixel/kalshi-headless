@@ -6,6 +6,115 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-16 ~05:xx ET — IDLE RUN, policy (c): the anomaly sweep's 20,000-market cap is a conveyor belt — the prefix fully rotates every ~20-30 min and is 99.4% auto-generated parlay artifacts (new L362/L363/L364)
+
+**Steps 0a/0/0b (done by the calling session).** History-integrity **PASS**: local `main` matches
+`origin/main` at `7c1d058` ("observatory: nightly pass through dt=2026-08-15" — a separate
+automated leg, already noted on its own ntfy feed); `kb/00-LOG.md`'s newest entry and the newest
+committed tape day are both `dt=2026-08-15`, well inside the 2-day tolerance, no rewind. Claim-check:
+exactly 7 open PRs (#125/#165/#166/#191/#208/#271/#330), all standing "LEAVE OPEN for Ryan" items,
+none claiming queue work. Step-0b: `scripts/tape_branch_sweep.py` running in the calling session over
+~250 `tape/*` branches; any genuinely-missing lines land as a separate commit, not this one.
+
+**Queue: DRAINED, re-verified independently.** Every `### Qn` section Q0-Q56 re-parsed by its
+NEWEST-DATED `Status:` line: **0 eligible TODO/IN-PROGRESS**, the 16th consecutive idle-adjacent run.
+The positional trap was re-confirmed live rather than assumed: Q9/Q11/Q12/Q23/Q27/Q56 each file their
+ORIGINAL spec `TODO` physically below a later close, and Q56's close (2026-08-11, verifier
+CONFIRMED-WITH-CORRECTIONS on S81) sits above a `TODO` dated 2026-08-10 — read by date, never by
+position.
+
+**Policy (a) was checked before (c) and is still closed.** `_stale_unenforced_scan()` = 355 rows,
+43 `UNENFORCED`, 33 formally disposed, **10 genuinely open** (L213/L221/L222/L282/L319/L320/L321/
+L323/L338/L346) — the same set prior runs triaged, re-read row by row this run: L221 says DO NOT
+BUILD the write-path half, L222/L282/L319/L320/L338 have their measurement halves built and only
+Ryan-lane/collector-write-path remainders, L323's repair would edit a SEALED mid-verdict probe (L311),
+L321's triage invariant exists, L213's buildable half was built 2026-07-30, and L346 is explicitly
+recorded as not machine-assertable. (b) is closed too: every gated item already carries an
+offline-tested probe. So (c), on a family no recent idle run has touched — `tape/anomalies/` +
+`tape/universe_sweep/` — and on a question the queue itself deferred in writing.
+
+**The question.** S3's registry row says its kill clause "is unreachable until a pass persists its
+scanned event/ticker inventory (L296)". Q55 milestone 1 built that inventory
+(`scanned_tickers_sha256`) and deferred the comparison: *"matching digests across passes would mean
+247 truncated passes never expanded S3's measured population beyond one ~20,000-ticker slice ...
+differing digests would support the stronger reading. That comparison itself is left for whichever
+run next touches S3/S15."* This run ran it.
+
+**Built.** `scripts/anomaly_sweep_population_rotation_audit.py` (read-only, fully offline, `--json`,
+six blocks) + `tests/test_anomaly_sweep_population_rotation_audit.py` (**29 tests**: synthetic branch
+coverage — frozen population, total rotation, single capture, empty family, junk-only prefix, empty
+denominator — plus a real-tape acceptance tier asserted as **directions and floors only**, never
+frozen counts, per L320/L191) -> `reports/anomaly_sweep_population_rotation_audit.json`.
+
+**F1 — the deferred comparison cannot decide the question, and can only ever return the flattering
+answer (L362).** All 5 committed digests are distinct. That carries no information: the audit takes a
+REAL committed 20,000-ticker capture, deletes exactly ONE ticker and re-hashes — digest
+`3c2f39e8…` -> `1e95088d…` while the two sets have **Jaccard 0.99995**. Kalshi lists/delists
+continuously, so every real pass-pair differs by >=1 ticker and the field returns "differing"
+unconditionally. It is a one-bit identity test standing in for a set-similarity question, and the
+committed record cannot be repaired retroactively because the LIST was hashed and discarded.
+
+**F2 — a proxy answers it, and the proxy premise was TESTED not assumed (L363).**
+`collection/universe_sweep.py` hits the same `/markets?status=open` endpoint, same `limit=1000`
+cursor pages, same effective 20,000-row cap — and persists every ticker. Cross-check against the
+anomaly tape's own independently recorded counter: per-capture distinct event groups, median
+**16,397** (proxy, n=55) vs **16,341** (anomaly tape, n=251 at-cap passes) — a **0.34%** gap between
+two different collectors running as different processes at different UTC gate hours.
+
+**F3 — the prefix is not frozen; it turns over COMPLETELY.** Over 55 captures / 26 days / 1,100,000
+rows: consecutive-capture Jaccard median **0.0** (52 of 54 pairs exactly zero), first-vs-last **0.0**,
+**1,063,235** distinct tickers, and the max captures any ticker EVER appears in is **2**. Every repeat
+in the whole history comes from just two near-duplicate capture pairs **76 s** and **194 s** apart
+(94.4% / 89.5% shared); beyond ~3 minutes, zero overlap. The prefix replaces itself in roughly 20-30
+minutes and **the sweep has never observed the same market twice**. The static-universe-with-unstable-
+ordering explanation is quantitatively rejected (0 shared across 52 pairs of 20,000-row draws needs a
+static universe >4x10^8).
+
+**F4 — rotation is churn, not coverage, and the denominator is now measurable and small (L364).**
+**99.42%** of the 1,063,235 distinct tickers are `KXMVE*` auto-generated multi-leg artifacts
+(`KXMVESPORTSMULTIGAMEEXTENDED` 72.88%, `KXMVECROSSCATEGORY` 26.54%); junk share per capture has
+median 99.77% and MINIMUM 95.76%. L125 measured this share once as a fillability property on 5 days;
+the 26-day population-identity view shows it is what consumes the entire cap. Non-junk ever reached:
+**6,130** tickers / **988** event groups / **737** with >=2 markets — median **92** tickers and **5**
+ladder-capable groups per 20,000-row capture. So "0 verified fillable arbs" bounds a rate spanning
+**three orders of magnitude** by unit (rule-of-three 95% upper: 2.73e-06 per market-observation ·
+4.89e-04 per distinct ticker · 4.07e-03 per ladder-capable group · 1.34e-03 per monotonicity
+group-check · 1.15e-01 per capture-day, the unit S3 currently quotes). The tape cannot say which is
+right — but none is a statement about "the platform".
+
+**F5 — S15's kill clause is structurally unfireable.** `KXMARMADROUND` — the 560-market family Q55
+milestone 2 curated specifically so S15's "0 fee-clearing hits in 60 days" clause could fire — appears
+in **0 of 55** captures, 0 distinct tickers ever. `n_implication_pairs_checked: 0` is permanent, not a
+waiting game.
+
+**What changed / what did not.** S3 and S15 both stay `data-collecting` — no status flip, no CI, no
+P&L, no kill, no collector modified, **no price quoted at all** (the report's `price_provenance`
+block records `prices_quoted: false`, `price_source_tag: null` rather than leaving it ambiguous).
+What changed is the diagnosis: the blocker was recorded as "denominator unknown, awaiting a manifest";
+it is actually "the cap and cursor order select a population containing almost nothing worth
+scanning", and more passes buy more of the same. The repair is cheap and deliberately NOT built here
+(collector-write-path, Ryan lane): targeted `series_ticker` fetches (Q55's own dry-run got all 560
+KXMARMADROUND markets and 1,120 pairs in one bounded call), a `KXMVE*` exclusion at the pagination
+boundary, and — if the blind sweep is kept — persisting a similarity-preserving sketch (MinHash /
+bottom-k) instead of a content hash.
+
+**PROVISIONAL.** No `Task`/subagent tool exists in this harness, so no independent `verifier` was
+dispatchable (L287/L288/L290/L291/L295 precedent). Nothing here flips a registry status and every
+number is owed an independent re-derivation.
+
+Finding: `findings/2026-08-16-anomaly-sweep-population-rotation.md`. Lessons **L362/L363/L364**.
+
+**Collision note (added by the orchestrating research-loop session, before merge):** this branch
+was built against `main` @ `7c1d058` and its lesson rows collided with PR #385 (`close_time` audit,
+below), independently merged first and taking the identical next IDs L360/L361. Rebased onto
+`main` @ `03a17aa8` (post-#385, post-#387 tape sweep); this entry's three lessons renumbered
+**L360/L361/L362 -> L362/L363/L364** everywhere (lesson rows, `LOOP-QUEUE.md` Q55 status + Log of
+runs, `kb/strategies/00-index.md` S3/S15 prose). Full fresh gates re-run post-rebase: `pytest -q -n 4`
+**4,400 collected, 0 genuine failures** (3 apparent `-n 4` worker crashes, confirmed passing
+standalone — the documented L162 pattern); `invariants.py --full` exit **0**, all green, including
+PR #385's new GATING `settlement_cache_result_conflict_failure` check. See `LOOP-QUEUE.md`'s
+Log-of-runs line for the full gate detail.
+
 ## 2026-08-16 ~04:15Z — kalshi-edge-hunter nightly: adversarial review CONFIRMED a PROVISIONAL finding, and Q21 round #32 produced the first survivor since S78 (S82 registered `idea`)
 
 **Run:** kalshi-edge-hunter (nightly ~04:15 UTC, Opus), the thinking seat. Setup: `git pull --rebase`
