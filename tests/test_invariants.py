@@ -4439,3 +4439,98 @@ class TestUndeclaredResultFamilyAdvisory:
         captured = capsys.readouterr()
         assert rc == 0, captured.err
         assert "undeclared-result-family advisory could not be computed" in captured.err
+
+
+# ───────────────────────────────────────────────────────────────────────────────────────
+# L360 — cross-cache settled-label conflict (GATING)
+# ───────────────────────────────────────────────────────────────────────────────────────
+class TestSettlementCacheResultConflictGate:
+    """The label substrate under every closed verdict must be internally consistent.
+
+    `resolve_market_results` structurally cannot surface this class: its precedence is
+    first-BINARY-wins, so a second cache carrying the OPPOSITE binary result is discarded
+    silently and the resolver reports full confidence. Only cache-vs-cache comparison sees it.
+    """
+
+    def _write(self, root, family, name, markets, pulled_at):
+        d = root / "tape" / family
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_text(json.dumps({"markets": markets, "pulled_at": pulled_at,
+                                          "price_source_tag": "broker_truth"}),
+                              encoding="utf-8")
+
+    def test_committed_tape_is_clean_today_so_this_is_a_ratchet_not_a_grandfather(self):
+        # Measured 2026-08-16: 1,588 settled-to-settled paired observations, 0 conflicts.
+        assert inv._settlement_cache_result_conflict_issues() == []
+
+    def test_the_baseline_is_non_vacuous_there_really_are_overlapping_settled_caches(self):
+        # A gate that passes because it found nothing to compare is not a gate. Pin that the
+        # committed tree actually contains overlapping cache blobs for it to disagree over.
+        import sys as _sys
+        _sys.path.insert(0, str(pathlib.Path(inv.__file__).parent))
+        import close_time_mutation_audit as audit
+        rep = audit.build_report(include_live=False)
+        pooled = rep["blob_pairs"]["pooled"]["by_regime"]["settled_to_settled"]
+        assert pooled["n"] > 0
+
+    def test_two_settled_caches_disagreeing_is_a_gating_failure(self, tmp_path):
+        self._write(tmp_path, "q26_settlement_cache", "settlement.json",
+                    {"KX-A": {"result": "yes", "status": "finalized"}},
+                    "2026-08-01T00:00:00+00:00")
+        self._write(tmp_path, "q27_settlement_cache", "settlement.json",
+                    {"KX-A": {"result": "no", "status": "finalized"}},
+                    "2026-08-02T00:00:00+00:00")
+        issues = inv._settlement_cache_result_conflict_issues(root=tmp_path)
+        assert len(issues) == 1
+        assert issues[0]["ticker"] == "KX-A"
+        msg = inv.settlement_cache_result_conflict_failure(issues)
+        assert msg and "label conflict" in msg
+        assert "first-BINARY-wins" in msg
+
+    def test_ordinary_settlement_lag_is_NOT_a_conflict(self, tmp_path):
+        # The q51 m2/m3 shape: 49 tickers went active -> finalized between two pulls. Reporting
+        # those would bury a real corruption under expected noise (L262).
+        self._write(tmp_path, "q51_settlement_cache", "settlement-m2-2026-08-04.json",
+                    {"KX-A": {"result": "", "status": "active"}}, "2026-08-04T00:00:00+00:00")
+        self._write(tmp_path, "q51_settlement_cache", "settlement.json",
+                    {"KX-A": {"result": "no", "status": "finalized"}},
+                    "2026-08-10T00:00:00+00:00")
+        assert inv._settlement_cache_result_conflict_issues(root=tmp_path) == []
+
+    def test_a_scalar_versus_binary_disagreement_is_also_caught(self, tmp_path):
+        self._write(tmp_path, "q26_settlement_cache", "settlement.json",
+                    {"KX-A": {"result": "scalar", "status": "finalized"}},
+                    "2026-08-01T00:00:00+00:00")
+        self._write(tmp_path, "q27_settlement_cache", "settlement.json",
+                    {"KX-A": {"result": "yes", "status": "finalized"}},
+                    "2026-08-02T00:00:00+00:00")
+        assert len(inv._settlement_cache_result_conflict_issues(root=tmp_path)) == 1
+
+    def test_casing_and_padding_alone_are_never_reported_as_corruption(self, tmp_path):
+        self._write(tmp_path, "q26_settlement_cache", "settlement.json",
+                    {"KX-A": {"result": "YES", "status": "finalized"}},
+                    "2026-08-01T00:00:00+00:00")
+        self._write(tmp_path, "q27_settlement_cache", "settlement.json",
+                    {"KX-A": {"result": " yes ", "status": "finalized"}},
+                    "2026-08-02T00:00:00+00:00")
+        assert inv._settlement_cache_result_conflict_issues(root=tmp_path) == []
+
+    def test_an_unreadable_blob_cannot_take_the_gate_down(self, tmp_path):
+        d = tmp_path / "tape" / "q26_settlement_cache"
+        d.mkdir(parents=True)
+        (d / "settlement.json").write_text("{truncated", encoding="utf-8")
+        assert inv._settlement_cache_result_conflict_issues(root=tmp_path) == []
+
+    def test_no_issues_yields_no_message(self):
+        assert inv.settlement_cache_result_conflict_failure([]) is None
+
+    def test_full_run_flips_the_exit_code_when_a_conflict_exists(self, capsys, monkeypatch):
+        monkeypatch.setattr(inv, "_settlement_cache_result_conflict_issues",
+                            lambda *a, **k: [{"ticker": "KX-A", "earlier": "q26/settlement.json",
+                                              "later": "q27/settlement.json",
+                                              "earlier_result": "yes", "later_result": "no"}])
+        monkeypatch.setattr(inv.sys, "argv", ["invariants.py", "--full"])
+        rc = inv.main()
+        captured = capsys.readouterr()
+        assert rc == 2, captured.err
+        assert "settlement-cache label conflict" in captured.err

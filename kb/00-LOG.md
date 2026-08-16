@@ -67,6 +67,146 @@ green"; `pytest` (see the Log-of-runs line below). Diff is research/docs-only (f
 (S82 registered), `LOOP-QUEUE.md` (Q21 round #32 status, Q57 added, Q45 confirmation, Log of runs), this entry.
 Still **0 proven edges.**
 
+## 2026-08-16 03:xx ET — IDLE RUN, policy (c): `close_time` is not a schedule — Kalshi rewrites it to the actual close instant at settlement, always EARLIER (new L360/L361)
+
+**Steps 0a/0/0b (done by the calling session, re-checked here).** History-integrity **PASS**:
+`origin/main` = local HEAD `a455d77`, newest `kb/00-LOG.md` entry (2026-08-15) and newest committed
+tape day (`dt=2026-08-15`) consistent — no rewind. Claim-check: 7 open PRs
+(#125/#165/#166/#191/#208/#271/#330), all standing "LEAVE OPEN for Ryan" items, none claiming queue
+work. Step-0b: newest `tape/hourly-*` branch `20260815T0656Z`, already swept and merged (PR #377);
+the last hourly pass (`7fb2252`) went straight to `main`, nothing stranded.
+
+**Step 9 (paper), run FIRST.** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra
+only). `python3 scripts/paper_pass.py` over current tape: **1,695 records loaded** (1,693 at the
+last pass), **0 processed / 0 deferred(caps) / 278 deferred(coverage) / 300 already-in-ledger, 0 new
+ledger lines** — `paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash
+$+27.76, open notional $0.00` (`broker_truth`; NOT edge evidence). The calling session's premise that
+12 days of untouched crypto tape were waiting is **not** what the pass sees: every qualifying event
+is already in the ledger and the remainder defer on COVERAGE, so the 08-04 ledger date reflects the
+last date any event QUALIFIED, not a stalled pass. Idempotent and unchanged.
+
+**Queue: DRAINED, re-derived.** Every `### Qn` section Q0-Q56 re-parsed by its newest-dated
+`Status:` line — **0 eligible**, the 16th consecutive idle-adjacent run. Checked specifically for a
+same-day gate that might have just opened: Q36 (VPS settlement-ledger writer, Ryan-side), Q37 (DONE
+2026-08-04), Q43 (perp density, Ryan/VPS-side) are all gated on collector work no cloud run can do.
+
+**Policy (a) and (b) re-verified closed before (c).** (a): `stale_unenforced_recall_report()` = **355
+rows, 43 UNENFORCED, 33 disposed, 10 genuinely open** (`L213/L221/L222/L282/L319/L320/L321/L323/
+L338/L346`) — bit-identical to the set the last three runs triaged into Ryan-lane /
+collector-write-path / already-half-built / terminal-judgment. (b): the last run's claim that every
+gated item already carries a probe was CHECKED rather than trusted — `scripts/` holds
+`q32_sharp_devig_polymarket_probe.py`, `q36_kxtempnych_settlement_basis_probe.py`,
+`q43_perp_binary_consistency_probe.py`, `q48_s55_fomc_lag_probe.py`, `q56_s80_*`/`q56_s81_*`; the
+remaining blocked items (Q14/Q15/Q33/Q47) are Ryan-credential/market-availability blocked, not
+time-gated. So (c), deliberately on a family class with **no prior dedicated audit**: the per-probe
+**settlement caches**. Recent idle runs covered the depth-tape substrate census and the
+settlement-source RECALL audit; this is the complementary **precision/consistency** question — not
+"are there sources we don't read?" but "do the sources we already trust CONTRADICT each other?"
+
+**The question, and why it had teeth before a single number was computed.**
+`scripts/q51_m3_fill_projection.py` reads `close_time` from a deliberately FROZEN pre-settlement
+cache and documents that as safe on an explicit premise — `close_time` is *"a SCHEDULE field, never
+an outcome"* (`:51`, `:118-119`, and its emitted `what_is_read_from_the_cache` field). Four sports
+probes (`q26`/`q28`/`q29`/`q30`) lean on the same premise, two of them to build a time-to-close
+FEATURE. Nobody had ever measured it, and committed tape can: `tape/q51_settlement_cache/` holds
+THREE pulls of the SAME 60-ticker population, one before those markets settled and two after.
+
+**Built.** `core/close_time_mutation.py` — pure primitives that classify a paired observation by the
+SETTLEMENT STATE of the two rows (`open_to_open` / `open_to_settled` / `settled_to_settled`, plus a
+never-expected `settled_to_open` that is reported rather than dropped), never by the timestamps
+themselves, because the trustworthiness of the timestamp is the thing under test. "Settled" is
+delegated to `core.result_evidence` (non-empty `result`, or a terminal `status`; `closed` is NOT
+settled) rather than re-defined — L358's cross-module drift lesson. An unparseable close_time yields
+`undated`, never a zero delta, since a fabricated zero would read as *stable*, the exact direction of
+error that would have hidden the finding. Then `scripts/close_time_mutation_audit.py` over all 8
+committed cache blobs plus a live control.
+
+**F1 — three regimes, and the mutation happens exactly once.** 9 overlapping blob pairs, **1,689
+paired observations / 533 distinct tickers**: `settled_to_settled` **1,588 obs, 0 changed**;
+`open_to_open` 3, 0 changed; `open_to_settled` **98 obs, 96 changed — 96 EARLIER, 0 later**, median
+**−51.90 h**, range **−0.67 h to −333.34 h** (−13.9 days). Live control on a different family, a
+different collector and a different mechanism (`tape/universe_sweep/`, **1,100,000 records**):
+**36,765 tickers re-observed, 36,765 stable, 0 changed**. Granularity corroborates: pre-close 20/60
+close_times sit on a round hour and only 10/60 are second-precise; post-close **58/60** are
+second-precise — a scheduled placeholder replaced by a recorded event instant. **The stability while
+open is the trap**: anyone who asked "is close_time stable?" against live tape would get
+36,765/36,765 and conclude it is a reliable constant. It is reliably *wrong*.
+
+**F2 — the exposure, at the granularity a consumer actually uses.** On the exact frozen cache
+`q51_m3_fill_projection` reads, **47 of 60 tickers (78.3%) change close DATE** — the derived value
+`_close_date_map` buckets on. Distinct-ticker totals across the registry: **48** instant-changed,
+**47** date-changed, **49** open→settled. (The `n=98` is an OBSERVATION count — a ticker shared by
+three blobs appears in three pairs — so the audit reports both under separate names precisely so the
+larger number cannot be quoted as markets; the honest market unit is 48/49.) Two different things
+are going on and only one is a defect: using the settled close_time to SELECT pre-close rows
+(`captured_at < close_time`) is CORRECT, but using it as a FEATURE (`ttc_seconds`, `ttc_hours`, "the
+last snapshot before close", a close-date bucket) is a **look-ahead of a median 51.9 h**, because
+the live observable was the placeholder. **No verdict flips, and that is direction, not luck** — all
+affected probes are DEAD or admissible-null, and a look-ahead only inflates, so a strategy dead WITH
+the inflation is more dead without it. Recorded as forward-binding only.
+
+**F3 (→ L361) — the label substrate is clean, which is what makes the gate worth installing.** Across
+the same 1,588 settled-to-settled observations there are **0 disagreements on `result`**.
+`resolve_market_results` structurally cannot surface that class: its precedence is
+first-BINARY-wins, so a second cache carrying the OPPOSITE binary result is discarded silently and
+the resolver reports full confidence. Only cache-vs-cache comparison sees it, and nothing did.
+
+**Enforcement (→ L361).** `scripts/invariants.py::_settlement_cache_result_conflict_issues` /
+`settlement_cache_result_conflict_failure`, wired into `--full` as **GATING** — not advisory
+(contrast L353's posture), because unlike a collector-created data condition a settlement cache
+changes only when a probe in THIS repo writes one, so the trigger is fully under our control and a
+corrupt label invalidates whichever verdict rests on it. Narrow by design: only rows BOTH sides call
+settled participate (settlement lag is not a conflict, L262), `scalar`-vs-binary counts,
+casing/padding does not; 9 tests including one pinning that the clean baseline is **non-vacuous**.
+**Deliberately NOT done:** re-pointing any sealed probe's `close_time` source (L309/L311) — that
+changes the population of an already-recorded verdict. Filed as a two-agent candidate, not executed.
+
+**Discipline.** No P&L, no CI, no bootstrap, no Kelly, no kill, no registry flip (test-pinned: the
+report's KEYS may not carry a `pnl`/`ci95`/`bootstrap`/`kelly`/`sharpe` name — checked on keys, not
+serialized text, because the report's own `discipline` field honestly names the things it excludes).
+No price is read or persisted, so **no `price_source_tag` applies to this audit's outputs**; the rows
+it counts carry their sources' tags (`broker_truth` on all 8 blobs, 0 without a `pulled_at`).
+`kb/strategies/00-index.md` untouched — still **0 proven edges**. **Two-agent rule NOT SATISFIABLE**:
+no `Task`/`verifier` subagent exists in this harness (the L287/L288/L290/L291/L295/L308/L313/L325/
+L338 precedent), so the sanctioned redundancy fallback ran and is reported AS redundancy, never as
+verification — `scripts/close_time_mutation_rederive.py` is AST-pinned to import neither the audit
+nor `core.close_time_mutation` nor `core.settlement_sources` nor `core.result_evidence`, finds fields
+by regex over raw bytes, attributes POSITIONALLY rather than structurally, enumerates cache files by
+glob rather than from the registry (so a registry omission cannot hide a file from both), and answers
+the live-stability question BACKWARDS and with no ordering at all: close_time is stable for every
+ticker iff #distinct `(ticker, close_time)` pairs == #distinct tickers. It reads no `captured_at`, so
+a clock defect cannot produce the same answer twice. Result **1,063,235 / 1,063,235 / 0** — strictly
+stronger than the audit's 36,765-ticker first-vs-last comparison — and every cache-side number
+reconciles EXACTLY (8 files, 1,689 observations, 533 distinct, regimes 3/98/1,588/0, 48/47/49
+distinct, 96 earlier / 0 later, 0 conflicts). Verdict committed **PROVISIONAL**.
+
+**One published limit, and one bug the redundancy found in ITSELF.** L136/L150 gate every new raw
+`datetime.fromisoformat` site, so both implementations import `core.timeutil.parse_iso_utc` and a
+defect INSIDE that parser is the one class this redundancy cannot catch — published rather than
+hidden, and AST-pinned to exactly one shared module. Separately, the re-derivation's positional
+attributor keyed on each ticker match's END offset with a strict `<`; in COMPACT JSON the next
+character is the first field's opening quote, so the owner's offset EQUALS the field's start and the
+field was attributed to the PREVIOUS ticker. The committed caches are pretty-printed, so real tape
+never reached it and every reconciled number was identical before and after the repair — which is
+exactly why the FIXTURE, not the tape, had to be the thing that asked.
+
+**Incidental, and the second consecutive run in which this happened: three existing ratchets fired on
+this run's brand-new code before it could be committed.** L136/L150 caught two raw
+`datetime.fromisoformat` sites (`core/close_time_mutation.py`, `scripts/close_time_mutation_rederive
+.py`) and L345 caught an `unknown`-class settlement root (`TAPE_ROOT = os.path.join(os.path.dirname(
+_HERE), 'tape')` — anchored in fact, unclassifiable to the static checker). All three were repaired
+rather than exempted; the root was re-expressed so `__file__` appears in the expression the anchor
+classifier reads.
+
+**Files:** `core/close_time_mutation.py`, `scripts/close_time_mutation_audit.py`,
+`scripts/close_time_mutation_rederive.py`, `scripts/invariants.py` (new GATING check),
+`tests/test_close_time_mutation.py`, `tests/test_close_time_mutation_audit.py`,
+`tests/test_close_time_mutation_rederive.py`, `tests/test_invariants.py`,
+`reports/close_time_mutation_audit.json`, `reports/close_time_mutation_rederive.json`,
+`findings/2026-08-16-close-time-mutation-audit.md`, `kb/lessons/00-lessons.md` (L360+L361),
+`reports/problems-dashboard.html` (regenerated), `LOOP-QUEUE.md` (Q51 status + Log of runs),
+`kb/00-LOG.md`.
+
 ## 2026-08-15 17:xx-23:xx ET — IDLE RUN, policy (c): the settlement-source registry's published blind spot was hiding two real sources — worth 4 depth units (new L358/L359)
 
 **Steps 0a/0/0b (done by the calling session).** History-integrity **PASS**: `origin/main` HEAD

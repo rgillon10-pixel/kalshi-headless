@@ -1,0 +1,40 @@
+{
+  "caches": {
+    "cache_files": [
+      "q26_settlement_cache/settlement.json",
+      "q27_settlement_cache/settlement.json",
+      "q29_settlement_cache/settlement.json",
+      "q30_settlement_cache/settlement.json",
+      "q51_settlement_cache/settlement-m2-2026-08-04.json",
+      "q51_settlement_cache/settlement-m3-2026-08-10.json",
+      "q51_settlement_cache/settlement.json",
+      "q56_settlement_cache/settlement-s81-2026-08-11.json"
+    ],
+    "n_cache_files": 8,
+    "n_distinct_close_date_changed": 47,
+    "n_distinct_close_time_changed": 48,
+    "n_distinct_open_to_settled": 49,
+    "n_distinct_tickers_across_pairs": 533,
+    "n_observations_moved_earlier": 96,
+    "n_observations_moved_later": 0,
+    "n_paired_observations": 1689,
+    "n_settled_result_conflicts": 0,
+    "n_tickers_any_cache": 956,
+    "regime_observation_counts": {
+      "open_to_open": 3,
+      "open_to_settled": 98,
+      "settled_to_open": 0,
+      "settled_to_settled": 1588
+    },
+    "settled_result_conflicts": []
+  },
+  "live": {
+    "every_ticker_has_exactly_one_close_time": true,
+    "n_distinct_ticker_close_time_pairs": 1063235,
+    "n_distinct_tickers": 1063235,
+    "n_lines": 1100000,
+    "n_tickers_with_more_than_one_close_time": 0
+  },
+  "rederived_at": "2026-08-16T03:39:14.065580+00:00",
+  "tape_root": "/home/user/kalshi-headless/tape"
+}

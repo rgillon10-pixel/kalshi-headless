@@ -1,0 +1,794 @@
+{
+  "audited_at": "2026-08-16T03:28:52.558894+00:00",
+  "blob_pairs": {
+    "distinct_ticker_counts": {
+      "n_distinct_date_changed": 47,
+      "n_distinct_instant_changed": 48,
+      "n_distinct_open_to_settled": 49,
+      "n_distinct_tickers": 533
+    },
+    "n_blob_pairs_with_overlap": 9,
+    "n_settled_result_conflicts": 0,
+    "pairs": [
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 458,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q26_settlement_cache:settlement.json",
+        "earlier_pulled_at": "2026-07-14T09:25:53.998452+00:00",
+        "later": "q27_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-07-14T12:27:04.256208+00:00",
+        "n_common": 458,
+        "n_date_changed": 0,
+        "n_instant_changed": 0
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 458,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q26_settlement_cache:settlement.json",
+        "earlier_pulled_at": "2026-07-14T09:25:53.998452+00:00",
+        "later": "q29_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-07-15T03:23:36.912213+00:00",
+        "n_common": 458,
+        "n_date_changed": 0,
+        "n_instant_changed": 0
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 40,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q26_settlement_cache:settlement.json",
+        "earlier_pulled_at": "2026-07-14T09:25:53.998452+00:00",
+        "later": "q30_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-07-15T06:19:11.511762+00:00",
+        "n_common": 40,
+        "n_date_changed": 0,
+        "n_instant_changed": 0
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 462,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q27_settlement_cache:settlement.json",
+        "earlier_pulled_at": "2026-07-14T12:27:04.256208+00:00",
+        "later": "q29_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-07-15T03:23:36.912213+00:00",
+        "n_common": 462,
+        "n_date_changed": 0,
+        "n_instant_changed": 0
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 40,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q27_settlement_cache:settlement.json",
+        "earlier_pulled_at": "2026-07-14T12:27:04.256208+00:00",
+        "later": "q30_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-07-15T06:19:11.511762+00:00",
+        "n_common": 40,
+        "n_date_changed": 0,
+        "n_instant_changed": 0
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 51,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q29_settlement_cache:settlement.json",
+        "earlier_pulled_at": "2026-07-15T03:23:36.912213+00:00",
+        "later": "q30_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-07-15T06:19:11.511762+00:00",
+        "n_common": 51,
+        "n_date_changed": 0,
+        "n_instant_changed": 0
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 1,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 47,
+            "delta_hours_max": -0.6686111111111112,
+            "delta_hours_mean": -69.84232060185185,
+            "delta_hours_median": -51.90416666666667,
+            "delta_hours_min": -333.34166666666664,
+            "instant_changed": 48,
+            "moved_earlier": 48,
+            "moved_later": 0,
+            "n": 49,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 10,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q51_settlement_cache:settlement-m2-2026-08-04.json",
+        "earlier_pulled_at": "2026-08-04T12:40:44.886624+00:00",
+        "later": "q51_settlement_cache:settlement-m3-2026-08-10.json",
+        "later_pulled_at": "2026-08-10T00:38:33.309463+00:00",
+        "n_common": 60,
+        "n_date_changed": 47,
+        "n_instant_changed": 48
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 1,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 47,
+            "delta_hours_max": -0.6686111111111112,
+            "delta_hours_mean": -69.84232060185185,
+            "delta_hours_median": -51.90416666666667,
+            "delta_hours_min": -333.34166666666664,
+            "instant_changed": 48,
+            "moved_earlier": 48,
+            "moved_later": 0,
+            "n": 49,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 10,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q51_settlement_cache:settlement-m2-2026-08-04.json",
+        "earlier_pulled_at": "2026-08-04T12:40:44.886624+00:00",
+        "later": "q51_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-08-10T00:38:33.309463+00:00",
+        "n_common": 60,
+        "n_date_changed": 47,
+        "n_instant_changed": 48
+      },
+      {
+        "by_regime": {
+          "open_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 1,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "open_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_open": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 0,
+            "text_only_changed": 0,
+            "undated": 0
+          },
+          "settled_to_settled": {
+            "date_changed": 0,
+            "delta_hours_max": null,
+            "delta_hours_mean": null,
+            "delta_hours_median": null,
+            "delta_hours_min": null,
+            "instant_changed": 0,
+            "moved_earlier": 0,
+            "moved_later": 0,
+            "n": 59,
+            "text_only_changed": 0,
+            "undated": 0
+          }
+        },
+        "earlier": "q51_settlement_cache:settlement-m3-2026-08-10.json",
+        "earlier_pulled_at": "2026-08-10T00:38:33.309463+00:00",
+        "later": "q51_settlement_cache:settlement.json",
+        "later_pulled_at": "2026-08-10T00:38:33.309463+00:00",
+        "n_common": 60,
+        "n_date_changed": 0,
+        "n_instant_changed": 0
+      }
+    ],
+    "pooled": {
+      "by_regime": {
+        "open_to_open": {
+          "date_changed": 0,
+          "delta_hours_max": null,
+          "delta_hours_mean": null,
+          "delta_hours_median": null,
+          "delta_hours_min": null,
+          "instant_changed": 0,
+          "moved_earlier": 0,
+          "moved_later": 0,
+          "n": 3,
+          "text_only_changed": 0,
+          "undated": 0
+        },
+        "open_to_settled": {
+          "date_changed": 94,
+          "delta_hours_max": -0.6686111111111112,
+          "delta_hours_mean": -69.84232060185188,
+          "delta_hours_median": -51.90416666666667,
+          "delta_hours_min": -333.34166666666664,
+          "instant_changed": 96,
+          "moved_earlier": 96,
+          "moved_later": 0,
+          "n": 98,
+          "text_only_changed": 0,
+          "undated": 0
+        },
+        "settled_to_open": {
+          "date_changed": 0,
+          "delta_hours_max": null,
+          "delta_hours_mean": null,
+          "delta_hours_median": null,
+          "delta_hours_min": null,
+          "instant_changed": 0,
+          "moved_earlier": 0,
+          "moved_later": 0,
+          "n": 0,
+          "text_only_changed": 0,
+          "undated": 0
+        },
+        "settled_to_settled": {
+          "date_changed": 0,
+          "delta_hours_max": null,
+          "delta_hours_mean": null,
+          "delta_hours_median": null,
+          "delta_hours_min": null,
+          "instant_changed": 0,
+          "moved_earlier": 0,
+          "moved_later": 0,
+          "n": 1588,
+          "text_only_changed": 0,
+          "undated": 0
+        }
+      },
+      "n_pairs": 1689
+    },
+    "settled_result_conflicts": []
+  },
+  "cache_blobs": [
+    {
+      "label": "q26_settlement_cache:settlement.json",
+      "n_markets": 458,
+      "n_settled_rows": 458,
+      "path": "q26_settlement_cache/settlement.json",
+      "price_source_tag": null,
+      "pulled_at": "2026-07-14T09:25:53.998452+00:00",
+      "source": "q26_settlement_cache"
+    },
+    {
+      "label": "q27_settlement_cache:settlement.json",
+      "n_markets": 462,
+      "n_settled_rows": 462,
+      "path": "q27_settlement_cache/settlement.json",
+      "price_source_tag": null,
+      "pulled_at": "2026-07-14T12:27:04.256208+00:00",
+      "source": "q27_settlement_cache"
+    },
+    {
+      "label": "q29_settlement_cache:settlement.json",
+      "n_markets": 507,
+      "n_settled_rows": 507,
+      "path": "q29_settlement_cache/settlement.json",
+      "price_source_tag": null,
+      "pulled_at": "2026-07-15T03:23:36.912213+00:00",
+      "source": "q29_settlement_cache"
+    },
+    {
+      "label": "q30_settlement_cache:settlement.json",
+      "n_markets": 158,
+      "n_settled_rows": 158,
+      "path": "q30_settlement_cache/settlement.json",
+      "price_source_tag": null,
+      "pulled_at": "2026-07-15T06:19:11.511762+00:00",
+      "source": "q30_settlement_cache"
+    },
+    {
+      "label": "q51_settlement_cache:settlement-m2-2026-08-04.json",
+      "n_markets": 60,
+      "n_settled_rows": 10,
+      "path": "q51_settlement_cache/settlement-m2-2026-08-04.json",
+      "price_source_tag": "broker_truth",
+      "pulled_at": "2026-08-04T12:40:44.886624+00:00",
+      "source": "q51_settlement_cache"
+    },
+    {
+      "label": "q51_settlement_cache:settlement-m3-2026-08-10.json",
+      "n_markets": 60,
+      "n_settled_rows": 59,
+      "path": "q51_settlement_cache/settlement-m3-2026-08-10.json",
+      "price_source_tag": "broker_truth",
+      "pulled_at": "2026-08-10T00:38:33.309463+00:00",
+      "source": "q51_settlement_cache"
+    },
+    {
+      "label": "q51_settlement_cache:settlement.json",
+      "n_markets": 60,
+      "n_settled_rows": 59,
+      "path": "q51_settlement_cache/settlement.json",
+      "price_source_tag": "broker_truth",
+      "pulled_at": "2026-08-10T00:38:33.309463+00:00",
+      "source": "q51_settlement_cache"
+    },
+    {
+      "label": "q56_settlement_cache:settlement-s81-2026-08-11.json",
+      "n_markets": 282,
+      "n_settled_rows": 282,
+      "path": "q56_settlement_cache/settlement-s81-2026-08-11.json",
+      "price_source_tag": "broker_truth",
+      "pulled_at": "2026-08-11T00:32:26.594212+00:00",
+      "source": "q56_settlement_cache"
+    }
+  ],
+  "close_date_exposure": [
+    {
+      "earlier": "q26_settlement_cache:settlement.json",
+      "later": "q27_settlement_cache:settlement.json",
+      "n_close_date_changed": 0,
+      "n_common": 458,
+      "n_dated": 458
+    },
+    {
+      "earlier": "q26_settlement_cache:settlement.json",
+      "later": "q29_settlement_cache:settlement.json",
+      "n_close_date_changed": 0,
+      "n_common": 458,
+      "n_dated": 458
+    },
+    {
+      "earlier": "q26_settlement_cache:settlement.json",
+      "later": "q30_settlement_cache:settlement.json",
+      "n_close_date_changed": 0,
+      "n_common": 40,
+      "n_dated": 40
+    },
+    {
+      "earlier": "q27_settlement_cache:settlement.json",
+      "later": "q29_settlement_cache:settlement.json",
+      "n_close_date_changed": 0,
+      "n_common": 462,
+      "n_dated": 462
+    },
+    {
+      "earlier": "q27_settlement_cache:settlement.json",
+      "later": "q30_settlement_cache:settlement.json",
+      "n_close_date_changed": 0,
+      "n_common": 40,
+      "n_dated": 40
+    },
+    {
+      "earlier": "q29_settlement_cache:settlement.json",
+      "later": "q30_settlement_cache:settlement.json",
+      "n_close_date_changed": 0,
+      "n_common": 51,
+      "n_dated": 51
+    },
+    {
+      "earlier": "q51_settlement_cache:settlement-m2-2026-08-04.json",
+      "later": "q51_settlement_cache:settlement-m3-2026-08-10.json",
+      "n_close_date_changed": 47,
+      "n_common": 60,
+      "n_dated": 60
+    },
+    {
+      "earlier": "q51_settlement_cache:settlement-m2-2026-08-04.json",
+      "later": "q51_settlement_cache:settlement.json",
+      "n_close_date_changed": 47,
+      "n_common": 60,
+      "n_dated": 60
+    },
+    {
+      "earlier": "q51_settlement_cache:settlement-m3-2026-08-10.json",
+      "later": "q51_settlement_cache:settlement.json",
+      "n_close_date_changed": 0,
+      "n_common": 60,
+      "n_dated": 60
+    }
+  ],
+  "discipline": "descriptive only: no verdict, no CI, no bootstrap, no P&L, no Kelly, no registry flip, no network, no price read or persisted",
+  "live_drift": {
+    "examples_changed": [],
+    "family_glob": "universe_sweep/dt=*.jsonl",
+    "n_close_time_changed": 0,
+    "n_close_time_stable": 36765,
+    "n_distinct_tickers": 1063235,
+    "n_malformed": 0,
+    "n_records": 1100000,
+    "n_tickers_observed_twice_or_more": 36765,
+    "n_undated": 0
+  },
+  "n_blobs_without_pulled_at": 0,
+  "n_cache_blobs": 8,
+  "tape_root": "/home/user/kalshi-headless/tape"
+}
