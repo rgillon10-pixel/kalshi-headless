@@ -1,17 +1,25 @@
-# Q57 / S82 — game-level signed-taker-flow FADE taker: NOT MEASURABLE on committed tape
+# Q57 / S82 — game-level signed-taker-flow FADE taker: population-inadequate at the sealed spec (corrected — see §8)
 
 **Date:** 2026-08-16 · **Queue item:** Q57 · **Strategy:** S82 (Q21 round #32 survivor)
-**Verdict class:** DATA-ADEQUACY (sign-variation degeneracy) — **presumptive KILL**
-**Status: PROVISIONAL.** No `verifier` subagent exists in this harness (no `Task` tool; the
-L287/L288/L290/L291/L295/L308/L313/L325 precedent, and Q57's own text: *"run it PROVISIONAL if
-no `verifier` subagent is available in the executing harness"*). Per the run protocol's
-two-agent rule a PROVISIONAL verdict **may not flip the registry**, and it has not:
-`kb/strategies/00-index.md` S82 stays `idea`, with a dated note.
+**Verdict class:** DATA-ADEQUACY — **`below_min_units`, one game short at the sealed spec's tightest
+mechanism-faithful window. NOT a structural/definitional impossibility — see §8, the independent
+verifier REFUTED that escalation.**
+**Status: PROVISIONAL — an independent `verifier` DID run (§8) and REFUTED the original "structurally
+unfillable" framing while CONFIRMING the narrow single-sided-population claim under the exact
+pre-registered spec. Per the two-agent rule this correction still may not flip the registry itself, and
+it has not: `kb/strategies/00-index.md` S82 stays `idea`.** The presumptive-KILL recommendation
+originally in §6 below is **WITHDRAWN** — see §8 before drawing any conclusion from §§1-7 alone.
 
-**No CI was computed. No settlement result VALUE was read.** The probe refused structurally,
-which is the intended behaviour — see §3.
+**No CI was computed in either round. No settlement result VALUE was read.** The original probe refused
+structurally at the population gate (§3) under the sealed spec; §8 shows that refusal does not generalize
+past a single pre-registered constant.
 
 Still **0 proven edges.**
+
+---
+**§§1-7 below are the original PROVISIONAL writeup, left unchanged as the historical record. Read §8
+first — it corrects §§3/4c/6's central claim.**
+---
 
 ---
 
@@ -200,3 +208,107 @@ it needs a venue/book regime where informed selling happens while the yes side i
 * Files: `scripts/q57_s82_flow_fade_probe.py`, `scripts/q57_s82_rederive.py`,
   `tests/test_q57_s82_flow_fade_probe.py`, `tests/test_q57_s82_rederive.py`,
   `reports/q57_s82_flow_fade.json`, `scripts/invariants.py` (two triage declarations added).
+
+## 8. Verifier round (independent adversarial review, 2026-08-16) — REFUTED the escalation, CONFIRMED the narrow claim
+
+An independent `verifier` subagent was dispatched by the calling research-loop session after the run above
+(the run above ran in a harness with no `Task`/nested-agent tool, so it could not dispatch one itself and
+correctly committed as PROVISIONAL per Q57's own sanctioned fallback).
+
+**What re-ran and matched, independently (not just by re-executing the committed scripts):** a from-scratch
+reader sharing no code with either `q57_s82_flow_fade_probe.py` or `q57_s82_rederive.py` reproduced EXACTLY:
+213,488 total trade rows / 213,431 `*GAME` prints / 87 GAME tickers / 72 games; yes-print share 0.7119 raw,
+0.6830 count-weighted; 49 ledger `close_time` tickers; 81/87 settled binary; the same 11 pre-registered
+units, every one with rho > 0 (all fade to NO); same asks, same lags, 10 distinct entry instants / max share
+0.1818; the §3b fillability split exactly (neg=3, pos=42, `{floor: 2, absent: 1}`, in-band 0). Both new test
+files (39 tests) pass and are non-vacuous (the prereg-hash test pins the literal SHA and breaks on any
+spec-constant edit; the AST test really forbids the rederive script from importing shared code).
+`invariants.py --full` exit 0. Regenerating `reports/q57_s82_flow_fade.json` from a clean checkout is
+byte-identical to the committed copy. **The narrow claim is CONFIRMED to the digit.**
+
+**What broke:** §3b's own stated wall — *"the fade-to-YES arm is not merely rare — it is structurally
+unfillable … no quantity of additional tape of this shape opens it"* — and §6's escalation of that to *"the
+obstruction is a property of the venue's flow and book shape, not of the sample size."* Both are false on the
+tape already committed.
+
+**Minimal repro.** Change exactly ONE pre-registered constant — flow window 120 → 15 min — holding the
+ledger `close_time` anchor, the last-snapshot-before-close entry rule, `|rho| >= 0.20`, count floor 100, max
+lag 60 min, and the `[0.02, 0.98]` band all fixed at their pre-registered values:
+
+```
+KXKBOGAME-26JUL070530KIWKTW-KIW   ledger close_time 2026-07-07T11:59:58Z
+  entry snapshot 2026-07-07T11:55:53Z   lag 4.08 min
+  best_yes_ask 0.06  (a real 6c offer, not floor-pinned)
+  15-min window: rho = -0.2313   -> FADE = YES
+  120-min window: rho = +0.5759  -> FADE = NO
+```
+
+A second case exists in the same pass (`KXNPBGAME-26JUL070500HANYOM-YOM`, rho -0.0972, best_yes_ask 0.92,
+lag 18.8 min). Both are fully mechanism-faithful, in-band, `real_ask`-fillable fade-to-YES entries on
+settled games — exactly the reopen condition §6 wrote down (negative flow coexisting with a live in-band
+YES ask on ≥2 independent games), already satisfied on the committed tape, not a hypothetical future one.
+Re-running §3b's own no-gates fillability census at 15 min instead of 120 min on the identical ledger anchor
+gives **10 negative-flow observations, 2 with a fillable in-band YES ask** — not "0 of 3." The zero in §3b
+is a property of the 120-minute window, not of the book.
+
+**Consequences:**
+
+1. **§6's reopen condition is already tripped**, on the tape already in hand. A tripwire that is already
+   tripped cannot prevent an accidental re-run — it should be checked against current tape before being
+   filed, not written down as a future-only condition.
+2. **A genuinely two-sided, floor-clearing population exists on this tape.** Anchoring on
+   `tape/q51_settlement_cache/` (§4c's road explicitly not taken) instead of `settlement_ledger`, max lag
+   240 min, window 15 min, same `|rho| >= 0.20`/count-floor-100/band → **12 GAME units, {no: 10, yes: 2},
+   2 EXCLUSIVE-minority units on 2 distinct games** (`…KIWKTW-KIW` 0.06, `KXNWSLGAME-26AUG02DENBOS-TIE`
+   0.22). That clears L41's 10-unit floor, the probe's own gate-2 floor of 1, AND
+   `core.bootstrap.sign_variation_admissible`'s real default of `min_exclusive_minority_units=2` — with no
+   3-day-stale book and no zero volume floor. At the full pre-registered 120-min window with the same cache
+   anchor and lag 240: 14 units {no: 13, yes: 1}.
+3. **§4c's prediction is falsified by measurement, not merely unmeasured.** *"Given 93.3% positive flow and
+   the fillability wall, a larger population is very unlikely to change the sign-variation verdict"* —
+   expanding the anchor from 49 to 87 tickers does change it. Where an alternative is outcome-blind (a
+   close-time anchor choice is not a result value) and cheap, it should be measured, not predicted away.
+4. **§3a's "not an artifact of the pre-registered constants" is true only inside the declared grid.** The
+   grid's window axis bottoms at 30 min next to a pre-registered 120. Below 30 min (15 min), with the
+   ledger anchor and lag ≤ 60, the population is **9 units {no: 8, yes: 1}** — two-sided but ONE game short
+   of the L41 floor. That is `below_min_units` ("not measured yet"), categorically different from
+   "definitionally impossible." (The grid's own claim does hold where it applies: across ledger+cache
+   anchors × windows 2–1440 min × count floors 0–5000 at lag ≤ 60, zero cells reach 10 units with a
+   minority unit at `min_abs_rho >= 0.20` — the escape hatch is the lag, not the rho gate.)
+
+**Smaller defects, worth fixing regardless of the headline:**
+
+- **Citation error.** §3a's *"each yields exactly ONE minority unit, which is L321's own exhibit of a block
+  that can never appear alone in any resample"* cites the wrong lesson. The floor-of-2 rule is **L312
+  sub-lesson (b)** (a minority arm concentrated in a single game cannot be block-bootstrapped at all); L321
+  is about EXCLUSIVE-vs-TOUCHING counting. The conclusion (1 is too few) is right, for L312's reason — an
+  EXCLUSIVE single minority block *can* appear alone in a with-replacement resample.
+- **Undisclosed floor relaxation.** `core.bootstrap.sign_variation_admissible`'s default is
+  `min_exclusive_minority_units=2`; the probe passes 1. This faithfully implements Q57's own gate-2 wording
+  (checked against `origin/main:LOOP-QUEUE.md` — the prereg is not self-authored), but it is below L312's
+  established floor. Harmless in the original run (0 < 1 < 2), but should be stated as using the weaker of
+  the two available floors.
+- **Cosmetic.** §3's "213,488 prints / 87 traded `*GAME` tickers" conflates the whole-tape row count with
+  the GAME subset (213,431); the probe's own JSON report has it right.
+- **Unremarked population shape.** 8 of the 11 pre-registered units are `-TIE` legs — `argmax|rho|`
+  systematically selects the 3-way soccer draw market. The population reads closer to "sell the draw" than
+  to "buy NO on a moneyline." This strengthens the degeneracy reading but was not stated.
+
+**Disposition.** The narrow fact — the pre-registered S82 cell yields 11 single-sided units and cannot
+produce a valid two-sided sign-variation test — is CONFIRMED to the digit. The KILL rested on escalating
+that to "structurally unfillable, no more tape helps," and that escalation is REFUTED by the committed tape
+at the pre-registered anchor. **Q57 stays PROVISIONAL and OPEN. S82 must NOT be flipped `idea -> dead ✗` on
+a not-measurable rationale — the honest class is `below_min_units` under the sealed spec, one game short at
+a 15-min window, not a definitional obstruction.** (To be explicit about the limit of this correction too:
+the two-sided population in point 2 above required THREE simultaneous spec changes found by searching for
+two-sidedness, so it is not itself licence to score S82 there — it is only evidence that the impossibility
+claim is false. A proper retest needs its own fresh pre-registration.)
+
+**New lesson candidates** (filed in `kb/lessons/00-lessons.md` as L362-L364, UNENFORCED):
+- A sensitivity grid that only *brackets* the pre-registered value cannot distinguish "structural" from
+  "an artifact of this constant" — a structural claim requires perturbing each constant past the edge of
+  the declared grid, one at a time.
+- A written reopen condition must be executed against the CURRENT tape before it is filed — an untested
+  tripwire that is already tripped is worse than none.
+- Declaring an untaken, outcome-blind, cheap-to-measure alternative as "unlikely to matter" converts a
+  measurable fact into an unmeasured guess; where it costs no multiplicity, measure it.

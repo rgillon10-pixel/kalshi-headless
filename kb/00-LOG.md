@@ -6,6 +6,55 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-16 ~1x:xxZ — Q57/S82 verifier round: an independent adversarial pass REFUTED the "structurally unfillable" escalation and CONFIRMED the narrow single-sided-population claim
+
+**Run:** research loop (protocol v3), calling session dispatched an independent `verifier` subagent after
+the `research-lead` orchestrator's Q57/S82 probe run (logged directly above) landed PROVISIONAL — that run's
+own harness had no nested-agent (`Task`) tool, so it could not obtain the two-agent confirmation itself and
+correctly stopped short of it, exactly as Q57's own text sanctions.
+
+**The verifier's job was to try to REFUTE, not to re-run and rubber-stamp.** It reproduced every headline
+number in the original PROVISIONAL finding EXACTLY from a from-scratch reader sharing no code with either
+probe script (213,488 rows / 87 GAME tickers / 72 games / 49 ledger-anchored / 81/87 binary-settled / the
+same 11 pre-registered units, all fading to NO / 39/39 new tests pass / invariants green) — so the NARROW
+claim ("the pre-registered spec's 11-unit cell has 0 exclusive-minority units, hence single-sided") is
+**CONFIRMED to the digit**.
+
+**But it then broke the finding's central escalation.** §3b of the original finding said the fade-to-YES
+arm is "structurally unfillable... no quantity of additional tape opens it." The verifier found this false
+on the ALREADY-COMMITTED tape: changing exactly ONE pre-registered constant (flow window 120 -> 15 minutes,
+everything else — ledger anchor, entry rule, rho gate, count floor, max lag, price band — held fixed at its
+sealed value) produces a fully mechanism-faithful, in-band, `real_ask`-fillable fade-to-YES entry on TWO
+independent settled games (`KXKBOGAME-26JUL070530KIWKTW-KIW` best_yes_ask 0.06; `KXNPBGAME-26JUL070500HANYOM-YOM`
+best_yes_ask 0.92) — precisely what the finding's own reopen condition asked for, and it was already true
+the day the finding was filed. Widening the anchor to also read `tape/q51_settlement_cache/` (a road the
+original finding explicitly declined to take, predicting it "very unlikely to matter") gives a fully
+two-sided population — 12 units, {no: 10, yes: 2}, 2 EXCLUSIVE-minority units on 2 distinct games — clearing
+not only the probe's own gate-2 floor of 1 but `core.bootstrap.sign_variation_admissible`'s real default
+floor of 2. The prediction in §4c was measured, not merely assumed, and it was wrong.
+
+**Corrected disposition:** the honest data-adequacy class under the sealed pre-registered spec is
+`below_min_units` — a ledger-anchored 15-minute-window population is two-sided but ONE settled game short of
+the L41 floor of 10 — not a definitional/structural impossibility. **Q57 stays PROVISIONAL and OPEN.
+`kb/strategies/00-index.md` S82 stays `idea`, unchanged in either direction** (the correction neither kills
+it nor promotes it — it withdraws the presumptive-KILL recommendation and reopens the item for a freshly
+pre-registered retest). Two smaller citation/arithmetic corrections were also filed (L312 vs L321
+misattribution; a whole-tape-vs-GAME-subset row-count conflation) plus an unremarked population-shape note
+(8 of 11 pre-registered units are 3-way-soccer `-TIE` legs). **This is exactly what the two-agent rule
+exists to catch** — not a bug in the code, but an unwarranted generalization from a correct narrow result to
+a false general claim, and independence (not redundant re-execution) is what surfaced it.
+
+New lesson candidates L362-L364 (all UNENFORCED, filed for the kb-distiller queue): a sensitivity grid must
+be probed past its own declared range before a "structural" claim is licensed; a written reopen condition
+must be checked against the current tape before it is filed; an outcome-blind, cheap-to-measure alternative
+should be measured, not predicted away.
+
+No CI computed in either round, no P&L number quoted, still **0 proven edges**. Gates unaffected by this
+docs-only correction (re-verified — see LOOP-QUEUE.md's Log of runs). See
+`findings/2026-08-16-q57-s82-flow-fade-verdict.md` §8 for the full verifier report.
+
+---
+
 ## 2026-08-16 ~1x:xxZ — Q57/S82 binding probe: the FADE side inherits S79's sign-variation hole, and the minority arm turns out to be structurally UNFILLABLE (PROVISIONAL, no registry flip)
 
 **Run:** research loop (protocol v3), dispatched through the `research-lead` orchestrator. Steps 0a/0/0b
