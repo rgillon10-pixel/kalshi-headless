@@ -6,6 +6,56 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-16 ~15:xx-17:xxZ — Step 0's claim check was the milestone: PR #388 merged after a second lesson-ID collision, plus a stranded-tape sweep
+
+**Run:** research loop (protocol v3). History-integrity PASS (`origin/main` = `e9bc047`, matching local
+`main`, no rewind). Claim-check found PR #388 (Q55's population-rotation idle-run finding, logged below)
+open, green per its own self-reported gates, but its base SHA (`03a17aa`) was several commits behind
+current `main` — stale, not broken, so per protocol this run merged it in rather than redoing the work.
+
+**Did not trust the PR body's self-reported gates.** Checked out the branch before touching anything and
+confirmed its diff was genuinely research/docs-only: one new offline script + test, one JSON report, and
+doc/ledger prose — no `execution/`, `core/`, or `collection/` file touched, no network calls, no
+credentials.
+
+**Merging required resolving a real conflict, twice inherited.** `LOOP-QUEUE.md`, `kb/00-LOG.md`, and
+`kb/lessons/00-lessons.md` all conflicted. PR #388's three new lessons had already survived one
+collision-and-renumber (against PR #385's close-time lessons, landing on L362/L363/L364), but `main` had
+since merged PR #389 (Q57's two-agent verifier round), which independently claimed the identical
+L362/L363/L364 for its own new lessons — a genuine second collision on the same three IDs. Renumbered
+PR #388's lessons a second time, **L362/L363/L364 → L365/L366/L367**, everywhere: the lesson rows, the
+Q55 status block in `LOOP-QUEUE.md`, and `kb/strategies/00-index.md`'s S3/S15 prose (which had merged
+cleanly with no conflict marker but still carried the stale numbers — caught and fixed in the same pass).
+No code file conflicted either time.
+
+**Step 0b:** one new stranded branch since the last sweep, `tape/hourly-20260816T1310Z` (9 families,
+`dt=2026-08-16`, a clean pure-append against every file it touched, including a brand-new
+`tape/weather_actuals/dt=2026-08-16.jsonl`) — merged into the same commit.
+
+**Gates re-run FRESH on the fully-merged tree, after the last edit (L162), not trusted from either
+branch's own history:** `python3 -m pytest -q -o addopts=''` (full suite, no dropped workers) —
+**4,513 passed, 0 failed, 2 warnings, 8402.07s (2:20:02)**, exactly the prior tip's 4,482 plus this
+branch's 31 new tests; `python3 scripts/invariants.py --full` — exit **0**, `invariants: all green`.
+
+Force-pushed the resolved tree onto PR #388's own branch (lease-checked against its prior head SHA
+`478f2c0`), updated the PR body with the collision and fresh-gate detail, and squash-merged as `d78c528`.
+**No verdict class:** no CI computed, no P&L quoted, no kill, no registry flip — S3 and S15 stay
+`data-collecting` exactly as PR #388 left them, still **0 proven edges**. Step 9: `SHADOW_REGISTRY=
+{s14_ladder_underwriting}`, `paper_pass.py` re-run post-tape-sweep — 0 processed, 278 deferred(coverage),
+300 already-in-ledger, no new ledger lines, `paper: 0 open position(s), 1657 settled contract(s), realized
+P&L $+27.76, cash $+27.76, open notional $0.00` (unchanged — the new depth tape doesn't clear this
+strategy's coverage gate).
+
+No further queue item was picked this run: merging a claimed, gate-green PR under step 0 is this run's
+milestone, per the protocol's own "before doing anything else" instruction — and the amount of genuine
+verification work involved (independent diff audit, a real two-way lesson-ID conflict resolved twice
+over, a full fresh gate re-run rather than trusting either branch's self-report) is itself the honest
+measure of that milestone, not a formality on top of it.
+
+Files: `kb/00-LOG.md` (this entry), `LOOP-QUEUE.md` (Log-of-runs line). See PR #388 (merged, `d78c528`).
+
+---
+
 ## 2026-08-16 ~1x:xxZ — Q57/S82 verifier round: an independent adversarial pass REFUTED the "structurally unfillable" escalation and CONFIRMED the narrow single-sided-population claim
 
 **Run:** research loop (protocol v3), calling session dispatched an independent `verifier` subagent after
