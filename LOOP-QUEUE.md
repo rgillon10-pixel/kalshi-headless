@@ -3911,6 +3911,50 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
    use `Priority: high` (instead of the default) and name the specific blocking action once,
    so a stuck item doesn't stay silent indefinitely.
 
+## Retro amendments — proposed 2026-08-16 (OPEN — for Ryan's review, NOT self-merged)
+
+Drafted by the weekly retro run from the 2026-08-10 → 2026-08-16 "Log of runs" + git
+history + the ntfy feed. **Proposals only** — the retro never self-merges protocol changes.
+Nothing here relaxes an invariant or a Stop rule, deletes or reorders a queue item, or
+touches source code; items #1 and #3 are *appended queue items* to be actioned by a future
+run under the normal gates, item #2 is a protocol clarification. The three are this week's
+biggest measured friction points.
+
+1. **Research-loop queue starvation / Q21 idea-gen near-zero survival — proposed queue
+   item.** The research loop logged **16 consecutive idle-adjacent runs** (2026-08-01 →
+   08-16), and the edge-hunter's Q21 replenishment rounds #28/#29/#30/#31 all landed **0 of
+   3** (every candidate verifier-refuted) before round #32 finally passed one (S82). The loop
+   is healthy at converting UNENFORCED lessons and auditing tape, but the actual pipeline —
+   new falsifiable candidates that survive to a binding test — is nearly dry. Proposed queue
+   item: a one-time **idea-gen saturation assessment** — is the accessible idea space
+   genuinely foreclosed (say so plainly and adjust the "idle is not a valid outcome"
+   expectation for a saturated queue), or do the Q21 inputs need broadening (a new
+   quant-finance literature theme, a not-yet-mined tape family)? Research/process only; no
+   flip, no capital, produces a written verdict either way.
+
+2. **Append-collision churn on the two shared append-only files — protocol clarification.**
+   Three PRs this week (#377, #378, #381) went **stale-on-open and needed isolated-worktree
+   rebases** purely because two same-account sessions appended to `LOOP-QUEUE.md` /
+   `kb/00-LOG.md` at the same anchor concurrently (one collision also forced a
+   cross-file lesson-id renumber). That is real duplicated work. Proposed clarification to
+   step 6: any run about to open a PR that touches `LOOP-QUEUE.md` or `kb/00-LOG.md` must
+   `git fetch origin main` and rebase **immediately before opening the PR** (not only at step
+   0a), and any new lesson-id must be assigned against that freshest `main` at PR-open time —
+   shrinking the collision window to near zero. No invariant/Stop-rule change.
+
+3. **VPS empty-capture alert spam — proposed queue item (implementation deferred).** The VPS
+   collector fired every hour all week but **captured nothing**, emitting an identical
+   `Priority: high` "Hourly scan ran but captured nothing new … Worth a look if this repeats"
+   note **~24×/day**. The condition ("if this repeats") is now permanently true, so the
+   hourly repeat is pure noise that buries genuine high-priority alerts. Proposed queue item:
+   dedupe/escalate repeated identical collector notes — collapse consecutive identical
+   empty-capture hours into a single daily note, and escalate **once** to a distinct
+   "VPS silent ≥N h" alert. This touches collector notify code, so it is filed here as a
+   queue item for a future `collector-engineer` run under the normal gates, **not implemented
+   in this PR** (the retro touches no source code). Separately flagged to Ryan in this week's
+   phone note: the VPS leg itself needs a look — it has produced zero usable tape since
+   ~2026-08-06.
+
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
