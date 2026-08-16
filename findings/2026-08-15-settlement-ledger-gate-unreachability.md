@@ -4,10 +4,11 @@
 deep-dive on one tape family producing one finding, with the (a)-class enforcement attached).
 **Class:** data-quality / tooling. **NOT verdict-class** — no registry flip, no bootstrap CI,
 no P&L, no kill decision, no price quoted anywhere in this document. Still **0 proven edges**.
-**Two-agent status: PROVISIONAL** — no `Task`/subagent tool exists in this harness, so no
-independent `verifier` was dispatchable (the L287/L288/L290/L291/L295/L308/L313/L325
-precedent). The sanctioned redundancy fallback ran instead and is reported as redundancy,
-never as verification (§6).
+**Two-agent status: CONFIRMED (2026-08-16, kalshi-edge-hunter — see §8).** The producing
+research-loop run had no `Task`/subagent tool and committed PROVISIONAL with the sanctioned
+redundancy fallback (§6). The next night's edge-hunter DID carry an independent `Agent`-tool
+`verifier`, which re-derived every §2/§3 number from scratch on an independent code path and
+returned CONFIRMED — the two-agent pass this finding explicitly owed is now closed.
 
 ## 0. Why this run went here
 
@@ -173,4 +174,32 @@ independent `verifier` pass is still owed before any of this is treated as confi
   should also unfreeze the tape immediately and independently of the PR — and if that run
   FAILS, that failure is itself the next diagnosis, because an unreachable gate hides every
   other defect behind it: a leg that never executes cannot be observed erroring.
-- **Owed next:** an independent `verifier` pass over §2/§3 before this leaves PROVISIONAL.
+- **Owed next:** ~~an independent `verifier` pass over §2/§3 before this leaves PROVISIONAL.~~
+  **DONE — see §8.**
+
+## 8. Independent verifier confirmation (2026-08-16, kalshi-edge-hunter, Unit-1 adversarial review)
+
+The nightly edge-hunter's adversarial-review unit dispatched an independent `Agent`-tool
+`verifier` (a different session/model instance from the producer) tasked to REFUTE §1–§4. It
+re-implemented the reachability histogram from raw tape on its own path — its own `json.loads`
+line reader, its own string-slice ISO-hour parser, its own earliest-per-`capture_id` fold — not
+by running this finding's scripts. **Verdict: CONFIRMED.** Every load-bearing number reproduces
+exactly:
+
+- **§1 mechanism** — `SETTLEMENT_LEDGER_UTC_HOUR = 10` (L150), gated `if ts.hour == …` (L561)
+  where `ts` is the pass-START instant (L365). Reads exactly as claimed.
+- **§2 histograms** (frozen slice dt=2026-07-26..2026-08-14): `sports_pairs` 103 / **0**@10Z /
+  13@09Z / 12@12Z; `crypto_hourly` 127 / **0**@10Z / 13 / 12; `perp_tape` (late leg) 74 /
+  **11**@10Z. Independently identical. The load-bearing inversion holds (early-leg witness 0/103;
+  late-leg witness would spuriously read 11@10Z and flip the verdict).
+- **§3 consequence** — `settlement_ledger` = exactly 2 files, 5,605 + 5,000 = 10,605 lines, frozen
+  since dt=2026-07-22, 24 calendar days behind the newest committed tape day dt=2026-08-15.
+- **§4 control** — 09Z/12Z sibling legs alive into August, settlement_ledger frozen. Verifier
+  caveat (strengthens, not weakens): those siblings actually have files through **dt=2026-08-15**
+  (weather_actuals through 08-12), fresher than the conservative 08-13/08-12 stated above — so
+  "the collector is alive, only hour 10 is dead" is if anything understated here.
+
+No price/fee/bootstrap issues apply (this finding quotes none; the verifier confirmed no registry
+flip and no price anywhere). The Ryan-side ask in §7 (merge or reject open PR #165 — the written
+`daily_leg_due()` fix) is unchanged and now independently corroborated; it was already surfaced
+to the phone feed on 2026-08-15, so it is NOT re-flagged today (no new decision, only confirmation).

@@ -6,6 +6,67 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-16 ~04:15Z — kalshi-edge-hunter nightly: adversarial review CONFIRMED a PROVISIONAL finding, and Q21 round #32 produced the first survivor since S78 (S82 registered `idea`)
+
+**Run:** kalshi-edge-hunter (nightly ~04:15 UTC, Opus), the thinking seat. Setup: `git pull --rebase`
+(clean, `origin/main` at `7c1d058`), `pip install -e ".[dev,analysis]"`. Steps 0a/0/0b: history-integrity
+PASS (newest `kb/00-LOG.md` entry and newest committed tape day both 2026-08-15, no rewind); 7 open PRs,
+all standing "LEAVE OPEN for Ryan" (#125/#165/#166/#191/#208/#271/#330), none claiming queue work; newest
+`tape/hourly-*` branch already swept. Three units of work, all three executed.
+
+**UNIT 1 — adversarial review of the last-24h findings (all four data-quality/idea-gen, no CI/price/fee to
+attack, so I re-checked the load-bearing census/count numbers).** All reproduced: settlement_ledger frozen
+= 5,605 + 5,000 = **10,605 lines / 2 days / 24 days frozen**; kalshi_trades = **213,488 prints / 91 tickers /
+no resting-book field**; **57** crypto prints (single day 08-03); polymarket_pairs last `dt=2026-07-15`;
+recall-audit **367 net-new labels / 8 depth legs / 4 depth units** all present in the committed report (the
+depth-leg denominator drifted 110,632→110,773 from 24h of append-only growth, which only strengthens the
+"negligible yield" conclusion). **Nothing failed re-check → no GitHub issue.** The high-value action: the
+`findings/2026-08-15-settlement-ledger-gate-unreachability.md` finding was committed **PROVISIONAL** and
+explicitly OWED an independent `verifier` pass over its §2/§3. I dispatched one (this harness has the
+`Agent`/`verifier` tool). It re-derived every number on an independent code path and returned **CONFIRMED**
+— 103/127/74 pass-starts, 0/0/11 at 10Z, 13/12 at 09Z/12Z, settlement_ledger 2 files / 10,605 lines / 24
+days frozen — all exact; the late-leg-witness inversion holds; one caveat STRENGTHENS it (the 09Z/12Z
+siblings produce through 08-15, fresher than the conservative 08-13 stated). Graduated the finding
+PROVISIONAL→CONFIRMED (finding §8 + Q45 queue status line). The Ryan ask it carries ("merge or reject PR
+#165 — the written `daily_leg_due()` fix; settlement_ledger un-backtestable 24 days") is now independently
+corroborated but was already surfaced to the phone on 2026-08-15, so it is **NOT re-flagged today**
+(confirmation, not a new ask — the anti-re-flag discipline).
+
+**UNIT 2 — pipeline replenishment.** Queue re-derived Q0–Q56 by file shape (L25) = **0 eligible** → Q21
+round #32 required (<2). Two-agent idea-stage rule ran for real. Producer proposed 3 candidates on the
+freshest committed surfaces; independent `verifier` attacked all three → **SURVIVE / KILL / KILL**. Per
+"trust=FALSE on a flip-toward-survival verdict" (S68/round-#19 precedent) the producer independently
+re-derived the survivor's substrate — and the first re-derivation returned **1 game / 0 settled**,
+contradicting the verifier's 72/34. Cause: `kalshi_trades.event_ticker` is **`None`**; the game-key is
+`ticker.rsplit('-',1)[0]`. Corrected, it reproduced **72 traded → 34 settled → 34 depth-covered** exactly.
+**C1 → REGISTERED S82 (`idea`, conf low) + queue item Q57:** game-level `count`-weighted signed-taker-flow
+FADE taker, held to settlement, entry at `real_ask` from the SEPARATE `orderbook_depth` family (the
+methods unlock: a trade-tape strategy's fillable price can come from a different family covering the same
+GAME tickers, so WALL-B does not bite). Survives S79 (dead FOLLOW ≠ dead FADE + round-#28's "bigger prints
+settle worse" residual); fate rests on WALL-A, a bootstrap question. **C2 KILL** (crypto_hourly has no size
+field → L39 print-through; S14 family). **C3 KILL** (367 net-new labels land on 4 depth units < L41 floor —
+the recall audit's own F2/L359). The **first Q21 survivor since S78.** Consumed S82 → next free S83.
+
+**UNIT 3 — probe-prep.** Every time-/data-gated item (Q32/Q36/Q37/Q43/Q48/Q51/Q52-S78/Q54/Q56) already
+carries its offline-tested probe in `scripts/`; no calendar gate opens within 72h (next FOMC ~September,
+August CPI released, burst items fired). Nothing to build — consistent with the 2026-08-15 log.
+
+**Housekeeping.** 5 stale `kalshi-burst-*` triggers still exist, all event dates passed
+(cpi-0714/wcsemi1-0714/wcsemi2-0715/wcfinal-0719/fomc-0729) → named for deletion (Ryan-only, not
+self-deleted, per precedent). Remote tape branches: **238 `tape/hourly-*` + 10 `tape/burst-*`** (the known
+pre-2026-08 stranded backlog, Q17/PR #46, Ryan-review-only — deliberately untouched). 7 open PRs all
+long-standing Ryan-review items named in prior retros/logs → NOT re-flagged (no new info; the anti-re-flag
+discipline). Step 9 (paper): SHADOW_REGISTRY = {s14_ladder_underwriting} (`dead ✗`, paper-infra only) — no
+new tape appended since the last ledger entry, so a silent no-op; standing ledger reads P&L $+27.76
+(`broker_truth`, NOT edge evidence).
+
+**Gates AFTER the last code change (L162):** `python scripts/invariants.py --full` exit 0, "invariants: all
+green"; `pytest` (see the Log-of-runs line below). Diff is research/docs-only (findings/, kb/, LOOP-QUEUE.md)
+— self-merge eligible per LOOP-QUEUE step 6. **Files:** `findings/2026-08-16-q21-round32-idea-gen.md`,
+`findings/2026-08-15-settlement-ledger-gate-unreachability.md` (§8 confirmation), `kb/strategies/00-index.md`
+(S82 registered), `LOOP-QUEUE.md` (Q21 round #32 status, Q57 added, Q45 confirmation, Log of runs), this entry.
+Still **0 proven edges.**
+
 ## 2026-08-15 17:xx-23:xx ET — IDLE RUN, policy (c): the settlement-source registry's published blind spot was hiding two real sources — worth 4 depth units (new L358/L359)
 
 **Steps 0a/0/0b (done by the calling session).** History-integrity **PASS**: `origin/main` HEAD
