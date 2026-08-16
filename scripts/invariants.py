@@ -1750,6 +1750,84 @@ def gate_hour_unreachable_warning(issues: List[str],
     )
 
 
+# ─── Cross-cache settled-label conflict (GATING) ────────────────────────────────────
+# The 2026-08-16 close_time-mutation audit paired every committed settlement-cache blob
+# against every other and classified each shared ticker by the SETTLEMENT STATE of the two
+# rows. Of 1,689 paired observations, 1,588 were settled-to-settled and ZERO disagreed on
+# `result` — the label substrate under every closed verdict is internally consistent today.
+#
+# That clean baseline is exactly what makes this worth gating. `resolve_market_results`
+# structurally cannot surface a conflict: its precedence rule is first-BINARY-wins, so a
+# second source carrying the opposite binary result is silently discarded and the resolver
+# reports full confidence. The disagreement is only visible by comparing caches to EACH OTHER,
+# which nothing did until this audit.
+#
+# Deliberately narrow, so it cannot cry wolf:
+#   * only rows BOTH sides call settled participate. An unsettled row's empty `result` versus
+#     a later settled one is ordinary settlement lag (L262), not a conflict — counting it
+#     would bury the real signal under 96 expected-noise rows.
+#   * `scalar` and every other non-binary value participate too: two caches disagreeing
+#     `scalar` vs `yes` is as much a corruption as `yes` vs `no`.
+#   * comparison is on the normalized (stripped, lowercased) string, so a casing or padding
+#     difference is not reported as a corrupt label.
+def _settlement_cache_result_conflict_issues(root: Path = ROOT) -> List[Dict[str, object]]:
+    """GATING: settled-vs-settled `result` disagreements across committed settlement caches.
+
+    One issue dict per conflicting (ticker, cache-pair): {ticker, earlier, later,
+    earlier_result, later_result}. Empty list = green. Reads only committed cache blobs, so
+    it is offline-safe and cheap (8 files, <400KB today)."""
+    try:
+        import core.close_time_mutation as ctm
+    except Exception:
+        return []
+    tape_root = root / "tape"
+    blobs: List[Dict[str, object]] = []
+    for path in sorted(tape_root.glob("*/settlement*.json")):
+        try:
+            blob = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except (ValueError, OSError):
+            continue
+        if not isinstance(blob, dict):
+            continue
+        markets = blob.get("markets")
+        if not isinstance(markets, dict):
+            continue
+        blobs.append({
+            "label": f"{path.parent.name}/{path.name}",
+            "pulled_at": blob.get("pulled_at") if isinstance(blob.get("pulled_at"), str) else "",
+            "markets": {t: r for t, r in markets.items()
+                        if isinstance(t, str) and isinstance(r, dict)},
+        })
+    blobs.sort(key=lambda b: (b["pulled_at"], b["label"]))
+    issues: List[Dict[str, object]] = []
+    for i, a in enumerate(blobs):
+        for b in blobs[i + 1:]:
+            am, bm = a["markets"], b["markets"]
+            for ticker in sorted(set(am) & set(bm)):
+                if ctm.result_conflict(am[ticker], bm[ticker]):
+                    issues.append({"ticker": ticker, "earlier": a["label"], "later": b["label"],
+                                   "earlier_result": am[ticker].get("result"),
+                                   "later_result": bm[ticker].get("result")})
+    return issues
+
+
+def settlement_cache_result_conflict_failure(issues: List[Dict[str, object]]) -> Optional[str]:
+    """A GATING failure message when two settlement caches disagree on a settled label."""
+    if not issues:
+        return None
+    examples = "; ".join(
+        f"{i['ticker']} {i['earlier']}={i['earlier_result']!r} vs {i['later']}={i['later_result']!r}"
+        for i in issues[:3])
+    return (f"settlement-cache label conflict: {len(issues)} ticker/cache-pair(s) where BOTH "
+            f"caches report the market SETTLED and the `result` values disagree (e.g. "
+            f"{examples}). `core.settlement_sources.resolve_market_results` cannot surface "
+            f"this — its precedence is first-BINARY-wins, so the losing label is discarded "
+            f"silently and the resolver reports full confidence. Every verdict resting on the "
+            f"affected tickers is unsound until the conflict is adjudicated against the "
+            f"exchange. Re-derive with `python3 scripts/close_time_mutation_audit.py` "
+            f"(field `blob_pairs.settled_result_conflicts`).")
+
+
 # ─── Undeclared outcome-bearing tape family advisory (L300's published recall hole) ──
 #
 # `core/settlement_sources.py` is the ONE sanctioned answer to "is this market's outcome
@@ -6622,6 +6700,19 @@ def main() -> int:
             _tape_row_identity_declaration_issues())
         if identity_failure:
             failures.append(identity_failure)
+        # GATING: two committed settlement caches that BOTH report a ticker as SETTLED must
+        # agree on its `result`. A conflict means one of the labels every closed DEAD verdict
+        # leaned on is wrong, and no probe re-run can detect it from inside its own cache.
+        # Baseline at the 2026-08-16 close_time-mutation audit: 0 conflicts over 1,588
+        # settled-to-settled paired observations across all 8 committed cache blobs, so this
+        # is a clean ratchet, not a grandfathered one. Gating (not advisory) because unlike a
+        # collector-created data condition (L353's posture) a settlement cache only changes
+        # when a probe in THIS repo writes one — the trigger is fully under our control, and
+        # a corrupt label must stop the line rather than scroll past on stderr.
+        settled_conflict_failure = settlement_cache_result_conflict_failure(
+            _settlement_cache_result_conflict_issues())
+        if settled_conflict_failure:
+            failures.append(settled_conflict_failure)
         # GATING (L345): a settlement tape root that resolves to a RELATIVE path. A reader
         # given one returns 0 resolved at exit code 0 from any cwd but the repo root — a
         # manufactured empty population that reads like a genuine data gate. Cheap, static,

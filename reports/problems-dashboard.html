@@ -79,14 +79,14 @@ a { color:var(--acc); }
 </style></head>
 <body><div class="wrap">
 <h1>kalshi.headless — problem ledger since inception</h1>
-<p class="sub">Every recorded problem — bugs, methodology traps, venue gotchas, and disproved strategies — parsed live from the repo's append-only registries. Generated 2026-08-15 · source of truth: <code>kb/lessons/00-lessons.md</code>, <code>kb/strategies/00-index.md</code>, <code>kb/00-LOG.md</code>.</p>
+<p class="sub">Every recorded problem — bugs, methodology traps, venue gotchas, and disproved strategies — parsed live from the repo's append-only registries. Generated 2026-08-16 · source of truth: <code>kb/lessons/00-lessons.md</code>, <code>kb/strategies/00-index.md</code>, <code>kb/00-LOG.md</code>.</p>
 
 <div class="cards">
-  <div class="card"><div class="big">355</div><div class="lbl">codified lessons (L1–L359)</div></div>
+  <div class="card"><div class="big">357</div><div class="lbl">codified lessons (L1–L361)</div></div>
   <div class="card"><div class="big" style="color:var(--unenforced)">55</div><div class="lbl">still UNENFORCED (open work queue)</div></div>
-  <div class="card"><div class="big" style="color:#4ac26b">190</div><div class="lbl">hardened into a CI assert / test</div></div>
+  <div class="card"><div class="big" style="color:#4ac26b">192</div><div class="lbl">hardened into a CI assert / test</div></div>
   <div class="card"><div class="big" style="color:#adbac7">23</div><div class="lbl">strategies proven dead</div></div>
-  <div class="card"><div class="big">351</div><div class="lbl">run-log entries read by the loops</div></div>
+  <div class="card"><div class="big">352</div><div class="lbl">run-log entries read by the loops</div></div>
 </div>
 
 <h2>1 · Lessons ledger <span class="n">— the codified-problem catalog</span></h2>
@@ -100,8 +100,8 @@ a { color:var(--acc); }
 </div>
 
 <div class="chips">
-  <button class="chip reset active" data-filter="all">All 355</button>
-  <button class="chip unenforced" data-filter="unenforced"><b>55</b> UNENFORCED</button><button class="chip protocol" data-filter="protocol"><b>83</b> Protocol</button><button class="chip ledger" data-filter="ledger"><b>27</b> Ledger-only</button><button class="chip test" data-filter="test"><b>160</b> Test-pinned</button><button class="chip invariant" data-filter="invariant"><b>30</b> Invariant</button>
+  <button class="chip reset active" data-filter="all">All 357</button>
+  <button class="chip unenforced" data-filter="unenforced"><b>55</b> UNENFORCED</button><button class="chip protocol" data-filter="protocol"><b>83</b> Protocol</button><button class="chip ledger" data-filter="ledger"><b>27</b> Ledger-only</button><button class="chip test" data-filter="test"><b>161</b> Test-pinned</button><button class="chip invariant" data-filter="invariant"><b>31</b> Invariant</button>
 </div>
 <div style="overflow-x:auto">
 <table id="lessons">
@@ -2592,6 +2592,20 @@ a { color:var(--acc); }
   <td><span class="pill p-test">Test-pinned</span></td>
   <td class="lsrc"><code>findings/2026-08-15-settlement-source-recall-audit.md</code> (F2/F3); <code>reports/settlement_source_recall_audit.json</code> (<code>family_scan.sports_pairs</code>, <code>family_scan.universe_sweep</code>, <code>depth_incremental</code>, <code>sports_pairs_incremental</code>); independently reproduced by <code>python3 scripts/settlement_source_recall_rederive.py</code>; supersedes nothing — extends L356&#x27;s mechanism</td>
 </tr>
+<tr data-bucket="test">
+  <td class="lid">L360</td>
+  <td class="ldate">2026-08-16</td>
+  <td class="ltext"><strong>A field named like a schedule can be an OUTCOME field: Kalshi&#x27;s <code>close_time</code> is a placeholder while a market is open and is REWRITTEN to the actual close instant at settlement — always earlier, median 51.9h, up to 13.9 days — and it is perfectly stable in both surrounding regimes, which is what makes it look trustworthy.</strong> Measured on committed tape over all 8 settlement-cache blobs (1,689 paired observations / 533 distinct tickers), classified by the SETTLEMENT STATE of each row rather than by the timestamps under test: <code>settled_to_settled</code> <strong>1,588 observations, 0 changed</strong>; <code>open_to_open</code> 3, 0 changed; <code>open_to_settled</code> 98, <strong>96 changed, 96 EARLIER, 0 later</strong>. Live control on a different family and collector (<code>tape/universe_sweep/</code>, 1,100,000 records): <strong>36,765 tickers re-observed, 0 close_time changes while open</strong>. Granularity corroborates the mechanism — pre-close 20/60 sit on a round hour and 10/60 are second-precise; post-close <strong>58/60</strong> are second-precise. CONSEQUENCE, and the half that bites: using the settled <code>close_time</code> to SELECT pre-close rows (<code>captured_at &lt; close_time</code>) is correct, but using it as a FEATURE — <code>ttc_seconds</code>, <code>ttc_hours</code>, &quot;the last snapshot before close&quot;, a close-DATE bucket — is a LOOK-AHEAD of a median 51.9h, because the live observable was the placeholder. <code>scripts/q51_m3_fill_projection.py</code> states the falsified premise out loud (<code>close_time</code> is *&quot;a SCHEDULE field, never an outcome&quot;*, <code>:51</code>/<code>:118-119</code>) and reads it from a deliberately FROZEN pre-settlement cache, on which <strong>47 of 60 tickers (78.3%) change close DATE</strong>; <code>q26</code>/<code>q28</code> build ttc features the same way. No verdict flips and that is DIRECTION, not luck: all affected probes are DEAD or admissible-null, and a look-ahead only inflates. Generalize: before trusting a cached field as immutable, check it in the regime CHANGE, not inside either regime — stability measured only within a state is precision evidence, never recall (L155).</td>
+  <td><span class="pill p-test">Test-pinned</span></td>
+  <td class="lsrc"><code>findings/2026-08-16-close-time-mutation-audit.md</code>; <code>scripts/close_time_mutation_audit.py</code>; <code>scripts/close_time_mutation_rederive.py</code> (independent redundancy, AST-pinned); <code>reports/close_time_mutation_audit.json</code></td>
+</tr>
+<tr data-bucket="invariant">
+  <td class="lid">L361</td>
+  <td class="ldate">2026-08-16</td>
+  <td class="ltext"><strong><code>resolve_market_results</code>&#x27;s first-BINARY-wins precedence makes a label CONFLICT structurally invisible: the losing label is discarded silently and the resolver reports full confidence.</strong> The rule is correct for its actual job (a stale pre-settlement pull carrying <code>result: &quot;&quot;</code> must not outrank a settled one — 96 such rows exist in committed tape), but it means no consumer of the sanctioned resolver can ever learn that two <code>broker_truth</code> caches disagree about the same ticker. Only cache-vs-cache comparison sees it, which nothing did for the 8 committed blobs until the 2026-08-16 close_time audit. Measured baseline: <strong>1,588 settled-to-settled paired observations, 0 conflicts</strong> — the substrate under every closed DEAD verdict is internally consistent today, which is exactly what makes the ratchet worth installing clean instead of grandfathered.</td>
+  <td><span class="pill p-invariant">Invariant</span></td>
+  <td class="lsrc"><code>findings/2026-08-16-close-time-mutation-audit.md</code> F3; <code>core/settlement_sources.py::resolve_market_results</code> (the precedence rule); <code>reports/close_time_mutation_audit.json</code> field <code>blob_pairs.settled_result_conflicts</code></td>
+</tr>
 </tbody></table>
 </div>
 
@@ -2832,6 +2846,7 @@ a { color:var(--acc); }
 
 <h3 style="margin:26px 0 4px;font-size:15px">Most recent run-log entries (newest first)</h3>
 <ul class="log">
+<li>2026-08-16 03:xx ET — IDLE RUN, policy (c): <code>close_time</code> is not a schedule — Kalshi rewrites it to the actual close instant at settlement, always EARLIER (new L360/L361)</li>
 <li>2026-08-15 17:xx-23:xx ET — IDLE RUN, policy (c): the settlement-source registry&#x27;s published blind spot was hiding two real sources — worth 4 depth units (new L358/L359)</li>
 <li>2026-08-15 21:xx ET — research loop: step 0&#x27;s claim check found PR #381 gone stale mid-flight, resolved by rebase with double gate re-verification</li>
 <li>2026-08-15 12:2x-15:2x ET — research loop: two independently-fixed duplicate PRs collide, resolved by closing the losing pair without merging</li>
@@ -2849,7 +2864,6 @@ a { color:var(--acc); }
 <li>2026-08-13 ~12:0x-13:xx ET — research loop IDLE RUN, policy (b): Q52/S78&#x27;s binding test is now WRITTEN AND SEALED, and its data gate is OPEN for the first time (no verdict, no CI, nothing flipped)</li>
 <li>2026-08-13 09:3x-11:xx ET — research loop IDLE RUN, policy (c): Q52/S78 split-feasibility audited — this item&#x27;s own stated blocker holds, and a two-round verifier catches a real relative-path bug plus two prose-accuracy overclaims along the way</li>
 <li>2026-08-13 06:3x-07:2x ET — research loop IDLE RUN, policy (c): the tape duplicate-capture surface fully mapped; the third class was never measured, and it is 0 (L344)</li>
-<li>2026-08-13 00:1x ET — kalshi-edge-hunter nightly: Unit-1 review CLEAN · Q21 round #29 = 0/3 (verifier-refuted) · Unit-3 N/A · still 0 proven edges</li>
 </ul>
 
 <p class="foot">Self-contained · no external requests · regenerate with <code>python scripts/gen_problems_dashboard.py</code>. Problem definitions are exactly the repo's own: a lesson is a row in the ledger; a dead strategy is a falsified hypothesis; an operational incident is whichever lesson/log entry recorded it. Nothing here is hand-authored — all rows are parsed from the append-only registries.</p>
