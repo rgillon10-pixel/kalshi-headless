@@ -4095,6 +4095,62 @@ distinguishing S82 from the dead S79 is the round-#28 "bigger prints settle wors
 a clean CI-straddle-zero converts S82 to tested-dead and closes the signed-flow-taker family. Same short-the-crowded-side
 factor slot as S13/S23/S79/S80 (Hard-Rule-#6 ρ cap). See `findings/2026-08-16-q21-round32-idea-gen.md`,
 `kb/strategies/00-index.md` S82.
+Status: **IDLE-RUN DATA-QUALITY DEEP-DIVE (policy (c)) — PATH (a) IS A ZERO-RATE WAIT, NOT A SLOW
+ONE. VERIFIER-CONFIRMED-WITH-CORRECTIONS. NO REGISTRY FLIP.** (2026-08-17, research loop. Q57
+remained the only OPEN queue item and its sole remaining path (a) had no executable next step —
+per the v3 idle-run policy, that makes this run's milestone a corroborating data-quality
+deep-dive rather than a new probe.) `collection/kalshi_trades.py` has **no scheduled writer** —
+absent from `collection/hourly_pass.py` and self-documented as standalone (verifier-CONFIRMED via
+independent grep + the population-audit script). Corrected framing of "(F5) roughly a 1-in-45
+event" above: an independent `verifier` refuted the original commit-date provenance ("landed via
+one commit 2026-08-12") as unsound archaeology on this repo's squashed history (L158 — a
+root/squash commit touches 14,531 files and proves nothing about when tape was captured); the
+SOUND number, from `captured_at` timestamps, is that the family's newest write is
+**2026-08-09T15:22Z — 8 days of zero appends** as of this run, with no scheduled process able to
+add more. Meanwhile `tape/orderbook_depth/` (a genuinely hourly-wired leg) keeps accruing a median
+**~700** distinct GAME game-ids/day; only **72** games in the whole tape have ever had a
+`kalshi_trades` print (**1.9%** overlap), leaving **2,055** depth-covered games since 2026-08-04
+with fillable depth but zero signed-flow data. Re-running the committed
+`reports/kalshi_trades_backfill_population.json`'s own audit fresh (its committed funnel is a
+2026-08-07 snapshot, now stale) gives **382** settled sports games newly recoverable via a bounded
+GET-only backfill (**38.2x** the L41 floor of 10), projecting **~80** fadeable units — that
+projection carries `price_source_tag: synthetic` and is a lower-bound heuristic, not a CI; treat
+382 (a population count) as the real number. **Two self-corrections caught and recorded** (not
+false claims that shipped): an initial JSON-walker bug undercounted settlement labels by only
+descending `.values()` on a ticker-keyed dict (corrected: 72/72 traded games ARE already labelled,
+34 ledger + 38 cache, fully disjoint — independently reproduces Q57b's game-level shape); and the
+`settlement_ledger` gate-reachability re-check (0/132 pass-starts across 26 days at gate hour 10
+UTC, extending the committed report's window by 2 days) is DETECTION-ONLY, Ryan/VPS-side per open
+PR #165, not re-escalated. Verdict class: **DATA-ADEQUACY (population)**; `kb/strategies/00-index.md`
+S82 stays `idea`; no CI, no P&L, no kill; still 0 proven edges. **Two-agent rule: SATISFIED** — an
+independent `verifier` re-derived every claim above from scratch (git log, grep, `captured_at`
+arithmetic, a fresh audit-script run) and refuted one sub-claim's method while confirming its
+data-half, exactly the kind of catch the rule exists for. **What's next, registered as Q58 below:**
+the un-run bounded backfill that converts path (a) from a zero-rate wait into a 382-game testable
+join. Gates unaffected (docs-only): re-verified, see the Log-of-runs line below.
+
+### Q58 — Bounded `kalshi_trades` backfill: convert Q57 path (a) from a zero-rate wait into a testable join
+Status: TODO (added 2026-08-17, research loop, idle-run policy (c) — corrects Q57's own "roughly a
+1-in-45 event" framing, which assumed the population grows on its own; it does not).
+`collection/kalshi_trades.py` (public, GET-only `/markets/trades`, unauthenticated, no credentials,
+no scheduled writer — verifier-confirmed 2026-08-17) needs one bounded, read-only pull over the
+settled sports games `tape/orderbook_depth/` already covers but `tape/kalshi_trades/` does not
+(implementing run's call on the exact script/flag shape — likely
+`collection.kalshi_trades --tickers-from tape/orderbook_depth <ticker list>` or a dedicated
+`scripts/q58_kalshi_trades_backfill.py` mirroring `q56_s81_settlement_backfill.py`'s exhaustive,
+outcome-blind selection-rule discipline). `reports/kalshi_trades_backfill_population.json` sized
+the unlock at 382 settled sports games as of 2026-08-17 (38.2x the L41 floor of 10) — **re-derive
+this fresh at execution time**, the committed file's funnel is already a stale snapshot by then.
+The `~80`-unit projection in that report is `synthetic`-tagged and has never been outcome-checked;
+do not treat it as a CI. Same read-only / no-network-order / outcome-blind discipline as every
+other collector milestone (see `q56_s81_settlement_backfill.py` for the exhaustive-selection
+pattern that makes a backfill structurally incapable of biasing a sealed probe's population). On
+completion, Q57 path (a) becomes re-runnable against the enlarged population.
+**Caution (flagged, unverified — check before treating as urgent):** L11 notes Kalshi purges
+settled market data ~60 days post-close; the recoverable dt range for this backfill is
+2026-07-25..2026-08-09, so if that purge policy applies to `/markets/trades` (not confirmed either
+way), the window starts closing ~2026-09-23. Confirm the purge scope before assuming urgency, but
+don't let this item go stale past that date unchecked either.
 
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
@@ -4135,6 +4191,7 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
+- 2026-08-17T~13:3x-14:1xZ (research loop, protocol v3) · **IDLE RUN, policy (c): Q57 path (a) is a zero-rate wait, not a slow one — verifier-confirmed-with-corrections, no registry flip.** Steps 0a/0 clean (no rewind; only standing Ryan-review-only PRs open). 0b swept `tape/hourly-20260817T065946Z` (crypto_hourly +2, polymarket_macro_pairs +21, sports_pairs +982), merged via PR #395. Delegated to `research-lead`, which this firing had Read/Grep/Glob/Bash only (no Write/Task/gh) — analyzed but could not write/commit; bookkeeping done directly by the calling session, which dispatched an independent `verifier` (caught the sub-session's commit-archaeology error, L158 — corrected "single commit" provenance to `captured_at`-sourced "8 days of zero appends"; corrected the stale 338-game population count to a fresh 382). `kalshi_trades` confirmed to have no scheduled writer; registered Q58 (bounded backfill over 382 depth-covered settled games) to convert Q57 path (a) into a testable join. S82 stays `idea`; still 0 proven edges. Step 9: `paper_pass.py` run over this run's new tape, 0 processed/300 already-in-ledger, P&L unchanged $+27.76. Gates: `invariants --full` exit 0 all green (fresh, post-edit); `pytest` not re-run, floor per L162 ≥4,538 collected, 0 failed. See `kb/00-LOG.md` 2026-08-17.
 - 2026-08-16T~04:15Z (kalshi-edge-hunter nightly, Opus) · **Unit-1: all four last-24h census/count numbers reproduced (no `review:` issue); the PROVISIONAL settlement-ledger-gate finding graduated to two-agent CONFIRMED (independent `verifier` re-derived 103/127/74 pass-starts, 0/0/11@10Z, 10,605-line 24-day freeze — all exact). Unit-2: Q21 round #32 = 1/3 REGISTERED (S82 `idea` + Q57), the first survivor since S78 — producer trust=FALSE re-derivation caught the `event_ticker: None` join key and reconciled the verifier's 72→34→34 exactly. Unit-3: all gated probes already built, no gate <72h. Gates AFTER last edit: `invariants --full` exit 0 "all green" on the post-edit tree; `pytest -n4 --dist loadfile` **4,369 passed / 1 xdist real-tape-acceptance FLAKE** (`test_q56_s80_…::test_acceptance_headline_verdict_is_dead…`) that PASSES deterministically on isolated serial re-run (53s) — a cross-worker `reports/` write collision, the 2026-08-15 xdist-flake precedent; diff is docs-only and touches nothing in the S80 lane. Self-merged (squash), docs/research-only.**
 - 2026-08-13T~04:15Z (kalshi-edge-hunter nightly, Opus) · **Unit-1 adversarial review CLEAN (no `review:` issue); Q21 round #29 = 0/3 registered (verifier-refuted); Unit-3 N/A; still 0 proven edges.** Steps 0a/0/0b: history-integrity PASS (kb/00-LOG.md newest 08-12 vs newest `tape/*/dt=` 08-12, 0-day gap; merged PRs #357–#361 all in `origin/main` linear history, no rewind); claim-check found only the standing Ryan-review-only PRs (#125/#165/#166/#191/#208/#271/#330), none claiming eligible work; step-0b no NEW stranded branches (233 `hourly-*` + 10 `burst-*` = 243 remote; newest fallbacks already recovered by #358/#359). **Unit 1:** re-checked one load-bearing number per last-24h verdict — fee constants for the Q51 queue-aware fill-sim and the S79 re-derivation are IMPORTED from `core.pricing` (`MAKER_FEE_RATE=0.0175` / `TAKER_FEE_RATE=0.07`, not hand-rolled), prices `broker_truth`, S79 bootstrap block-by-game (45 units) — all reproduce → no issue. **Unit 2:** 0 eligible (< 2) → Q21 round #29; producer proposed S82/S83/S84 (fresh mechanisms), independent `verifier` attacked each pre-registration → **KILL/KILL/KILL** (S82 funding-dispersion ~46× under bracket + sums two overrounds; S83 near-money overpays 0.547 + no size field + non-independent perp anchor; S84 n=1 settled FOMC + Kalshi delists-at-decision + international-CLOB-not-US). No S-numbers burned → next free stays S82. **Unit 3:** no gate within ~72h (next Q51 m4 after 08-24, probe unchanged) → nothing to pre-build. Housekeeping: all 5 `kalshi-burst-*` triggers name-for-deletion (July events passed; `fomc-0729` still enabled). Step 9 paper sub-pass: S14 shadow (dead, paper-infra only), no new tape → ledger unchanged $+27.76. Gates: `scripts/invariants.py --full` exit 0 all green; `pytest` green by construction (docs/findings-only diff, no code touched, L162). Branch `docs/edge-hunter-20260813-round29`. See `kb/00-LOG.md` 2026-08-13, `findings/2026-08-13-q21-round29-idea-gen.md`.
 - 2026-08-12T~12:4x-14:3xZ (research loop, protocol v3) · **IDLE RUN, policy (a): L321 enforced — a sign-variation floor that counts TOUCHING units opens with zero resamplable minority blocks, and the gap widens as tape grows.** Steps 0a/0/0b done by the calling session (0b swept `tape/hourly-20260812T0707Z`: crypto_hourly +2, polymarket_macro_pairs +21, sports_pairs +678). Open UNENFORCED set re-derived (9 rows); L321 the only in-lane buildable. Built `core/bootstrap.py::minority_side_unit_census`/`::sign_variation_admissible` (floors on EXCLUSIVE units, reports both counts), GATING ratchet `scripts/invariants.py::inv_minority_side_gate_triage` + `MINORITY_SIDE_GATE_TRIAGE` (fail-closed, L319/L323 style), and `scripts/q54_minority_exclusivity_audit.py` (outcome-blind by construction; sealed probe untouched, L311). Measured over 6 trade days / 45 game units: touching `{no:6, yes:45}` (gate OPEN, floor 2) vs exclusive `{no:0, yes:39}` (L321's gate SHUT), all 6 minority units mixed; new lesson L342 (24→45 units and 2→6 touching since 08-09, exclusive still 0). No verdict-class output; no `Task` tool so the two-agent rule was unsatisfiable and not required. Step-9 paper sub-pass ran (S14, no new ledger lines). Gates after last edit: `scripts/invariants.py --full` exit 0 all green; `pytest` 3,928 collected, 162 + 30 fresh-green on touched/sensitive files, full suite stated as a floor per L162 (≥3,730 executed, 0 failed). 37 new tests. See `kb/00-LOG.md` 2026-08-12.

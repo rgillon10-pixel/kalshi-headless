@@ -6,6 +6,84 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-17 ~13:3x-14:1xZ — Idle-run data-quality deep-dive: Q57 path (a) is a zero-rate wait, not a slow one (verifier-confirmed-with-corrections)
+
+**Run:** research loop (protocol v3). Steps 0a/0 clean: `git fetch origin main` confirmed no
+rewind (merged PRs #390-#394 all in `origin/main`'s linear history), kb/00-LOG.md's newest entry
+and the newest `tape/*/dt=` file both dated 2026-08-17 (0-day gap), and the only open PRs were the
+standing Ryan-review-only ones (#125/#165/#166/#191/#208/#271/#330/#386). Step 0b: swept
+`tape/hourly-20260817T065946Z` (commit df173a1d, past the 30-min freshness guard) — 1,005 unique
+lines missing from main's dt=2026-08-17 tape (2 `crypto_hourly`, 21 `polymarket_macro_pairs`, 982
+`sports_pairs`), union-appended and merged via PR #395 (squash, data-only, invariants re-verified
+green before merge). Checked `tape/hourly-Z` (2026-07-16) and confirmed it's stale/behind main
+with nothing unique — skipped, consistent with prior runs' scope on the ~200+ remaining stranded
+branches.
+
+**Milestone:** Q57 (S82 signed-taker-flow fade) was the only OPEN queue item, and its sole
+remaining path — (a), "wait for one more settled game" — had no executable next step this run, so
+per the v3 idle-run policy this became a data-quality deep-dive (policy (c)) rather than a new
+probe. First delegated to the `research-lead` orchestrator, which hit a genuine harness gap this
+firing: it was launched with Read/Grep/Glob/Bash only — no `Write`, no `Task`/Agent tool (so no
+`verifier` dispatch), no `gh`/GitHub MCP — so it could analyze but literally could not write,
+commit, or open a PR. Its analysis was sound and is folded in below; the bookkeeping it couldn't do
+was done directly by the calling session, which does hold those tools.
+
+**Finding:** the original Q57 text ("(F5) ... roughly a 1-in-45 event on this tape") implicitly
+assumed the `kalshi_trades` population keeps growing. It does not. `collection/kalshi_trades.py`
+has no scheduled writer — absent from `collection/hourly_pass.py`, and its own docstring says so.
+An independent `verifier` agent (dispatched by the calling session, since it — unlike the
+sub-session above — has the Agent tool) re-derived every number from scratch and caught a real
+methodological error along the way: the sub-session's claim that the whole family "landed via a
+single commit `888e9ea7` on 2026-08-12" is unsound commit archaeology on this repo's squashed
+history (`888e9ea7` is a root commit touching 14,531 files — L158's exact warning). The verifier's
+corrected, `captured_at`-sourced number: the family's newest write is **2026-08-09T15:22Z — 8 days
+of zero appends** as of this run. Meanwhile `tape/orderbook_depth/` (genuinely hourly-wired) keeps
+accruing a median **~700** distinct GAME game-ids/day; only **72** games in the whole tape have
+ever had a `kalshi_trades` print (**1.9%** overlap); **2,055** depth-covered games since 2026-08-04
+have fillable depth but zero signed-flow data. The verifier also caught that the committed
+`reports/kalshi_trades_backfill_population.json` (338 games / 33.8x floor) is a stale 2026-08-07
+snapshot — re-run fresh today it gives **382** games (**38.2x** the L41 floor of 10), projecting
+~80 fadeable units (`synthetic`-tagged, unchecked, treat as a lower bound only).
+
+**Two self-corrections from the sub-session, recorded because they nearly became false claims:**
+(1) an initial JSON-walker bug undercounted settlement labels by descending only `.values()` on a
+ticker-keyed dict — corrected, 72/72 traded games ARE already labelled (34 ledger + 38 cache,
+fully disjoint), independently reproducing Q57b's game-level shape; (2) a `settlement_ledger`
+gate-reachability re-check (still 0/132 pass-starts across 26 days at gate hour 10 UTC, extending
+the committed report's window by 2 days) is DETECTION-ONLY and Ryan/VPS-side per open PR #165 —
+not re-escalated here.
+
+**Verdict class:** DATA-ADEQUACY (population). `kb/strategies/00-index.md` S82 stays `idea`; no
+CI, no P&L, no kill computed; still 0 proven edges. Two-agent rule SATISFIED — the independent
+`verifier` reproduced the data half of every claim and refuted one claim's provenance method
+(commit-date vs `captured_at`), which is exactly the failure mode the rule exists to catch.
+
+**Registered as Q58:** a bounded, read-only `kalshi_trades` backfill over the 382 depth-covered
+settled sports games — the un-run pull that converts Q57 path (a) from a zero-rate wait into a
+testable join. Flagged for Ryan, unverified: L11's ~60-day settled-data purge may apply to
+`/markets/trades`, which would start closing the recoverable dt window (2026-07-25..2026-08-09)
+around 2026-09-23 — worth confirming before either treating it as urgent or letting it go stale.
+
+**Step 9 (paper sub-pass):** `SHADOW_REGISTRY` is non-empty (`s14_ladder_underwriting`, a DEAD
+strategy shadowed for paper-infra testing only). Ran `scripts/paper_pass.py` over the tape
+appended this run (including the swept `crypto_hourly` lines): **0 processed, 278 deferred
+(coverage), 300 already-in-ledger** — no new fills, ledger unchanged. `paper: 0 open position(s),
+1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00`.
+
+**Gates:** `python3 scripts/invariants.py --full` → exit 0, "invariants: all green" (fresh,
+post-edit tree, only the known non-gating advisories). `pytest` not re-run — no code touched this
+run, stated as a floor per L162: **≥4,538 collected, 0 failed** (the 2026-08-17 gate-closure count
+from PR #391). Files: `LOOP-QUEUE.md` (Q57 status, new Q58), `kb/00-LOG.md`, PR #395 (merged,
+stranded-tape sweep) plus this run's own bookkeeping PR.
+
+**Also this run (harness note for Ryan):** the `research-lead` orchestrator agent, at least on
+this firing, was launched without `Write`/`Task`/GitHub-MCP tools — it could read and reason but
+not act. If that's a persistent config rather than a one-off, every future delegation to it will
+produce analysis with no bookkeeping unless the calling session does the write/commit/PR work
+itself, as happened here.
+
+---
+
 ## 2026-08-17 ~04:xx-08:xxZ — Research loop raced PR #390 on Q57 path (b) end-to-end; closed the duplicate, kept the confirmation
 
 **Run:** research loop (protocol v3), delegated to the `research-lead` orchestrator in an isolated
