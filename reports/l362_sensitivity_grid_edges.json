@@ -1,0 +1,316 @@
+{
+  "axes": [
+    {
+      "axis": "X_SWEEP",
+      "declares_out_of_grid_probes": false,
+      "grid": "X_SWEEP",
+      "pairing": "prefix_scalar:X_PRIMARY",
+      "path": "scripts/q28_s24_nearclose_fade_probe.py",
+      "preregistered": 0.02,
+      "probe_high": 0.06,
+      "probe_high_reason": null,
+      "probe_low": 0.010000000000000002,
+      "probe_low_reason": null,
+      "seal_position": "low_edge",
+      "shape": "bare_sequence",
+      "spacing": "arithmetic",
+      "values": [
+        0.02,
+        0.03,
+        0.04,
+        0.05
+      ]
+    },
+    {
+      "axis": "SPREAD_CAP_SWEEP_CENTS",
+      "declares_out_of_grid_probes": false,
+      "grid": "SPREAD_CAP_SWEEP_CENTS",
+      "pairing": "unpaired",
+      "path": "scripts/s6_maker_firstcut.py",
+      "preregistered": null,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": null,
+      "shape": "bare_sequence",
+      "spacing": "irregular",
+      "values": [
+        2.0,
+        5.0,
+        10.0
+      ]
+    },
+    {
+      "axis": "THRESHOLD_SWEEP",
+      "declares_out_of_grid_probes": false,
+      "grid": "THRESHOLD_SWEEP",
+      "pairing": "unpaired",
+      "path": "scripts/s10_reachability_probe.py",
+      "preregistered": null,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": null,
+      "shape": "bare_sequence",
+      "spacing": "irregular",
+      "values": [
+        0.01,
+        0.02,
+        0.05,
+        0.1
+      ]
+    },
+    {
+      "axis": "THETA_GRID",
+      "declares_out_of_grid_probes": false,
+      "grid": "THETA_GRID",
+      "pairing": "unpaired",
+      "path": "scripts/q56_s80_print_vwap_overshoot_maker_fade.py",
+      "preregistered": null,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": null,
+      "shape": "bare_sequence",
+      "spacing": "irregular",
+      "values": [
+        0.01,
+        0.02,
+        0.03,
+        0.05
+      ]
+    },
+    {
+      "axis": "WINDOW_GRID_MIN",
+      "declares_out_of_grid_probes": false,
+      "grid": "WINDOW_GRID_MIN",
+      "pairing": "unpaired",
+      "path": "scripts/q56_s80_print_vwap_overshoot_maker_fade.py",
+      "preregistered": null,
+      "probe_high": 120.0,
+      "probe_high_reason": null,
+      "probe_low": 7.5,
+      "probe_low_reason": null,
+      "seal_position": null,
+      "shape": "bare_sequence",
+      "spacing": "geometric",
+      "values": [
+        15.0,
+        30.0,
+        60.0
+      ]
+    },
+    {
+      "axis": "flow_window_minutes",
+      "declares_out_of_grid_probes": false,
+      "grid": "SENSITIVITY_GRID",
+      "pairing": "sealed_spec_key",
+      "path": "scripts/q57_s82_flow_fade_probe.py",
+      "preregistered": 120.0,
+      "probe_high": 960.0,
+      "probe_high_reason": null,
+      "probe_low": 15.0,
+      "probe_low_reason": null,
+      "seal_position": "interior",
+      "shape": "dict_of_axes",
+      "spacing": "geometric",
+      "values": [
+        30.0,
+        60.0,
+        120.0,
+        240.0,
+        480.0
+      ]
+    },
+    {
+      "axis": "min_abs_rho",
+      "declares_out_of_grid_probes": false,
+      "grid": "SENSITIVITY_GRID",
+      "pairing": "sealed_spec_key",
+      "path": "scripts/q57_s82_flow_fade_probe.py",
+      "preregistered": 0.2,
+      "probe_high": 0.8,
+      "probe_high_reason": null,
+      "probe_low": 0.025,
+      "probe_low_reason": null,
+      "seal_position": "interior",
+      "shape": "dict_of_axes",
+      "spacing": "geometric",
+      "values": [
+        0.05,
+        0.1,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "axis": "min_window_count",
+      "declares_out_of_grid_probes": false,
+      "grid": "SENSITIVITY_GRID",
+      "pairing": "sealed_spec_key",
+      "path": "scripts/q57_s82_flow_fade_probe.py",
+      "preregistered": 100.0,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": "interior",
+      "shape": "dict_of_axes",
+      "spacing": "irregular",
+      "values": [
+        0.0,
+        100.0,
+        1000.0
+      ]
+    },
+    {
+      "axis": "max_entry_lag_minutes",
+      "declares_out_of_grid_probes": false,
+      "grid": "SENSITIVITY_GRID",
+      "pairing": "sealed_spec_key",
+      "path": "scripts/q57_s82_flow_fade_probe.py",
+      "preregistered": 60.0,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": "interior",
+      "shape": "dict_of_axes",
+      "spacing": "irregular",
+      "values": [
+        30.0,
+        60.0,
+        240.0,
+        4320.0
+      ]
+    },
+    {
+      "axis": "flow_window_minutes",
+      "declares_out_of_grid_probes": false,
+      "grid": "PREREGISTRATION",
+      "pairing": "unpaired",
+      "path": "scripts/q57b_anchor_widening_census.py",
+      "preregistered": null,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": null,
+      "shape": "nested_in_sealed_spec",
+      "spacing": "irregular",
+      "values": [
+        15.0,
+        30.0,
+        45.0,
+        60.0,
+        90.0,
+        120.0,
+        180.0,
+        240.0
+      ]
+    },
+    {
+      "axis": "max_entry_lag_minutes",
+      "declares_out_of_grid_probes": false,
+      "grid": "PREREGISTRATION",
+      "pairing": "unpaired",
+      "path": "scripts/q57b_anchor_widening_census.py",
+      "preregistered": null,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": null,
+      "shape": "nested_in_sealed_spec",
+      "spacing": "irregular",
+      "values": [
+        30.0,
+        60.0,
+        90.0,
+        120.0,
+        180.0,
+        240.0,
+        360.0,
+        720.0
+      ]
+    },
+    {
+      "axis": "min_abs_rho",
+      "declares_out_of_grid_probes": false,
+      "grid": "PREREGISTRATION",
+      "pairing": "unpaired",
+      "path": "scripts/q57b_anchor_widening_census.py",
+      "preregistered": null,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": null,
+      "shape": "nested_in_sealed_spec",
+      "spacing": "irregular",
+      "values": [
+        0.1,
+        0.15,
+        0.2,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "axis": "min_window_count",
+      "declares_out_of_grid_probes": false,
+      "grid": "PREREGISTRATION",
+      "pairing": "unpaired",
+      "path": "scripts/q57b_anchor_widening_census.py",
+      "preregistered": null,
+      "probe_high": null,
+      "probe_high_reason": "irregular_spacing",
+      "probe_low": null,
+      "probe_low_reason": "irregular_spacing",
+      "seal_position": null,
+      "shape": "nested_in_sealed_spec",
+      "spacing": "irregular",
+      "values": [
+        0.0,
+        50.0,
+        100.0,
+        250.0
+      ]
+    }
+  ],
+  "cross_module_probe_coverage": {
+    "axes_probed_past_high": [],
+    "axes_probed_past_low": [
+      "flow_window_minutes"
+    ],
+    "blocking_axes": [
+      "flow_window_minutes",
+      "max_entry_lag_minutes",
+      "min_abs_rho",
+      "min_window_count"
+    ],
+    "follow_on": "q57b_anchor_widening_census.py",
+    "n_axes": 4,
+    "n_edges": 8,
+    "n_edges_probed": 1,
+    "sealed": "q57_s82_flow_fade_probe.py",
+    "structural_claim_admissible": false
+  },
+  "edge_seated_issues": [
+    "scripts/q28_s24_nearclose_fade_probe.py::X_SWEEP[X_SWEEP] sealed=0.02 at low_edge; one step past that edge = 0.01"
+  ],
+  "lesson": "L362",
+  "n_axes": 13,
+  "n_axes_extendable_both_sides": 4,
+  "n_modules": 6,
+  "n_modules_declaring_out_of_grid_probes": 0,
+  "n_paired": 5,
+  "n_seal_at_edge": 1,
+  "price_provenance": {
+    "price_source_tag": null,
+    "prices_quoted": false
+  }
+}

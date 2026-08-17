@@ -4511,6 +4511,261 @@ def scripts_cross_import_bootstrap_warning(sites: List[str]) -> Optional[str]:
     )
 
 
+# --------------------------------------------------------------------------- #
+# L362 advisory: a sensitivity grid whose pre-registered value sits AT an edge, and the
+# out-of-grid probe values every declared grid still owes. Non-gating.
+#
+# L362 (Q57/S82 verifier round, 2026-08-16): a grid that only BRACKETS the sealed value
+# cannot separate "structural" from "an artifact of this constant" — Q57's window axis
+# bottomed at 30 next to a sealed 120 and the degeneracy it declared structural dissolved
+# at 15, one geometric step past the grid's own edge. The arithmetic lives in
+# `core/sensitivity.py`; this scanner is the repo-wide INVENTORY half: which modules
+# declare a sensitivity grid, where the sealed value sits on each axis, and what the
+# one-step-past-the-edge probe value would be.
+# --------------------------------------------------------------------------- #
+_GRID_NAME_RE = re.compile(r"(?:^|_)(?:SENSITIVITY_GRID|GRID|SWEEP)(?:_[A-Z0-9]+)?$")
+# The dict KEY under which a sealed spec may nest its own grid (Q57b's shape:
+# `PREREGISTRATION = {..., "grid_axes": {...}}`).
+_NESTED_GRID_KEYS = ("grid_axes", "sensitivity_grid", "grid")
+# A module that has ALREADY discharged L362 declares its executed out-of-grid cells here.
+_OUT_OF_GRID_DECL = "OUT_OF_GRID_PROBES"
+
+
+def _numeric_literal(node: ast.AST) -> Optional[float]:
+    """`3`, `3.5`, `-2` as floats; anything non-literal (a name, a call, a subscript of
+    another module's spec) is None — never guessed."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
+            and not isinstance(node.value, bool):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)) \
+            and isinstance(node.operand, ast.Constant) \
+            and isinstance(node.operand.value, (int, float)) \
+            and not isinstance(node.operand.value, bool):
+        v = float(node.operand.value)
+        return -v if isinstance(node.op, ast.USub) else v
+    return None
+
+
+def _numeric_sequence(node: ast.AST) -> Optional[List[float]]:
+    """A tuple/list literal of >=2 numeric literals, else None. A mixed or symbolic
+    sequence is refused rather than partially read."""
+    if not isinstance(node, (ast.Tuple, ast.List)):
+        return None
+    vals: List[float] = []
+    for elt in node.elts:
+        v = _numeric_literal(elt)
+        if v is None:
+            return None
+        vals.append(v)
+    return vals if len(vals) >= 2 else None
+
+
+def _module_scalar_constants(tree: ast.Module) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    for stmt in tree.body:
+        targets = []
+        if isinstance(stmt, ast.Assign):
+            targets = [t for t in stmt.targets if isinstance(t, ast.Name)]
+            value = stmt.value
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            targets = [stmt.target]
+            value = stmt.value
+        else:
+            continue
+        if value is None:
+            continue
+        v = _numeric_literal(value)
+        if v is None:
+            continue
+        for t in targets:
+            out[t.id] = v
+    return out
+
+
+def _dict_literal_axes(node: ast.AST) -> Optional[Dict[str, List[float]]]:
+    """`{"axis": (1, 2, 3), ...}` -> axis map. Keys that are not string literals, and
+    values that are not numeric sequences, are skipped (an axis this scanner cannot read
+    is invisible, never assumed — see the warning's RECALL statement)."""
+    if not isinstance(node, ast.Dict):
+        return None
+    axes: Dict[str, List[float]] = {}
+    for k, v in zip(node.keys, node.values):
+        if not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+            continue
+        seq = _numeric_sequence(v)
+        if seq is not None:
+            axes[k.value] = seq
+    return axes or None
+
+
+def _dict_literal_scalars(node: ast.AST) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    if not isinstance(node, ast.Dict):
+        return out
+    for k, v in zip(node.keys, node.values):
+        if isinstance(k, ast.Constant) and isinstance(k.value, str):
+            num = _numeric_literal(v)
+            if num is not None:
+                out[k.value] = num
+    return out
+
+
+def _nested_grid_axes(node: ast.AST) -> Optional[Dict[str, List[float]]]:
+    """A grid nested INSIDE a sealed-spec dict literal under a `grid_axes`-class key."""
+    if not isinstance(node, ast.Dict):
+        return None
+    for k, v in zip(node.keys, node.values):
+        if isinstance(k, ast.Constant) and isinstance(k.value, str) \
+                and k.value.lower() in _NESTED_GRID_KEYS:
+            axes = _dict_literal_axes(v)
+            if axes:
+                return axes
+    return None
+
+
+def _sensitivity_grid_declarations(root: Path = ROOT) -> List[dict]:
+    """Every module-level sensitivity grid this scanner can read, with the sealed value
+    paired to each axis where the pairing is UNAMBIGUOUS.
+
+    Two declaration shapes are read, both observed in this repo:
+      (a) a dict literal of axis -> numeric sequence (`SENSITIVITY_GRID = {...}`, or a
+          `grid_axes` key nested inside a `PREREGISTRATION` literal). Sealed values are
+          looked up by the SAME key in a module-level `PREREGISTRATION` dict literal.
+      (b) a bare numeric sequence named `<PREFIX>_GRID*` / `<PREFIX>_SWEEP` (`X_SWEEP`).
+          The sealed value is a module scalar sharing the prefix (`X_PRIMARY`); 0 or >1
+          candidates -> `preregistered=None`, `pairing="ambiguous"`, never a guess.
+    """
+    decls: List[dict] = []
+    for path in _iter_source_files(root, exts=(".py",)):
+        rel = str(path.relative_to(root))
+        if not (rel.startswith("scripts/") or rel.startswith("core/")
+                or rel.startswith("analysis/") or rel.startswith("collection/")):
+            continue
+        if rel == "core/sensitivity.py" or rel.startswith("tests/"):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        scalars = _module_scalar_constants(tree)
+        prereg_scalars: Dict[str, float] = {}
+        declares_out_of_grid = False
+        assigns: List[Tuple[str, ast.AST]] = []
+        for stmt in tree.body:
+            if isinstance(stmt, ast.Assign):
+                names = [t.id for t in stmt.targets if isinstance(t, ast.Name)]
+                value = stmt.value
+            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                names = [stmt.target.id]
+                value = stmt.value
+            else:
+                continue
+            if value is None:
+                continue
+            for name in names:
+                assigns.append((name, value))
+                if name == _OUT_OF_GRID_DECL:
+                    declares_out_of_grid = True
+                if name == "PREREGISTRATION":
+                    prereg_scalars.update(_dict_literal_scalars(value))
+        for name, value in assigns:
+            axes: Optional[Dict[str, List[float]]] = None
+            shape = None
+            if name.endswith("PREREGISTRATION") or name == "PREREGISTRATION":
+                axes = _nested_grid_axes(value)
+                shape = "nested_in_sealed_spec"
+            if axes is None and _GRID_NAME_RE.search(name):
+                axes = _dict_literal_axes(value)
+                shape = "dict_of_axes" if axes else None
+                if axes is None:
+                    seq = _numeric_sequence(value)
+                    if seq is not None:
+                        axes = {name: seq}
+                        shape = "bare_sequence"
+            if not axes:
+                continue
+            for axis, values in axes.items():
+                pre = prereg_scalars.get(axis)
+                pairing = "sealed_spec_key" if pre is not None else "unpaired"
+                if pre is None and shape == "bare_sequence":
+                    prefix = name.split("_")[0]
+                    cands = {k: v for k, v in scalars.items()
+                             if k.split("_")[0] == prefix and k != name}
+                    if len(cands) == 1:
+                        (ck, cv), = cands.items()
+                        pre, pairing = cv, f"prefix_scalar:{ck}"
+                    elif len(cands) > 1:
+                        pairing = "ambiguous"
+                decls.append({"path": rel, "grid": name, "shape": shape, "axis": axis,
+                              "values": values, "preregistered": pre, "pairing": pairing,
+                              "declares_out_of_grid_probes": declares_out_of_grid})
+    return decls
+
+
+def _sensitivity_grid_edge_issues(root: Path = ROOT) -> List[str]:
+    """`path::GRID[axis]` for each axis whose SEALED value sits at the grid's own low or
+    high edge — L362's literal shape. Axes whose sealed value could not be paired are NOT
+    issues (unknown is not a violation); they are counted in the inventory instead."""
+    from core.sensitivity import (axis_edge_status, POSITION_LOW_EDGE,  # local: keeps
+                                  POSITION_HIGH_EDGE)                   # invariants light
+    issues: List[str] = []
+    for d in _sensitivity_grid_declarations(root):
+        if d["preregistered"] is None:
+            continue
+        st = axis_edge_status(d["axis"], d["values"], preregistered=d["preregistered"])
+        if st.position in (POSITION_LOW_EDGE, POSITION_HIGH_EDGE):
+            probe = st.probe_low if st.position == POSITION_LOW_EDGE else st.probe_high
+            reason = st.probe_low_reason if st.position == POSITION_LOW_EDGE \
+                else st.probe_high_reason
+            suggest = f"{probe:g}" if probe is not None else f"unavailable ({reason})"
+            issues.append(f"{d['path']}::{d['grid']}[{d['axis']}] sealed="
+                          f"{d['preregistered']:g} at {st.position}; one step past that "
+                          f"edge = {suggest}")
+    return sorted(issues)
+
+
+def sensitivity_grid_edge_warning(issues: List[str],
+                                  declarations: Optional[List[dict]] = None
+                                  ) -> Optional[str]:
+    """Non-gating advisory for L362. Returns None only when there is nothing to say — i.e.
+    no readable grid in the tree AND no edge-seated seal. Pure."""
+    decls = declarations or []
+    n_axes = len(decls)
+    n_modules = len({d["path"] for d in decls})
+    n_unpaired = sum(1 for d in decls if d["preregistered"] is None)
+    n_declaring = len({d["path"] for d in decls if d["declares_out_of_grid_probes"]})
+    if not issues and not decls:
+        return None
+    head = (f"warning (non-gating): L362 sensitivity-grid edge inventory — {n_axes} readable "
+            f"grid axis/axes across {n_modules} module(s); {n_unpaired} axis/axes could not "
+            f"be paired to a sealed value; {n_declaring} module(s) declare "
+            f"`{_OUT_OF_GRID_DECL}` (the executed out-of-grid cells L362 asks for).")
+    if issues:
+        body = (f" {len(issues)} axis/axes seat the SEALED value at an edge of their own "
+                f"grid: " + "; ".join(issues[:4]) + (" ..." if len(issues) > 4 else "") + ".")
+    else:
+        body = (" No sealed value sits at an edge of its own grid — which does NOT discharge "
+                "L362: an interior seal was exactly Q57's situation.")
+    tail = (
+        " L362: a grid that only BRACKETS the sealed value cannot separate 'structural' from "
+        "'an artifact of this constant' — Q57/S82's window axis ran (30,60,120,240,480) around "
+        "a sealed 120 and the degeneracy it called structural dissolved at 15, one geometric "
+        "step past the grid's own low edge. Fix: before writing 'structural', run "
+        "`core.sensitivity.out_of_grid_probes(axis)` per axis, evaluate those cells, and record "
+        f"them in a module-level `{_OUT_OF_GRID_DECL}` mapping (a side terminating at a declared "
+        "natural bound counts as settled). COVERAGE (tested shapes): a dict literal of "
+        "axis->numeric sequence; a `grid_axes` dict nested in a `PREREGISTRATION` literal; a "
+        "bare numeric sequence named `<PREFIX>_GRID*`/`<PREFIX>_SWEEP` paired to a UNIQUE "
+        "`<PREFIX>_*` module scalar. KNOWN BLIND SPOTS (deliberate, regression-tested as "
+        "misses): an axis built by a call/comprehension or imported from another module, a "
+        "sealed value that is an expression rather than a literal, a grid assigned inside a "
+        "function, and a sequence of <2 numeric literals. A 0-issue report is evidence of "
+        "PRECISION only, never of RECALL (L155). Advisory only — does NOT affect the exit "
+        "code. See kb/lessons/00-lessons.md L362 and core/sensitivity.py."
+    )
+    return head + body + tail
+
+
 _LESSON_ID_ROW_RE = re.compile(r"^\|\s*(L\d+)\s*\|")
 
 
@@ -6656,6 +6911,20 @@ def main() -> int:
             _scripts_cross_import_bootstrap_issues())
         if cross_import_warning:
             sys.stderr.write(cross_import_warning + "\n")
+        # L362 advisory: sensitivity-grid edge inventory — which grids exist, where each
+        # sealed value sits on its own axis, and the one-step-past-the-edge probe value the
+        # module still owes before it may call a result "structural". Non-gating — stderr
+        # only, and wrapped so neither the scanner nor the formatter can reach the exit code
+        # (the L156 DEFECT-1 lesson).
+        try:
+            grid_decls = _sensitivity_grid_declarations()
+            grid_warning = sensitivity_grid_edge_warning(
+                _sensitivity_grid_edge_issues(), grid_decls)
+            if grid_warning:
+                sys.stderr.write(grid_warning + "\n")
+        except BaseException:
+            sys.stderr.write("note: L362 sensitivity-grid advisory could not be computed "
+                             "(non-gating; exit code unaffected)\n")
         # L147 advisory: kb/lessons/00-lessons.md assigning the same lesson ID to more than
         # one row (2026-07-24 incident: L130/L131 each collided). Non-gating — stderr only.
         dup_lesson_warning = duplicate_lesson_id_warning(_duplicate_lesson_id_issues())

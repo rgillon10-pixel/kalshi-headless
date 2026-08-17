@@ -6,6 +6,71 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-17 ~09:xx-11:xxZ — L362 converted to code: the sensitivity-grid edge check — and the lesson's own proposed rule turns out to be refuted by its own incident
+
+**Run:** research loop (protocol v3), **IDLE RUN under idle-run policy (a)** (convert an
+`UNENFORCED` lesson into an invariant/test). **Class: TOOLING + MEASUREMENT — no registry flip, no
+bootstrap CI, no P&L, no kill decision; still 0 proven edges.** No price is read anywhere in this
+work (`price_provenance = {prices_quoted: false, price_source_tag: null}`).
+
+**Why idle.** Q0-Q56 re-derived drained by each item's newest-dated Status line (Q19/Q32/Q33/Q35-build/
+Q36/Q42/Q43/Q47/Q48 gated or blocked; Q49-Q56 closed; Q14/Q15 data-adequacy blocked; Q21 round #33
+completed this morning), and Q57 closed path (b) overnight with path (a) data-gated on a ~1-in-45
+arrival. Policy (a) then found something the last several idle runs did not have:
+`stale_unenforced_recall_report()` read **13** open `UNENFORCED` rows, not the long-triaged 10 —
+**L362/L363/L364**, added 2026-08-16 by the Q57 verifier round, had never been triaged. L362 was
+picked because its subject matter (sensitivity grids and sealed spec dicts) is structured data
+already in the tree, so it can be enforced precisely instead of by prose-lint.
+
+**Built.** `core/sensitivity.py` — `axis_spacing()`, `out_of_grid_probes()` (the value ONE STEP PAST
+each edge in the axis's own spacing, or an honest `irregular_spacing` / `at_natural_bound` /
+`singleton_axis` reason), `axis_edge_status()`, `grid_edge_report()`, `structural_claim_admissible()`.
+`scripts/invariants.py` — an AST inventory (`_sensitivity_grid_declarations`,
+`_sensitivity_grid_edge_issues`, `sensitivity_grid_edge_warning`) wired **NON-GATING** into `--full`.
+`scripts/sensitivity_grid_edge_report.py` -> `reports/l362_sensitivity_grid_edges.json`, the
+re-runnable artifact. **57 tests** in `tests/test_sensitivity_grid_edges.py`.
+
+**The pin that is the lesson:** `out_of_grid_probes((30,60,120,240,480))["low"] == 15.0`. Q57's window
+axis is geometric with ratio 2, so one step below its own low edge is 15 minutes — the exact value at
+which the verifier, by hand, found the "structural" degeneracy dissolve. The tool derives it from the
+seal as committed, before a single cell is run.
+
+**What the live tree says.** 13 readable grid axes / 6 modules; 5 paired to a sealed value; **1**
+seats its seal at an edge; **0** modules record an executed out-of-grid cell. (1) **L362's own
+candidate rule is refuted** — it proposed "the sealed value must not be the min/max of any swept
+axis", and all four of Q57's axes are INTERIOR, so the rule would have passed the run it was written
+for (new **L371**). (2) The single edge-seated seal (`q28_s24_nearclose_fade_probe.py::X_SWEEP`, 0.02
+at the low edge) is mechanism-excluded by that module's own docstring, so its remedy is a DECLARED
+bound, not a cell. (3) The only out-of-grid probing this repo has ever done — Q57b's census over
+Q57's grid — covers **1 of 8** edges (past the window low edge; **0** high edges anywhere),
+`structural_claim_admissible=False`. (4) **9 of 13** axes are irregularly spaced, so mechanical
+extension covers under a third of the tree and the declared-bound half is load-bearing (new **L372**).
+
+**Defect caught by the new suite during construction, recorded not laundered:** the natural-bound
+check must run BEFORE the spacing refusal — the first draft reported `irregular_spacing` for an axis
+sitting on its own floor (`(0,100,250)` with `bounds=(0.0,None)`), i.e. a settled side looked like a
+permanently unmet obligation. Fixed with 4 regression tests.
+
+**Two-agent rule: NOT SATISFIABLE** — no `Task`/subagent tool exists in this harness (the
+L287/L288/L290/L291/L295/L308/L313/L325/L349 precedent), so no independent `verifier` was
+dispatchable; the rule does not bind this milestone class (lesson->test conversion, no CI/flip/kill —
+L104/L110/L118/L126/L127/L137 precedent), and redundancy came from deriving the 15.0 headline twice by
+different routes plus five blind spots pinned as deliberate misses (a 0-issue report is PRECISION,
+never RECALL — L155).
+
+**Also this run:** step-0b sweep recovered stranded branch `tape/hourly-20260817T065946Z` —
+**1,005 lines** union-appended (2 `crypto_hourly`, 21 `polymarket_macro_pairs`, 982 `sports_pairs`),
+line-level dedupe, no line rewritten. Step-9 paper sub-pass ran `s14_ladder_underwriting` over
+committed tape: **0 processed, 278 deferred(coverage), 300 already-in-ledger, no ledger write** —
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open
+notional $0.00` (ledger fills carry `price_source_tag = broker_truth`).
+
+**Inherited RED gate found and repaired (not this run's breakage).** The full-suite gate came back **4,594 passed / 1 failed** and the failure was already on `main`: `tests/test_hl_funding_tape_quality.py::test_real_tape_degenerate_window_share_is_material_and_a_point_mass` asserts `both_degenerate_fraction > 0.25` and BTC now reads **exactly 56/224 = 0.25**. Reproduced at pristine `HEAD` (`6254b92`) in a throwaway worktree with none of this run's edits present — the 04:11Z hourly pass appended perp windows, the numerator stayed at its pinned floor of 56, and the ratio decayed onto the boundary; this run touched neither `tape/hyperliquid_funding/` nor `tape/perp_tape/`. Repaired in the repo's own idiom (L263 numerator-beside-ratio + L320/L191 floors-not-knife-edges): numerator floor unchanged and now fails first, ratio relaxed to a non-strict `>= 0.20` carrying the measured value in its message. New **L373**; a repo-wide `assert <ratio> > <round literal>` lint is named there as the next policy-(a) unit.
+
+**Open `UNENFORCED` rows: 13 -> 12.** L363 and L364 (both document-level conventions over `findings/`,
+enforceable only as prose-lint with a real false-positive budget) are the next candidates and were
+not attempted. See `findings/2026-08-17-l362-sensitivity-grid-edges.md`.
+
 ## 2026-08-17 ~04:xx-08:xxZ — Research loop raced PR #390 on Q57 path (b) end-to-end; closed the duplicate, kept the confirmation
 
 **Run:** research loop (protocol v3), delegated to the `research-lead` orchestrator in an isolated
