@@ -1130,6 +1130,299 @@ def inv_frozen_population_pin_declared(path: Path, text: str) -> Optional[str]:
                 "CURRENT population instead")
 
 
+# ── L362: a sensitivity grid that only BRACKETS its pre-registered anchor ────────────
+# Q57/S82 swept `flow_window_minutes` over (30, 60, 120, 240, 480) around a pre-registered
+# 120 and read the resulting sign-variation degeneracy as STRUCTURAL. An independent verifier
+# round then measured 15 min — ONE STEP PAST the grid's own low edge — and the degeneracy
+# dissolved. A grid that only spans its anchor answers "is this stable INSIDE the box I chose?";
+# it cannot answer "is this a property of the tape or of my box?"
+#
+# THE RULE. Any module under scripts/|core/|collection/|execution/ that declares a module-level
+# sensitivity grid — a name carrying a GRID / SWEEP / SENSITIVITY segment bound to a literal
+# list/tuple with >=2 distinct numeric members, or to a dict whose values are such sequences —
+# must carry a per-axis entry in `SENSITIVITY_GRID_ANCHOR_TRIAGE` below:
+#     rel_path -> { axis_id: (anchor_spec, declared_position, disposition_sentence) }
+#   * `anchor_spec` names the pre-registered constant the grid is swept AROUND: either a
+#     module-level numeric name (`X_PRIMARY`) or a module-level dict lookup
+#     (`PREREGISTRATION["flow_window_minutes"]`).
+#   * `declared_position` is one of EDGE_MIN / EDGE_MAX / INTERIOR / OFF_GRID / UNRESOLVED and
+#     is RE-DERIVED here from the source. A declaration that disagrees with the code is a gate
+#     failure, so the registry cannot silently rot when someone moves an anchor.
+#   * the sentence must OPEN with one of three dispositions:
+#       OUT-OF-GRID PROBED:     a cell strictly past an edge was actually measured — cite it.
+#       OUT-OF-GRID IMPOSSIBLE: no such cell exists (venue tick floor, a count that cannot go
+#                               negative, ...).
+#       NO STRUCTURAL CLAIM:    this grid never backs a "structural / no more tape helps" claim.
+#
+# WHY THE POSITION IS NOT THE CHECK. The other candidate cell L362 named — "the anchor must not
+# be the min or max of any swept axis" — would NOT have caught L362's own exhibit: measured
+# 2026-08-17, all four of Q57's axes are INTERIOR (120 inside 30..480, 0.20 inside 0.05..0.40,
+# 100 inside 0..1000, 60 inside 30..4320). Interiority is not sufficient; the binding half of the
+# lesson is the out-of-grid DISPOSITION, which is why the sentence — not the position — is the
+# mandatory field. (Census over the tree the same day: 11 axes in 6 files, 3 of them EDGE-anchored
+# — `X_PRIMARY`, `FLOOR_THRESHOLD` at their grid min, `PRIMARY_SPREAD_CAP_CENTS` at its max.)
+#
+# HONEST LIMITS (L155 — a 0-issue report is PRECISION evidence, never recall):
+#   * detection is NAME-shaped and literal-valued. A grid assembled at runtime, read from config,
+#     living only as a default argument, or named without a GRID/SWEEP/SENSITIVITY segment is
+#     INVISIBLE to this rule.
+#   * the anchor<->grid link is DECLARED, not inferred: nothing here proves the named anchor is
+#     the constant the sweep is really built around (the L319/L321/L323 residual, restated).
+#   * a disposition sentence records a claim; it never proves the claim is true. The gate buys
+#     that the question was ASKED at the site, in a form a later reader can attack.
+#   * `scripts/invariants.py` is `_file_excluded` from every static invariant, so this rule
+#     cannot see its own definition site.
+_SENSITIVITY_GRID_DIRS = ("scripts/", "core/", "collection/", "execution/")
+_SENSITIVITY_GRID_NAME_RE = re.compile(r"(?:^|_)(GRID|SWEEP|SENSITIVITY)(?:_|$)")
+_GRID_ANCHOR_LOOKUP_RE = re.compile(r"""^([A-Za-z_][A-Za-z0-9_]*)\[\s*["']([^"']+)["']\s*\]$""")
+_GRID_POSITIONS = ("EDGE_MIN", "EDGE_MAX", "INTERIOR", "OFF_GRID", "UNRESOLVED")
+_GRID_DISPOSITIONS = ("OUT-OF-GRID PROBED:", "OUT-OF-GRID IMPOSSIBLE:", "NO STRUCTURAL CLAIM:")
+_MIN_GRID_DISPOSITION_CHARS = 40
+
+SENSITIVITY_GRID_ANCHOR_TRIAGE: Dict[str, Dict[str, Tuple[str, str, str]]] = {
+    "scripts/q28_s24_nearclose_fade_probe.py": {
+        "X_SWEEP": (
+            "X_PRIMARY", "EDGE_MIN",
+            "NO STRUCTURAL CLAIM: S24 is DEAD-by-round-trip at the pre-registered 2c cell "
+            "(mean -$0.02936, 95% CI [-0.05179,-0.00587]) — a fee/CI statement, never a 'no "
+            "threshold helps' claim. The unprobed direction below the edge is the single-tick "
+            "1c cell, which this probe's own constant comment rejects as BBO flicker rather "
+            "than a mid move."),
+    },
+    "scripts/s10_reachability_probe.py": {
+        "THRESHOLD_SWEEP": (
+            "FLOOR_THRESHOLD", "EDGE_MIN",
+            "OUT-OF-GRID IMPOSSIBLE: S10 IS a 'STRUCTURAL DEAD' verdict and its anchor sits at "
+            "the grid's low edge, but no cell exists below it — 0.01 is Kalshi's minimum tick, "
+            "so 'farther out-of-the-money than the 1c floor' is not a price the venue can "
+            "quote. The relaxing direction (0.02/0.05/0.10) is swept inside the grid."),
+    },
+    "scripts/s6_maker_firstcut.py": {
+        "SPREAD_CAP_SWEEP_CENTS": (
+            "PRIMARY_SPREAD_CAP_CENTS", "EDGE_MAX",
+            "NO STRUCTURAL CLAIM: S6's DEAD CI is explicitly scoped to 'realistic' two-sided "
+            "books (<=10c) and never claims wider books cannot be made. The out-of-grid "
+            "direction (>10c) is reported in the same verdict as the >30c wide-wing artifact "
+            "behind the naive +$0.069 'edge' (L12/L26) — looked at and rejected as unfillable, "
+            "not measured as a CI."),
+    },
+    "scripts/q56_s80_print_vwap_overshoot_maker_fade.py": {
+        "THETA_GRID": (
+            "OVERSHOOT_MIN", "INTERIOR",
+            "NO STRUCTURAL CLAIM: S80's dead flip is a CI statement at the pre-registered cell; "
+            "this grid is a reader's robustness display, not the basis of a 'no threshold "
+            "works' claim, so no out-of-grid cell is owed."),
+        "WINDOW_GRID_MIN": (
+            "RECENT_WINDOW_MIN", "INTERIOR",
+            "NO STRUCTURAL CLAIM: same disposition as THETA_GRID — the verdict is a CI at the "
+            "pre-registered 30-min window, and generality across windows is displayed, never "
+            "asserted as structural."),
+    },
+    "scripts/q57_s82_flow_fade_probe.py": {
+        "SENSITIVITY_GRID[flow_window_minutes]": (
+            'PREREGISTRATION["flow_window_minutes"]', "INTERIOR",
+            "OUT-OF-GRID PROBED: the L362 origin. An independent verifier round measured 15 "
+            "min — one step BELOW this grid's 30-min low edge — and the claimed sign-variation "
+            "degeneracy DISSOLVED there (findings/2026-08-16-q57-s82-flow-fade-verdict.md §8). "
+            "The out-of-grid cell is evidence about generality only; the sealed 120-min cell "
+            "stays the verdict cell."),
+        "SENSITIVITY_GRID[min_abs_rho]": (
+            'PREREGISTRATION["min_abs_rho"]', "INTERIOR",
+            "NO STRUCTURAL CLAIM: after L362 the sign-variation hole is recorded as "
+            "spec-specific, not structural. No cell outside 0.05..0.40 has been measured on "
+            "this axis and none is claimed."),
+        "SENSITIVITY_GRID[min_window_count]": (
+            'PREREGISTRATION["min_window_count"]', "INTERIOR",
+            "NO STRUCTURAL CLAIM: the low edge (0) is a hard floor — a window contract count "
+            "cannot go negative and 0 already disables the gate — and nothing above 1000 has "
+            "been measured or claimed."),
+        "SENSITIVITY_GRID[max_entry_lag_minutes]": (
+            'PREREGISTRATION["max_entry_lag_minutes"]', "INTERIOR",
+            "NO STRUCTURAL CLAIM: this is the axis Q57 path (b) closed as a NO-OP (L368) — the "
+            "lag budget, not the close anchor, moved the unit count — and the grid's top cell "
+            "(4320 min = 3 days) already sits far past any pre-close entry lag the depth "
+            "cadence can produce."),
+    },
+    "scripts/tape_gap_monitor.py": {
+        "GATE_REACHABILITY_SENSITIVITY_WINDOWS": (
+            "GATE_REACHABILITY_TRAILING_DAYS", "INTERIOR",
+            "OUT-OF-GRID PROBED: the tuple's `None` member IS the out-of-grid cell — full "
+            "history, unbounded above every finite window — and `full_history_observed_hours` "
+            "travels with the verdict. The below-14-day direction is not swept; whether a "
+            "shorter window is evaluable at all is governed by this file's own "
+            "GATE_REACHABILITY_MIN_PASS_INSTANTS floor."),
+    },
+}
+
+
+def _numeric_grid_values(node: "ast.AST") -> Optional[List[float]]:
+    """The numeric members of a literal list/tuple, or None if this is not a numeric grid.
+
+    A `None` member is allowed and DROPPED rather than rejected: it is the idiom for an
+    unbounded cell (`tape_gap_monitor`'s full-history window). At least two DISTINCT numeric
+    members must remain — one point is not a sweep, and neither is `(5, 5)`."""
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        return None
+    vals: List[float] = []
+    for e in node.elts:
+        if not isinstance(e, ast.Constant):
+            return None
+        if e.value is None:
+            continue
+        if isinstance(e.value, bool) or not isinstance(e.value, (int, float)):
+            return None
+        vals.append(float(e.value))
+    return vals if len(set(vals)) >= 2 else None
+
+
+def _sensitivity_grid_axes(tree: "ast.Module") -> List[Tuple[str, int, List[float]]]:
+    """[(axis_id, lineno, values)] for every module-level sensitivity grid in `tree`.
+
+    `axis_id` is `NAME` for a bare sequence and `NAME[key]` for one axis of a dict-of-sequences
+    grid (Q57's `SENSITIVITY_GRID`), so a multi-axis grid is triaged one axis at a time."""
+    out: List[Tuple[str, int, List[float]]] = []
+    for node in tree.body:
+        targets: List[ast.Name] = []
+        if isinstance(node, ast.Assign):
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            targets = [node.target]
+        value = getattr(node, "value", None)
+        if not targets or value is None:
+            continue
+        for t in targets:
+            if not _SENSITIVITY_GRID_NAME_RE.search(t.id):
+                continue
+            vals = _numeric_grid_values(value)
+            if vals is not None:
+                out.append((t.id, node.lineno, vals))
+                continue
+            if isinstance(value, ast.Dict):
+                for k, v in zip(value.keys, value.values):
+                    if not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+                        continue
+                    sub = _numeric_grid_values(v)
+                    if sub is not None:
+                        out.append((f"{t.id}[{k.value}]",
+                                    getattr(v, "lineno", node.lineno), sub))
+    return out
+
+
+def _module_level_dict_numbers(tree: "ast.Module") -> Dict[str, Dict[str, float]]:
+    """Module-level dicts with string keys, restricted to their numeric-literal values."""
+    out: Dict[str, Dict[str, float]] = {}
+    for node in tree.body:
+        targets: List[ast.Name] = []
+        if isinstance(node, ast.Assign):
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            targets = [node.target]
+        value = getattr(node, "value", None)
+        if not targets or not isinstance(value, ast.Dict):
+            continue
+        pairs: Dict[str, float] = {}
+        for k, v in zip(value.keys, value.values):
+            if not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+                continue
+            if (isinstance(v, ast.Constant) and not isinstance(v.value, bool)
+                    and isinstance(v.value, (int, float))):
+                pairs[k.value] = float(v.value)
+        for t in targets:
+            out[t.id] = pairs
+    return out
+
+
+def _resolve_grid_anchor(tree: "ast.Module", anchor_spec: str) -> Optional[float]:
+    """The numeric value of `anchor_spec` (`NAME` or `NAME["key"]`), or None if this module's
+    source does not decide it statically."""
+    spec = (anchor_spec or "").strip()
+    consts = _module_level_numeric_constants(tree)
+    if spec in consts:
+        return float(consts[spec])
+    m = _GRID_ANCHOR_LOOKUP_RE.match(spec)
+    if m:
+        return _module_level_dict_numbers(tree).get(m.group(1), {}).get(m.group(2))
+    return None
+
+
+def classify_grid_anchor(anchor: Optional[float], values: List[float]) -> str:
+    """Where the pre-registered anchor sits in its own sweep: EDGE_MIN / EDGE_MAX / INTERIOR /
+    OFF_GRID (not a member at all) / UNRESOLVED (source does not decide it)."""
+    if anchor is None or not values:
+        return "UNRESOLVED"
+
+    def _same(a: float, b: float) -> bool:
+        return abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
+
+    if not any(_same(anchor, v) for v in values):
+        return "OFF_GRID"
+    if _same(anchor, min(values)):
+        return "EDGE_MIN"
+    if _same(anchor, max(values)):
+        return "EDGE_MAX"
+    return "INTERIOR"
+
+
+def inv_sensitivity_grid_anchor_triage(path: Path, text: str) -> Optional[str]:
+    """L362 GATING ratchet: every module-level sensitivity grid must declare, per axis, the
+    pre-registered anchor it is swept around, that anchor's re-derived position in the grid,
+    and an explicit OUT-OF-GRID disposition. Fails closed: a new sweep is a gate failure until
+    the question "what happens one step past my own edge?" is answered at the site."""
+    if _file_excluded(path):
+        return None
+    rel = _rel(path)
+    if not rel.startswith(_SENSITIVITY_GRID_DIRS):
+        return None
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    axes = _sensitivity_grid_axes(tree)
+    entries = SENSITIVITY_GRID_ANCHOR_TRIAGE.get(rel, {})
+    if not axes and not entries:
+        return None
+    lines = text.splitlines()
+    hits: List[Tuple[int, str]] = []
+    seen: Set[str] = set()
+    for axis_id, lineno, values in axes:
+        src = lines[lineno - 1] if 0 < lineno <= len(lines) else axis_id
+        if SENTINEL in src:
+            continue
+        seen.add(axis_id)
+        entry = entries.get(axis_id)
+        if entry is None:
+            hits.append((lineno, f"{src.strip()}   <- UNTRIAGED axis '{axis_id}'"))
+            continue
+        anchor_spec, declared, sentence = (list(entry) + ["", "", ""])[:3]
+        measured = classify_grid_anchor(_resolve_grid_anchor(tree, str(anchor_spec)), values)
+        if declared not in _GRID_POSITIONS:
+            hits.append((lineno, f"{src.strip()}   <- '{axis_id}' declares position "
+                                 f"'{declared}', not one of {'/'.join(_GRID_POSITIONS)}"))
+        elif declared != measured:
+            hits.append((lineno, f"{src.strip()}   <- '{axis_id}' declares {declared} for "
+                                 f"anchor {anchor_spec}, source says {measured}"))
+        s = str(sentence).strip()
+        if not any(s.startswith(tok) for tok in _GRID_DISPOSITIONS):
+            hits.append((lineno, f"{src.strip()}   <- '{axis_id}' disposition must open with "
+                                 f"one of {' | '.join(_GRID_DISPOSITIONS)}"))
+        elif len(s) < _MIN_GRID_DISPOSITION_CHARS:
+            hits.append((lineno, f"{src.strip()}   <- '{axis_id}' disposition is a bare token "
+                                 f"with no reason"))
+    for stale in sorted(set(entries) - seen):
+        hits.append((1, f"SENSITIVITY_GRID_ANCHOR_TRIAGE['{rel}']['{stale}']   <- STALE entry: "
+                        f"no such sensitivity axis in this file"))
+    if not hits:
+        return None
+    return _fmt(path, sorted(hits),
+                "UNTRIAGED / MISDECLARED sensitivity grid — lesson L362: a grid that only "
+                "BRACKETS its pre-registered anchor cannot tell 'structural' from 'an artifact "
+                "of this constant' (Q57/S82's sign-variation degeneracy dissolved at 15 min, "
+                "one step past its own 30-min grid edge). Add the axis to "
+                "SENSITIVITY_GRID_ANCHOR_TRIAGE in scripts/invariants.py with its anchor, the "
+                "anchor's position, and an OUT-OF-GRID PROBED / OUT-OF-GRID IMPOSSIBLE / NO "
+                "STRUCTURAL CLAIM disposition")
+
+
 STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("no_gefs", inv_no_gefs),
     ("no_bare_pstdev", inv_no_bare_pstdev),
@@ -1146,6 +1439,7 @@ STATIC_INVARIANTS: List[Tuple[str, Callable[[Path, str], Optional[str]]]] = [
     ("trade_print_tiebreak_triage", inv_trade_print_tiebreak_triage),
     ("minority_side_gate_triage", inv_minority_side_gate_triage),
     ("frozen_population_pin_declared", inv_frozen_population_pin_declared),
+    ("sensitivity_grid_anchor_triage", inv_sensitivity_grid_anchor_triage),
 ]
 
 
