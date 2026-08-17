@@ -6,6 +6,24 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-17 ~01:3xZ — Gate closure: orchestrating session finished the full pytest suite the delegated Q57b run couldn't fit in its budget
+
+**Not a new milestone — closing an honest gap the prior entry (below) already disclosed.** That run
+(via `research-lead`) quoted `4,538 collected` fresh off `--collect-only` but the full run reached only
+~22% (~1,000 tests, 0 failures) in its ~32-minute budget on a single-process, non-`xdist` host, and said so
+plainly rather than fabricating a pass count. Before pushing/merging PR #390, this session (which has more
+wall-clock headroom) installed `pytest-xdist` (dev tool, not a listed dependency, ad hoc per-run per L162
+precedent) and ran the full suite `-n auto` (4 workers): **4,535 passed**, 3 apparent failures. All 3 were
+confirmed to be `pytest-xdist` worker crashes (`node down: Not properly terminated`), the same resource-
+exhaustion artifact documented in the 2026-08-16 entries below, not genuine assertions — re-run standalone,
+single-process: **3 passed in 219.13s**. Net: **4,538/4,538 passing, 0 genuine failures.**
+`python3 scripts/invariants.py --full` re-confirmed fresh: **exit 0**, `invariants: all green`. Gates
+satisfied; diff is research/data/paper-tier only (no `execution/` code outside the sanctioned paper tier, no
+credentials, no network calls) — merged PR #390 as `33c2447e`. No verdict class, no registry change beyond
+what the prior entry already recorded — this is bookkeeping closure only.
+
+---
+
 ## 2026-08-17 ~00:2x-01:xxZ — Q57 path (b) executed: the anchor widening is a NO-OP, and the cell that "works" buys sign variation with mechanism
 
 **Run:** research loop (protocol v3). History-integrity PASS and claim-check PASS were done by the
