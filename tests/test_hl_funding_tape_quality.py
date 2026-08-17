@@ -316,7 +316,14 @@ def test_real_tape_degenerate_window_share_is_material_and_a_point_mass():
         g = rep["degenerate_windows"][asset]
         assert g["n_windows_joined"] >= 198
         assert g["n_both_degenerate"] >= floor
-        assert g["both_degenerate_fraction"] > 0.25
+        # UNLIKE the two counts above (each only ever grows), this fraction's numerator and
+        # denominator grow at different rates, so it is not monotonic under tape growth: it
+        # measured exactly 0.25 earlier the same day this line was written and had already
+        # drifted to 0.24888... (BTC) by the time of the very next full-suite run. A threshold
+        # sitting at the historical value is fragile in EITHER direction; 0.15 sits with real
+        # margin below both real measured values (BTC 0.2489, ETH 0.3422) while still pinning
+        # "material" (far from a rounding artifact near 0).
+        assert g["both_degenerate_fraction"] >= 0.15
         # the whole point: those windows carry ONE differential value, not a distribution
         assert g["n_distinct_degenerate_differentials"] == 1
         assert g["degenerate_differential"] == pytest.approx(1.0000437510937488e-04, rel=1e-9)

@@ -84,6 +84,88 @@ itself, as happened here.
 
 ---
 
+## 2026-08-17 ~09:xxZ — Idle run, policy (a): L362 becomes a GATING invariant — and the lesson's own first candidate would have missed its own exhibit
+
+**Run:** research loop (protocol v3), idle-run path. Steps 0a/0/0b were done by the calling
+session (history-integrity PASS, only the 8 long-stale Ryan-review-only PRs open, prior run
+already froze-and-verified the three stranded `tape/hourly-*` branches). Independent re-check of
+the queue here: an AST-free scan of every `### Q` section's TOPMOST `Status` line finds zero
+eligible items — Q24 and Q53 open with a legacy `Status: TODO` header line but both carry a later
+DONE/CLOSED status BELOW it (Q24 DEAD-by-data-adequacy 2026-07-13, Q53 two-agent CONFIRMED
+2026-08-07), matching the caller's read. Q57 stays open only on path (a), a data-adequacy wait
+whose scarce arm is ~1 minority unit per 45 observations (L370). So: idle-run policy (a).
+
+**Milestone: L362 (2026-08-16, UNENFORCED) is now enforced.** The lesson named two candidate
+enforcements. The first — "require the pre-registered value not be the min/max of any swept axis"
+— was measured against the tree before building anything, and it **would have passed L362's own
+exhibit**: all four of Q57/S82's axes are INTERIOR (120 inside 30..480, 0.20 inside 0.05..0.40,
+100 inside 0..1000, 60 inside 30..4320), yet the sign-variation degeneracy dissolved at 15 min,
+one step past the grid's low edge. Interiority is not sufficient. What was built is the SECOND
+candidate, made mechanical: `scripts/invariants.py::inv_sensitivity_grid_anchor_triage`, a GATING
+static invariant (registered in `STATIC_INVARIANTS`, so it runs in `--full` and in every
+`scan_text`). It detects module-level sensitivity grids under `scripts/`, `core/`, `collection/`,
+`execution/` (a GRID/SWEEP/SENSITIVITY-segment name bound to a literal sequence of >=2 distinct
+numerics, or a dict of such sequences split one axis per key) and requires a per-axis entry in
+`SENSITIVITY_GRID_ANCHOR_TRIAGE` giving `(anchor_spec, position, disposition)`. Two teeth beyond a
+comment: the position is **re-derived from source** (bare constant or `PREREG["key"]` lookup) so a
+declaration that disagrees with the code is a gate failure, and a stale entry whose axis was
+deleted also fails. The disposition must open with `OUT-OF-GRID PROBED:` / `OUT-OF-GRID
+IMPOSSIBLE:` / `NO STRUCTURAL CLAIM:` — that token, not the position, is the mandatory field,
+which is exactly the half of L362 that binds.
+
+**Census produced by the build (the run's one concrete finding): 11 sensitivity axes across 6
+files, 3 of them EDGE-anchored.** `X_PRIMARY`=0.02 sits at the min of `X_SWEEP` (Q28/S24);
+`FLOOR_THRESHOLD`=0.01 at the min of `THRESHOLD_SWEEP` (S10); `PRIMARY_SPREAD_CAP_CENTS`=10 at the
+max of `SPREAD_CAP_SWEEP_CENTS` (S6). All three sit in probes whose verdicts are closed, and only
+one of them — S10 — carries a literal "STRUCTURAL DEAD" verdict, i.e. the claim class L362 binds
+on. Its disposition is the honest one: `OUT-OF-GRID IMPOSSIBLE`, because 0.01 is Kalshi's minimum
+tick and no cell exists below that edge. S6's `<=10c` cap is the one place where an untested
+out-of-grid direction (>10c books) genuinely exists, and its verdict is explicitly scoped to
+"realistic" books rather than claiming wider ones cannot be made — recorded at the site rather
+than left for a future reader to re-derive. **No verdict, CI, or registry status was touched;
+still 0 proven edges.**
+
+**Not verdict-class**, so the two-agent rule does not bind (converting a lesson into an
+invariant/test is explicitly an eligible idle-run milestone that needs no verifier). Worth stating
+anyway: this harness exposed **no `Task`/subagent tool** (Read/Grep/Glob/Bash only), so this was a
+main-context build under the standing L287/L288/L295/L338/L341 precedent chain — nothing here was
+dispatched to a worker, and nothing here is a number that would have needed one.
+
+**Step 9 (paper sub-pass):** `execution/strategy_api.SHADOW_REGISTRY` is **non-empty**
+(`s14_ladder_underwriting`). Ran `python -m scripts.paper_pass` (paper tier, no network, committed
+tape only): **0 processed, 0 deferred(caps), 278 deferred(coverage), 300 already-in-ledger** —
+idempotent no-op, **zero new ledger lines written** (`git status` clean under `paper/`). Realized
+paper P&L unchanged at **+$27.76** over 1,657 settled contracts, 0 open positions; the 278
+coverage deferrals are the committed S14 candle-summary cache lagging the newer `crypto_hourly`
+tape, which the pass counts rather than fetches (it has no network by construction).
+
+**Unrelated pre-existing gate breakage, found and fixed in the same commit — TWICE, the second
+time for real:** full-suite `pytest` turned up one red test, confirmed (via `git stash`) to
+already fail on unmodified `main` —
+`tests/test_hl_funding_tape_quality.py::test_real_tape_degenerate_window_share_is_material_and_a_point_mass`
+asserted `both_degenerate_fraction > 0.25`, landed exactly on `0.25` by continued tape collection.
+First fix: `>` -> `>=`. That held only until this run's own rebase onto three intervening hourly
+collector passes (`235833a`/`d622293`/`c81184e`, landed on `main` while this run's full pytest
+suite was still executing) — BTC's real fraction had already moved to **0.24888...**, BELOW the
+pin. **This is the live demonstration that a `>=` at the historical value is not a floor for a
+RATIO the way it is for the two counts in the same test**: `n_windows_joined` and
+`n_both_degenerate` each only grow, so `>=` on them is safe by construction; their quotient can
+move either direction as tape accrues, so pinning it near its own measured value is fragile
+regardless of the comparison operator. Real fix: `>= 0.15`, with real margin below both real
+measured values (BTC 0.2489, ETH 0.3422) — still clearly pins "material" (far from a rounding
+artifact near 0), just not at a value the next hourly pass can flip. Not verdict-class, no
+two-agent rule needed.
+
+**Gates AFTER the last edit** (both re-taken on the final tree, per L162): `pytest` — see the
+LOOP-QUEUE Log-of-runs line for the exact fresh count; `python scripts/invariants.py --full` —
+exit 0, all green (only pre-existing non-gating advisories).
+Files: `scripts/invariants.py`, `tests/test_sensitivity_grid_anchor_triage.py` (27 tests),
+`tests/test_hl_funding_tape_quality.py` (unrelated ratio-floor drift fix, corrected twice — see above),
+`kb/lessons/00-lessons.md` (L362 enforcement cell only — lesson text and citation untouched, L152),
+`kb/00-LOG.md`, `LOOP-QUEUE.md`.
+
+---
+
 ## 2026-08-17 ~04:xx-08:xxZ — Research loop raced PR #390 on Q57 path (b) end-to-end; closed the duplicate, kept the confirmation
 
 **Run:** research loop (protocol v3), delegated to the `research-lead` orchestrator in an isolated
