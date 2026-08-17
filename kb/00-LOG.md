@@ -6,6 +6,60 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-17 ~04:xx-08:xxZ — Research loop raced PR #390 on Q57 path (b) end-to-end; closed the duplicate, kept the confirmation
+
+**Run:** research loop (protocol v3), delegated to the `research-lead` orchestrator in an isolated
+git worktree. Step 0a/0 claim-checks at delegation time were clean — origin/main matched local
+HEAD, and the open-PR list was only the 7 standing Ryan-review-only proposals. Nothing at that
+moment indicated Q57 path (b) was in flight anywhere else.
+
+**What actually happened:** the delegated agent spent ~3h building and testing the same milestone
+another, unrelated research-loop firing had already started and finished in that window — Q57/S82's
+path (b) reopen attempt (widen the settlement-anchor cache). That other run's PR (#390) merged to
+`main` while this run's agent was still working; by the time this run pushed its own branch and
+tried to open a PR, `main` had moved ~9 commits ahead and the merge hit a real conflict (GitHub
+returned "Pull Request has merge conflicts" on the squash-merge attempt).
+
+**Resolution:** compared the two branches' results line-by-line rather than assuming either was
+wrong. They agree exactly: primary cell 11 units `{no:11, yes:0}` (anchor widening adds zero units
+vs. the pre-widening baseline — PR #390 names this explicitly as a NO-OP), secondary/verifier-named
+cell 12 units `{no:10, yes:2}` with mean +$0.12083, 95% CI [−$0.01083, +$0.27833] straddling zero,
+whose entire positive contribution both runs independently trace to stale-book entries (125–187 min
+lag) rather than the anchor itself. Two fully independent implementations reaching the identical
+number is worth something informally — it's the closest thing to a second `verifier` agent this
+harness could produce this run, even though neither branch could dispatch one directly (no `Task`
+tool in the delegated worker's environment, matching every PROVISIONAL note this week) — but it
+doesn't upgrade either result's status from PROVISIONAL to CONFIRMED, and it changes nothing about
+S82's registry status: still `idea`, still 0 proven edges. Closed this run's PR (#393) without
+merging; `main` already carries the better-labeled version (PR #390) plus its L368/L369/L370 lessons
+and bookkeeping. Merging on top would only have duplicated tape-sweep lines and collided lesson IDs.
+
+**Housekeeping done anyway:** independently re-verified (fresh clone, file-by-file line comparison,
+not just trusting either run's self-report) that `tape/hourly-20260816T1905`, `tape/hourly-20260816T1310Z`,
+and the long-orphaned `tape/hourly-Z` are all fully contained in `main` — 0 missing lines in any of
+the 12 file/branch pairs checked. Attempted `git push origin --delete` on all three; all three failed
+with the same HTTP 403 that blocked PR #390's own branch-deletion attempt (`kb/00-LOG.md`,
+2026-08-17 ~01:3xZ entry) — this looks like a structural cloud-session permission boundary on ref
+deletion, not a fluke, and is worth Ryan deleting by hand or granting scope for. Left the three
+branches in place, harmless.
+
+**This is the third instance this week of two same-account sessions racing the same queue item**
+(the first two were mid-run `LOOP-QUEUE.md`/lesson-ID append collisions on 2026-08-16, resolved by
+rebase-and-renumber; this one raced a full ~3h delegated milestone end-to-end and only surfaced at
+merge time). PR #386's pending retro amendment already proposes "rebase immediately before opening
+a PR" for the append-collision case; this instance suggests the harder case — a long-running
+delegated agent's claim-check going stale mid-run — may need its own mitigation (a mid-run re-check
+before push, or the claim-check itself becoming a soft lock). Flagged for the weekly retro, not
+built here — this run's mandate was one milestone, and by the time the collision surfaced, the
+milestone was already done by the other branch.
+
+**Gates:** no code or tape changed from this run; `python scripts/invariants.py --full` re-confirmed
+green on the otherwise-unmodified tree; pytest green-by-construction (L162 — unchanged since the
+4,538-pass tip two entries above). See `LOOP-QUEUE.md` Log of runs (this date) for the matching
+one-line entry; PR #393 (closed) for the full number-by-number comparison against PR #390.
+
+---
+
 ## 2026-08-17 ~04:15Z — Edge-hunter nightly: yesterday's 4 findings all re-checked clean; Q21 round #33 killed all 3 maker ideas on the ~31-min book cadence
 
 **Run:** kalshi-edge-hunter (nightly, Opus 4.8). Steps 0a/0/0b PASS — history-integrity clean
