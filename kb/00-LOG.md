@@ -6,6 +6,75 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-17 ~03:xx-05:xxZ — Q57 reopen path (b): the S82 fade-to-YES arm exists only in stale books (PROVISIONAL)
+
+**Run:** research loop (protocol v3). History-integrity PASS (`origin/main` = local HEAD `64320a1`, no rewind).
+Claim check: 8 open PRs, all long-standing Ryan-review-only proposals (#386/#330/#271/#208/#125 retros,
+#191/#166/#165 drafts) — none names a TODO/IN-PROGRESS queue item, so nothing was claimed and nothing was
+merged on their behalf.
+
+**Step 0b (stranded-tape sweep).** Three branches newer than main's last sweep. `tape/hourly-20260816T1310Z`
+(9 families, `dt=2026-08-16`) turned out to be **fully line-contained in main already** — 0 new lines, the
+earlier sweep had covered it. `tape/hourly-20260816T1905` (a branch name truncated by a collector that
+formatted its timestamp as `...T19:04:46.714709+00:00` rather than the usual `Z` form) carried **1,035 genuinely
+new lines** (sports_pairs 1,012, polymarket_macro_pairs 21, crypto_hourly 2), union-appended here. The third,
+`tape/hourly-Z`, is the odd one: **no merge base with `main`** (a disjoint history from 2026-07-16), which is
+why every prior sweep's `git diff main...branch` errored and skipped it — but a line-level check of its only
+tape file (`tape/orderbook_depth/dt=2026-07-16.jsonl`, 1,889 lines) finds **0 missing from main**. It is
+content-swept, just never deleted. Worth Ryan knowing the collector can emit a malformed branch name and that
+a disjoint-history branch is invisible to the standard diff-based sweep.
+
+**Milestone: Q57 reopen path (b).** Q57 was the topmost eligible item — every item Q0-Q56 reads
+DONE/BLOCKED/RESERVED/gated at its NEWEST-DATED status, and Q57's own status names two executable reopen
+paths. Path (b) ("widen the entry anchor to `q51_settlement_cache` as its OWN pre-registered choice at
+`sign_variation_admissible`'s real `min_exclusive_minority_units=2` floor") runs entirely on committed tape.
+
+**What was built.** `scripts/q57b_s82_cache_anchor_probe.py` — a NEW module with its OWN seal
+(`PREREG_B_SHA256 = 2d243e274b31eb50...`, written and pinned before the first run) that IMPORTS the sealed
+Q57 probe rather than editing it (its hash `dd80f5973c39...` still recomputes, seal intact) and changes
+exactly two things, both test-pinned: the close anchor becomes `min(settlement_ledger UNION
+q51_settlement_cache)`, and the sign-variation floor becomes 2 — the real default the sealed probe had
+quietly relaxed to 1. A test asserts the other sixteen spec values are byte-equal to Q57's.
+
+**Result — DATA-ADEQUACY on the verdict cell, one admissible NULL beside it.** The wider anchor is real: the
+cache adds 38 tickers to the ledger's 49 (disjoint sets), covering 87/87 traded `*GAME` tickers over 72 games,
+81 settling binary. And it changes nothing where it counts. **Primary (minimal-change) cell: 11 GAME units —
+clearing L41's floor of 10 — and still `{no: 11, yes: 0}`, exclusive-minority 0 → INSUFFICIENT DATA**, no CI,
+no outcome value read. Coverage and sign-variation are independent adequacy axes (**L368**). The
+verifier-named secondary cell (window 15 min, entry lag ≤ 240 min, its selection exposure disclosed, never
+quoted alone) reproduces that round's population to the unit (12 units, `{no: 10, yes: 2}`, 2
+exclusive-minority) and scores **mean +$0.12083, 95% CI [−$0.01083, +$0.27833]** — `real_ask` entry from
+`orderbook_depth`, ONE Kalshi taker fee (0.07), hold to `broker_truth` settlement, block-bootstrap by GAME,
+10,000 resamples, seed 42, Kish 12.0, `clears_tick_magnitude: false`, fade wins 7/12. **The CI straddles
+zero: not an edge, not a kill.**
+
+**The number that decides how to read it.** Split by the pre-registered staleness rule, the 9 entries with a
+book ≤60 min old average **+$0.005556** — sub-tick, nothing — while the 3 entries only the relaxed cell admits
+(lag 125.5 / 125.5 / 186.7 min) average **+$0.466667** and are all wins. One of the only two fade-to-YES units
+is itself a 125-minute-stale book. So on committed tape the minority arm is populated only by allowing an
+entry book 2-4× staler than the depth collector's own hourly cadence: the L26/L31 stale-nominal-book
+signature, not a fill (**L369**).
+
+**Redundancy, not verification.** No `Task`/subagent tool exists in this harness, so no independent
+`verifier` agent was dispatchable and the whole result is **PROVISIONAL — S82 stays `idea`, no registry flip
+in either direction, still 0 proven edges.** `scripts/q57b_s82_cache_anchor_rederive.py` shares no code with
+the probe (own JSONL readers, own string-sliced ISO→epoch parser, own settlement readers straight off the
+tape files, own game predicates, own flow aggregation, own fee formula, own bootstrap at seed 20260817) and
+reproduces 87/72/81, the anchor 49+38=87 with 0 in both, all three cells' unit and side counts, the scored
+mean to the last representable digit, and an independent-seed CI [−$0.0100, +$0.2800] — same straddle. A
+second implementation is not a second agent.
+
+**Disposition.** Do NOT re-run path (b); it is decided. The blocker moved from analysis to **collection**: the
+sharper reopen condition is ≥2 independent settled games with net-negative late taker flow AND an in-band
+`real_ask` YES quote captured **≤15 minutes before close**, which needs a close-anchored depth burst, not more
+hourly `orderbook_depth` days. Q57 stays open on path (a).
+
+**Gates AFTER the last code change (L162):** see the LOOP-QUEUE "Log of runs" line for this run.
+**Step 9:** `execution/strategy_api.SHADOW_REGISTRY` — see the same line.
+
+See `findings/2026-08-17-q57b-s82-cache-anchor-retest.md`, `reports/q57b_s82_cache_anchor.json`,
+`reports/q57b_s82_cache_anchor_rederive.json`, lessons L368/L369.
+
 ## 2026-08-16 ~15:xx-17:xxZ — Step 0's claim check was the milestone: PR #388 merged after a second lesson-ID collision, plus a stranded-tape sweep
 
 **Run:** research loop (protocol v3). History-integrity PASS (`origin/main` = `e9bc047`, matching local

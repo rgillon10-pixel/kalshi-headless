@@ -1,0 +1,71 @@
+{
+  "anchor_audit": {
+    "n_tickers_added_by_cache": 38,
+    "n_tickers_cache": 38,
+    "n_tickers_in_both": 0,
+    "n_tickers_ledger": 49,
+    "n_tickers_union": 87
+  },
+  "cells": [
+    {
+      "flow_window_minutes": 120.0,
+      "max_entry_lag_minutes": 60.0,
+      "mean_overround": 0.022222,
+      "minority_units_exclusive": 0,
+      "n_units": 11,
+      "name": "primary_minimal_change",
+      "units_per_side": {
+        "no": 11,
+        "yes": 0
+      }
+    },
+    {
+      "bootstrap": {
+        "ci95": [
+          -0.01,
+          0.27999999999999997
+        ],
+        "mean": 0.12083333333333333,
+        "n_boot": 10000,
+        "n_obs": 12,
+        "n_units": 12,
+        "seed": 20260817
+      },
+      "flow_window_minutes": 15.0,
+      "max_entry_lag_minutes": 240.0,
+      "mean_overround": 0.023636,
+      "minority_units_exclusive": 2,
+      "n_fade_wins": 7,
+      "n_units": 12,
+      "name": "secondary_verifier_identified",
+      "staleness_split": {
+        "mean_pnl_lag_gt_60min": 0.466667,
+        "mean_pnl_lag_le_60min": 0.005556,
+        "n_entries_lag_gt_60min": 3,
+        "n_entries_lag_le_60min": 9,
+        "note": "DESCRIPTIVE, post-hoc: the pre-registered staleness rule is 60 minutes, so the lag_gt_60min entries exist ONLY in the secondary cell. price_source_tag real_ask on both arms."
+      },
+      "units_per_side": {
+        "no": 10,
+        "yes": 2
+      }
+    },
+    {
+      "flow_window_minutes": 15.0,
+      "max_entry_lag_minutes": 60.0,
+      "mean_overround": 0.0275,
+      "minority_units_exclusive": 1,
+      "n_units": 9,
+      "name": "diagnostic_window_only",
+      "units_per_side": {
+        "no": 8,
+        "yes": 1
+      }
+    }
+  ],
+  "n_settled_binary": 81,
+  "n_trade_games": 72,
+  "n_trade_tickers": 87,
+  "probe": "q57b_s82_cache_anchor_rederive",
+  "role": "REDUNDANCY, not verification (no second AGENT was dispatchable)"
+}

@@ -748,6 +748,19 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
     "scripts/q57_s82_rederive.py":
         "ORDER-INSENSITIVE: same reason as the probe it re-derives — its own flow loop sums "
         "signed `count` over a window and selects no individual print.",
+    "scripts/q57b_s82_cache_anchor_probe.py":
+        "ORDER-INSENSITIVE (inherited, and independently true): it reaches prints only "
+        "through the sealed Q57 probe's `load_prints`/`entry_candidates`, which SUM signed "
+        "`count` over a time window and select no individual print. The Q57(b) deltas touch "
+        "the close-time anchor and the sign-variation floor, neither of which reads a print "
+        "field at all, so nothing here reintroduces a per-print selection. Declared "
+        "explicitly rather than left to inheritance, per L323's own recorded residual.",
+    "scripts/q57b_s82_cache_anchor_rederive.py":
+        "ORDER-INSENSITIVE: its own `read_prints` loop appends every qualifying print and "
+        "`cell` sums signed `count` over the window; the only per-GAME selection is "
+        "argmax|rho| over TICKERS with an explicit `(abs(rho), ticker)` tie-break, which "
+        "never resolves a tie between two prints. It sorts prints by timestamp for the "
+        "window scan only, and a sum is invariant to tied order.",
 
     # ---- the writer whose append order IS the incidental tie-break ----
     "collection/kalshi_trades.py":
@@ -925,6 +938,22 @@ MINORITY_SIDE_GATE_TRIAGE: Dict[str, str] = {
         "no floor of its own and computes no return, so it has no gate to misapply. Its "
         "per-game populations are single-entry, so its `min(per.values())` minority count is "
         "the exclusive count by construction (pinned by the exact-agreement check it runs).",
+    "scripts/q57b_s82_cache_anchor_probe.py":
+        "EXCLUSIVE — `population_gate` delegates to "
+        "`core.bootstrap.sign_variation_admissible` at "
+        "`min_exclusive_minority_units=2`, the helper's REAL default. Q57(b) exists partly "
+        "to correct the sealed Q57 probe's undisclosed relaxation of that floor to 1, so "
+        "the exclusive count is the whole point of this module rather than an incidental "
+        "choice: at floor 2 the verdict cell refuses (11 units, all fade-to-NO, 0 exclusive "
+        "minority) where floor 1 would have refused too, and the disclosed secondary cell "
+        "opens on exactly 2 exclusive-minority units.",
+    "scripts/q57b_s82_cache_anchor_rederive.py":
+        "EXCLUSIVE — its own `side_census` counts a unit as minority only when EVERY entry "
+        "in that unit is on the minority side (`set(sides) == {minority}`), i.e. the "
+        "exclusive count, computed without importing `core.bootstrap`; it applies no floor "
+        "of its own beyond the >=2 comparison that mirrors the probe's, and a test pins it "
+        "against `sign_variation_admissible` on a fixture where touching and exclusive "
+        "differ.",
 
     # ---- floors on the TOUCHING count: known exposure, frozen, not repaired here ----
     "scripts/q54_s79_flow_continuation_probe.py":
