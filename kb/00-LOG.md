@@ -6,6 +6,73 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-17 ~04:15Z — Edge-hunter nightly: yesterday's 4 findings all re-checked clean; Q21 round #33 killed all 3 maker ideas on the ~31-min book cadence
+
+**Run:** kalshi-edge-hunter (nightly, Opus 4.8). Steps 0a/0/0b PASS — history-integrity clean
+(`origin/main`=`6fdc19f`, no rewind; kb/00-LOG newest 08-16 within 2 days of newest `tape/*/dt=`
+08-17; merged PRs #384/#387/#388/#389 all in main's linear history), claim-check found only the 7
+standing Ryan-review-only PRs (none claiming eligible queue work), no un-swept stranded branch.
+
+**Unit 1 — adversarial review of the last 24h of findings: all four HOLD, no `review:` issue.**
+Re-derived ONE load-bearing number per finding on independent code paths:
+- Q57/S82 flow-fade verdict → re-ran `scripts/q57_s82_flow_fade_probe.py`: **11 GAME units,
+  {no:11, yes:0}, exclusive-minority 0, overround 0.022222, 240-cell sensitivity** — reproduces
+  to the digit. Bootstrap unit (block-by-game) and single-sidedness confirmed; no CI computed, so
+  no fillable-P&L number to leak. S82 confirmed still registered `idea` (correctly not flipped).
+- close_time mutation (L360/L361) → independently re-measured the `open_to_settled` transitions on
+  `tape/q51_settlement_cache/`'s three pulls: **96 earlier / 0 later, max −333.34h (−13.89 days)** —
+  matches the finding exactly. Kalshi rewrites `close_time` earlier at settlement, never later.
+- anomaly-sweep population rotation (L365-367) → re-counted committed `tape/anomalies/`: **253 of
+  254** passes `markets_truncated` at exactly 20,000 — matches.
+- q21 round #32 idea-gen → S82 registered `idea` with full mechanism/data/kill provenance — matches.
+
+**Unit 2 — Q21 round #33: 0 of 3 registered (verifier KILLED all three).** Eligible
+TODO/unclaimed/unblocked queue items (L25 latest-status rescan of Q0–Q57) = **1** (only Q57,
+verifier-reopened/OPEN) < 2, so the round fired. Confirmed this run that `tape/orderbook_depth/`
+carries FULL price-size ladders (`yes_bids`/`no_bids`, `depth`) — the only committed fillable book —
+so all 3 candidates were MAKERS anchored there (dodging round-#31's book-less-print-tape wall). An
+independent `verifier` subagent attacked all three off committed tape before registration:
+- **C1** queue-depletion touch-capture maker → **KILL on cadence**: `orderbook_depth` GAME snapshots
+  are median **31.5 min** apart (0.8% <5 min, 0% <1 min), so a seconds-scale depletion event is
+  neither observable nor fillable-within-window — the S9/S79 *exit*-cadence wall shown to bind the
+  *entry* signal too; plus L279 single-sidedness (the `{no:11,yes:0}` shape that sank S82/Q57).
+- **C2** flow-neutral selective maker → **KILL**: NOT an S78 re-skin (different toxicity proxy,
+  confirmed) but over-determined dead by the filter-independent **S6 fee-wall** (modal touch spread
+  **1¢**, 41.2% ≤ 2¢ vs the round-up ~1¢ maker fee; S6 frozen-inclusive −$0.00195) + S78's own
+  holdout null (n=34, CI [−$0.0087, +$0.0146], `clears_tick_magnitude:false`) as a strictly-weaker
+  filter.
+- **C3** transient-print impact-reversion maker → **KILL**: collapses into **S80** (print-fade maker
+  DEAD-by-CI [−$0.1877, −$0.0123], 69.42% fill) + **L329** adverse-selection (+$0.076 = 101.3% of
+  the pre-fee edge) + the same cadence wall.
+No S-number burned → next free stays **S83**. Verifier lesson candidate flagged for kb-distiller
+(cadence is an ENTRY-signal wall, not only an exit wall — generalizes L283/L328; left un-minted to
+avoid the lesson-ID collision churn of the last three merges, round-#27 precedent). Two-agent rule
+ran in full; no "trust=FALSE" re-derivation owed (all verdicts moved conservative/KILL). This is the
+6th near-zero round in the last 7 — the saturation retro PR #386 flagged is now **structural, not
+idea-capacity**: every committed-tape maker faces the ~31-min book cadence or the 1¢ fee vs a 1–3¢
+spread; every taker faces WALL-A; the two unblocks (a sub-minute book = Q47 `orderbook_delta`; more
+book-covered `kalshi_trades` days) are both Ryan-side.
+
+**Unit 3 — probe-prep: no-op.** No time-gated item unblocks within ~72h (Q19/Q48 July bursts passed;
+Q42/Q43 density-gated; Q36/Q37 weather gate opened 08-04; Q57's reopen reuses the existing probe, a
+data-adequacy wait). Nothing to build.
+
+**Housekeeping:** 241 `tape/hourly-*` branches (Q17-reserved; cloud lacks push-delete). No live stale
+`kalshi-burst-*` triggers remain in the account (already cleaned). PR>5d review backlog
+(#125/#165/#166/#191/#208/#271/#330) already named by the 08-16 retro #386 — NOT re-escalated
+(round-27 precedent: repeated identical flags trained the channel to tune out).
+
+**Step 9 paper sub-pass:** `SHADOW_REGISTRY={s14_ladder_underwriting}` (DEAD strategy, paper-infra
+validation only), realized paper P&L **$+27.76** unchanged — NOT edge evidence, no new ledger lines.
+
+**Still 0 proven edges.** Gates AFTER the last edit (docs-only diff — findings/queue/log, no code
+touched): `python scripts/invariants.py --full` re-run green (exit 0, known non-gating advisories
+only); pytest green-by-construction from the current-main **4,538-pass** tip (L162, no code changed).
+Files: `findings/2026-08-17-q21-round33-idea-gen.md`, `LOOP-QUEUE.md` (Q21 status + Log-of-runs line),
+`kb/00-LOG.md` (this entry). Branch `edge-hunter-20260817-review-q21r33`.
+
+---
+
 ## 2026-08-17 ~01:3xZ — Gate closure: orchestrating session finished the full pytest suite the delegated Q57b run couldn't fit in its budget
 
 **Not a new milestone — closing an honest gap the prior entry (below) already disclosed.** That run
@@ -106,6 +173,8 @@ explicitly FROZEN symlinked tape slice (`dt<=2026-08-16`, L191) so append-only g
 See `findings/2026-08-17-q57b-anchor-widening-census.md`,
 `reports/q57b_anchor_widening_census.json`, `kb/lessons/00-lessons.md` L368/L369/L370.
 
+---
+
 ## 2026-08-16 ~15:xx-17:xxZ — Step 0's claim check was the milestone: PR #388 merged after a second lesson-ID collision, plus a stranded-tape sweep
 
 **Run:** research loop (protocol v3). History-integrity PASS (`origin/main` = `e9bc047`, matching local
@@ -134,7 +203,7 @@ No code file conflicted either time.
 
 **Gates re-run FRESH on the fully-merged tree, after the last edit (L162), not trusted from either
 branch's own history:** `python3 -m pytest -q -o addopts=''` (full suite, no dropped workers) —
-**4,513 passed, 0 failed, 2 warnings, 8402.07s (2:20:02)**, exactly the prior tip's 4,482 plus this
+**4,538 passed, 0 failed, 2 warnings, 8402.07s (2:20:02)**, exactly the prior tip's 4,482 plus this
 branch's 31 new tests; `python3 scripts/invariants.py --full` — exit **0**, `invariants: all green`.
 
 Force-pushed the resolved tree onto PR #388's own branch (lease-checked against its prior head SHA
