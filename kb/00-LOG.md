@@ -6,6 +6,88 @@ Dead ends stay. This is the journey; `git` is the diff.
 
 ---
 
+## 2026-08-17 ~00:2x-01:xxZ — Q57 path (b) executed: the anchor widening is a NO-OP, and the cell that "works" buys sign variation with mechanism
+
+**Run:** research loop (protocol v3). History-integrity PASS and claim-check PASS were done by the
+orchestrating session (`origin/main` = `64320a1`, matches local `main`, no rewind; open PRs #386/#330/#271/#208
+are retro docs marked LEAVE OPEN for Ryan, #191/#166/#165 stale drafts — none claims an eligible item).
+**Step-0b sweep:** the one genuinely new stranded branch `tape/hourly-20260816T1905` union-appended into this
+run's commit — 1,035 lines, exactly matching its diffstat (crypto_hourly +2, polymarket_macro_pairs +21,
+sports_pairs +1012), line-level dedupe, no existing line reordered or rewritten. Hundreds of ancient
+`tape/hourly-*` branches back to July remain unswept legacy debris (a future dedicated cleanup run's job),
+plus one malformed orphan `tape/hourly-Z` with no merge-base — both noted, neither acted on.
+
+**Milestone: Q57 (S82), the topmost item whose latest status is open.** Its 2026-08-16 verifier round left
+exactly two roads back in — (a) wait for more settled games at a 15-min window on the ledger anchor, or
+(b) widen the entry anchor to `tape/q51_settlement_cache/` as its own pre-registered choice at
+`sign_variation_admissible`'s real `min_exclusive_minority_units=2` floor. This run executed **(b)**.
+
+**Verdict class: DATA-ADEQUACY (population), PROVISIONAL. No CI, no P&L, no outcome VALUE read. S82 stays
+`idea`, no registry flip, still 0 proven edges.** The census is **outcome-blind by AST**, not by promise: it
+imports `settled_ticker_set` (which tickers settled) and never `outcome_map`/`binary_outcome`/`score_rows`
+(how). That is deliberate — Q57's gate (2) is a POPULATION gate, and reading outcome values on a population
+that fails it would burn the tape's re-testability for the very retest path (a) is waiting on.
+
+**The seal.** `scripts/q57b_anchor_widening_census.py`, `PREREG_SHA256=9ce0cf1140a26c8e…`, INHERITING Q57's
+own seal `dd80f5973c39a0f4…` by import rather than retyping (so Q57's constants cannot silently drift out
+from under it). Exactly two deltas, each with its direction declared: **D1** `close_anchor` ->
+`UNION(settlement_ledger, q51_settlement_cache)` (WIDER, mandated by the reopen text); **D2**
+`min_exclusive_minority_units` 1 -> **2** (STRICTER — restores `core.bootstrap`'s own default, which the
+Q57 probe had relaxed without saying so). All other constants inherited byte-for-byte.
+
+**What it found.**
+
+1. **The widening adds ZERO units.** Ledger-only baseline **11 units `{no: 11}`** (reproducing the 08-16
+   probe exactly); union anchor **11 units `{no: 11}`** — identical population. Not an overlap artifact: the
+   two close-time sources are fully DISJOINT (49 + 38 + **0** both = 87), so the cache contributes 38 newly
+   anchored tickers and not one becomes a unit.
+2. **Why: it widens the close-time population, not the depth-covered one.** Entry-lag to the last pre-close
+   depth snapshot is median **6.3 min** for `settlement_ledger` (**37/49** inside the sealed 60-min budget)
+   vs median **143.8 min** for `q51_settlement_cache` (**5/38** inside budget, and those 5 die on the
+   ordinary flow/band gates). A fact about which markets a once-an-hour collector happened to be watching.
+3. **The grid: 36 cells work, all 36 abandon the mechanism.** A pre-registered outcome-blind 1,280-cell grid
+   (window × lag × |rho| × count-floor; population SHAPE only, so no multiplicity cost per L362) has **976**
+   cells clearing L41's 10-unit floor, **36** also clearing sign-variation at the real floor of 2, and **0**
+   mechanism-faithful. Every one of the 36 uses window=15 AND lag ≥ **180 min**; at the sealed lag of 60 the
+   admissible count is **zero**. The seal's own reason for 60 min is the collector's hourly cadence — a
+   180-240 min lag fills at a book three-to-four hours before close, often a pre-game book being used to
+   trade a late-in-play signal.
+4. **This corrects the ATTRIBUTION in the 08-16 verifier round, not its arithmetic** (**new L368**). That
+   round's cell (cache anchor, window 15, lag ≤ 240 → **12 units `{no:10, yes:2}`, 2 exclusive-minority**)
+   reproduces here EXACTLY. But the anchor alone moves nothing, and the same window-15 cell at lag ≤ 60
+   gives **9 units `{no:8, yes:1}`** — short on both floors. The lag relaxation did the work.
+5. **The declared anchor look-ahead is real AND non-binding here** (**new L369**). 27/38 cached tickers carry
+   more than one `close_time` (spread min 40.1 / median **3,103** / max **20,000** minutes — a large live
+   L360/L361 exhibit), yet the selected entry snapshot is IDENTICAL under the earliest-value and
+   latest-value rules on **38/38**: hourly depth cadence vs a rewrite measured in days. L360/L361 stands in
+   general; the exposure is non-binding on this population. The check is not vacuous — a fixture where the
+   rewrite straddles a snapshot makes it fire.
+6. **Path (a) re-costed** (**new L370**). "One more settled game" understates it: the ledger anchor at
+   window 15 / lag 60 is **9 units `{no:8, yes:1}`**, short 1 unit of L41 *and* short 1 exclusive-minority
+   unit — and the minority arm is the scarce one (3/45 observations carry negative net flow, **0** with a
+   fillable in-band YES ask). Roughly a 1-in-45 wait, not a near-term certainty.
+
+**Price provenance.** Every price touched is `best_yes_ask`/`best_no_ask` read from `orderbook_depth` rows
+whose own `price_source_tags.asks == "real_ask"` — **`price_source_tag = real_ask`**. Nothing derived,
+midpointed, or complemented from a bid. No fill was simulated and no P&L computed.
+
+**Two-agent rule NOT SATISFIED** — this harness exposes no `Task`/verifier subagent (the L287/L288/L290/
+L291/L295/L308/L313/L325/L349 precedent). The sanctioned redundancy fallback ran: `scripts/q57b_rederive.py`,
+AST-pinned to import neither the census, nor the Q57 probe, nor `core.bootstrap`/`core.settlement_sources`/
+`core.timeutil`/`core.pricing`/`core.markets`/`core.io` — own JSONL reader, own string-sliced ISO→epoch
+parser, own sports-ticker predicate, own settled-set reader, own running-scan flow accumulator, own
+minority-side counter. It agrees on **22/22** compared fields. A second IMPLEMENTATION is not a second
+AGENT, so this is PROVISIONAL and nothing was flipped. 23 new offline tests; the acceptance ones run over an
+explicitly FROZEN symlinked tape slice (`dt<=2026-08-16`, L191) so append-only growth cannot rot the pins.
+
+**Step 9 (paper sub-pass).** `SHADOW_REGISTRY={s14_ladder_underwriting}` (dead ✗, paper-infra only).
+`scripts/paper_pass.py` was idempotent this run — 0 processed, 0 deferred(caps), 278 deferred(coverage),
+300 already-in-ledger, no new ledger lines written:
+`paper: 0 open position(s), 1657 settled contract(s), realized P&L $+27.76, cash $+27.76, open notional $0.00`.
+
+See `findings/2026-08-17-q57b-anchor-widening-census.md`,
+`reports/q57b_anchor_widening_census.json`, `kb/lessons/00-lessons.md` L368/L369/L370.
+
 ## 2026-08-16 ~15:xx-17:xxZ — Step 0's claim check was the milestone: PR #388 merged after a second lesson-ID collision, plus a stranded-tape sweep
 
 **Run:** research loop (protocol v3). History-integrity PASS (`origin/main` = `e9bc047`, matching local

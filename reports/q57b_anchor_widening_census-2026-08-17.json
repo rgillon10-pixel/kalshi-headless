@@ -1,0 +1,856 @@
+{
+  "anchor_rewrite_invariance": {
+    "entry_snapshot_differs": 0,
+    "entry_snapshot_identical_under_min_and_max_rule": 38,
+    "n_close_time_rewritten": 27,
+    "n_tickers": 38,
+    "n_without_any_pre_close_snapshot": 0,
+    "note": "If `rewrite_is_binding_on_entry_instant` is False, Q57's declared anchor look-ahead cannot have moved a single entry price on this population. That does NOT make the anchor ex-ante knowable in general (L360/L361 stands); it makes the exposure non-binding HERE, which is a narrower and checkable claim.",
+    "rewrite_is_binding_on_entry_instant": false,
+    "rewrite_spread_minutes": {
+      "max": 20000.5,
+      "min": 40.12,
+      "p50": 3103.35
+    }
+  },
+  "baseline_ledger_only": {
+    "admissible": false,
+    "drops": {
+      "entry_ask_outside_price_band": 9,
+      "entry_snapshot_too_stale": 12,
+      "fade_side_ask_absent": 8,
+      "flow_not_extreme": 7,
+      "no_close_time": 38
+    },
+    "flow_window_minutes": 120.0,
+    "max_entry_lag_minutes": 60.0,
+    "mechanism_faithful": true,
+    "meets_unit_floor": true,
+    "min_abs_rho": 0.2,
+    "min_window_count": 100.0,
+    "n_entries_pre_collapse": 13,
+    "n_exclusive_minority_units": 0,
+    "n_game_units": 11,
+    "sign_variation_admissible": false,
+    "sign_variation_reasons": [
+      "single_sided",
+      "below_min_exclusive_minority_units"
+    ],
+    "units_per_side": {
+      "no": 11
+    }
+  },
+  "disposition": "PATH_B_CLOSED_DATA_ADEQUACY",
+  "disposition_rule": "PRIMARY = the inherited seal under the UNION anchor at min_exclusive_minority_units=2. If PRIMARY clears BOTH the L41 unit floor and the sign-variation floor -> Q57 path (b) is OPEN and a separate scoring run may compute the CI. If PRIMARY fails, the honest class is DATA-ADEQUACY and path (b) is CLOSED unless the grid shows a MECHANISM-FAITHFUL cell that clears both; a cell is mechanism-faithful ONLY if it keeps max_entry_lag_minutes <= the inherited 60, because the inherited seal's own justification for 60 is 'the depth collector's own cadence: the tightest lag that can be met by a once-an-hour capture'. A cell that clears the floors only by filling at a materially staler book has bought sign variation with mechanism, not with data.",
+  "entry_lag_profile": {
+    "q51_settlement_cache": {
+      "entry_lag_minutes": {
+        "max": 3154.22,
+        "p10": 36.36,
+        "p50": 143.8,
+        "p90": 653.65
+      },
+      "inherited_lag_budget_minutes": 60.0,
+      "n_tickers_with_close_time": 38,
+      "n_with_pre_close_depth_snapshot": 38,
+      "n_within_inherited_lag_budget": 5,
+      "n_without_pre_close_depth_snapshot": 0,
+      "source": "q51_settlement_cache"
+    },
+    "settlement_ledger": {
+      "entry_lag_minutes": {
+        "max": 3039.72,
+        "p10": 4.13,
+        "p50": 6.31,
+        "p90": 199.94
+      },
+      "inherited_lag_budget_minutes": 60.0,
+      "n_tickers_with_close_time": 49,
+      "n_with_pre_close_depth_snapshot": 49,
+      "n_within_inherited_lag_budget": 37,
+      "n_without_pre_close_depth_snapshot": 0,
+      "source": "settlement_ledger"
+    }
+  },
+  "grid": {
+    "admissible_cells": [
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 180,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 11,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 9,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 240,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 360,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 12,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 10,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.1,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.15,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 0.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 50.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      },
+      {
+        "admissible": true,
+        "flow_window_minutes": 15,
+        "max_entry_lag_minutes": 720,
+        "mechanism_faithful": false,
+        "meets_unit_floor": true,
+        "min_abs_rho": 0.2,
+        "min_window_count": 100.0,
+        "n_exclusive_minority_units": 2,
+        "n_game_units": 13,
+        "sign_variation_admissible": true,
+        "units_per_side": {
+          "no": 11,
+          "yes": 2
+        }
+      }
+    ],
+    "admissible_min_lag_minutes": 180,
+    "admissible_windows_used": [
+      15
+    ],
+    "mechanism_faithful_admissible_cells": [],
+    "n_admissible": 36,
+    "n_admissible_and_mechanism_faithful": 0,
+    "n_cells": 1280,
+    "n_meeting_unit_floor": 976
+  },
+  "outcome_blind": true,
+  "path_a_cost": {
+    "coordinates_source": "LOOP-QUEUE.md Q57 reopen path (a): ledger anchor, 15-min window",
+    "flow_window_minutes": 15,
+    "max_entry_lag_minutes": 60.0,
+    "minority_units_short_of_floor": 1,
+    "settlement_ledger_only": {
+      "admissible": false,
+      "meets_unit_floor": false,
+      "n_exclusive_minority_units": 1,
+      "n_game_units": 9,
+      "sign_variation_admissible": false,
+      "units_per_side": {
+        "no": 8,
+        "yes": 1
+      }
+    },
+    "union_cache_min": {
+      "admissible": false,
+      "meets_unit_floor": false,
+      "n_exclusive_minority_units": 1,
+      "n_game_units": 9,
+      "sign_variation_admissible": false,
+      "units_per_side": {
+        "no": 8,
+        "yes": 1
+      }
+    },
+    "units_short_of_L41_floor": 1
+  },
+  "preregistration": {
+    "anchor_precedence": "settlement_ledger wins on a ticker present in both",
+    "cache_aggregation_rule_primary": "min",
+    "cache_aggregation_rules_reported": [
+      "min",
+      "max"
+    ],
+    "close_anchor": "UNION(settlement_ledger.close_time, q51_settlement_cache.close_time)",
+    "direction": "FADE",
+    "disposition_rule": "PRIMARY = the inherited seal under the UNION anchor at min_exclusive_minority_units=2. If PRIMARY clears BOTH the L41 unit floor and the sign-variation floor -> Q57 path (b) is OPEN and a separate scoring run may compute the CI. If PRIMARY fails, the honest class is DATA-ADEQUACY and path (b) is CLOSED unless the grid shows a MECHANISM-FAITHFUL cell that clears both; a cell is mechanism-faithful ONLY if it keeps max_entry_lag_minutes <= the inherited 60, because the inherited seal's own justification for 60 is 'the depth collector's own cadence: the tightest lag that can be met by a once-an-hour capture'. A cell that clears the floors only by filling at a materially staler book has bought sign variation with mechanism, not with data.",
+    "entry_instant_rule": "last_orderbook_depth_snapshot_at_or_before_close",
+    "entry_price_band": [
+      0.02,
+      0.98
+    ],
+    "entry_price_source_tag": "real_ask",
+    "executes": "LOOP-QUEUE.md Q57 reopen path (b) \u2014 anchor widening",
+    "flow_window_minutes": 120,
+    "grid_axes": {
+      "flow_window_minutes": [
+        15,
+        30,
+        45,
+        60,
+        90,
+        120,
+        180,
+        240
+      ],
+      "max_entry_lag_minutes": [
+        30,
+        60,
+        90,
+        120,
+        180,
+        240,
+        360,
+        720
+      ],
+      "min_abs_rho": [
+        0.1,
+        0.15,
+        0.2,
+        0.3,
+        0.4
+      ],
+      "min_window_count": [
+        0.0,
+        50.0,
+        100.0,
+        250.0
+      ]
+    },
+    "inherited_sha256": "dd80f5973c39a0f4e99afcce8a83eb97c51070d046ad5a893bab1c559fa1c92c",
+    "inherits_seal": "scripts.q57_s82_flow_fade_probe.PREREGISTRATION",
+    "max_entry_lag_minutes": 60,
+    "min_abs_rho": 0.2,
+    "min_exclusive_minority_units": 2,
+    "min_units": 10,
+    "min_window_count": 100.0,
+    "queue_item": "Q57b",
+    "sealed_on": "2026-08-17",
+    "strategy": "S82",
+    "unit": "game",
+    "verdict_class": "DATA-ADEQUACY (population). This module computes NO CI and reads NO settlement result VALUE, by construction."
+  },
+  "preregistration_sha256": "9ce0cf1140a26c8e8a812c9d3a2248d5c5ae0a98ad0aa655318eec2ddca964e9",
+  "primary": {
+    "admissible": false,
+    "drops": {
+      "entry_ask_outside_price_band": 9,
+      "entry_snapshot_too_stale": 45,
+      "fade_side_ask_absent": 9,
+      "flow_not_extreme": 7,
+      "no_prints_in_flow_window": 4
+    },
+    "flow_window_minutes": 120.0,
+    "max_entry_lag_minutes": 60.0,
+    "mechanism_faithful": true,
+    "meets_unit_floor": true,
+    "min_abs_rho": 0.2,
+    "min_window_count": 100.0,
+    "n_entries_pre_collapse": 13,
+    "n_exclusive_minority_units": 0,
+    "n_game_units": 11,
+    "sign_variation_admissible": false,
+    "sign_variation_reasons": [
+      "single_sided",
+      "below_min_exclusive_minority_units"
+    ],
+    "units_per_side": {
+      "no": 11
+    }
+  },
+  "schema": "q57b_anchor_widening_census.v1",
+  "substrate": {
+    "cache": {
+      "family": "q51_settlement_cache",
+      "files_read": [
+        "settlement-m2-2026-08-04.json",
+        "settlement-m3-2026-08-10.json",
+        "settlement.json"
+      ],
+      "n_tickers_with_close_time": 38
+    },
+    "ledger_close_time_distinct_values_max": 1,
+    "n_game_tickers": 87,
+    "n_games": 72,
+    "n_ledger_close_times": 49,
+    "n_settled_binary": 81,
+    "n_tickers_with_depth": 87,
+    "settlement": {
+      "n_listed_unsettled": 1,
+      "n_non_binary": 5,
+      "n_requested": 87,
+      "n_settled_binary": 81,
+      "n_unresolved": 6,
+      "per_source_hits": {
+        "crypto_hourly": 0,
+        "econ_prints": 0,
+        "q26_settlement_cache": 0,
+        "q27_settlement_cache": 0,
+        "q29_settlement_cache": 0,
+        "q30_settlement_cache": 0,
+        "q51_settlement_cache": 32,
+        "q56_settlement_cache": 0,
+        "settlement_ledger": 49,
+        "weather_actuals": 0
+      },
+      "sources_absent_on_disk": [],
+      "sources_scanned": [
+        "settlement_ledger",
+        "q26_settlement_cache",
+        "q27_settlement_cache",
+        "q29_settlement_cache",
+        "q30_settlement_cache",
+        "q51_settlement_cache",
+        "q56_settlement_cache",
+        "crypto_hourly",
+        "weather_actuals",
+        "econ_prints"
+      ]
+    },
+    "union": {
+      "max": {
+        "n_both": 0,
+        "n_cache_only": 38,
+        "n_ledger_only": 49,
+        "n_union": 87,
+        "precedence_rule_exercised": false
+      },
+      "min": {
+        "n_both": 0,
+        "n_cache_only": 38,
+        "n_ledger_only": 49,
+        "n_union": 87,
+        "precedence_rule_exercised": false
+      }
+    }
+  },
+  "verdict_class": "DATA-ADEQUACY (population). No CI, no P&L, no outcome VALUE read.",
+  "widening_is_a_noop_at_the_sealed_spec": true
+}

@@ -748,6 +748,22 @@ TRADE_PRINT_TIEBREAK_TRIAGE: Dict[str, str] = {
     "scripts/q57_s82_rederive.py":
         "ORDER-INSENSITIVE: same reason as the probe it re-derives — its own flow loop sums "
         "signed `count` over a window and selects no individual print.",
+    "scripts/q57b_anchor_widening_census.py":
+        "ORDER-INSENSITIVE (inherited, and independently true): it reaches prints ONLY "
+        "through `scripts.q57_s82_flow_fade_probe`'s `load_prints`/`window_flow`, whose "
+        "own declaration above is ORDER-INSENSITIVE because `window_flow` SUMS signed "
+        "`count` over a time window. This module adds no per-print selection of its own — "
+        "it changes only the close-time ANCHOR (a different tape family entirely, "
+        "`settlement_ledger` + `q51_settlement_cache`) and the minority floor. The "
+        "transitive flag is correct to raise (L323's recorded residual); the answer is "
+        "that the inherited tie-break is order-insensitive, so inheriting it is safe.",
+    "scripts/q57b_rederive.py":
+        "ORDER-INSENSITIVE: the independent re-derivation reads `kalshi_trades` with its "
+        "own loader and accumulates signed `count` in a running scan bounded by the flow "
+        "window. It selects no individual print and never reads a print PRICE (entry "
+        "prices come from `orderbook_depth` `best_*_ask`), so an exact-timestamp tie "
+        "cannot change any number it emits. Matching the census here is load-bearing: a "
+        "different tie-break would manufacture a false redundancy mismatch.",
 
     # ---- the writer whose append order IS the incidental tie-break ----
     "collection/kalshi_trades.py":
@@ -927,6 +943,25 @@ MINORITY_SIDE_GATE_TRIAGE: Dict[str, str] = {
         "the exclusive count by construction (pinned by the exact-agreement check it runs).",
 
     # ---- floors on the TOUCHING count: known exposure, frozen, not repaired here ----
+    "scripts/q57b_anchor_widening_census.py":
+        "EXCLUSIVE — every sign-variation decision in this module goes through "
+        "`core.bootstrap.sign_variation_admissible`, called with "
+        "min_exclusive_minority_units=2 (the library's own default, and a DELIBERATE "
+        "TIGHTENING of the Q57 probe's undisclosed floor of 1), so the floor is on the "
+        "EXCLUSIVE count and both counts are reported. `collapse_to_games` gives each "
+        "GAME unit exactly one entry, so touching and exclusive coincide here; the "
+        "exclusive helper is used anyway so a future multi-entry unit cannot silently "
+        "reintroduce L321's gap. The gate is what produced this run's verdict: the "
+        "widened anchor yields 11 game units, ALL fade-to-NO, 0 exclusive minority "
+        "units — identical to the ledger-only baseline.",
+    "scripts/q57b_rederive.py":
+        "EXCLUSIVE — its own `minority()` counter deliberately does NOT import "
+        "`sign_variation_admissible` (that is the point of the redundancy leg), and it "
+        "floors on the EXCLUSIVE count: one entry per game means every unit is exclusive "
+        "to its side by construction, and the count compared against the floor of 2 is "
+        "that per-side unit count, never a touching count. Equivalence with the library "
+        "contract is pinned by "
+        "tests/test_q57b_rederive.py::test_its_own_minority_counter_matches_the_library_contract.",
     "scripts/q54_s79_flow_continuation_probe.py":
         "TOUCHING — L321's ORIGIN SITE, SEALED AND DELIBERATELY UNCHANGED: "
         "`population_report`'s `sign_variation` counts units TOUCHED by a side "
