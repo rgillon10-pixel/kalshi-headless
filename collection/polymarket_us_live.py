@@ -57,8 +57,6 @@ import sys
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from cryptography.hazmat.primitives.asymmetric import ed25519
-
 from collection import polymarket_us_pairs as pus
 from core.canonical import canonical_json
 from core.kalshi_fields import parse_kalshi_numeric
@@ -82,9 +80,14 @@ _MONTHS = ("january", "february", "march", "april", "may", "june",
 # Ed25519 signing (READ-ONLY use here; provided for the later WS/trading path). The secret's
 # VALUE is never printed, logged, or persisted — only the derived signature leaves this module.
 # --------------------------------------------------------------------------- #
-def _load_private_key(secret_b64: str) -> ed25519.Ed25519PrivateKey:
+def _load_private_key(secret_b64: str) -> "ed25519.Ed25519PrivateKey":
     """Load the Ed25519 private key from the base64 secret, per docs.polymarket.us:
     `Ed25519PrivateKey.from_private_bytes(base64.b64decode(SECRET)[:32])`."""
+    # Lazy import (house rule, same as ws_depth.py): `cryptography` is a dev extra, and this
+    # module must import cleanly in a minimal venv — a module-level import here killed every
+    # VPS hourly pass 2026-07-28 → 2026-08-24 because hourly_pass imports this module.
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
     raw = base64.b64decode(secret_b64)
     return ed25519.Ed25519PrivateKey.from_private_bytes(raw[:32])
 
