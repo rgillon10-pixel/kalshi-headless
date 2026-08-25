@@ -1,0 +1,73 @@
+# monitor.yaml — single control surface for the 24/7 market monitor (observation only).
+#
+# Layer 1 (ws_depth scope), Layer 3 (anomaly thresholds), Layer 4 (nightly tuner) all read
+# ONLY this file. Adding a market family is a one-line change under `scope:`.
+#
+# TUNING CONTRACT (house pre-registration rule, adapted): every numeric under `thresholds:`
+# declares a `range: [min, max]`. The nightly tuner (scripts/monitor_nightly.py) may move
+# `value` strictly inside that range and MUST append the change + evidence to
+# reports/nightly/CHANGELOG.md. It may never widen a range, add a key, or touch any other
+# file. Humans edit ranges; the loop edits values. An out-of-range value is a config error
+# that fails loudly at load (core/monitor_config.py).
+
+scope:
+  # Kalshi series-ticker prefixes (a market's series = ticker up to the first '-').
+  series_prefixes:
+    - KXHIGH        # weather daily highs (all cities/airports)
+    - KXLOW         # weather daily lows
+  # Whole Kalshi series categories (matched against GET /series category field).
+  categories:
+    - Mentions      # Trump pressers / WH briefings / earnings-call mention markets
+  # Explicit extra series tickers (escape hatch for one-offs).
+  series_tickers: []
+
+selection:
+  # ws_depth WS subscription is capped (MAX_TICKERS in collection/ws_depth.py). When scope
+  # exceeds the cap, keep the highest-priority markets: sort by 24h volume desc, then by
+  # soonest close. The scope resolver records what it dropped (honest `truncated`).
+  max_tickers: 200
+  sort: volume_then_close
+
+cadences:
+  scope_refresh_minutes: 60        # scripts/monitor_scope.py cron
+  ingest_minutes: 15               # scripts/monitor_ingest.py cron
+  snapshot_seconds: 60             # ws_depth in-daemon book snapshots (quiet-period floor)
+  healthcheck_minutes: 5           # ops/vps healthcheck cron
+  ws_stale_seconds: 180            # no WS message for this long => restart daemon
+
+thresholds:
+  # Layer 3 anomaly detectors. `value` is live; `range` is the tuner's hard boundary.
+  mid_move_points:                 # |mid move| >= value cents within window => anomaly
+    value: 15
+    range: [8, 30]
+  mid_move_window_seconds:
+    value: 60
+    range: [30, 300]
+  spread_blowout_points:           # spread widens by >= value cents vs 15-min median
+    value: 10
+    range: [5, 30]
+  depth_vanish_ratio:              # top-5 one-side depth falls below value * 15-min median
+    value: 0.2
+    range: [0.05, 0.5]
+  cross_venue_divergence_points:   # |kalshi_mid - polymarket_mid| >= value cents (paired mkts)
+    value: 10
+    range: [5, 25]
+  large_trade_volume_multiple:     # single trade size >= value * rolling 24h avg trade size
+    value: 10
+    range: [3, 50]
+  weather_model_conflict_points:   # move against latest forecast-implied direction >= value
+    value: 15
+    range: [8, 30]
+  alert_severity_min:              # investigations at/above this severity buzz ntfy high
+    value: 2
+    range: [1, 3]
+
+alerting:
+  # ntfy topic URL comes from NTFY_TOPIC_URL in the environment (never in-repo).
+  rate_limit_per_kind_per_hour: 4  # max high-priority posts per alert kind per hour
+  digest_priority: low             # nightly digest / daily summaries
+  anomaly_priority: high
+
+retention:
+  ws_depth_tape_days: 90           # gzipped raw ws tape kept VPS-local this long
+  monitor_db_vacuum_day: Sunday

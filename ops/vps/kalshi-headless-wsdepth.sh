@@ -8,8 +8,10 @@
 # Why a wrapper (not python straight from the unit): it sources the secrets file the SAME
 # way the hourly runner does (`set -a; . file`), so any shell syntax in
 # /root/.secrets/kalshi-headless.env is honored — no key -> collection.ws_depth exits
-# blocked_key on its own (self-activating). The daemon writes tape/ws_depth/dt=*.jsonl.gz;
-# the hourly runner's `git add tape/` commits those files on its next pass (no wiring here).
+# blocked_key on its own (self-activating). The daemon writes tape/ws_depth/dt=*.jsonl.gz,
+# which is GITIGNORED (2026-08-24 storage decision: it would double the repo's daily git
+# tape budget) — it stays VPS-local and is queryable via data/monitor.db after
+# scripts/monitor_ingest.py folds it in.
 set -u
 REPO=/root/kalshi-headless
 

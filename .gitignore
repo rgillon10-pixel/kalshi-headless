@@ -1,5 +1,11 @@
 # data / tape / DBs — never commit
 data/
+# monitor raw tape stays VPS-local (2026-08-24): ws_depth deltas would roughly DOUBLE the
+# repo's ~50MB/day git tape budget, and monitor_markets re-derives hourly from the public
+# API. Both are queryable via data/monitor.db (scripts/monitor_ingest.py); retention is
+# config/monitor.yaml `retention:`.
+tape/ws_depth/
+tape/monitor_markets/
 *.db
 *.sqlite
 *.sqlite3

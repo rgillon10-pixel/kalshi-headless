@@ -16,7 +16,8 @@ partly to having only ~40s of book tape; this fixes that at the source.
   │ "a cloud run can never place a trade" (the gate is structural: order verbs live in one   │
   │ audited file). THIS module is authenticated *read-only market data*: it signs the WS      │
   │ handshake (public book data still requires the RSA-signed upgrade) and subscribes to      │
-  │ `orderbook_delta` ONLY. It imports nothing from execution/, defines no order/amend/cancel │
+  │ the PUBLIC `orderbook_delta` + `trade` channels ONLY (trade = public execution prints,    │
+  │ added 2026-08-24 for the monitor). It imports nothing from execution/, defines no order   │
   │ verb, and never subscribes to a user/private channel (fills, orders, positions). It is a  │
   │ collector, so it lives in collection/ alongside the other tape producers. The structural  │
   │ trade-gate is untouched: there is still no order path outside execution/kalshi_client.py. │
@@ -62,6 +63,7 @@ import gzip
 import json
 import os
 import signal
+import socket
 import sys
 import time
 from datetime import datetime, timezone
@@ -71,14 +73,28 @@ from urllib.parse import urlsplit
 
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
+from core.pricing import top_of_book_quote
 
 TAPE = REPO_ROOT / "tape" / "ws_depth"
 CONFIG_DEFAULT = REPO_ROOT / "config" / "ws_depth_tickers.txt"
 
 DEFAULT_WS_BASE = "wss://api.elections.kalshi.com/trade-api/ws/v2"
-DEFAULT_CHANNELS = ("orderbook_delta",)   # this channel delivers snapshot + deltas
+# orderbook_delta delivers snapshot + deltas; trade delivers public execution prints
+# (2026-08-24 monitor build — the tape needs last-trade price/size for Layer-3's
+# large-single-trade detector, and prints are the only record of what actually filled).
+DEFAULT_CHANNELS = ("orderbook_delta", "trade")
 # Book message types that carry real fillable prices (tag real_ask).
 BOOK_MSG_TYPES = {"orderbook_snapshot", "orderbook_delta"}
+# Public execution prints: a trade IS an executed exchange record, so it carries the same
+# tag the REST trade collector uses (collection/kalshi_trades.py -> broker_truth).
+TRADE_MSG_TYPES = {"trade"}
+
+# In-daemon book snapshot cadence (seconds): every interval, one snapshot60 line per market
+# with a live book, so QUIET periods are measurable without any REST polling. Env override
+# WS_DEPTH_SNAPSHOT_SEC; <= 0 disables.
+SNAPSHOT_INTERVAL_DEFAULT = 60.0
+# Depth levels persisted per side in a snapshot60 line.
+SNAPSHOT_TOP_N = 5
 
 # Bound the subscribed universe (lesson L10). One int of seq-state per market only.
 MAX_TICKERS_DEFAULT = 200
@@ -196,6 +212,97 @@ class SeqTracker:
 
 
 # --------------------------------------------------------------------------- #
+# live book state -> periodic snapshot60 lines (quiet periods stay measurable)
+# --------------------------------------------------------------------------- #
+class BookState:
+    """Maintain one price->size ladder per side per subscribed market from the snapshot +
+    delta stream, and render `ws_depth.snapshot60.v1` lines on demand.
+
+    Bounded: the subscribed set is already capped (MAX_TICKERS), and a ladder holds at most
+    99 price levels per side. Prices are DOLLARS (parsed from the `*_dollars` fields, L90),
+    sizes are FLOATS and never int-coerced (L47). Reset on every reconnect, exactly like
+    SeqTracker — a stale pre-gap book must never render a post-gap snapshot."""
+
+    def __init__(self) -> None:
+        self._books: Dict[str, Dict[str, Dict[float, float]]] = {}
+
+    @staticmethod
+    def _to_float(v: Any) -> Optional[float]:
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
+    def apply(self, msg_type: str, msg: Dict[str, Any]) -> None:
+        body = msg.get("msg") if isinstance(msg.get("msg"), dict) else msg
+        market = body.get("market_ticker") or msg.get("market_ticker")
+        if not market:
+            return
+        if msg_type == "orderbook_snapshot":
+            book: Dict[str, Dict[float, float]] = {"yes": {}, "no": {}}
+            for side in ("yes", "no"):
+                levels = body.get(f"{side}_dollars_fp") or body.get(side) or []
+                for lvl in levels:
+                    if not isinstance(lvl, (list, tuple)) or len(lvl) < 2:
+                        continue
+                    price, size = self._to_float(lvl[0]), self._to_float(lvl[1])
+                    if price is not None and size is not None and size > 0:
+                        book[side][price] = size
+            self._books[market] = book
+        elif msg_type == "orderbook_delta":
+            book = self._books.get(market)
+            if book is None:
+                return                      # delta before this market's snapshot: ignore
+            side = body.get("side")
+            price = self._to_float(body.get("price_dollars", body.get("price")))
+            delta = self._to_float(body.get("delta_fp", body.get("delta")))
+            if side not in ("yes", "no") or price is None or delta is None:
+                return
+            size = book[side].get(price, 0.0) + delta
+            if size > 0:
+                book[side][price] = size
+            else:
+                book[side].pop(price, None)
+
+    def snapshot_records(self, captured_at: str, capture_id: str,
+                         top_n: int = SNAPSHOT_TOP_N) -> List[Dict[str, Any]]:
+        """One snapshot60 line per market with a live book. Sides are BID ladders (resting
+        buy orders on yes / on no); the derived yes_ask is the price a yes taker pays
+        (1 - best no bid). Levels are real resting quotes -> real_ask."""
+        records = []
+        for market in sorted(self._books):
+            book = self._books[market]
+            tops = {}
+            for side in ("yes", "no"):
+                ladder = sorted(book[side].items(), key=lambda kv: -kv[0])[:top_n]
+                tops[side] = [[p, s] for p, s in ladder]
+            best_yes_bid = tops["yes"][0][0] if tops["yes"] else None
+            best_no_bid = tops["no"][0][0] if tops["no"] else None
+            # Hard Rule #3: quote derivation (ask, mid, spread) lives ONLY in core.pricing
+            yes_ask, mid, spread = top_of_book_quote(best_yes_bid, best_no_bid)
+            records.append({
+                "schema_version": "ws_depth.snapshot60.v1",
+                "capture_id": capture_id,
+                "captured_at": captured_at,
+                "venue": "kalshi",
+                "channel": "orderbook_delta",
+                "msg_type": "snapshot60",
+                "market_ticker": market,
+                "yes_bids_top": tops["yes"],
+                "no_bids_top": tops["no"],
+                "yes_bid": best_yes_bid,
+                "no_bid": best_no_bid,
+                "yes_ask": yes_ask,
+                "mid": mid,
+                "spread": spread,
+                "yes_depth_top": sum(s for _, s in tops["yes"]),
+                "no_depth_top": sum(s for _, s in tops["no"]),
+                "price_source_tag": "real_ask",
+            })
+        return records
+
+
+# --------------------------------------------------------------------------- #
 # message -> tape line(s)  (pure; the unit under test)
 # --------------------------------------------------------------------------- #
 def _extract(msg: Dict[str, Any], *keys) -> Any:
@@ -237,6 +344,13 @@ def process_message(raw_text: str, tracker: SeqTracker, captured_at: str, captur
         except ValueError:
             seq = None
 
+    # label the record with the channel that actually produced it (one subscribe covers
+    # both channels; the `channel` arg is just the caller's default for control frames)
+    if msg_type in TRADE_MSG_TYPES:
+        channel = "trade"
+    elif msg_type in BOOK_MSG_TYPES:
+        channel = "orderbook_delta"
+
     record: Dict[str, Any] = {
         "schema_version": "ws_depth.v1",
         "capture_id": capture_id,
@@ -252,6 +366,9 @@ def process_message(raw_text: str, tracker: SeqTracker, captured_at: str, captur
     if msg_type in BOOK_MSG_TYPES:
         # a live book level is a real fillable quote, not a model (CLAUDE.md Hard Rule #3/#4)
         record["price_source_tag"] = "real_ask"
+    elif msg_type in TRADE_MSG_TYPES:
+        # an executed print is the exchange's own record — same tag as kalshi_trades.py
+        record["price_source_tag"] = "broker_truth"
 
     records = [record]
     resync = False
@@ -343,6 +460,17 @@ def _log(obj: Dict[str, Any]) -> None:
     print(f"[ws_depth] {canonical_json(obj)}", flush=True)
 
 
+# Sentinel for "the socket timed out with no frame" — distinct from None/"" (peer closed).
+_IDLE = object()
+
+
+def _is_timeout(exc: BaseException) -> bool:
+    """True for a socket/websocket receive timeout. websocket-client raises
+    WebSocketTimeoutException (NOT a socket.timeout subclass), and we must not import
+    websocket at module level (minimal-venv rule) — so match by name as well as type."""
+    return isinstance(exc, (TimeoutError, socket.timeout)) or "Timeout" in type(exc).__name__
+
+
 def _real_connect_factory(ws_base: str, key_id: str, private_key,
                           open_timeout: float = 15.0) -> Callable[[], Any]:
     """Build the default connection factory using websocket-client (lazy import). Signs the
@@ -363,7 +491,9 @@ def run(connect: Optional[Callable[[], Any]] = None,
         max_reconnects: Optional[int] = None,
         max_messages: Optional[int] = None,
         backoff_max: float = BACKOFF_MAX_DEFAULT,
-        sleep: Callable[[float], None] = time.sleep) -> Dict[str, Any]:
+        sleep: Callable[[float], None] = time.sleep,
+        snapshot_interval: Optional[float] = None,
+        clock: Callable[[], float] = time.monotonic) -> Dict[str, Any]:
     """Long-running capture loop (or a bounded pass when `max_reconnects`/`max_messages` cap it,
     which the tests use). Returns a summary dict.
 
@@ -401,6 +531,13 @@ def run(connect: Optional[Callable[[], Any]] = None,
         ws_base = env.get("KALSHI_WS_BASE", DEFAULT_WS_BASE)
         connect = _real_connect_factory(ws_base, key_id, _load_private_key(key_path))
 
+    if snapshot_interval is None:
+        try:
+            snapshot_interval = float(env.get("WS_DEPTH_SNAPSHOT_SEC",
+                                              str(SNAPSHOT_INTERVAL_DEFAULT)))
+        except ValueError:
+            snapshot_interval = SNAPSHOT_INTERVAL_DEFAULT
+
     stop = {"flag": False}
 
     def _handle_signal(signum, _frame):
@@ -411,7 +548,7 @@ def run(connect: Optional[Callable[[], Any]] = None,
     except (ValueError, OSError):
         pass  # not on the main thread (e.g. under a test harness) — caps still bound the loop
 
-    n_lines = n_gaps = n_reconnects = 0
+    n_lines = n_gaps = n_reconnects = n_snapshots = 0
     attempt = 0
     _log({"status": "start", "n_tickers": len(tickers), "channels": list(channels),
           "truncated": truncated})
@@ -430,26 +567,46 @@ def run(connect: Optional[Callable[[], Any]] = None,
                     "captured_at": iso, "venue": "kalshi", "type": "session_open",
                     "n_tickers": len(tickers)}))
                 n_lines += 1
-                conn.send(json.dumps(subscribe_command(tickers, channels)))
+                # one subscribe per channel: each subscription owns its own seq space, so
+                # trade prints can never interleave into (and false-gap) the book seq chain
+                for i, ch in enumerate(channels):
+                    conn.send(json.dumps(subscribe_command(tickers, (ch,), cmd_id=i + 1)))
                 tracker = SeqTracker()
+                books = BookState()          # reset with the tracker: no stale pre-gap book
+                last_snapshot = clock()
 
                 while not stop["flag"]:
-                    raw = conn.recv()
+                    try:
+                        raw = conn.recv()
+                    except Exception as recv_exc:  # a recv timeout is IDLE, not an error —
+                        if not _is_timeout(recv_exc):  # quiet markets must not churn reconnects
+                            raise
+                        raw = _IDLE
                     if raw is None or raw == "":
                         break                    # peer closed
-                    if isinstance(raw, (bytes, bytearray)):
-                        raw = raw.decode("utf-8", "replace")
-                    iso, cid = _ts()
-                    records, need_resync = process_message(raw, tracker, iso, cid,
-                                                            channel=channels[0])
-                    for rec in records:
-                        writer.write(canonical_json(rec))
-                        n_lines += 1
-                        if rec.get("schema_version") == "ws_depth.gap.v1":
-                            n_gaps += 1
-                    if need_resync:
-                        resync = True
-                        break
+                    if raw is not _IDLE:
+                        if isinstance(raw, (bytes, bytearray)):
+                            raw = raw.decode("utf-8", "replace")
+                        iso, cid = _ts()
+                        records, need_resync = process_message(raw, tracker, iso, cid,
+                                                                channel=channels[0])
+                        for rec in records:
+                            writer.write(canonical_json(rec))
+                            n_lines += 1
+                            if rec.get("schema_version") == "ws_depth.gap.v1":
+                                n_gaps += 1
+                            if rec.get("msg_type") in BOOK_MSG_TYPES:
+                                books.apply(rec["msg_type"], rec["raw"])
+                        if need_resync:
+                            resync = True
+                            break
+                    if snapshot_interval > 0 and clock() - last_snapshot >= snapshot_interval:
+                        iso, cid = _ts()
+                        for rec in books.snapshot_records(iso, cid):
+                            writer.write(canonical_json(rec))
+                            n_lines += 1
+                            n_snapshots += 1
+                        last_snapshot = clock()
                     if max_messages is not None and n_lines >= max_messages:
                         stop["flag"] = True
                         break
@@ -477,7 +634,8 @@ def run(connect: Optional[Callable[[], Any]] = None,
         writer.close()
 
     summary = {"status": "stopped", "n_lines": n_lines, "n_gaps": n_gaps,
-               "n_reconnects": n_reconnects, "truncated": truncated}
+               "n_reconnects": n_reconnects, "n_snapshots": n_snapshots,
+               "truncated": truncated}
     _log(summary)
     return summary
 

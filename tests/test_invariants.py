@@ -1121,9 +1121,12 @@ def test_ws_depth_real_source_subscribes_only_to_public_channels():
     ws = ROOT / "collection" / "ws_depth.py"
     assert inv.scan_text(ws, ws.read_text(encoding="utf-8")) == []
     import collection.ws_depth as wsd
-    assert wsd.DEFAULT_CHANNELS == ("orderbook_delta",)
+    # both are PUBLIC market-data channels ('trade' = public execution prints, added
+    # 2026-08-25 monitor build); the invariant is the ABSENCE of user/private channels,
+    # re-asserted by the scan_text([]) above and the exact-tuple pin here
+    assert wsd.DEFAULT_CHANNELS == ("orderbook_delta", "trade")
     env = wsd.subscribe_command(["KXBTC-T1"])
-    assert env["params"]["channels"] == ["orderbook_delta"]
+    assert env["params"]["channels"] == ["orderbook_delta", "trade"]
 
 
 def test_bracket_joined_lines_reports_the_opening_lineno_and_survives_eof():

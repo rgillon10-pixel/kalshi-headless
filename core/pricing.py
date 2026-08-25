@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Tuple
 
 
 def bracket_sum(asks: Iterable[float]) -> float:
@@ -300,3 +300,20 @@ def monotonicity_crossing_edge(outer_ask: float, inner_no_ask: float,
     sufficient; this is the fillable-arb bar CLAUDE.md's prime directive demands."""
     fees = fee_per_contract(outer_ask, rate) + fee_per_contract(inner_no_ask, rate)
     return 1.0 - (outer_ask + inner_no_ask) - fees
+
+
+def top_of_book_quote(best_yes_bid: Optional[float], best_no_bid: Optional[float]
+                      ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    """(yes_ask, mid, spread) derived from the two BID ladders of one binary market
+    (2026-08-24 monitor build — the ws_depth snapshot60 quote). On Kalshi both sides rest
+    as bids: a yes taker crosses against the best NO bid, so `yes_ask = 1 - best_no_bid`
+    (rounded to the cent tick). This is single-market TOP-OF-BOOK GEOMETRY, not a
+    probability claim — Hard Rule #3 still applies downstream: neither this yes_ask nor
+    this mid may be read as P(yes) without `normalized_ask`'s bracket_sum divisor. A
+    one-sided book (either bid absent, L23) yields None for whatever cannot be derived."""
+    yes_ask = round(1.0 - best_no_bid, 2) if best_no_bid is not None else None
+    if best_yes_bid is None or yes_ask is None:
+        return yes_ask, None, None
+    mid = round((best_yes_bid + yes_ask) / 2.0, 4)
+    spread = round(yes_ask - best_yes_bid, 4)
+    return yes_ask, mid, spread

@@ -4070,6 +4070,9 @@ TAPE_ROW_IDENTITY_KEYS: Dict[str, Tuple[str, ...]] = {
     "hf_burst": ("ticker",),               # also structurally exempt (capture_seq/round_index)
     "hyperliquid_funding": ("coin", "record_type", "mode"),
     "kalshi_trades": ("trade_id",),        # one row = one executed print, NOT one ticker
+    # 2026-08-25 monitor build: one scope pass writes one row per in-scope market + one
+    # summary row (which carries no ticker — covered by the tuple's None for that field).
+    "monitor_markets": ("ticker",),
     "orderbook_depth": ("ticker",),
     "perp_tape": ("record_type", "ticker", "mode"),   # `mode` separates backfill vs recent
     "polymarket_cpi_pairs": ("series", "period", "bucket_kind", "bucket_value"),
@@ -4086,6 +4089,12 @@ TAPE_ROW_IDENTITY_KEYS: Dict[str, Tuple[str, ...]] = {
     "weather_actuals": ("city", "target_day"),
     "weather_books": ("ticker",),
     "weather_books/meta": ("series", "group"),
+    # 2026-08-25 monitor build: the WS daemon stamps a FRESH capture_id per received frame
+    # (microsecond clock), so most lines are singleton passes; the exceptions that share one
+    # capture_id are the per-60s snapshot60 fan-out (one row per market) and a gap line
+    # riding its trigger frame ("<cid>:gap"). schema_version + market_ticker + seq +
+    # raw_sha256 identifies one row across all of the family's schemas.
+    "ws_depth": ("schema_version", "market_ticker", "seq", "raw_sha256"),
 }
 
 # Families under tape/ that are NOT capture passes: derived caches, one-shot historical

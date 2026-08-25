@@ -192,7 +192,8 @@ def test_subscribe_command_shape():
     cmd = wd.subscribe_command(["A", "B"])
     assert cmd["cmd"] == "subscribe"
     assert cmd["params"]["market_tickers"] == ["A", "B"]
-    assert cmd["params"]["channels"] == ["orderbook_delta"]
+    # default channel set now carries public trade prints too (2026-08-24 monitor build)
+    assert cmd["params"]["channels"] == ["orderbook_delta", "trade"]
 
 
 # --------------------------------------------------------------------------- #
@@ -316,3 +317,101 @@ def test_run_max_messages_bounds_the_loop(tmp_path):
                      max_messages=5, sleep=lambda _s: None)
     assert summary["status"] == "stopped"
     assert summary["n_lines"] >= 5
+
+
+# --------------------------------------------------------------------------- #
+# trade channel + snapshot60 (2026-08-24 monitor build)
+# --------------------------------------------------------------------------- #
+def _trade(ticker, price=0.44, count=25):
+    return json.dumps({"type": "trade", "sid": 2,
+                       "msg": {"market_ticker": ticker, "yes_price_dollars": price,
+                               "count_fp": count, "taker_side": "yes", "ts": 1756000000}})
+
+
+def test_trade_print_tagged_broker_truth_and_channel_labeled():
+    tr = wd.SeqTracker()
+    recs, resync = wd.process_message(_trade("T"), tr, "t", "c")
+    assert resync is False and len(recs) == 1
+    r = recs[0]
+    # an executed print is the exchange's own record, same tag as kalshi_trades.py
+    assert r["price_source_tag"] == "broker_truth"
+    assert r["channel"] == "trade" and r["msg_type"] == "trade"
+
+
+def test_trade_seq_never_touches_book_gap_chain():
+    tr = wd.SeqTracker()
+    wd.process_message(_snapshot("T", 5), tr, "t", "c0")
+    # a trade frame carrying an unrelated seq must not observe/poison the book chain
+    raw = json.dumps({"type": "trade", "sid": 2, "seq": 999,
+                      "msg": {"market_ticker": "T"}})
+    _, resync = wd.process_message(raw, tr, "t", "c1")
+    assert resync is False
+    _, resync = wd.process_message(_delta("T", 6), tr, "t", "c2")
+    assert resync is False                        # book chain still intact at 5 -> 6
+
+
+def test_book_state_snapshot_and_delta_render_snapshot60():
+    b = wd.BookState()
+    b.apply("orderbook_snapshot", json.loads(_snapshot("T", 1)))
+    b.apply("orderbook_delta", json.loads(_delta("T", 2, side="yes", price=0.41, delta=5)))
+    recs = b.snapshot_records("2026-08-24T00:00:00+00:00", "cid")
+    assert len(recs) == 1
+    r = recs[0]
+    assert r["schema_version"] == "ws_depth.snapshot60.v1"
+    assert r["yes_bid"] == 0.41 and r["no_bid"] == 0.58
+    assert r["yes_ask"] == pytest.approx(0.42)    # 1 - best no bid
+    assert r["mid"] == pytest.approx(0.415) and r["spread"] == pytest.approx(0.01)
+    assert r["yes_depth_top"] == 105 and r["no_depth_top"] == 80
+    assert r["price_source_tag"] == "real_ask"
+
+
+def test_book_state_delta_to_zero_removes_level_and_ignores_pre_snapshot_delta():
+    b = wd.BookState()
+    b.apply("orderbook_delta", json.loads(_delta("T", 1)))      # before snapshot: ignored
+    assert b.snapshot_records("t", "c") == []
+    b.apply("orderbook_snapshot", json.loads(_snapshot("T", 2)))
+    b.apply("orderbook_delta", json.loads(_delta("T", 3, side="no", price=0.58, delta=-80)))
+    r = b.snapshot_records("t", "c")[0]
+    assert r["no_bid"] is None and r["yes_ask"] is None and r["mid"] is None
+
+
+def test_run_subscribes_each_channel_separately(tmp_path):
+    conn = FakeConn([_snapshot("T", 1)])
+    w = wd.TapeWriter(store_dir=tmp_path, compress=False)
+    summary = wd.run(connect=lambda: conn, tickers=["T"], writer=w, env={},
+                     max_reconnects=1, sleep=lambda _s: None)
+    subs = [json.loads(s) for s in conn.sent]
+    assert [s["params"]["channels"] for s in subs] == [["orderbook_delta"], ["trade"]]
+    assert summary["status"] == "stopped"
+
+
+def test_run_idle_timeout_emits_snapshot60_not_reconnect(tmp_path):
+    class TimeoutThenClose:
+        """One snapshot frame, then two idle timeouts, then peer close."""
+        def __init__(self):
+            self._steps = [_snapshot("T", 1), "timeout", "timeout", ""]
+            self.sent = []
+
+        def send(self, d):
+            self.sent.append(d)
+
+        def recv(self):
+            step = self._steps.pop(0)
+            if step == "timeout":
+                raise TimeoutError("no frame")
+            return step
+
+        def close(self):
+            pass
+
+    ticks = iter([0.0] * 3 + [61.0] * 4 + [200.0] * 6)
+    w = wd.TapeWriter(store_dir=tmp_path, compress=False)
+    summary = wd.run(connect=lambda: TimeoutThenClose(), tickers=["T"], writer=w, env={},
+                     max_reconnects=1, sleep=lambda _s: None, snapshot_interval=60.0,
+                     clock=lambda: next(ticks))
+    assert summary["n_snapshots"] >= 1            # idle period still produced a measurement
+    assert summary["n_reconnects"] == 1           # the timeouts did NOT churn reconnects
+    lines = [json.loads(x) for f in tmp_path.glob("dt=*.jsonl")
+             for x in f.read_text().splitlines()]
+    snaps = [l for l in lines if l.get("schema_version") == "ws_depth.snapshot60.v1"]
+    assert snaps and snaps[0]["market_ticker"] == "T"
