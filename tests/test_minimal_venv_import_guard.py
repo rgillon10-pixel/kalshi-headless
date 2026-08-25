@@ -18,6 +18,8 @@ import pathlib
 import subprocess
 import sys
 
+import pytest
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # Top-level import names of every `dev` extra in pyproject.toml. If an extra is added there,
@@ -54,11 +56,25 @@ def _import_with_blocked_extras(module: str) -> subprocess.CompletedProcess:
     )
 
 
-def test_hourly_pass_imports_without_dev_extras() -> None:
-    proc = _import_with_blocked_extras("collection.hourly_pass")
+# Every module a cron job or systemd unit imports as its entrypoint. A module-level
+# dev-extra import in ANY of these (or anything they import) kills that cron silently —
+# the 27-day failure mode. Add new cron entrypoints here as they land.
+CRON_ENTRYPOINTS = (
+    "collection.hourly_pass",
+    "collection.monitor_scope",
+    "collection.ws_depth",
+    "scripts.monitor_ingest",
+    "scripts.monitor_status",
+    "scripts.tape_gap_monitor",
+)
+
+
+@pytest.mark.parametrize("module", CRON_ENTRYPOINTS)
+def test_cron_entrypoints_import_without_dev_extras(module: str) -> None:
+    proc = _import_with_blocked_extras(module)
     assert proc.returncode == 0, (
-        "collection.hourly_pass failed to import with dev extras blocked — this is the exact "
-        "failure mode that killed every VPS hourly pass 2026-07-28 → 2026-08-24. A module it "
+        f"{module} failed to import with dev extras blocked — this is the exact failure "
+        "mode that killed every VPS hourly pass 2026-07-28 → 2026-08-24. A module it "
         "imports at module level must be importing a dev-extra package eagerly; make that "
         f"import lazy (as ws_depth.py does).\nstderr:\n{proc.stderr}"
     )

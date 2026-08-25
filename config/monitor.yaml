@@ -23,20 +23,22 @@ scope:
 
 selection:
   # ws_depth WS subscription is capped (MAX_TICKERS in collection/ws_depth.py). When scope
-  # exceeds the cap, keep the highest-priority markets: sort by 24h volume desc, then by
-  # soonest close. The scope resolver records what it dropped (honest `truncated`).
+  # exceeds the cap, keep the highest-priority markets: 24h volume desc, then soonest
+  # close (hardcoded in monitor_scope.select_tickers). The resolver records what it
+  # dropped (honest `n_dropped_by_cap`).
   max_tickers: 200
-  sort: volume_then_close
 
-cadences:
-  scope_refresh_minutes: 60        # scripts/monitor_scope.py cron
-  ingest_minutes: 15               # scripts/monitor_ingest.py cron
-  snapshot_seconds: 60             # ws_depth in-daemon book snapshots (quiet-period floor)
-  healthcheck_minutes: 5           # ops/vps healthcheck cron
-  ws_stale_seconds: 180            # no WS message for this long => restart daemon
+# Cadences live where they execute, NOT here — a knob nothing reads is a drift trap:
+#   scope hourly :08 / ingest */15 / healthcheck */5 / gapmon 6-h  -> VPS crontab
+#   snapshot interval 60s        -> collection/ws_depth.py SNAPSHOT_INTERVAL_DEFAULT
+#                                   (env override WS_DEPTH_SNAPSHOT_SEC)
+#   stale threshold 180s         -> ops/vps/kalshi-headless-healthcheck.sh STALE_SEC
+#   ws_depth raw-tape retention  -> a retention job is not built yet (ops-polish phase)
 
 thresholds:
-  # Layer 3 anomaly detectors. `value` is live; `range` is the tuner's hard boundary.
+  # Layer 3 anomaly detectors (consumers land with Layers 3/4 — this section is the
+  # pre-registered contract they build against). `value` is live; `range` is the tuner's
+  # hard boundary.
   mid_move_points:                 # |mid move| >= value cents within window => anomaly
     value: 15
     range: [8, 30]
@@ -63,11 +65,8 @@ thresholds:
     range: [1, 3]
 
 alerting:
-  # ntfy topic URL comes from NTFY_TOPIC_URL in the environment (never in-repo).
+  # Layer 3/4 contract (like thresholds above). ntfy topic URL comes from NTFY_TOPIC_URL
+  # in the environment (never in-repo).
   rate_limit_per_kind_per_hour: 4  # max high-priority posts per alert kind per hour
   digest_priority: low             # nightly digest / daily summaries
   anomaly_priority: high
-
-retention:
-  ws_depth_tape_days: 90           # gzipped raw ws tape kept VPS-local this long
-  monitor_db_vacuum_day: Sunday

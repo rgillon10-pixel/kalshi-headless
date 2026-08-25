@@ -16,11 +16,9 @@ from core import monitor_config as mc
 def _minimal_doc():
     return {
         "scope": {"series_prefixes": ["KXHIGH"], "categories": [], "series_tickers": []},
-        "selection": {"max_tickers": 200, "sort": "volume_then_close"},
-        "cadences": {"scope_refresh_minutes": 60},
+        "selection": {"max_tickers": 200},
         "thresholds": {"mid_move_points": {"value": 15, "range": [8, 30]}},
         "alerting": {"rate_limit_per_kind_per_hour": 4},
-        "retention": {"ws_depth_tape_days": 90},
     }
 
 

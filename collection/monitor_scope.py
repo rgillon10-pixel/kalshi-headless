@@ -19,8 +19,10 @@ This module turns that declaration into concrete open markets, hourly:
      cap at `selection.max_tickers` (honest `truncated` + counted drops), and rewrite
      `config/ws_depth_tickers.txt` ATOMICALLY only when the set changed.
 
-The caller (ops/vps/kalshi-headless-scope.sh) restarts the ws_depth daemon when this
-module reports `tickers_changed: true` — the daemon itself stays a dumb subscriber.
+When the subscribed SET changed, this module touches `data/ws_tickers_changed.flag`; the
+caller (ops/vps/kalshi-headless-scope.sh) consumes the flag and restarts the ws_depth
+daemon — a file contract, so the restart can never hinge on log formatting. The daemon
+itself stays a dumb subscriber.
 
 House contract: canonical JSONL, bitemporal `captured_at`+`capture_id`, `raw_sha256` over
 the exact bytes received, counted refusals (`n_out_of_scope`, `n_dropped_by_cap`), rate
@@ -36,14 +38,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import hashlib
+
 from core.canonical import canonical_json, sha256_hex
 from core.io import REPO_ROOT
 from core.kalshi_fields import parse_kalshi_numeric as _to_float
 from core import monitor_config
+from collection.universe_sweep import fetch_open_markets
 
 SCHEMA_VERSION = "monitor_scope.v1"
 TAPE = REPO_ROOT / "tape" / "monitor_markets"
 TICKERS_PATH = REPO_ROOT / "config" / "ws_depth_tickers.txt"
+# Touched when the ws_depth subscription SET changed; ops/vps/kalshi-headless-scope.sh
+# consumes (and removes) it to decide whether to restart the daemon. Lives under data/
+# (gitignored, VPS-local).
+CHANGED_FLAG = REPO_ROOT / "data" / "ws_tickers_changed.flag"
 
 # Per-series pagination bound. One page of 200 covers every observed weather/mention
 # series; a series that still has a cursor after MAX_PAGES_PER_SERIES is counted in
@@ -83,29 +92,6 @@ def scoped_series(cats: Dict[str, str], scope: Dict[str, Any]) -> List[str]:
     return sorted(set(selected))
 
 
-def fetch_series_open_markets(client, series: str) -> Tuple[List[Dict[str, Any]],
-                                                            List[str], bool]:
-    """Bounded `GET /markets?series_ticker=<series>&status=open`. Returns
-    (markets, raw_pages, truncated)."""
-    markets: List[Dict[str, Any]] = []
-    raw_pages: List[str] = []
-    cursor: Optional[str] = None
-    for _ in range(MAX_PAGES_PER_SERIES):
-        params: Dict[str, Any] = {"series_ticker": series, "status": "open",
-                                  "limit": PAGE_LIMIT}
-        if cursor:
-            params["cursor"] = cursor
-        text = client.get_text("/markets", **params)
-        raw_pages.append(text)
-        j = json.loads(text)
-        items = j.get("markets") or []
-        markets.extend(items)
-        cursor = j.get("cursor")
-        if not cursor or not items:
-            return markets, raw_pages, False
-    return markets, raw_pages, True
-
-
 def select_tickers(records: List[Dict[str, Any]], max_tickers: int
                    ) -> Tuple[List[str], int]:
     """Priority order: 24h volume desc, then soonest close, then ticker (deterministic).
@@ -134,8 +120,9 @@ def write_tickers_file(tickers: List[str], path: Path = TICKERS_PATH) -> bool:
     return True
 
 
-def _record(m: Dict[str, Any], series: str, category: str, selected: bool,
+def _record(m: Dict[str, Any], series: str, category: str,
             captured_at: str, capture_id: str) -> Dict[str, Any]:
+    # `ws_selected` is set exactly once, by run() after select_tickers — no other writer
     return {
         "schema_version": SCHEMA_VERSION,
         "capture_id": capture_id,
@@ -152,13 +139,12 @@ def _record(m: Dict[str, Any], series: str, category: str, selected: bool,
         "expected_expiration_time": m.get("expected_expiration_time"),
         "volume_24h": _to_float(m.get("volume_24h_fp")),
         "open_interest": _to_float(m.get("open_interest_fp")),
-        "ws_selected": selected,
     }
 
 
 def run(client=None, store: Optional[Path] = None, tickers_path: Path = TICKERS_PATH,
-        config: Optional[Dict[str, Any]] = None, min_interval: float = 0.25
-        ) -> Dict[str, Any]:
+        config: Optional[Dict[str, Any]] = None, min_interval: float = 0.25,
+        changed_flag: Path = CHANGED_FLAG) -> Dict[str, Any]:
     cfg = config if config is not None else monitor_config.load()
     scope, selection = cfg["scope"], cfg["selection"]
     if client is None:
@@ -173,30 +159,26 @@ def run(client=None, store: Optional[Path] = None, tickers_path: Path = TICKERS_
     series_list = scoped_series(cats, scope)
 
     pre: List[Dict[str, Any]] = []
-    raw_pages: List[str] = []
+    pages_hash = hashlib.sha256()   # streamed per page — never retain the raw pages
     n_calls = 1                     # the /series call
     n_series_truncated = 0
     n_series_with_open = 0
     for series in series_list:
-        markets, pages, truncated = fetch_series_open_markets(client, series)
-        raw_pages.extend(pages)
-        n_calls += len(pages)
+        markets, pages, truncated, calls, _ = fetch_open_markets(
+            client, max_calls=MAX_PAGES_PER_SERIES, page_limit=PAGE_LIMIT,
+            series_ticker=series)
+        for page in pages:
+            pages_hash.update(page.encode("utf-8"))
+        n_calls += calls
         n_series_truncated += 1 if truncated else 0
         n_series_with_open += 1 if markets else 0
         category = cats.get(series, "")
-        pre.extend(_record(m, series, category, False, captured_at, capture_id)
+        pre.extend(_record(m, series, category, captured_at, capture_id)
                    for m in markets)
     tickers, n_dropped_by_cap = select_tickers(pre, int(selection["max_tickers"]))
     chosen = set(tickers)
-    lines = []
     for rec in pre:
         rec["ws_selected"] = rec["ticker"] in chosen
-        lines.append(canonical_json(rec))
-
-    store.mkdir(parents=True, exist_ok=True)
-    day = now.strftime("%Y-%m-%d")
-    with open(store / f"dt={day}.jsonl", "a", encoding="utf-8") as fh:
-        fh.write("".join(ln + "\n" for ln in lines))
 
     tickers_changed = write_tickers_file(tickers, tickers_path)
 
@@ -207,13 +189,21 @@ def run(client=None, store: Optional[Path] = None, tickers_path: Path = TICKERS_
         "n_series_truncated": n_series_truncated, "n_in_scope": len(pre),
         "n_ws_selected": len(tickers), "n_dropped_by_cap": n_dropped_by_cap,
         "tickers_changed": tickers_changed, "n_calls": n_calls,
-        "series_raw_sha256": series_sha, "pages_sha256": sha256_hex(
-            "".join(raw_pages).encode("utf-8")),
+        "series_raw_sha256": series_sha, "pages_sha256": pages_hash.hexdigest(),
         # a truncated series means scope may be silently missing markets — FAIL loud
         "completeness_ok": n_series_truncated == 0,
     }
+
+    store.mkdir(parents=True, exist_ok=True)
+    day = now.strftime("%Y-%m-%d")
     with open(store / f"dt={day}.jsonl", "a", encoding="utf-8") as fh:
+        fh.write("".join(canonical_json(rec) + "\n" for rec in pre))
         fh.write(canonical_json(summary) + "\n")
+    if tickers_changed:
+        # restart contract with ops/vps/kalshi-headless-scope.sh: a flag FILE, not a grep
+        # of log output — formatting changes and stray stderr can never flip a restart
+        changed_flag.parent.mkdir(parents=True, exist_ok=True)
+        changed_flag.touch()
     print(f"[monitor_scope] {canonical_json(summary)}", flush=True)
     return summary
 

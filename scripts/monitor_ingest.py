@@ -30,10 +30,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional, Tuple
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.canonical import canonical_json  # noqa: E402
+from core.io import REPO_ROOT  # noqa: E402
+from core.kalshi_fields import parse_kalshi_numeric as _f  # noqa: E402
 
 DB_PATH_DEFAULT = REPO_ROOT / "data" / "monitor.db"
 
@@ -131,13 +132,6 @@ def _ingest_ws_line(conn: sqlite3.Connection, rec: Dict[str, Any]) -> None:
         # session/subscribed/error control lines carry no analytic state: tape-only
 
 
-def _f(v: Any) -> Optional[float]:
-    try:
-        return None if v is None else float(v)
-    except (TypeError, ValueError):
-        return None
-
-
 def _ingest_market_line(conn: sqlite3.Connection, rec: Dict[str, Any]) -> None:
     if rec.get("schema_version") != "monitor_scope.v1" or not rec.get("ticker"):
         return
@@ -180,6 +174,10 @@ def _ingest_file(conn: sqlite3.Connection, path: Path, handler, rel: str
                        (rel,)).fetchone()
     lines_done = row[0] if row else 0
     size = path.stat().st_size
+    if row and size == row[1]:
+        # unchanged since last pass (every closed .gz day, quiet plain files): skip without
+        # even opening — steady-state ingest cost stays O(new data), not O(entire tape)
+        return 0, 0, False
     was_reset = bool(row and size < row[1])
     if was_reset:
         lines_done = 0

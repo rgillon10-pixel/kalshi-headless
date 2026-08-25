@@ -10,7 +10,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.io import REPO_ROOT  # noqa: E402
+
 DB = REPO_ROOT / "data" / "monitor.db"
 UNITS = ("kalshi-headless-wsdepth.service",)
 
@@ -22,13 +25,6 @@ def _unit_state(unit: str) -> str:
         return out.stdout.strip() or "unknown"
     except (OSError, subprocess.TimeoutExpired):
         return "no-systemctl"
-
-
-def _q(conn, sql, args=()):
-    try:
-        return conn.execute(sql, args).fetchall()
-    except sqlite3.Error as exc:
-        return [("query-error", repr(exc)[:80])]
 
 
 def main() -> int:
@@ -49,23 +45,26 @@ def main() -> int:
         print("\nws_depth tape: NONE (daemon not yet writing)")
 
     if DB.exists():
-        size_mb = DB.stat().st_size / 1e6
-        conn = sqlite3.connect(DB)
-        print(f"\nmonitor.db: {size_mb:.1f} MB")
-        for table, in _q(conn, "SELECT name FROM sqlite_master WHERE type='table' "
-                               "AND name NOT LIKE 'ingest_%' ORDER BY name"):
-            n = _q(conn, f"SELECT COUNT(*) FROM {table}")[0][0]
-            print(f"  {table:<12} {n:>10} rows")
-        print("\nLast event per series (top 10 by recency):")
-        rows = _q(conn, """
-            SELECT m.series, MAX(s.captured_at), COUNT(*) FROM snapshots s
-            JOIN markets m ON m.ticker = s.market_ticker
-            GROUP BY m.series ORDER BY 2 DESC LIMIT 10""")
-        for series, last, n in rows:
-            print(f"  {series:<22} last={last}  n={n}")
-        if not rows:
-            print("  (no snapshots ingested yet)")
-        conn.close()
+        try:
+            conn = sqlite3.connect(DB)
+            print(f"\nmonitor.db: {DB.stat().st_size / 1e6:.1f} MB")
+            tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' "
+                                  "AND name NOT LIKE 'ingest_%' ORDER BY name").fetchall()
+            for table, in tables:
+                n = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                print(f"  {table:<12} {n:>10} rows")
+            print("\nLast event per series (top 10 by recency):")
+            rows = conn.execute("""
+                SELECT m.series, MAX(s.captured_at), COUNT(*) FROM snapshots s
+                JOIN markets m ON m.ticker = s.market_ticker
+                GROUP BY m.series ORDER BY 2 DESC LIMIT 10""").fetchall()
+            for series, last, n in rows:
+                print(f"  {series:<22} last={last}  n={n}")
+            if not rows:
+                print("  (no snapshots ingested yet)")
+            conn.close()
+        except sqlite3.Error as exc:
+            print(f"\nmonitor.db: unreadable ({exc!r})")
     else:
         print(f"\nmonitor.db: MISSING ({DB})")
 

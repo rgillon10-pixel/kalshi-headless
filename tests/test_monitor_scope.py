@@ -69,8 +69,14 @@ def test_scoped_series_includes_explicit_unknown_to_series_listing():
 def test_run_fetches_only_scoped_series_and_caps_by_volume(tmp_path):
     client = FakeClient(SERIES, MARKETS)
     tickers_path = tmp_path / "ws_depth_tickers.txt"
+    flag = tmp_path / "changed.flag"
     summary = ms.run(client=client, store=tmp_path / "tape", tickers_path=tickers_path,
-                     config=_cfg(max_tickers=2))
+                     config=_cfg(max_tickers=2), changed_flag=flag)
+    assert flag.exists()                      # restart contract: flag touched on change
+    summary2 = ms.run(client=client, store=tmp_path / "tape2", tickers_path=tickers_path,
+                      config=_cfg(max_tickers=2), changed_flag=tmp_path / "flag2")
+    assert summary2["tickers_changed"] is False
+    assert not (tmp_path / "flag2").exists()  # unchanged set -> no flag, no restart
     # KXBTC is out of scope: its series was never even fetched
     fetched = {p.get("series_ticker") for _, p in client.calls if "series_ticker" in p}
     assert fetched == {"KXHIGHNY", "KXODDBALL", "KXROGANMENTION"}
@@ -118,6 +124,7 @@ def test_run_flags_truncated_series_as_incomplete(tmp_path):
 
     client = TruncatingClient(SERIES, MARKETS)
     summary = ms.run(client=client, store=tmp_path / "tape",
-                     tickers_path=tmp_path / "t.txt", config=_cfg())
+                     tickers_path=tmp_path / "t.txt", config=_cfg(),
+                     changed_flag=tmp_path / "f.flag")
     assert summary["n_series_truncated"] == 3
     assert summary["completeness_ok"] is False                  # partial scope FAILS loud

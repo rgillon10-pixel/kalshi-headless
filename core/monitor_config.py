@@ -22,7 +22,7 @@ from core.io import REPO_ROOT
 
 MONITOR_CONFIG_PATH = REPO_ROOT / "config" / "monitor.yaml"
 
-_REQUIRED_TOP_KEYS = ("scope", "selection", "cadences", "thresholds", "alerting", "retention")
+_REQUIRED_TOP_KEYS = ("scope", "selection", "thresholds", "alerting")
 
 
 class MonitorConfigError(ValueError):

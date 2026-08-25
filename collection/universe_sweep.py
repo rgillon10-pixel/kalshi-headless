@@ -131,9 +131,12 @@ def _record_from_market(m: Dict[str, Any], captured_at: str, capture_id: str,
 # --------------------------------------------------------------------------- #
 # bounded platform-wide open pull (get_text so the sha256 binds to bytes on the wire)
 # --------------------------------------------------------------------------- #
-def fetch_open_markets(client, max_calls: int = MAX_CALLS, page_limit: int = PAGE_LIMIT
+def fetch_open_markets(client, max_calls: int = MAX_CALLS, page_limit: int = PAGE_LIMIT,
+                       series_ticker: Optional[str] = None,
                        ) -> Tuple[List[Dict], List[str], bool, int, Optional[int]]:
-    """Paginate `/markets?status=open` platform-wide (no series filter), bounded by `max_calls`.
+    """Paginate `/markets?status=open`, bounded by `max_calls` — platform-wide by default,
+    or one series when `series_ticker` is given (the monitor scope resolver's mode; one
+    shared cursor walk so truncation semantics can never diverge between callers).
     Returns (markets, raw_pages, truncated, n_calls, total_hint). `truncated=True` iff we stop
     because the call cap is reached while the cursor is STILL active (honest partial coverage,
     L10). `total_hint` is a platform-wide count if the listing ever exposes one, else None."""
@@ -145,6 +148,8 @@ def fetch_open_markets(client, max_calls: int = MAX_CALLS, page_limit: int = PAG
     cursor: Optional[str] = None
     while True:
         params: Dict[str, Any] = {"status": "open", "limit": page_limit}
+        if series_ticker:
+            params["series_ticker"] = series_ticker
         if cursor:
             params["cursor"] = cursor
         text = client.get_text("/markets", **params)

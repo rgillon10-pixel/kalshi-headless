@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import heapq
 import json
 import os
 import signal
@@ -72,7 +73,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 from core.canonical import canonical_json, sha256_hex
+from core.depth import total_ladder_depth
 from core.io import REPO_ROOT
+from core.kalshi_fields import parse_kalshi_numeric
 from core.pricing import top_of_book_quote
 
 TAPE = REPO_ROOT / "tape" / "ws_depth"
@@ -226,13 +229,6 @@ class BookState:
     def __init__(self) -> None:
         self._books: Dict[str, Dict[str, Dict[float, float]]] = {}
 
-    @staticmethod
-    def _to_float(v: Any) -> Optional[float]:
-        try:
-            return None if v is None else float(v)
-        except (TypeError, ValueError):
-            return None
-
     def apply(self, msg_type: str, msg: Dict[str, Any]) -> None:
         body = msg.get("msg") if isinstance(msg.get("msg"), dict) else msg
         market = body.get("market_ticker") or msg.get("market_ticker")
@@ -245,7 +241,8 @@ class BookState:
                 for lvl in levels:
                     if not isinstance(lvl, (list, tuple)) or len(lvl) < 2:
                         continue
-                    price, size = self._to_float(lvl[0]), self._to_float(lvl[1])
+                    price = parse_kalshi_numeric(lvl[0])
+                    size = parse_kalshi_numeric(lvl[1])
                     if price is not None and size is not None and size > 0:
                         book[side][price] = size
             self._books[market] = book
@@ -254,8 +251,8 @@ class BookState:
             if book is None:
                 return                      # delta before this market's snapshot: ignore
             side = body.get("side")
-            price = self._to_float(body.get("price_dollars", body.get("price")))
-            delta = self._to_float(body.get("delta_fp", body.get("delta")))
+            price = parse_kalshi_numeric(body.get("price_dollars", body.get("price")))
+            delta = parse_kalshi_numeric(body.get("delta_fp", body.get("delta")))
             if side not in ("yes", "no") or price is None or delta is None:
                 return
             size = book[side].get(price, 0.0) + delta
@@ -274,7 +271,7 @@ class BookState:
             book = self._books[market]
             tops = {}
             for side in ("yes", "no"):
-                ladder = sorted(book[side].items(), key=lambda kv: -kv[0])[:top_n]
+                ladder = heapq.nlargest(top_n, book[side].items())
                 tops[side] = [[p, s] for p, s in ladder]
             best_yes_bid = tops["yes"][0][0] if tops["yes"] else None
             best_no_bid = tops["no"][0][0] if tops["no"] else None
@@ -285,7 +282,8 @@ class BookState:
                 "capture_id": capture_id,
                 "captured_at": captured_at,
                 "venue": "kalshi",
-                "channel": "orderbook_delta",
+                # daemon-derived aggregate, not a wire frame — schema_version identifies it
+                "channel": "derived",
                 "msg_type": "snapshot60",
                 "market_ticker": market,
                 "yes_bids_top": tops["yes"],
@@ -295,8 +293,8 @@ class BookState:
                 "yes_ask": yes_ask,
                 "mid": mid,
                 "spread": spread,
-                "yes_depth_top": sum(s for _, s in tops["yes"]),
-                "no_depth_top": sum(s for _, s in tops["no"]),
+                "yes_depth_top": total_ladder_depth(tops["yes"]),
+                "no_depth_top": total_ladder_depth(tops["no"]),
                 "price_source_tag": "real_ask",
             })
         return records
@@ -318,7 +316,8 @@ def _extract(msg: Dict[str, Any], *keys) -> Any:
 
 
 def process_message(raw_text: str, tracker: SeqTracker, captured_at: str, capture_id: str,
-                    channel: str = "orderbook_delta") -> Tuple[List[Dict[str, Any]], bool]:
+                    control_channel: str = "orderbook_delta"
+                    ) -> Tuple[List[Dict[str, Any]], bool]:
     """Transform one raw WS text frame into 0+ tape records. Returns (records, resync_needed).
 
     `resync_needed` is True when a seq gap was detected: the caller drops the connection and
@@ -331,7 +330,7 @@ def process_message(raw_text: str, tracker: SeqTracker, captured_at: str, captur
     except (ValueError, TypeError):
         return ([{
             "schema_version": "ws_depth.v1", "capture_id": capture_id,
-            "captured_at": captured_at, "venue": "kalshi", "channel": channel,
+            "captured_at": captured_at, "venue": "kalshi", "channel": control_channel,
             "msg_type": "parse_error", "raw_text": raw_text, "raw_sha256": raw_sha256,
         }], False)
 
@@ -344,12 +343,14 @@ def process_message(raw_text: str, tracker: SeqTracker, captured_at: str, captur
         except ValueError:
             seq = None
 
-    # label the record with the channel that actually produced it (one subscribe covers
-    # both channels; the `channel` arg is just the caller's default for control frames)
+    # label the record with the channel that actually produced it; `control_channel` is
+    # only the label for control frames (subscribed/error), which carry no msg-type channel
     if msg_type in TRADE_MSG_TYPES:
         channel = "trade"
     elif msg_type in BOOK_MSG_TYPES:
         channel = "orderbook_delta"
+    else:
+        channel = control_channel
 
     record: Dict[str, Any] = {
         "schema_version": "ws_depth.v1",
@@ -464,11 +465,28 @@ def _log(obj: Dict[str, Any]) -> None:
 _IDLE = object()
 
 
-def _is_timeout(exc: BaseException) -> bool:
-    """True for a socket/websocket receive timeout. websocket-client raises
-    WebSocketTimeoutException (NOT a socket.timeout subclass), and we must not import
-    websocket at module level (minimal-venv rule) — so match by name as well as type."""
-    return isinstance(exc, (TimeoutError, socket.timeout)) or "Timeout" in type(exc).__name__
+class _IdleTolerantConn:
+    """Wrap a live websocket-client connection so a recv TIMEOUT surfaces as the _IDLE
+    sentinel instead of an exception. The library knowledge (WebSocketTimeoutException is
+    NOT a socket.timeout subclass) lives HERE, next to the import — run() never needs to
+    classify library exception types, so an unrelated error can never be misread as a
+    quiet market."""
+
+    def __init__(self, conn, timeout_exc: type) -> None:
+        self._conn = conn
+        self._timeout_exc = timeout_exc
+
+    def send(self, data):
+        return self._conn.send(data)
+
+    def recv(self):
+        try:
+            return self._conn.recv()
+        except self._timeout_exc:
+            return _IDLE
+
+    def close(self):
+        return self._conn.close()
 
 
 def _real_connect_factory(ws_base: str, key_id: str, private_key,
@@ -479,8 +497,29 @@ def _real_connect_factory(ws_base: str, key_id: str, private_key,
         import websocket  # websocket-client; see pyproject [wsdepth] extra
         headers = build_ws_headers(private_key, key_id, ws_base)
         header_list = [f"{k}: {v}" for k, v in headers.items()]
-        return websocket.create_connection(ws_base, header=header_list, timeout=open_timeout)
+        conn = websocket.create_connection(ws_base, header=header_list, timeout=open_timeout)
+        return _IdleTolerantConn(conn, websocket.WebSocketTimeoutException)
     return connect
+
+
+def _handle_frame(raw, tracker: SeqTracker, books: BookState, writer: TapeWriter,
+                  control_channel: str) -> Tuple[int, int, bool]:
+    """Process one received WS frame: tape line(s) + book-state update. Returns
+    (n_lines_written, n_gaps, need_resync) so run()'s loop stays flat."""
+    if isinstance(raw, (bytes, bytearray)):
+        raw = raw.decode("utf-8", "replace")
+    iso, cid = _ts()
+    records, need_resync = process_message(raw, tracker, iso, cid,
+                                           control_channel=control_channel)
+    n_lines = n_gaps = 0
+    for rec in records:
+        writer.write(canonical_json(rec))
+        n_lines += 1
+        if rec.get("schema_version") == "ws_depth.gap.v1":
+            n_gaps += 1
+        if rec.get("msg_type") in BOOK_MSG_TYPES:
+            books.apply(rec["msg_type"], rec["raw"])
+    return n_lines, n_gaps, need_resync
 
 
 def run(connect: Optional[Callable[[], Any]] = None,
@@ -578,25 +617,15 @@ def run(connect: Optional[Callable[[], Any]] = None,
                 while not stop["flag"]:
                     try:
                         raw = conn.recv()
-                    except Exception as recv_exc:  # a recv timeout is IDLE, not an error —
-                        if not _is_timeout(recv_exc):  # quiet markets must not churn reconnects
-                            raise
-                        raw = _IDLE
+                    except (TimeoutError, socket.timeout):
+                        raw = _IDLE          # injected conns; live conns return _IDLE direct
                     if raw is None or raw == "":
                         break                    # peer closed
                     if raw is not _IDLE:
-                        if isinstance(raw, (bytes, bytearray)):
-                            raw = raw.decode("utf-8", "replace")
-                        iso, cid = _ts()
-                        records, need_resync = process_message(raw, tracker, iso, cid,
-                                                                channel=channels[0])
-                        for rec in records:
-                            writer.write(canonical_json(rec))
-                            n_lines += 1
-                            if rec.get("schema_version") == "ws_depth.gap.v1":
-                                n_gaps += 1
-                            if rec.get("msg_type") in BOOK_MSG_TYPES:
-                                books.apply(rec["msg_type"], rec["raw"])
+                        d_lines, d_gaps, need_resync = _handle_frame(
+                            raw, tracker, books, writer, channels[0])
+                        n_lines += d_lines
+                        n_gaps += d_gaps
                         if need_resync:
                             resync = True
                             break
