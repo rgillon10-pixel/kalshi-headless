@@ -4188,9 +4188,61 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
    use `Priority: high` (instead of the default) and name the specific blocking action once,
    so a stuck item doesn't stay silent indefinitely.
 
+## Retro amendments — proposed 2026-08-23 (OPEN for Ryan's review, NOT self-merged)
+
+Drafted by the weekly-retro run from this week's "Log of runs" and the live-feed state.
+Nothing here relaxes an invariant or a Stop rule, deletes or reorders a queue item, or
+touches source code — these are protocol proposals only. **Context that forced them:** the
+retro found the autonomous system essentially dark from 2026-08-17 to 2026-08-23 — the
+3-hourly research loop and the nightly edge-hunter produced no runs, commits, or phone
+notes for ~6 days; the VPS collector fired hourly but posted "captured nothing new" every
+single hour (13 straight empties in the last 12h); no new tape reached `main` from any
+family after 2026-08-17. The existing step-8 phone-note hardening did NOT catch this: it
+assumes a leg *runs*, so it is silent when a leg stops firing entirely, and it treats a
+leg that fires-but-collects-nothing as routine. The observatory fired every night
+throughout the outage saying "no new tape days since dt=2026-08-17" — the outage signal
+was on the feed nightly and nothing escalated it. The whole point of these three items is
+to make ANY single surviving leg surface an outage within its own cadence instead of the
+weekly retro being the first to notice, up to seven days late.
+
+1. **New step 0c — data-freshness / leg-liveness check (the load-bearing fix).** Proposed
+   addition to the run protocol, run by EVERY firing leg (research loop, edge-hunter,
+   collector, observatory) right after step 0: compute the age of the freshest committed
+   signal on `origin/main` — the newest `tape/*/dt=*` capture time AND the newest
+   `kb/00-LOG.md` entry date. If the freshest hourly-collected tape is more than ~6h stale,
+   OR nothing at all has been committed to `main` in ~26h, the firing leg posts ONE
+   `Priority: high` note ("data-outage — newest tape is <N>h stale; collectors/loops may be
+   down") and opens (or, if one is already open, does NOT duplicate) a single GitHub issue
+   `data-outage — <date>`. Detection and escalation ONLY: no auto-restart, no touching
+   claude.ai triggers (Ryan-side, structurally out of a cloud run's reach), no credentials —
+   fully inside the Stop rules. The threshold numbers are a starting proposal for Ryan to
+   set; the mechanism is the point.
+
+2. **Escalate sustained empty collector passes instead of pinging every hour.** The VPS
+   hourly leg currently posts `Priority: high` "captured nothing new (no summary)" on EVERY
+   empty pass, which both fails to escalate the real problem (a *run* of empties = an
+   outage) and desensitizes the feed (13 identical high-priority notes in 12h). Proposed
+   step-8 clarification: a SINGLE empty collector pass is `Priority: low` (routine, silent
+   feed); N consecutive empty passes (propose N=3) escalates to ONE `Priority: high`
+   "collector has captured nothing for <N> hours — likely down" note, not one per hour.
+   Requires the collector to persist a tiny consecutive-empty counter (ops state, not source
+   logic in the Stop-rule sense) — flagged for Ryan as the collector leg lives on the VPS.
+
+3. **Two additions to the weekly-retro checklist, and a re-flag Ryan already owes a call
+   on.** (a) Alongside the existing "did phone notes flow every day this week?", add "did any
+   leg fire but produce empty/no-op output for a sustained window?" — this week that was the
+   first real symptom and it had been on the feed for days. (b) **Stranded-branch trend,
+   re-flagged ONCE per standing protocol:** `tape/hourly-*` branches are now **242** (was
+   226 on 2026-08-11, 233 on 2026-08-13 — +16 this week, still compounding), plus 10
+   `tape/burst-*`; 829 total remote heads. The cloud leg still cannot delete branches. The
+   two standing cleanup options are unchanged and both need Ryan: grant the cloud GitHub App
+   branch-delete scope, or route deletion through the VPS leg. No loop run can fix this from
+   inside the sandbox.
+
 ## Log of runs
 
 (append one line per run: `<UTC ts> · <item> · <one-line outcome>`)
+- 2026-08-23T~12:xxZ (weekly retro, Opus) · **CRITICAL: autonomous system dark ~6 days (2026-08-17 → 2026-08-23).** Read-only retro. Findings from git history + the live ntfy feed: research loop (every 3h) and edge-hunter (nightly 04:15) produced NO runs/commits/phone notes since 2026-08-17 (~48 + 6 missed firings); nightly daily brief SILENT 6 straight days (2026-08-18..23) — the retro's own "one silent day = Priority:high" bar, times six; no new tape on `main` from any family after 2026-08-17 13:20Z. VPS hourly collector still fires but posts "captured nothing new" every hour (13/13 empty in the last 12h, all Priority:high). Observatory still fires (2026-08-23 03:17Z) but no-ops on "no new tape days since dt=2026-08-17" AND has reached its pre-registered OBS-1 kill condition (≥14 runs, 0 candidates) — decommission is Ryan's call. Last real work was 2026-08-17: S82 signed-flow FADE probe killed (DEAD, clean), L362 promoted to a GATING invariant (+27 tests); still 0 proven edges. Paper: S14 dead-shadow ledger unchanged, realized P&L $+27.76 (sim only). Ops hygiene: (a) all 5 `kalshi-burst-*` triggers (cpi-0714/wcsemi1-0714/wcsemi2-0715/wcfinal-0719/fomc-0729) are past-event, flagged for deletion (cloud cannot delete triggers); (b) `tape/hourly-*` = 242 (↑ from 226→233 this week, still compounding) + 10 burst, 829 total heads — cleanup options re-flagged ONCE; (c) drift vs ops/ROUTINES.md: research-loop / edge-hunter / cloud-collector all appear STOPPED, VPS collector alive-but-empty, observatory past its kill condition — all flagged to Ryan. Two phone notes sent (PushNotification + ntfy Priority:high). One PR opened with 3 protocol proposals (liveness watchdog / empty-pass escalation / retro-checklist), LEFT OPEN for Ryan. No code touched, no self-merge.
 - 2026-08-17T~13:3x-14:1xZ (research loop, protocol v3) · **IDLE RUN, policy (c): Q57 path (a) is a zero-rate wait, not a slow one — verifier-confirmed-with-corrections, no registry flip.** Steps 0a/0 clean (no rewind; only standing Ryan-review-only PRs open). 0b swept `tape/hourly-20260817T065946Z` (crypto_hourly +2, polymarket_macro_pairs +21, sports_pairs +982), merged via PR #395. Delegated to `research-lead`, which this firing had Read/Grep/Glob/Bash only (no Write/Task/gh) — analyzed but could not write/commit; bookkeeping done directly by the calling session, which dispatched an independent `verifier` (caught the sub-session's commit-archaeology error, L158 — corrected "single commit" provenance to `captured_at`-sourced "8 days of zero appends"; corrected the stale 338-game population count to a fresh 382). `kalshi_trades` confirmed to have no scheduled writer; registered Q58 (bounded backfill over 382 depth-covered settled games) to convert Q57 path (a) into a testable join. S82 stays `idea`; still 0 proven edges. Step 9: `paper_pass.py` run over this run's new tape, 0 processed/300 already-in-ledger, P&L unchanged $+27.76. Gates: `invariants --full` exit 0 all green (fresh, post-edit); `pytest` not re-run, floor per L162 ≥4,538 collected, 0 failed. See `kb/00-LOG.md` 2026-08-17.
 - 2026-08-16T~04:15Z (kalshi-edge-hunter nightly, Opus) · **Unit-1: all four last-24h census/count numbers reproduced (no `review:` issue); the PROVISIONAL settlement-ledger-gate finding graduated to two-agent CONFIRMED (independent `verifier` re-derived 103/127/74 pass-starts, 0/0/11@10Z, 10,605-line 24-day freeze — all exact). Unit-2: Q21 round #32 = 1/3 REGISTERED (S82 `idea` + Q57), the first survivor since S78 — producer trust=FALSE re-derivation caught the `event_ticker: None` join key and reconciled the verifier's 72→34→34 exactly. Unit-3: all gated probes already built, no gate <72h. Gates AFTER last edit: `invariants --full` exit 0 "all green" on the post-edit tree; `pytest -n4 --dist loadfile` **4,369 passed / 1 xdist real-tape-acceptance FLAKE** (`test_q56_s80_…::test_acceptance_headline_verdict_is_dead…`) that PASSES deterministically on isolated serial re-run (53s) — a cross-worker `reports/` write collision, the 2026-08-15 xdist-flake precedent; diff is docs-only and touches nothing in the S80 lane. Self-merged (squash), docs/research-only.**
 - 2026-08-13T~04:15Z (kalshi-edge-hunter nightly, Opus) · **Unit-1 adversarial review CLEAN (no `review:` issue); Q21 round #29 = 0/3 registered (verifier-refuted); Unit-3 N/A; still 0 proven edges.** Steps 0a/0/0b: history-integrity PASS (kb/00-LOG.md newest 08-12 vs newest `tape/*/dt=` 08-12, 0-day gap; merged PRs #357–#361 all in `origin/main` linear history, no rewind); claim-check found only the standing Ryan-review-only PRs (#125/#165/#166/#191/#208/#271/#330), none claiming eligible work; step-0b no NEW stranded branches (233 `hourly-*` + 10 `burst-*` = 243 remote; newest fallbacks already recovered by #358/#359). **Unit 1:** re-checked one load-bearing number per last-24h verdict — fee constants for the Q51 queue-aware fill-sim and the S79 re-derivation are IMPORTED from `core.pricing` (`MAKER_FEE_RATE=0.0175` / `TAKER_FEE_RATE=0.07`, not hand-rolled), prices `broker_truth`, S79 bootstrap block-by-game (45 units) — all reproduce → no issue. **Unit 2:** 0 eligible (< 2) → Q21 round #29; producer proposed S82/S83/S84 (fresh mechanisms), independent `verifier` attacked each pre-registration → **KILL/KILL/KILL** (S82 funding-dispersion ~46× under bracket + sums two overrounds; S83 near-money overpays 0.547 + no size field + non-independent perp anchor; S84 n=1 settled FOMC + Kalshi delists-at-decision + international-CLOB-not-US). No S-numbers burned → next free stays S82. **Unit 3:** no gate within ~72h (next Q51 m4 after 08-24, probe unchanged) → nothing to pre-build. Housekeeping: all 5 `kalshi-burst-*` triggers name-for-deletion (July events passed; `fomc-0729` still enabled). Step 9 paper sub-pass: S14 shadow (dead, paper-infra only), no new tape → ledger unchanged $+27.76. Gates: `scripts/invariants.py --full` exit 0 all green; `pytest` green by construction (docs/findings-only diff, no code touched, L162). Branch `docs/edge-hunter-20260813-round29`. See `kb/00-LOG.md` 2026-08-13, `findings/2026-08-13-q21-round29-idea-gen.md`.
