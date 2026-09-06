@@ -4152,6 +4152,32 @@ settled market data ~60 days post-close; the recoverable dt range for this backf
 way), the window starts closing ~2026-09-23. Confirm the purge scope before assuming urgency, but
 don't let this item go stale past that date unchecked either.
 
+### Q59 — VPS collector GitHub-sync failure: restore sync + add a consecutive-failure escalation ladder to the hourly note
+Status: BLOCKED on Ryan / VPS-side (restore the collector's GitHub credentials/sync) — with one
+unblocked research/ops sub-task (the escalation ladder, buildable offline). Filed 2026-09-06 by the
+weekly retro. **Live incident, not a hypothetical:** since 2026-08-25 the VPS collector has fired
+every hour but failed the same way each time — its own phone note reads "Hourly scan hit a snag:
+couldn't sync with GitHub before scanning. It will retry automatically next hour." — so it has
+captured **zero** new tape for ~12 days (every family stale, `tape/*` last dt=2026-08-25; the tape
+gap monitor has been alerting daily). The Aug-25 "revive VPS collection" work landed ~10 hourly
+passes then the sync broke again. (1) **Ryan/VPS action:** the VPS leg's GitHub push/pull auth must
+be restored — a cloud loop cannot fix this (credentials live only on the VPS by contract, per the
+execution-lane rule). (2) **Unblocked sub-task (a future collector run, offline-testable, no
+network-order path, no credentials):** replace the collector's identical reassuring "will retry next
+hour" note with an escalation ladder — after N consecutive sync failures the hourly note flips to
+`Priority: high` and reads "collection STALLED for Xh (since <dt>)", so a real multi-day outage
+stops blending into ~24 low-signal identical messages a day. Do NOT touch demo/live/credential paths.
+
+### Q60 — OBS-1 observatory decommission decision (kill condition reached)
+Status: BLOCKED on Ryan (decommission is a human decision, per the observatory's pre-registered
+kill). Filed 2026-09-06 by the weekly retro. The observatory pilot's pre-registered kill was ">= 14
+nightly runs with zero drafted candidates ever". As of 2026-09-06 it has run **22** nights and
+drafted **zero** patterns; it now re-reports "kill condition reached — this is a call for you" every
+night with nothing else to do. This item exists so the pending decision has an owner and a home and
+the nightly re-report is expected (not a new finding) until Ryan resolves it. No loop run may
+decommission it or edit its pre-registered kill; the only actions available to a loop are to keep
+running the mechanical pass (which no-ops with no new tape) and to leave this item BLOCKED.
+
 ## Retro amendments — proposed 2026-07-05, ADOPTED 2026-07-10 (PR #18 merged)
 
 Drafted by the weekly retro run from that week's "Log of runs". **Adopted** — Ryan merged
@@ -4187,6 +4213,41 @@ invariant or a Stop rule, deleted or reordered a queue item, or touched source c
    action (a key, a decision, a merge) with no new activity, that run's ntfy phone note should
    use `Priority: high` (instead of the default) and name the specific blocking action once,
    so a stuck item doesn't stay silent indefinitely.
+
+## Retro amendments — proposed 2026-09-06 (weekly retro, PENDING Ryan review — NOT adopted)
+
+Drafted by the 2026-09-06 weekly retro from this week's runs. **Nothing here is binding until Ryan
+merges it.** These are protocol proposals only: none relaxes an invariant or a Stop rule, deletes or
+reorders a queue item, or touches source code (the escalation-ladder code itself is filed as the
+unblocked sub-task of Q59, to be built and gate-tested by a future collector run, not in this PR).
+Context: the whole data + research pipeline was **dark for ~12 days** (no new tape since 2026-08-25;
+no research-loop or edge-hunter activity in the log or on the phone this week) and the weekly retro
+was the first leg to surface it — because the legs that would normally report a stall (research
+loop, edge-hunter) had themselves gone silent, so their absence reported nothing.
+
+1. **Collection-freshness is a first-class precondition — a run over stale tape must escalate before
+   anything else.** Proposed step-0 addition for the research loop AND the edge-hunter: at run start,
+   after the step-0a sync, check the newest `dt=` across the tape families; if the newest is older
+   than a staleness threshold (proposed **36 h**), the run's FIRST and mandatory output is a
+   `Priority: high` phone note reading "collection STALLED since <dt> (<N>h)" naming the stalled
+   families — and an idle-run/probe over the stale tape is **not** a valid substitute for raising the
+   stall. Rationale: this week every leg happily treated 12-day-old tape as "just no new data" and
+   proceeded (or no-op'd) instead of screaming; a data outage should never be silent.
+
+2. **Cross-leg dead-man's-switch — flag the gap, decision is Ryan's.** The reason the outage ran ~12
+   days is structural: the loops that report problems (research loop, edge-hunter phone briefs) are
+   the same loops that died, so their silence carried no signal, and only the once-a-week retro
+   caught it. A loop cannot self-heal this. Flagging for Ryan (no loop implements it): consider one
+   independent liveness heartbeat that does NOT depend on the cloud loops or the VPS git-sync — e.g.
+   a lightweight external check that pages `Priority: high` if no `tape/*` commit has landed on
+   `main` in >24 h, or if the nightly edge-hunter brief is missing. Placement/mechanism is Ryan's
+   call; this amendment only records that the gap exists and that no in-sandbox run can close it.
+
+3. **Retire the observatory pilot's nightly no-op, pending Ryan (see Q60).** The OBS-1 pilot reached
+   its pre-registered kill (22 runs, 0 candidates) but keeps firing nightly and re-reporting the same
+   "call for you" — a wasted firing until decided. No amendment changes the pre-registered kill or
+   decommissions anything (human decision); this only points at Q60 as the owner of the pending
+   decision so the recurring note is expected, not re-litigated each week.
 
 ## Log of runs
 
