@@ -61,6 +61,7 @@ def _import_with_blocked_extras(module: str) -> subprocess.CompletedProcess:
 # the 27-day failure mode. Add new cron entrypoints here as they land.
 CRON_ENTRYPOINTS = (
     "collection.hourly_pass",
+    "collection.monitor_poll",
     "collection.monitor_scope",
     "collection.ws_depth",
     "scripts.monitor_ingest",

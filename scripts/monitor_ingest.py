@@ -5,7 +5,8 @@ Raw truth stays on tape (append-only JSONL, the house record). This script folds
 families into one VPS-local SQLite DB so Layer 2/3/4 can query by market and time without
 re-streaming gzipped days:
 
-  tape/ws_depth/dt=*.jsonl[.gz]      -> book_events, snapshots, trades
+  tape/ws_depth/dt=*.jsonl[.gz]      -> book_events, snapshots (source=ws), trades
+  tape/monitor_poll/dt=*.jsonl       -> snapshots (source=rest_poll; public-REST fallback)
   tape/monitor_markets/dt=*.jsonl    -> markets            (lifecycle: open/close times)
   tape/settlement_ledger/dt=*.jsonl  -> settlements        (broker_truth labels)
 
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
   yes_bid REAL, yes_ask REAL, no_bid REAL, mid REAL, spread REAL,
   yes_depth_top REAL, no_depth_top REAL,
   yes_bids_top TEXT, no_bids_top TEXT, price_source_tag TEXT,
+  source TEXT,   -- 'ws' (top-5 L2 depth) or 'rest_poll' (at-touch sizes only)
   PRIMARY KEY (capture_id, market_ticker));
 CREATE TABLE IF NOT EXISTS trades (
   capture_id TEXT, raw_sha256 TEXT, market_ticker TEXT, captured_at TEXT,
@@ -80,6 +82,11 @@ def _open_db(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
+    # migration (2026-08-26): a DB created before the rest_poll fallback lacks
+    # snapshots.source — CREATE IF NOT EXISTS won't add it, so add in place
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(snapshots)")}
+    if "source" not in cols:
+        conn.execute("ALTER TABLE snapshots ADD COLUMN source TEXT")
     return conn
 
 
@@ -99,13 +106,13 @@ def _ingest_ws_line(conn: sqlite3.Connection, rec: Dict[str, Any]) -> None:
     sv = rec.get("schema_version")
     if sv == "ws_depth.snapshot60.v1":
         conn.execute(
-            "INSERT OR IGNORE INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR IGNORE INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (rec["capture_id"], rec.get("market_ticker"), rec.get("captured_at"),
              rec.get("yes_bid"), rec.get("yes_ask"), rec.get("no_bid"), rec.get("mid"),
              rec.get("spread"), rec.get("yes_depth_top"), rec.get("no_depth_top"),
              canonical_json(rec.get("yes_bids_top") or []),
              canonical_json(rec.get("no_bids_top") or []),
-             rec.get("price_source_tag")))
+             rec.get("price_source_tag"), "ws"))
     elif sv == "ws_depth.gap.v1":
         conn.execute(
             "INSERT OR IGNORE INTO gaps VALUES (?,?,?,?,?,?)",
@@ -130,6 +137,25 @@ def _ingest_ws_line(conn: sqlite3.Connection, rec: Dict[str, Any]) -> None:
                  _f(body.get("delta_fp", body.get("delta"))),
                  rec.get("price_source_tag")))
         # session/subscribed/error control lines carry no analytic state: tape-only
+
+
+def _ingest_poll_line(conn: sqlite3.Connection, rec: Dict[str, Any]) -> None:
+    """Public-REST fallback snapshots -> the SAME snapshots table as the WS family.
+    Depth columns carry AT-TOUCH sizes only (the listing has no L2) — `source='rest_poll'`
+    marks that narrower meaning so Layer 2 never mistakes touch size for top-5 depth."""
+    if rec.get("schema_version") != "monitor_poll.snapshot60.v1" or not rec.get("ticker"):
+        return
+    yes_touch = [[rec.get("yes_bid"), rec.get("yes_bid_size")]] if rec.get(
+        "yes_bid") is not None else []
+    no_touch = [[rec.get("no_bid"), rec.get("yes_ask_size")]] if rec.get(
+        "no_bid") is not None else []
+    conn.execute(
+        "INSERT OR IGNORE INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (rec["capture_id"], rec["ticker"], rec.get("captured_at"),
+         rec.get("yes_bid"), rec.get("yes_ask"), rec.get("no_bid"), rec.get("mid"),
+         rec.get("spread"), rec.get("yes_bid_size"), rec.get("yes_ask_size"),
+         canonical_json(yes_touch), canonical_json(no_touch),
+         rec.get("price_source_tag"), "rest_poll"))
 
 
 def _ingest_market_line(conn: sqlite3.Connection, rec: Dict[str, Any]) -> None:
@@ -161,6 +187,7 @@ def _ingest_settlement_line(conn: sqlite3.Connection, rec: Dict[str, Any]) -> No
 
 FAMILIES = (
     ("ws_depth", ("dt=*.jsonl", "dt=*.jsonl.gz"), _ingest_ws_line),
+    ("monitor_poll", ("dt=*.jsonl",), _ingest_poll_line),
     ("monitor_markets", ("dt=*.jsonl",), _ingest_market_line),
     ("settlement_ledger", ("dt=*.jsonl",), _ingest_settlement_line),
 )

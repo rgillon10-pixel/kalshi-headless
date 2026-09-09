@@ -103,6 +103,38 @@ def test_shrunk_file_resets_rereads_and_dedupes(tmp_path):
     assert _counts(db)["trades"] == 1 and _counts(db)["book_events"] == 1
 
 
+def test_poll_snapshots_ingest_into_snapshots_table_with_source(tmp_path):
+    root = _tape(tmp_path)
+    (root / "monitor_poll").mkdir()
+    (root / "monitor_poll" / "dt=2026-08-26.jsonl").write_text(json.dumps(
+        {"schema_version": "monitor_poll.snapshot60.v1", "capture_id": "p1",
+         "captured_at": "t6", "ticker": "T", "yes_bid": 0.41, "no_bid": 0.57,
+         "yes_ask": 0.43, "mid": 0.42, "spread": 0.02, "yes_bid_size": 105.0,
+         "yes_ask_size": 80.0, "price_source_tag": "real_ask"}) + "\n")
+    db = tmp_path / "monitor.db"
+    s = mi.run(db_path=db, tape_root=root)
+    assert s["rows"]["snapshots"] == 2                  # 1 ws + 1 rest_poll
+    conn = sqlite3.connect(db)
+    rows = conn.execute("SELECT source, mid FROM snapshots ORDER BY source").fetchall()
+    conn.close()
+    assert rows == [("rest_poll", 0.42), ("ws", 0.415)]
+
+
+def test_pre_source_column_db_is_migrated_in_place(tmp_path):
+    db = tmp_path / "monitor.db"
+    conn = sqlite3.connect(db)                          # the pre-2026-08-26 shape
+    conn.execute("""CREATE TABLE snapshots (
+        capture_id TEXT, market_ticker TEXT, captured_at TEXT,
+        yes_bid REAL, yes_ask REAL, no_bid REAL, mid REAL, spread REAL,
+        yes_depth_top REAL, no_depth_top REAL,
+        yes_bids_top TEXT, no_bids_top TEXT, price_source_tag TEXT,
+        PRIMARY KEY (capture_id, market_ticker))""")
+    conn.commit()
+    conn.close()
+    s = mi.run(db_path=db, tape_root=_tape(tmp_path))   # must not crash on 14-col insert
+    assert s["rows"]["snapshots"] == 1
+
+
 def test_bad_line_counted_and_recorded_never_dropped(tmp_path):
     root = _tape(tmp_path, ws_extra=())
     with open(root / "ws_depth" / "dt=2026-08-24.jsonl", "a") as fh:

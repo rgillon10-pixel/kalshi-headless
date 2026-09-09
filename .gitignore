@@ -6,6 +6,7 @@ data/
 # config/monitor.yaml `retention:`.
 tape/ws_depth/
 tape/monitor_markets/
+tape/monitor_poll/
 *.db
 *.sqlite
 *.sqlite3

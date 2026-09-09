@@ -548,6 +548,12 @@ COLLECTOR_SELF_TAPE_READ_TRIAGE: Dict[str, str] = {
         "trade prints — not a self-referential resume cursor. Tracked here so a future "
         "incremental cursor added to this module's own family doesn't silently evade the "
         "ratchet.",
+    "collection/monitor_poll.py":
+        "NOT the L319 mechanism: `ws_tape_age_seconds` stats a DIFFERENT family's day "
+        "files (tape/ws_depth/ mtime) as a LIVENESS gate — poll only when the WS feed is "
+        "stale — never as a resume cursor for its own family (each pass is a full "
+        "re-capture keyed by capture_id, no incremental state). Tracked here so a future "
+        "cursor added to tape/monitor_poll/ doesn't silently evade the ratchet.",
 }
 
 _COLLECTOR_SELF_TAPE_GLOB_RE = re.compile(r'\.glob\(\s*f?["\']dt=')
@@ -4073,6 +4079,9 @@ TAPE_ROW_IDENTITY_KEYS: Dict[str, Tuple[str, ...]] = {
     # 2026-08-25 monitor build: one scope pass writes one row per in-scope market + one
     # summary row (which carries no ticker — covered by the tuple's None for that field).
     "monitor_markets": ("ticker",),
+    # 2026-08-26: public-REST fallback for the 60s snapshot — one row per subscribed
+    # market per minute pass, plus one summary row.
+    "monitor_poll": ("ticker",),
     "orderbook_depth": ("ticker",),
     "perp_tape": ("record_type", "ticker", "mode"),   # `mode` separates backfill vs recent
     "polymarket_cpi_pairs": ("series", "period", "bucket_kind", "bucket_value"),

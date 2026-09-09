@@ -15,12 +15,17 @@ config/monitor.yaml            the single control surface (scope, thresholds+ran
         ▼  hourly cron (:08)
 collection/monitor_scope.py    /series + per-series /markets → tape/monitor_markets/
         │                      regenerates config/ws_depth_tickers.txt (cap 200, by volume)
-        ▼  restart only when the set changed
+        ▼  restart only when the set changed (flag file)
 collection/ws_depth.py         systemd daemon: WS orderbook_delta + trade channels
         │                      → tape/ws_depth/dt=*.jsonl.gz  (VPS-local, gitignored)
         │                      • every book delta with seq (gaps detected → resync)
         │                      • every public trade print (broker_truth)
         │                      • snapshot60 line per market per 60s (quiet periods measurable)
+        │  cron every minute (public REST, no credentials)
+collection/monitor_poll.py     fallback: batched /markets BBO for the same 200 tickers
+        │                      → tape/monitor_poll/ · stands down whenever WS tape is
+        │                      fresh (<3 min), takes back over the minute it goes stale —
+        │                      the 60s price floor survives a dead API key or WS outage
         ▼  cron every 15 min
 scripts/monitor_ingest.py      idempotent fold → data/monitor.db (SQLite, WAL, gitignored)
                                tables: markets, book_events, snapshots, trades, gaps,
@@ -56,7 +61,10 @@ sqlite3 data/monitor.db 'SELECT market_ticker, mid, spread, captured_at
                          FROM snapshots ORDER BY captured_at DESC LIMIT 10'
 ```
 
-Raw truth is the tape (`tape/ws_depth/dt=*.jsonl.gz`); the DB is derived and disposable —
+`snapshots.source` says which feed produced a row: `ws` rows carry top-5 L2 depth,
+`rest_poll` rows carry at-touch sizes only — filter on it when depth semantics matter.
+
+Raw truth is the tape (`tape/ws_depth/dt=*.jsonl.gz`, `tape/monitor_poll/`); the DB is derived and disposable —
 delete it and the next ingest rebuilds it from tape. Every price row carries its
 `price_source_tag` (`real_ask` book quotes, `broker_truth` trade prints/settlements).
 `yes_ask`/`mid` here are top-of-book geometry, NOT probabilities (Hard Rule #3 — bracket
