@@ -477,6 +477,28 @@ KNOWN_BENIGN_SILENCES: List[Dict[str, str]] = [
         "citation": ("LOOP-QUEUE.md Q44 item (2026-07-16 HIGH-confidence triage); "
                      "collection/polymarket_pairs.py:342 `if lines:` guard"),
     },
+    # Reset plan 2026-09-09, Phase 0.6: the weather legs were RETIRED (thesis dead four ways:
+    # pt1 raw ensemble, S1 longshot, S5 EMOS, Q37 summer maker). `collection/hourly_pass.py`
+    # RETIRED_LEGS makes their default pass a no-op, so these families legitimately stop
+    # growing. `silent_since` = each family's genuine last capture day: weather_books wrote
+    # through the 2026-09-09 collector-recovery pass; weather_actuals last wrote 2026-08-16
+    # (it was already starved by the Aug-25 → Sep-9 collector outage before retirement).
+    {
+        "family": "weather_books",
+        "silent_since": "2026-09-09",
+        "reason": ("leg RETIRED 2026-09-09 (reset plan Phase 0.6, RETIRED_LEGS in "
+                   "collection/hourly_pass.py) — weather thesis registry-DEAD; no writer by design."),
+        "citation": ("~/Active/01-projects/kalshi-26/reset-2026-09/00-plan.md §6; "
+                     "collection/hourly_pass.py RETIRED_LEGS"),
+    },
+    {
+        "family": "weather_actuals",
+        "silent_since": "2026-08-16",
+        "reason": ("leg RETIRED 2026-09-09 (reset plan Phase 0.6, RETIRED_LEGS in "
+                   "collection/hourly_pass.py) — weather thesis registry-DEAD; no writer by design."),
+        "citation": ("~/Active/01-projects/kalshi-26/reset-2026-09/00-plan.md §6; "
+                     "collection/hourly_pass.py RETIRED_LEGS"),
+    },
 ]
 
 

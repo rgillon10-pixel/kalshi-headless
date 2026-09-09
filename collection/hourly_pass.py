@@ -157,10 +157,38 @@ UNIVERSE_SWEEP_UTC_HOURS = {0, 6, 12, 18}
 
 
 # --------------------------------------------------------------------------- #
+# retired legs (reset plan 2026-09-09, Phase 0.6)
+# --------------------------------------------------------------------------- #
+# Legs whose thesis is registry-DEAD and whose tape serves no live probe. The weather family
+# died four ways (pt1 raw ensemble, S1 longshot, S5 EMOS, Q37 summer maker); the sharp-odds
+# de-vig leg fed the S7/S13/S21/S23 sports-CLV family, all DEAD. Retiring the DEFAULT pass
+# (not the injectable slot) keeps every offline test double working, leaves the UTC-hour gates
+# and constants in place for the invariants' structural checks, and stops ~180MB+ of dead tape
+# growth plus the daily Open-Meteo/IEM/odds-api calls. A retired leg reports
+# `{"status": "retired"}` in the summary and never lowers completeness. To revive one, remove
+# it from this set. See ~/Active/01-projects/kalshi-26/reset-2026-09/00-plan.md §6.
+RETIRED_LEGS = frozenset({"weather_books", "forecast_collector", "weather_actuals", "sports_odds"})
+RETIRED_SINCE = "2026-09-09"
+
+
+def _retired(leg: str) -> Dict[str, Any]:
+    return {"status": "retired", "leg": leg, "since": RETIRED_SINCE,
+            "why": "dead thesis — reset plan 2026-09-09 Phase 0.6 (see RETIRED_LEGS)"}
+
+
+def _odds_api_key() -> Optional[str]:
+    """The sharp-odds enrichment key, or None when that leg is retired (sports_pairs then
+    runs Kalshi-only, exactly as it did before the key existed)."""
+    if "sports_odds" in RETIRED_LEGS:
+        return None
+    return os.environ.get("ODDS_API_KEY")
+
+
+# --------------------------------------------------------------------------- #
 # sub-pass wiring (real by default, injectable for offline testing)
 # --------------------------------------------------------------------------- #
 def _default_sports_pass() -> Dict[str, Any]:
-    return sports_pairs.run(odds_api_key=os.environ.get("ODDS_API_KEY"))
+    return sports_pairs.run(odds_api_key=_odds_api_key())
 
 
 def _default_crypto_pass() -> Dict[str, Any]:
@@ -440,15 +468,18 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
 
     # weather revival: forward full-depth capture for weather markets. Own discovery,
     # fault-isolated like every sibling; one line per open weather market, each one market.
-    w_fn = weather_fn or _default_weather_pass
-    weather = _safe_call(w_fn)
+    # Retired by default (RETIRED_LEGS); an injected weather_fn still runs (offline tests).
+    if weather_fn is None and "weather_books" in RETIRED_LEGS:
+        weather = _retired("weather_books")
+    else:
+        weather = _safe_call(weather_fn or _default_weather_pass)
     if weather["status"] == "ok":
         r = weather["result"]
         n_captured = r.get("n_captured", 0)
         n_lines += n_captured
         n_markets += n_captured
         completeness_ok = completeness_ok and bool(r.get("completeness_ok", False))
-    else:
+    elif weather["status"] != "retired":
         completeness_ok = False
 
     if polymarket["status"] == "ok":
@@ -526,10 +557,14 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     # not (the exception surfaces as status=error via _safe_call).
     forecast: Optional[Dict[str, Any]] = None
     if ts.hour == FORECAST_COLLECTOR_UTC_HOUR:
-        f_fn = forecast_fn or _default_forecast_pass
-        forecast = _safe_call(f_fn)
+        if forecast_fn is None and "forecast_collector" in RETIRED_LEGS:
+            forecast = _retired("forecast_collector")
+        else:
+            forecast = _safe_call(forecast_fn or _default_forecast_pass)
         if forecast["status"] == "error":
             completeness_ok = False
+        elif forecast["status"] == "retired":
+            pass
         else:
             r = forecast["result"]
             n_exp, n_comp = r.get("n_expected", 0), r.get("n_complete", 0)
@@ -544,10 +579,14 @@ def run(sports_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     # exception lowers it; a source that simply hasn't posted yet is captured, not a drop).
     wx_actuals: Optional[Dict[str, Any]] = None
     if ts.hour == WEATHER_ACTUALS_UTC_HOUR:
-        wa_fn = weather_actuals_fn or _default_weather_actuals_pass
-        wx_actuals = _safe_call(wa_fn)
+        if weather_actuals_fn is None and "weather_actuals" in RETIRED_LEGS:
+            wx_actuals = _retired("weather_actuals")
+        else:
+            wx_actuals = _safe_call(weather_actuals_fn or _default_weather_actuals_pass)
         if wx_actuals["status"] == "error":
             completeness_ok = False
+        elif wx_actuals["status"] == "retired":
+            pass
         else:
             completeness_ok = completeness_ok and bool(wx_actuals["result"].get("completeness_ok", False))
 
@@ -624,7 +663,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     sports_fn = None
     if args.sports_limit is not None:
         sports_fn = lambda: sports_pairs.run(  # noqa: E731
-            limit=args.sports_limit, odds_api_key=os.environ.get("ODDS_API_KEY"))
+            limit=args.sports_limit, odds_api_key=_odds_api_key())
 
     crypto_fn = None
     if args.crypto_symbols is not None:

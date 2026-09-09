@@ -1341,3 +1341,66 @@ def test_universe_sweep_raising_marks_incomplete_not_crash(tmp_path):
     assert summary["crypto_hourly"]["status"] == "ok"
     assert summary["n_lines"] == 1 + 1
     assert summary["n_markets"] == 2 + 10
+
+
+# --------------------------------------------------------------------------- #
+# retired legs (reset plan 2026-09-09, Phase 0.6): the DEFAULT pass for a retired leg is
+# a no-op that reports status=retired and never lowers completeness; an injected double
+# still runs, so nothing above changes.
+# --------------------------------------------------------------------------- #
+def test_retired_legs_report_retired_and_keep_completeness(tmp_path, monkeypatch):
+    assert {"weather_books", "forecast_collector", "weather_actuals", "sports_odds"} <= hp.RETIRED_LEGS
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1)
+    # a network-hitting default would fail loudly if the retirement gate were bypassed
+    monkeypatch.setattr(hp, "_default_weather_pass", lambda: (_ for _ in ()).throw(AssertionError("called")))
+    monkeypatch.setattr(hp, "_default_forecast_pass", lambda: (_ for _ in ()).throw(AssertionError("called")))
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     now=_ts(FORECAST_HOUR))
+
+    assert summary["weather_books"]["status"] == "retired"
+    assert summary["forecast_collector"]["status"] == "retired"
+    assert summary["completeness_ok"] is True
+
+
+def test_retired_weather_actuals_at_its_hour(tmp_path, monkeypatch):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1)
+    monkeypatch.setattr(hp, "_default_weather_actuals_pass", lambda: (_ for _ in ()).throw(AssertionError("called")))
+
+    summary = hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+                     polymarket_fn=lambda: _EMPTY_POLYMARKET,
+                     polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO,
+                     hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+                     universe_sweep_fn=lambda: _EMPTY_UNIVERSE,
+                     now=_ts(ACTUALS_HOUR))
+
+    assert summary["weather_actuals"]["status"] == "retired"
+    assert summary["completeness_ok"] is True
+
+
+def test_injected_weather_double_still_runs_when_retired(tmp_path):
+    sports = _sports_summary(tmp_path, n_games=1, n_complete=1)
+    crypto = _crypto_summary(tmp_path, n_symbols=1, n_complete=1)
+    calls = []
+
+    def _weather():
+        calls.append(1)
+        return _EMPTY_WEATHER
+
+    hp.run(sports_fn=lambda: sports, crypto_fn=lambda: crypto,
+           polymarket_fn=lambda: _EMPTY_POLYMARKET,
+           polymarket_macro_fn=lambda: _EMPTY_POLYMARKET_MACRO, weather_fn=_weather,
+           hyperliquid_funding_fn=lambda: _EMPTY_HF, perp_fn=lambda: _EMPTY_PERP,
+           now=_ts(NOT_ANOMALY_HOUR))
+    assert calls == [1]
+
+
+def test_odds_key_suppressed_when_sports_odds_retired(monkeypatch):
+    monkeypatch.setenv("ODDS_API_KEY", "not-used")
+    assert "sports_odds" in hp.RETIRED_LEGS
+    assert hp._odds_api_key() is None

@@ -70,7 +70,8 @@ ssh root@87.99.146.250 '/root/kalshi-headless/.venv/bin/pip install cryptography
 
 ## 4. Pick the tickers to capture
 
-Edit `config/ws_depth_tickers.txt` (committed) — one full Kalshi **market** ticker per
+`config/ws_depth_tickers.txt` (GENERATED hourly by `collection/monitor_scope.py` from
+`config/monitor.yaml` `scope:`; untracked since 2026-09-09) — one full Kalshi **market** ticker per
 line, `#` comments, blanks ignored. A market only earns a continuous subscription if a
 human lists it here (the set is capped at 200 with an honest `truncated` flag — lesson
 L10). Pick the ~most-active markets, where order-flow structure has signal:
@@ -83,7 +84,7 @@ curl -s 'https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit
       print("\n".join(m["ticker"] for m in ms[:40]))'
 ```
 
-Paste the ones you want into `config/ws_depth_tickers.txt`, commit, and pull on the VPS.
+To change the set, edit `config/monitor.yaml` `scope:` (the next scope pass rewrites the file).
 Or set `WS_DEPTH_TICKERS=...` in the env file to override without a commit.
 
 ## 5. Install + enable the unit
