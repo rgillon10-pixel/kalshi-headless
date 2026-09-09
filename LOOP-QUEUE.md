@@ -1,5 +1,10 @@
 # LOOP-QUEUE — standing work queue for autonomous cloud runs
 
+> **RETIRED 2026-09-09 (reset plan, Phase 0.7).** This file is no longer the coordination
+> surface and must not be appended to. The routines it coordinated no longer run. The live
+> surface is `PROBES.md` (repo root) and `~/Active/01-projects/kalshi-26/reset-2026-09/`.
+> Kept verbatim below as the history of Jul 2 → Sep 6, 2026.
+
 `protocol v3` · created 2026-07-02 (v1) · v3 2026-07-12 (Fable handoff, Ryan-approved
 interactive session) · owner: Ryan Gillon
 
