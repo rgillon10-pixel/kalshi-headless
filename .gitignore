@@ -28,3 +28,9 @@ venv/
 # os / editor
 .DS_Store
 .ipynb_checkpoints/
+
+# config/ws_depth_tickers.txt is GENERATED hourly on the VPS by collection/monitor_scope.py
+# (from config/monitor.yaml `scope:`). Tracking it dirtied the checkout every hour and made
+# the hourly collector fail its pre-pass `git pull --rebase` on every run from 2026-08-25
+# to 2026-09-09 (15 days of tape lost). Untracked 2026-09-09; the file stays on disk.
+config/ws_depth_tickers.txt
