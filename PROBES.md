@@ -40,3 +40,15 @@ REST poll fallback (`* * * * *`). Retired legs are listed in `collection/hourly_
 
 See `reset-2026-09/00-plan.md` §6. Do not re-open: weather (dead ×4), sports CLV, crypto
 ladders, cross-venue taker arb, unpaid Kalshi making, earnings iron condors.
+
+## Probe C — added 2026-10-14 (Ryan: "go with kalshi, figure it out")
+
+| Probe | What | Window | Protocol + ledger |
+|---|---|---|---|
+| C | S90 weather favorite TAKER: once a day at 00:35 UTC buy YES at the ask on every daily KXHIGH*/KXLOW* market priced 0.50–0.80 with 20–40 h to close, hold to settlement. Paper on the VPS from 2026-10-15; live only after 14 paper days, a signed `LIVE-AUTH-S90.md`, and a fresh API key. | 2026-10-15 → 10-29 (paper) → 12-01 gate | `reset-2026-09/50-probes/PROBE-C-weather-favorite-taker.md`; paper ledger `paper/ledger_s90/`; code `execution/strategies/s90_weather_favorite_taker.py`, `scripts/s90_daily_pass.py`, `ops/vps/kalshi-headless-s90.sh` |
+
+Evidence: 2026-10-14 calibration of the repo's own weather tape (Jul 16 – Oct 13, 592
+contracts at 0.50–0.80, 587 city-days): realized 0.650 vs ask 0.587, +4.7¢/contract after
+the taker fee, cluster-bootstrap CI [+0.8¢, +8.5¢] — the first candidate to clear the
+CLAUDE.md real-ask CI bar. Caveats (October-heavy, HIGH-series-driven, 46 tape days) and
+the kill rules are in the probe file. Probe A was ruled out for income by the Oct 12 survey.
